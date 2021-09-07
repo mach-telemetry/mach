@@ -1,4 +1,4 @@
-use crate::tsdb::{SeriesId, Dt};
+use crate::tsdb::{Dt, SeriesId};
 
 pub mod file;
 
@@ -19,7 +19,7 @@ where
     R: BlockReader,
 {
     fn writer(&self) -> W;
-    fn reader(&self, q: BlockKey) -> R;
+    fn reader(&self, id: SeriesId) -> Option<R>;
 }
 
 pub trait BlockWriter {
@@ -27,5 +27,6 @@ pub trait BlockWriter {
 }
 
 pub trait BlockReader {
+    fn set_range(&mut self, mint: Dt, maxt: Dt);
     fn next_block(&mut self) -> Option<&[u8]>;
 }

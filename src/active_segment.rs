@@ -1,10 +1,9 @@
-use crate::{
-    tsdb::{Sample},
-};
-use std::{
-    sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}},
-};
+use crate::tsdb::Sample;
 use seq_macro::seq;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
 
 const SECTSZ: usize = 256;
 
@@ -50,20 +49,20 @@ impl InnerSegment {
 
 #[derive(Clone)]
 pub struct ActiveSegment {
-    inner: Arc<Arc<InnerSegment>>
+    inner: Arc<Arc<InnerSegment>>,
 }
 
 impl ActiveSegment {
     pub fn new(nvars: usize) -> Self {
         Self {
-            inner: Arc::new(InnerSegment::arc_new(nvars))
+            inner: Arc::new(InnerSegment::arc_new(nvars)),
         }
     }
 
     pub fn snapshot(&self) -> ActiveSegmentReader {
         ActiveSegmentReader {
             _inner: (*self.inner).clone(),
-            _len: self.inner.len()
+            _len: self.inner.len(),
         }
     }
 
@@ -90,5 +89,3 @@ pub struct ActiveSegmentReader {
     _inner: Arc<InnerSegment>,
     _len: usize,
 }
-
-

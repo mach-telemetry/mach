@@ -1,25 +1,19 @@
 use crate::{
-    active_segment::{ActiveSegment, ActiveSegmentWriter},
     active_block::{ActiveBlock, ActiveBlockWriter},
+    active_segment::{ActiveSegment, ActiveSegmentWriter},
     block::{
-        BlockStore,
-        BlockWriter,
-        BlockReader,
-        BlockKey,
-        file::{
-            FileStore,
-            ThreadFileWriter,
-            FileBlockLoader,
-        },
+        file::{FileBlockLoader, FileStore, ThreadFileWriter},
+        BlockReader, BlockStore, BlockWriter,
     },
-};
-use std::{
-    path::Path,
-    marker::PhantomData,
-    collections::HashMap,
-    sync::{Arc, Mutex},
+    read_set::SeriesReadSet,
 };
 use dashmap::DashMap;
+use std::{
+    collections::HashMap,
+    marker::PhantomData,
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 pub type Dt = u64;
 pub type Fl = f64;
@@ -29,7 +23,7 @@ pub struct SeriesId(u64);
 
 #[derive(Copy, Clone)]
 pub struct SeriesOptions {
-    nvars: usize
+    nvars: usize,
 }
 
 pub struct Sample {
@@ -37,10 +31,27 @@ pub struct Sample {
     pub values: Box<[Fl]>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
+struct MemSeries {
+    active_segment: ActiveSegment,
+    active_block: ActiveBlock,
+    snapshot_lock: Arc<Mutex<()>>,
+}
+
+impl MemSeries {
+    fn new(nvars: usize) -> Self {
+        Self {
+            active_segment: ActiveSegment::new(nvars),
+            active_block: ActiveBlock::new(),
+            snapshot_lock: Arc::new(Mutex::new(())),
+        }
+    }
+}
+
 struct SeriesMetadata {
-    varopts: SeriesOptions,
-    thread_id: usize,
+    options: SeriesOptions,
+    mem_series: MemSeries,
+    _thread_id: usize,
 }
 
 pub struct Db<B, W, R>
@@ -49,9 +60,8 @@ where
     W: BlockWriter,
     R: BlockReader,
 {
-
     // Global metadata information
-    map: Arc<DashMap<SeriesId, SeriesMetadata>>,
+    map: DashMap<SeriesId, SeriesMetadata>,
     threads: Vec<WriterMetadata<B, W, R>>,
 
     // File storage information
@@ -62,30 +72,32 @@ where
 
 impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
     pub fn new<P: AsRef<Path>>(dir: P, threads: usize) -> Self {
+        let file_store = FileStore::new(dir);
         Self {
             map: DashMap::new(),
-            threads: Vec::new(),
-            file_store: FileStore::new(dir),
+            threads: (0..threads).map(|_| WriterMetadata::new(file_store.clone())).collect(),
+            file_store,
             _w: PhantomData,
             _r: PhantomData,
         }
     }
 
-    pub fn add_series(&mut self, id: SeriesId, varopts: SeriesOptions) -> usize {
+    pub fn add_series(&self, id: SeriesId, options: SeriesOptions) -> usize {
         let thread_id = id.0 as usize % self.threads.len(); // this is probably where we'll have to futz with autoscaling
-        let meta = SeriesMetadata {
-            varopts,
-            thread_id
-        };
-        self.threads[thread_id].add_series(id, meta);
+        let mem_series = MemSeries::new(options.nvars);
+        self.threads[thread_id].add_series(id, mem_series.clone());
+        let meta = SeriesMetadata { options, mem_series, _thread_id: thread_id };
+        self.map.insert(id, meta);
         thread_id
     }
-}
 
-struct MemSeries {
-    active_segment: ActiveSegment,
-    active_block: ActiveBlock,
-    snapshot_lock: Arc<Mutex<()>>,
+    pub fn snapshot(&self, id: SeriesId) -> Result<SeriesReadSet<FileBlockLoader>, &'static str> {
+        let metadata = self.map.get(&id).ok_or("id not found")?;
+        let segment = metadata.mem_series.active_segment.snapshot();
+        let block = metadata.mem_series.active_block.snapshot();
+        let blocks = self.file_store.reader(id).ok_or("ID not found")?;
+        Ok(SeriesReadSet::new(metadata.options, segment, block, blocks))
+    }
 }
 
 pub struct WriterMetadata<B, W, R>
@@ -112,12 +124,7 @@ impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
         }
     }
 
-    fn add_series(&self, id: SeriesId, metadata: SeriesMetadata) {
-        let ser = MemSeries {
-            active_segment: ActiveSegment::new(metadata.varopts.nvars),
-            active_block: ActiveBlock::new(),
-            snapshot_lock: Arc::new(Mutex::new(())),
-        };
+    fn add_series(&self, id: SeriesId, ser: MemSeries) {
         self.map.insert(id, ser);
     }
 
@@ -131,7 +138,7 @@ pub struct Writer<W: BlockWriter> {
     ref_map: HashMap<SeriesId, usize>,
     active_segments: Vec<ActiveSegmentWriter>,
     active_blocks: Vec<(Arc<Mutex<()>>, ActiveBlockWriter)>,
-    block_writer: W,
+    _block_writer: W,
 }
 
 impl<W: BlockWriter> Writer<W> {
@@ -141,7 +148,7 @@ impl<W: BlockWriter> Writer<W> {
             ref_map: HashMap::new(),
             active_segments: Vec::new(),
             active_blocks: Vec::new(),
-            block_writer,
+            _block_writer: block_writer,
         }
     }
 
@@ -153,7 +160,8 @@ impl<W: BlockWriter> Writer<W> {
             self.active_segments.push(ser.active_segment.writer());
             let active_block_writer = ser.active_block.writer();
             let snapshot_lock = ser.snapshot_lock.clone();
-            self.active_blocks.push((snapshot_lock, active_block_writer));
+            self.active_blocks
+                .push((snapshot_lock, active_block_writer));
             Some(result)
         } else {
             None

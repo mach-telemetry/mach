@@ -1,16 +1,16 @@
-use crate::{
-    block::BLOCKSZ,
-    tsdb::Dt,
-};
+use crate::{block::BLOCKSZ, tsdb::Dt};
 
 use std::{
-    sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}},
     convert::TryFrom,
+    sync::{
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Arc,
+    },
 };
 
 struct InnerActiveBlock {
     block: [u8; BLOCKSZ],
-    offset: usize,
+    offset: AtomicUsize,
     mint: Dt,
     maxt: Dt,
 }
@@ -19,79 +19,82 @@ impl InnerActiveBlock {
     fn new() -> Self {
         Self {
             block: [0u8; BLOCKSZ],
-            offset: 2, // HEADER of size 2
+            offset: AtomicUsize::new(2), // HEADER of size 2
             mint: Dt::MAX,
             maxt: Dt::MIN,
         }
     }
 
     fn push_segment(&mut self, mint: Dt, maxt: Dt, slice: &[u8]) {
-        if self.remaining() < slice.len() {
+        let len = self.offset.load(SeqCst);
+
+        if BLOCKSZ - len < slice.len() {
             panic!("Not enough space in active block");
         }
 
-        let len = self.offset;
+        let len = self.offset.load(SeqCst);
         self.mint = self.mint.min(mint);
         self.maxt = maxt;
         self.block[len..len + slice.len()].clone_from_slice(slice);
-        self.offset += slice.len();
-        self.write_size();
-    }
-
-    fn write_size(&mut self) {
-        let sz = <u16>::try_from(self.offset).unwrap().to_le_bytes();
+        let old_size = self.offset.fetch_add(slice.len(), SeqCst);
+        let new_size = old_size + slice.len();
+        let sz = <u16>::try_from(new_size).unwrap().to_le_bytes();
         self.block[..2].copy_from_slice(&sz);
     }
 
-    fn remaining(&self) -> usize {
-        BLOCKSZ - self.offset
+    fn _remaining(&self) -> usize {
+        BLOCKSZ - self.offset.load(SeqCst)
     }
 }
 
 #[derive(Clone)]
 pub struct ActiveBlock {
-    inner: Arc<InnerActiveBlock>,
+    inner: Arc<Arc<InnerActiveBlock>>,
 }
 
 impl ActiveBlock {
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(InnerActiveBlock::new())
+            inner: Arc::new(Arc::new(InnerActiveBlock::new())),
         }
     }
     pub fn writer(&self) -> ActiveBlockWriter {
         ActiveBlockWriter {
-            ptr: Arc::as_ptr(&self.inner) as *mut InnerActiveBlock,
-            _arc: self.inner.clone()
+            ptr: Arc::as_ptr(&*self.inner) as *mut InnerActiveBlock,
+            _arc: (*self.inner).clone(),
         }
     }
 
+    // Snapshotting this from multiple threads assumes that there is a lock held
     pub fn snapshot(&self) -> ActiveBlockReader {
         ActiveBlockReader {
-            _len: self.inner.offset,
-            _inner: self.inner.clone(),
+            _len: (*self.inner).offset.load(SeqCst),
+            _inner: (*self.inner).clone(),
         }
     }
 }
 
 pub struct ActiveBlockWriter {
     ptr: *mut InnerActiveBlock,
-    _arc: Arc<InnerActiveBlock>
+    _arc: Arc<InnerActiveBlock>,
 }
 
 impl ActiveBlockWriter {
-    pub fn push_section(&mut self, mint: Dt, maxt: Dt, slice: &[u8]) {
-        unsafe { self.ptr.as_mut().unwrap().push_segment(mint, maxt, slice); }
+    pub fn _push_section(&mut self, mint: Dt, maxt: Dt, slice: &[u8]) {
+        unsafe {
+            self.ptr
+                .as_mut()
+                .expect("inactive block ptr is null")
+                .push_segment(mint, maxt, slice);
+        }
     }
 
     pub fn _remaining(&self) -> usize {
-        self._arc.remaining()
+        self._arc._remaining()
     }
 }
 
-struct ActiveBlockReader {
+pub struct ActiveBlockReader {
     _inner: Arc<InnerActiveBlock>,
     _len: usize,
 }
-
-

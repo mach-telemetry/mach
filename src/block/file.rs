@@ -1,7 +1,7 @@
 use crate::{
-    tsdb::{SeriesId},
-    block::{BLOCKSZ, BlockError, BlockKey, BlockReader, BlockStore, BlockWriter},
-    utils::list::{List, ListWriter},
+    block::{BlockError, BlockKey, BlockReader, BlockStore, BlockWriter, BLOCKSZ},
+    tsdb::{Dt, SeriesId},
+    utils::list::{List, ListReader, ListWriter},
 };
 use std::{
     collections::HashMap,
@@ -57,18 +57,9 @@ impl FileStore {
         }
     }
 
-    fn block_reader(&self, key: BlockKey) -> FileBlockLoader {
-        let mut v = Vec::new();
-        let snapshot = match self.index.get(&key.id) {
-            None => return FileBlockLoader::new(&self.dir_path, v),
-            Some(list) => list.snapshot(),
-        };
-        for block_id in snapshot.iter() {
-            if block_id.mint <= key.maxt && key.mint <= block_id.maxt {
-                v.push(*block_id);
-            }
-        }
-        FileBlockLoader::new(&self.dir_path, v)
+    fn block_reader(&self, id: SeriesId) -> Option<FileBlockLoader> {
+        let snapshot = self.index.get(&id)?.snapshot();
+        Some(FileBlockLoader::new(&self.dir_path, snapshot))
     }
 }
 
@@ -77,8 +68,8 @@ impl BlockStore<ThreadFileWriter, FileBlockLoader> for FileStore {
         self.thread_writer()
     }
 
-    fn reader(&self, q: BlockKey) -> FileBlockLoader {
-        self.block_reader(q)
+    fn reader(&self, id: SeriesId) -> Option<FileBlockLoader> {
+        self.block_reader(id)
     }
 }
 
@@ -141,6 +132,7 @@ impl BlockWriter for ThreadFileWriter {
 }
 
 pub struct FileBlockLoader {
+    blocks: ListReader<BlockId>,
     items: Vec<BlockId>,
     next_idx: usize,
     current_file_id: usize,
@@ -150,26 +142,13 @@ pub struct FileBlockLoader {
 }
 
 impl FileBlockLoader {
-    fn new<P: AsRef<Path>>(dir: P, items: Vec<BlockId>) -> Self {
+    fn new<P: AsRef<Path>>(dir: P, blocks: ListReader<BlockId>) -> Self {
         let dir = PathBuf::from(dir.as_ref());
-        if items.is_empty() {
-            return Self {
-                items: Vec::new(),
-                next_idx: 0,
-                current_file_id: 0,
-                file: None,
-                dir,
-                buf: [0u8; BLOCKSZ],
-            };
-        }
-
-        let current_file_id = items[0].file_id;
-        assert!(items.is_sorted());
-
         Self {
-            items,
+            blocks,
+            items: Vec::new(),
             next_idx: 0,
-            current_file_id,
+            current_file_id: 0,
             file: None,
             dir,
             buf: [0u8; BLOCKSZ],
@@ -190,16 +169,40 @@ impl FileBlockLoader {
         f.seek(SeekFrom::Start(offset as u64)).unwrap();
         f.read_exact(&mut self.buf).unwrap();
     }
+
+    fn reset(&mut self) {
+        self.items.clear();
+        self.next_idx = 0;
+        self.current_file_id = 0;
+        self.file = None;
+    }
 }
 
 impl BlockReader for FileBlockLoader {
+    fn set_range(&mut self, mint: Dt, maxt: Dt) {
+        self.reset();
+        for item in self.blocks.iter() {
+            if item.mint <= maxt && mint <= item.maxt {
+                self.items.push(*item);
+            } else if item.mint > maxt {
+                break;
+            }
+        }
+        assert!(self.items.is_sorted());
+    }
+
     fn next_block(&mut self) -> Option<&[u8]> {
         if self.next_idx >= self.items.len() {
             None
         } else {
             let current_idx = self.next_idx;
             self.next_idx += 1;
-            let BlockId { file_id, block_id, mint: _, maxt: _ } = self.items[current_idx];
+            let BlockId {
+                file_id,
+                block_id,
+                mint: _,
+                maxt: _,
+            } = self.items[current_idx];
 
             if self.file.is_none() || self.current_file_id != file_id {
                 self.open_file(file_id);

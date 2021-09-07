@@ -1,15 +1,17 @@
 #![feature(get_mut_unchecked)]
 #![feature(is_sorted)]
 
-mod block;
-mod utils;
-mod tsdb;
-mod active_segment;
 mod active_block;
+mod active_segment;
+mod block;
+mod read_set;
+mod tsdb;
+mod utils;
 //pub mod series;
 
 //pub use series::series::{Series, SeriesWriter, SeriesReader};
-pub use tsdb::{SeriesOptions, Db, Writer};
+pub use read_set::SeriesReadSet;
+pub use tsdb::{Db, SeriesOptions, WriterMetadata, Writer};
 
 #[cfg(test)]
 mod tests {
