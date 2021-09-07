@@ -1,4 +1,7 @@
-use crate::tsdb::Sample;
+use crate::{
+    tsdb::{Fl, Dt, Sample},
+    segment::SegmentLike,
+};
 use seq_macro::seq;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
@@ -8,9 +11,40 @@ use std::sync::{
 const SECTSZ: usize = 256;
 
 struct GenericInner<T: ?Sized> {
-    ts: [u64; SECTSZ],
+    ts: [Dt; SECTSZ],
     len: AtomicUsize,
     values: T,
+}
+
+pub struct ActiveSegmentBuffer {
+    inner: Arc<InnerSegment>,
+    len: usize,
+}
+
+impl SegmentLike for ActiveSegmentBuffer {
+    fn timestamps(&self) -> &[Dt] {
+        &self.inner.ts[..self.len]
+    }
+
+    fn variable(&self, id: usize) -> &[Fl] {
+        &self.inner.values[id][..self.len]
+    }
+
+    fn value(&self, varid: usize, idx: usize) -> Fl {
+        self.inner.values[varid][idx]
+    }
+
+    fn row(&self, _: usize) -> &[Fl] {
+        unimplemented!()
+    }
+
+    fn nvars(&self) -> usize {
+        self.inner.values.len()
+    }
+
+    fn len(&self) -> usize {
+        self.len
+    }
 }
 
 type InnerSegment = GenericInner<[[f64; SECTSZ]]>;
@@ -50,12 +84,14 @@ impl InnerSegment {
 #[derive(Clone)]
 pub struct ActiveSegment {
     inner: Arc<Arc<InnerSegment>>,
+    nvars: usize
 }
 
 impl ActiveSegment {
     pub fn new(nvars: usize) -> Self {
         Self {
             inner: Arc::new(InnerSegment::arc_new(nvars)),
+            nvars,
         }
     }
 
@@ -69,19 +105,35 @@ impl ActiveSegment {
     pub fn writer(&self) -> ActiveSegmentWriter {
         ActiveSegmentWriter {
             ptr: Arc::as_ptr(&*self.inner) as *mut InnerSegment,
-            _arc: (*self.inner).clone(),
+            arc: self.inner.clone(),
+            nvars: self.nvars,
         }
     }
 }
 
 pub struct ActiveSegmentWriter {
     ptr: *mut InnerSegment,
-    _arc: Arc<InnerSegment>,
+    arc: Arc<Arc<InnerSegment>>,
+    nvars: usize,
 }
 
 impl ActiveSegmentWriter {
     pub fn push(&mut self, item: Sample) -> bool {
         unsafe { self.ptr.as_mut().unwrap().push(item) }
+    }
+
+    pub fn yield_replace(&mut self) -> ActiveSegmentBuffer {
+        let mut new = InnerSegment::arc_new(self.nvars);
+        unsafe {
+            std::mem::swap(&mut *Arc::get_mut_unchecked(&mut self.arc), &mut new);
+        }
+        self.ptr = Arc::as_ptr(&*self.arc) as *mut InnerSegment;
+
+        let len = new.len.load(SeqCst);
+        ActiveSegmentBuffer {
+            inner: new,
+            len
+        }
     }
 }
 

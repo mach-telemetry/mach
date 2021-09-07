@@ -12,7 +12,7 @@ use std::{
     collections::HashMap,
     marker::PhantomData,
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
 };
 
 pub type Dt = u64;
@@ -35,7 +35,7 @@ pub struct Sample {
 struct MemSeries {
     active_segment: ActiveSegment,
     active_block: ActiveBlock,
-    snapshot_lock: Arc<Mutex<()>>,
+    snapshot_lock: Arc<RwLock<()>>,
 }
 
 impl MemSeries {
@@ -43,7 +43,7 @@ impl MemSeries {
         Self {
             active_segment: ActiveSegment::new(nvars),
             active_block: ActiveBlock::new(),
-            snapshot_lock: Arc::new(Mutex::new(())),
+            snapshot_lock: Arc::new(RwLock::new(())),
         }
     }
 }
@@ -137,7 +137,7 @@ pub struct Writer<W: BlockWriter> {
     series_map: Arc<DashMap<SeriesId, MemSeries>>,
     ref_map: HashMap<SeriesId, usize>,
     active_segments: Vec<ActiveSegmentWriter>,
-    active_blocks: Vec<(Arc<Mutex<()>>, ActiveBlockWriter)>,
+    active_blocks: Vec<(Arc<RwLock<()>>, ActiveBlockWriter)>,
     _block_writer: W,
 }
 
@@ -169,7 +169,13 @@ impl<W: BlockWriter> Writer<W> {
     }
 
     pub fn push(&mut self, id: usize, sample: Sample) -> Result<(), &'static str> {
-        let full = self.active_segments[id].push(sample);
+        let active_segment = &mut self.active_segments[id];
+        let full = active_segment.push(sample);
+        if full {
+            let x = self.active_blocks[id].0.write();
+            let _ = active_segment.yield_replace();
+            drop(x)
+        }
         Ok(())
     }
 }

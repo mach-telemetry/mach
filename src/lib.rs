@@ -7,6 +7,7 @@ mod block;
 mod read_set;
 mod tsdb;
 mod utils;
+mod segment;
 //pub mod series;
 
 //pub use series::series::{Series, SeriesWriter, SeriesReader};
