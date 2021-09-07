@@ -1,5 +1,6 @@
 use crate::{
-    block::{BlockError, BlockKey, BlockReader, BlockStore, BlockWriter},
+    tsdb::{SeriesId},
+    block::{BLOCKSZ, BlockError, BlockKey, BlockReader, BlockStore, BlockWriter},
     utils::list::{List, ListWriter},
 };
 use std::{
@@ -17,7 +18,7 @@ use std::{
 //};
 use dashmap::DashMap;
 
-const BLOCKSZ: usize = 8192;
+//const BLOCKSZ: usize = 8192;
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct BlockId {
@@ -29,7 +30,7 @@ struct BlockId {
 
 #[derive(Clone)]
 pub struct FileStore {
-    index: DashMap<u64, List<BlockId>>,
+    index: DashMap<SeriesId, List<BlockId>>,
     file_allocator: Arc<AtomicUsize>,
     dir_path: PathBuf,
 }
@@ -82,8 +83,8 @@ impl BlockStore<ThreadFileWriter, FileBlockLoader> for FileStore {
 }
 
 pub struct ThreadFileWriter {
-    index: DashMap<u64, List<BlockId>>,
-    index_writers: HashMap<u64, ListWriter<BlockId>>,
+    index: DashMap<SeriesId, List<BlockId>>,
+    index_writers: HashMap<SeriesId, ListWriter<BlockId>>,
     file_allocator: Arc<AtomicUsize>,
     file: Option<File>,
     file_id: usize,

@@ -1,14 +1,16 @@
+use crate::tsdb::{SeriesId, Dt};
+
 pub mod file;
 
 //pub const KEYSZ: usize = 24;
-//pub const BLOCKSZ: usize = 8192;
+pub const BLOCKSZ: usize = 8192;
 
 pub struct BlockError(&'static str);
 
 pub struct BlockKey {
-    pub id: u64,
-    pub mint: u64,
-    pub maxt: u64,
+    pub id: SeriesId,
+    pub mint: Dt,
+    pub maxt: Dt,
 }
 
 pub trait BlockStore<W, R>: Clone
