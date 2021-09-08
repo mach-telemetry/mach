@@ -8,6 +8,7 @@ mod read_set;
 mod tsdb;
 mod utils;
 mod segment;
+mod compression;
 //pub mod series;
 
 //pub use series::series::{Series, SeriesWriter, SeriesReader};

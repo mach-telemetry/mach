@@ -1,11 +1,13 @@
 use crate::{
     active_block::{ActiveBlock, ActiveBlockWriter},
-    active_segment::{ActiveSegment, ActiveSegmentWriter},
+    active_segment::{SECTSZ, ActiveSegment, ActiveSegmentWriter},
     block::{
         file::{FileBlockLoader, FileStore, ThreadFileWriter},
-        BlockReader, BlockStore, BlockWriter,
+        BlockReader, BlockStore, BlockWriter, BLOCKSZ, BlockKey
     },
     read_set::SeriesReadSet,
+    compression::Compression,
+    segment::SegmentLike,
 };
 use dashmap::DashMap;
 use std::{
@@ -21,9 +23,10 @@ pub type Fl = f64;
 #[derive(Hash, Copy, Clone, PartialEq, Eq)]
 pub struct SeriesId(u64);
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct SeriesOptions {
-    nvars: usize,
+    pub nvars: usize,
+    pub compressor: Compression
 }
 
 pub struct Sample {
@@ -48,6 +51,7 @@ impl MemSeries {
     }
 }
 
+#[derive(Clone)]
 struct SeriesMetadata {
     options: SeriesOptions,
     mem_series: MemSeries,
@@ -85,8 +89,8 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
     pub fn add_series(&self, id: SeriesId, options: SeriesOptions) -> usize {
         let thread_id = id.0 as usize % self.threads.len(); // this is probably where we'll have to futz with autoscaling
         let mem_series = MemSeries::new(options.nvars);
-        self.threads[thread_id].add_series(id, mem_series.clone());
         let meta = SeriesMetadata { options, mem_series, _thread_id: thread_id };
+        self.threads[thread_id].add_series(id, meta.clone());
         self.map.insert(id, meta);
         thread_id
     }
@@ -96,7 +100,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         let segment = metadata.mem_series.active_segment.snapshot();
         let block = metadata.mem_series.active_block.snapshot();
         let blocks = self.file_store.reader(id).ok_or("ID not found")?;
-        Ok(SeriesReadSet::new(metadata.options, segment, block, blocks))
+        Ok(SeriesReadSet::new(metadata.options.clone(), segment, block, blocks))
     }
 }
 
@@ -106,7 +110,7 @@ where
     W: BlockWriter,
     R: BlockReader,
 {
-    map: Arc<DashMap<SeriesId, MemSeries>>,
+    map: Arc<DashMap<SeriesId, SeriesMetadata>>,
 
     // File storage information
     file_store: B,
@@ -124,7 +128,7 @@ impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
         }
     }
 
-    fn add_series(&self, id: SeriesId, ser: MemSeries) {
+    fn add_series(&self, id: SeriesId, ser: SeriesMetadata) {
         self.map.insert(id, ser);
     }
 
@@ -133,22 +137,38 @@ impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
     }
 }
 
+struct BlockInfo {
+    snapshot_lock: Arc<RwLock<()>>,
+    series_options: SeriesOptions,
+    active_block_writer: ActiveBlockWriter,
+}
+
 pub struct Writer<W: BlockWriter> {
-    series_map: Arc<DashMap<SeriesId, MemSeries>>,
+    series_map: Arc<DashMap<SeriesId, SeriesMetadata>>,
     ref_map: HashMap<SeriesId, usize>,
+
+    // Reference these items in the push method
     active_segments: Vec<ActiveSegmentWriter>,
-    active_blocks: Vec<(Arc<RwLock<()>>, ActiveBlockWriter)>,
-    _block_writer: W,
+    snapshot_locks: Vec<Arc<RwLock<()>>>,
+    series_options: Vec<SeriesOptions>,
+    active_blocks: Vec<ActiveBlockWriter>,
+
+    // Shared buffer for the compressor and the block writer
+    buf: [u8; BLOCKSZ],
+    block_writer: W,
 }
 
 impl<W: BlockWriter> Writer<W> {
-    fn new(series_map: Arc<DashMap<SeriesId, MemSeries>>, block_writer: W) -> Self {
+    fn new(series_map: Arc<DashMap<SeriesId, SeriesMetadata>>, block_writer: W) -> Self {
         Self {
             series_map,
             ref_map: HashMap::new(),
             active_segments: Vec::new(),
+            snapshot_locks: Vec::new(),
+            series_options: Vec::new(),
             active_blocks: Vec::new(),
-            _block_writer: block_writer,
+            buf: [0u8; BLOCKSZ],
+            block_writer: block_writer,
         }
     }
 
@@ -157,24 +177,50 @@ impl<W: BlockWriter> Writer<W> {
             Some(*idx)
         } else if let Some(ser) = self.series_map.get_mut(&id) {
             let result = self.active_segments.len();
-            self.active_segments.push(ser.active_segment.writer());
-            let active_block_writer = ser.active_block.writer();
-            let snapshot_lock = ser.snapshot_lock.clone();
-            self.active_blocks
-                .push((snapshot_lock, active_block_writer));
+            self.active_segments.push(ser.mem_series.active_segment.writer());
+            self.snapshot_locks.push(ser.mem_series.snapshot_lock.clone());
+            self.active_blocks.push(ser.mem_series.active_block.writer());
+            self.series_options.push(ser.options.clone());
             Some(result)
         } else {
             None
         }
     }
 
-    pub fn push(&mut self, id: usize, sample: Sample) -> Result<(), &'static str> {
+    pub fn push(&mut self, series_id: SeriesId, id: usize, sample: Sample) -> Result<(), &'static str> {
         let active_segment = &mut self.active_segments[id];
-        let full = active_segment.push(sample);
-        if full {
-            let x = self.active_blocks[id].0.write();
-            let _ = active_segment.yield_replace();
-            drop(x)
+        let segment_len = active_segment.push(sample);
+        if segment_len == SECTSZ {
+
+            // Get block information and take the snapshot lock
+            let mtx_guard = self.snapshot_locks[id].write();
+
+            // Take segment
+            let segment = active_segment.yield_replace();
+            let (mint, maxt) = {
+                let timestamps = segment.timestamps();
+                (timestamps[0], *timestamps.last().unwrap())
+            };
+
+            // And then comrpess it
+            let compressor = &self.series_options[id].compressor;
+            let bytes = compressor.compress(&segment, &mut self.buf[..]);
+
+            // Write the compressed segment into the active block
+            let active_block_writer = &mut self.active_blocks[id];
+            if bytes <= active_block_writer.remaining() {
+                active_block_writer.push_section(mint, maxt, &self.buf[..bytes])
+            } else {
+                let block = active_block_writer.yield_replace();
+                let key = BlockKey {
+                    id: series_id,
+                    mint: block.mint(),
+                    maxt: block.maxt(),
+                };
+                self.block_writer.write_block(key, block.slice())?;
+            }
+
+            drop(mtx_guard)
         }
         Ok(())
     }

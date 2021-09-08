@@ -8,7 +8,7 @@ use std::sync::{
     Arc,
 };
 
-const SECTSZ: usize = 256;
+pub const SECTSZ: usize = 256;
 
 struct GenericInner<T: ?Sized> {
     ts: [Dt; SECTSZ],
@@ -67,13 +67,13 @@ impl InnerSegment {
         })
     }
 
-    fn push(&mut self, item: Sample) -> bool {
+    fn push(&mut self, item: Sample) -> usize {
         let len = self.len();
         self.ts[len] = item.ts;
         for (var, val) in item.values.iter().enumerate() {
             self.values.as_mut()[var][len] = *val;
         }
-        self.len.fetch_add(1, SeqCst) == SECTSZ
+        self.len.fetch_add(1, SeqCst)
     }
 
     fn len(&self) -> usize {
@@ -118,7 +118,7 @@ pub struct ActiveSegmentWriter {
 }
 
 impl ActiveSegmentWriter {
-    pub fn push(&mut self, item: Sample) -> bool {
+    pub fn push(&mut self, item: Sample) -> usize {
         unsafe { self.ptr.as_mut().unwrap().push(item) }
     }
 

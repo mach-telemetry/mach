@@ -5,8 +5,6 @@ pub mod file;
 //pub const KEYSZ: usize = 24;
 pub const BLOCKSZ: usize = 8192;
 
-pub struct BlockError(&'static str);
-
 pub struct BlockKey {
     pub id: SeriesId,
     pub mint: Dt,
@@ -23,7 +21,7 @@ where
 }
 
 pub trait BlockWriter {
-    fn write_block(&mut self, k: BlockKey, d: &[u8]) -> Result<(), BlockError>;
+    fn write_block(&mut self, k: BlockKey, d: &[u8]) -> Result<(), &'static str>;
 }
 
 pub trait BlockReader {

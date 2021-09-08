@@ -8,6 +8,24 @@ use std::{
     },
 };
 
+pub struct ActiveBlockBuffer {
+    inner: Arc<InnerActiveBlock>,
+}
+
+impl ActiveBlockBuffer {
+    pub fn slice(&self) -> &[u8] {
+        &self.inner.block[..]
+    }
+
+    pub fn mint(&self) -> Dt {
+        self.inner.mint
+    }
+
+    pub fn maxt(&self) -> Dt {
+        self.inner.maxt
+    }
+}
+
 struct InnerActiveBlock {
     block: [u8; BLOCKSZ],
     offset: AtomicUsize,
@@ -42,7 +60,7 @@ impl InnerActiveBlock {
         self.block[..2].copy_from_slice(&sz);
     }
 
-    fn _remaining(&self) -> usize {
+    fn remaining(&self) -> usize {
         BLOCKSZ - self.offset.load(SeqCst)
     }
 }
@@ -61,7 +79,7 @@ impl ActiveBlock {
     pub fn writer(&self) -> ActiveBlockWriter {
         ActiveBlockWriter {
             ptr: Arc::as_ptr(&*self.inner) as *mut InnerActiveBlock,
-            _arc: (*self.inner).clone(),
+            arc: self.inner.clone(),
         }
     }
 
@@ -76,11 +94,11 @@ impl ActiveBlock {
 
 pub struct ActiveBlockWriter {
     ptr: *mut InnerActiveBlock,
-    _arc: Arc<InnerActiveBlock>,
+    arc: Arc<Arc<InnerActiveBlock>>,
 }
 
 impl ActiveBlockWriter {
-    pub fn _push_section(&mut self, mint: Dt, maxt: Dt, slice: &[u8]) {
+    pub fn push_section(&mut self, mint: Dt, maxt: Dt, slice: &[u8]) {
         unsafe {
             self.ptr
                 .as_mut()
@@ -89,8 +107,23 @@ impl ActiveBlockWriter {
         }
     }
 
-    pub fn _remaining(&self) -> usize {
-        self._arc._remaining()
+    pub fn remaining(&self) -> usize {
+        unsafe {
+            self.ptr.as_ref().unwrap().remaining()
+        }
+    }
+
+    pub fn yield_replace(&mut self) -> ActiveBlockBuffer {
+
+        let mut inner = Arc::new(InnerActiveBlock::new());
+        unsafe {
+            std::mem::swap(&mut *Arc::get_mut_unchecked(&mut self.arc), &mut inner);
+        }
+        self.ptr = Arc::as_ptr(&*self.arc) as *mut InnerActiveBlock;
+
+        ActiveBlockBuffer {
+            inner
+        }
     }
 }
 

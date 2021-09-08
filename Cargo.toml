@@ -8,3 +8,6 @@ edition = "2018"
 [dependencies]
 dashmap = "4.0.2"
 seq-macro = "0.2"
+num = "0.4.0"
+bitpacking = "0.8.4"
+lz4_flex = "0.8.2"

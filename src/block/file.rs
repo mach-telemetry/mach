@@ -1,5 +1,5 @@
 use crate::{
-    block::{BlockError, BlockKey, BlockReader, BlockStore, BlockWriter, BLOCKSZ},
+    block::{BlockKey, BlockReader, BlockStore, BlockWriter, BLOCKSZ},
     tsdb::{Dt, SeriesId},
     utils::list::{List, ListReader, ListWriter},
 };
@@ -85,13 +85,13 @@ pub struct ThreadFileWriter {
 }
 
 impl ThreadFileWriter {
-    fn open_file(&mut self) -> Result<(), BlockError> {
+    fn open_file(&mut self) -> Result<(), &'static str> {
         self.file_id = self.file_allocator.fetch_add(1, SeqCst);
         let df = OpenOptions::new()
             .create_new(true)
             .write(true)
             .open(self.dir_path.join(self.file_id.to_string()))
-            .map_err(|_| BlockError("Can't open file"))?;
+            .map_err(|_| "Can't open file")?;
         self.file = Some(df);
         self.block_count = 0;
         Ok(())
@@ -99,7 +99,7 @@ impl ThreadFileWriter {
 }
 
 impl BlockWriter for ThreadFileWriter {
-    fn write_block(&mut self, key: BlockKey, block: &[u8]) -> Result<(), BlockError> {
+    fn write_block(&mut self, key: BlockKey, block: &[u8]) -> Result<(), &'static str> {
         match &self.file {
             None => self.open_file()?,
             Some(_) => {
@@ -125,7 +125,7 @@ impl BlockWriter for ThreadFileWriter {
             .as_mut()
             .unwrap()
             .write_all(block)
-            .map_err(|_| BlockError("Can't flush file"))?;
+            .map_err(|_| "Can't flush file")?;
         self.block_count += 1;
         Ok(())
     }
