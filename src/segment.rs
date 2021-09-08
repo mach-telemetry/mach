@@ -1,4 +1,4 @@
-use crate::tsdb::{Fl, Dt};
+use crate::tsdb::{Dt, Fl};
 
 pub trait SegmentLike {
     fn timestamps(&self) -> &[Dt];
@@ -10,4 +10,3 @@ pub trait SegmentLike {
         self.timestamps().len()
     }
 }
-

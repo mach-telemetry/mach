@@ -66,6 +66,7 @@ impl InnerActiveBlock {
 }
 
 #[derive(Clone)]
+#[allow(clippy::redundant_allocation)]
 pub struct ActiveBlock {
     inner: Arc<Arc<InnerActiveBlock>>,
 }
@@ -92,6 +93,7 @@ impl ActiveBlock {
     }
 }
 
+#[allow(clippy::redundant_allocation)]
 pub struct ActiveBlockWriter {
     ptr: *mut InnerActiveBlock,
     arc: Arc<Arc<InnerActiveBlock>>,
@@ -108,22 +110,17 @@ impl ActiveBlockWriter {
     }
 
     pub fn remaining(&self) -> usize {
-        unsafe {
-            self.ptr.as_ref().unwrap().remaining()
-        }
+        unsafe { self.ptr.as_ref().unwrap().remaining() }
     }
 
     pub fn yield_replace(&mut self) -> ActiveBlockBuffer {
-
         let mut inner = Arc::new(InnerActiveBlock::new());
         unsafe {
             std::mem::swap(&mut *Arc::get_mut_unchecked(&mut self.arc), &mut inner);
         }
         self.ptr = Arc::as_ptr(&*self.arc) as *mut InnerActiveBlock;
 
-        ActiveBlockBuffer {
-            inner
-        }
+        ActiveBlockBuffer { inner }
     }
 }
 

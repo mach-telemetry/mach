@@ -1,19 +1,18 @@
-mod utils;
 mod simple;
+mod utils;
 
 use crate::{
-    tsdb::{Fl, Dt, SeriesOptions},
-    segment::SegmentLike,
     compression::simple::simple_compression,
-};
-use std::{
-    convert::TryFrom,
+    segment::SegmentLike,
+    tsdb::{Dt, Fl},
 };
 use num::NumCast;
+//use std::convert::TryFrom;
 
 const MAGIC: &str = "202107280428";
 
-pub type CompressFn<S> = fn(S, &SeriesOptions, &mut [u8]) -> usize;
+//pub type CompressFn<S> = fn(S, &SeriesOptions, &mut [u8]) -> usize;
+//pub type DecompressFn = fn(&mut DecompressBuf, &[u8]) -> usize;
 
 #[derive(Debug)]
 pub struct DecompressBuf<'a> {
@@ -22,13 +21,10 @@ pub struct DecompressBuf<'a> {
     pub len: usize,
 }
 
-pub type DecompressFn = fn(&mut DecompressBuf, &[u8]) -> usize;
 
 #[derive(Clone)]
 pub enum Compression {
-    Simple {
-        precision: Vec<u8>,
-    }
+    Simple { precision: Vec<u8> },
 }
 
 impl Compression {
@@ -75,7 +71,7 @@ impl Compression {
 
     fn section_code(&self) -> u8 {
         match self {
-            Self::Simple {..} => 1,
+            Self::Simple { .. } => 1,
             //Self::Rows => 2,
         }
     }
@@ -84,7 +80,9 @@ impl Compression {
         let mut offset = 0;
         offset += self.write_header(data, buf);
         offset += match self {
-            Self::Simple { precision } => simple_compression(data, &mut buf[offset..], precision.as_slice()),
+            Self::Simple { precision } => {
+                simple_compression(data, &mut buf[offset..], precision.as_slice())
+            }
             //Self::Rows => rows_compression(data, &mut buf[offset..], precision),
         };
 

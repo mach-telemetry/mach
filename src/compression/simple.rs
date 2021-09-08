@@ -1,16 +1,16 @@
 use crate::{
-    tsdb::{Fl, Dt, SeriesOptions},
-    segment::SegmentLike,
     compression::utils::*,
+    segment::SegmentLike,
+    tsdb::{Dt, Fl},
 };
-use std::{
-    convert::TryFrom,
-    mem::size_of,
-};
+use std::{convert::TryFrom, mem::size_of};
 
 //pub type CompressFn<S> = fn(segment: S, opts: SeriesOptions, buf: &mut [u8]) -> usize;
-pub fn simple_compression<S: SegmentLike>(data: &S, final_buf: &mut [u8], precision: &[u8]) -> usize {
-
+pub fn simple_compression<S: SegmentLike>(
+    data: &S,
+    final_buf: &mut [u8],
+    precision: &[u8],
+) -> usize {
     let mut buf = [0u8; 8192];
     let len = data.len();
     let mut scratch: [u32; 256] = [0; 256];
@@ -58,7 +58,7 @@ pub fn simple_compression<S: SegmentLike>(data: &S, final_buf: &mut [u8], precis
     off += 1;
     let sz = size_of::<u64>();
     for j in 0..big_count {
-        buf[off..off+sz].copy_from_slice(&big[j].to_be_bytes()[..]);
+        buf[off..off + sz].copy_from_slice(&big[j].to_be_bytes()[..]);
         off += sz;
         buf[off] = big_offset[j];
         off += 1;
@@ -66,13 +66,12 @@ pub fn simple_compression<S: SegmentLike>(data: &S, final_buf: &mut [u8], precis
 
     let mut raw: [Fl; 256] = [0.; 256];
     let mut raw_offset: [u8; 256] = [0; 256];
-    let mut raw_count: usize = 0;
+    let mut _raw_count: usize = 0;
 
     // Then the variables
     for (idx, p) in precision.iter().enumerate() {
-
         big_count = 0; // reset the big arrays
-        raw_count = 0; // raw -> there are items we can't encode
+        _raw_count = 0; // raw -> there are items we can't encode
 
         let values = &data.variable(idx);
         let mut diff = I64Differ::new();
@@ -85,7 +84,7 @@ pub fn simple_compression<S: SegmentLike>(data: &S, final_buf: &mut [u8], precis
                 //println!("SIMPLE ERR IN FL TO INT FIRST FIELD");
                 raw[0] = values[0];
                 raw_offset[0] = 0;
-                raw_count += 1;
+                _raw_count += 1;
                 0
             }
         };
@@ -101,9 +100,9 @@ pub fn simple_compression<S: SegmentLike>(data: &S, final_buf: &mut [u8], precis
                 Err(_) => {
                     if j > 0 {
                         //println!("SIMPLE ERR IN FL TO INT");
-                        raw[raw_count] = values[j];
-                        raw_offset[raw_count] = j as u8;
-                        raw_count += 1;
+                        raw[_raw_count] = values[j];
+                        raw_offset[_raw_count] = j as u8;
+                        _raw_count += 1;
                         last_int
                     } else {
                         first_int
@@ -120,7 +119,7 @@ pub fn simple_compression<S: SegmentLike>(data: &S, final_buf: &mut [u8], precis
                     big[big_count] = rolled;
                     big_offset[big_count] = j as u8;
                     big_count += 1;
-                },
+                }
             }
         }
         off += bitpack_256_compress(&mut buf[off..], &scratch);
@@ -130,18 +129,18 @@ pub fn simple_compression<S: SegmentLike>(data: &S, final_buf: &mut [u8], precis
         off += 1;
         let sz = size_of::<u64>();
         for j in 0..big_count {
-            buf[off..off+sz].copy_from_slice(&big[j].to_be_bytes()[..]);
+            buf[off..off + sz].copy_from_slice(&big[j].to_be_bytes()[..]);
             off += sz;
             buf[off] = big_offset[j];
             off += 1;
         }
 
         // Write the raw items
-        buf[off] = <u8>::try_from(raw_count).unwrap();
+        buf[off] = <u8>::try_from(_raw_count).unwrap();
         off += 1;
         let sz = size_of::<Fl>();
-        for j in 0..raw_count {
-            buf[off..off+sz].copy_from_slice(&raw[j].to_be_bytes()[..]);
+        for j in 0.._raw_count {
+            buf[off..off + sz].copy_from_slice(&raw[j].to_be_bytes()[..]);
             off += sz;
             buf[off] = raw_offset[j];
             off += 1;
@@ -252,4 +251,3 @@ pub fn simple_compression<S: SegmentLike>(data: &S, final_buf: &mut [u8], precis
 //
 //    buf.len = len;
 //}
-

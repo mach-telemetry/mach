@@ -1,9 +1,7 @@
-use crate::{
-    tsdb::{Fl, Dt}
-};
+use crate::tsdb::{Fl};
+use bitpacking::{BitPacker, BitPacker8x};
 use num::NumCast;
 use std::convert::TryFrom;
-use bitpacking::{BitPacker8x, BitPacker};
 
 pub fn to_zigzag(v: i64) -> u64 {
     ((v << 1) ^ (v >> 63)) as u64
@@ -17,6 +15,7 @@ pub fn multiplier(p: u8) -> i64 {
     10i64.pow(p as u32)
 }
 
+#[allow(clippy::many_single_char_names)]
 pub fn fl_to_int(p: u8, a: Fl) -> Result<i64, ()> {
     let v: f64 = a as f64;
     let sign = v.signum();
@@ -138,17 +137,15 @@ impl I64Differ {
     }
 
     pub fn unroll(&mut self, v: u64) -> i64 {
+        let v: i64 = from_zigzag(v);
         let r = if self.len == 0 {
-            let v: i64 = from_zigzag(v);
             self.prev = v;
             NumCast::from(v).unwrap()
         } else if self.len == 1 {
-            let v: i64 = from_zigzag(v);
             self.prev_diff = v;
             self.prev += self.prev_diff;
             NumCast::from(self.prev).unwrap()
         } else {
-            let v: i64 = from_zigzag(v);
             let value = v + self.prev + self.prev_diff;
             self.prev_diff = value - self.prev;
             self.prev = value;
@@ -183,10 +180,10 @@ pub fn bitpack_256_compress(buf: &mut [u8], data: &[u32; 256]) -> usize {
 
 /// See bitpacker_256_compress for layout
 /// returns how many bytes were read from data
-pub fn bitpack_256_decompress(out: &mut[u32; 256], data: &[u8]) -> usize {
+pub fn bitpack_256_decompress(out: &mut [u32; 256], data: &[u8]) -> usize {
     let bytes: u16 = u16::from_le_bytes(<[u8; 2]>::try_from(&data[..2]).unwrap());
     let num_bits: u8 = data[2];
     let bitpacker = BitPacker8x::new();
-    bitpacker.decompress(&data[3..3+bytes as usize], &mut out[..], num_bits);
+    bitpacker.decompress(&data[3..3 + bytes as usize], &mut out[..], num_bits);
     bytes as usize + 3
 }

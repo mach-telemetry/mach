@@ -1,12 +1,12 @@
 use crate::{
     active_block::{ActiveBlock, ActiveBlockWriter},
-    active_segment::{SECTSZ, ActiveSegment, ActiveSegmentWriter},
+    active_segment::{ActiveSegment, ActiveSegmentWriter, SECTSZ},
     block::{
         file::{FileBlockLoader, FileStore, ThreadFileWriter},
-        BlockReader, BlockStore, BlockWriter, BLOCKSZ, BlockKey
+        BlockKey, BlockReader, BlockStore, BlockWriter, BLOCKSZ,
     },
-    read_set::SeriesReadSet,
     compression::Compression,
+    read_set::SeriesReadSet,
     segment::SegmentLike,
 };
 use dashmap::DashMap;
@@ -26,7 +26,7 @@ pub struct SeriesId(u64);
 #[derive(Clone)]
 pub struct SeriesOptions {
     pub nvars: usize,
-    pub compressor: Compression
+    pub compressor: Compression,
 }
 
 pub struct Sample {
@@ -79,7 +79,9 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         let file_store = FileStore::new(dir);
         Self {
             map: DashMap::new(),
-            threads: (0..threads).map(|_| WriterMetadata::new(file_store.clone())).collect(),
+            threads: (0..threads)
+                .map(|_| WriterMetadata::new(file_store.clone()))
+                .collect(),
             file_store,
             _w: PhantomData,
             _r: PhantomData,
@@ -87,9 +89,15 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
     }
 
     pub fn add_series(&self, id: SeriesId, options: SeriesOptions) -> usize {
-        let thread_id = id.0 as usize % self.threads.len(); // this is probably where we'll have to futz with autoscaling
+        // TODO: Optimizations
+        // 1. Autoscaling can be performed somewhere by moving writers around the writer metadata
+        let thread_id = id.0 as usize % self.threads.len();
         let mem_series = MemSeries::new(options.nvars);
-        let meta = SeriesMetadata { options, mem_series, _thread_id: thread_id };
+        let meta = SeriesMetadata {
+            options,
+            mem_series,
+            _thread_id: thread_id,
+        };
         self.threads[thread_id].add_series(id, meta.clone());
         self.map.insert(id, meta);
         thread_id
@@ -100,7 +108,12 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         let segment = metadata.mem_series.active_segment.snapshot();
         let block = metadata.mem_series.active_block.snapshot();
         let blocks = self.file_store.reader(id).ok_or("ID not found")?;
-        Ok(SeriesReadSet::new(metadata.options.clone(), segment, block, blocks))
+        Ok(SeriesReadSet::new(
+            metadata.options.clone(),
+            segment,
+            block,
+            blocks,
+        ))
     }
 }
 
@@ -137,12 +150,6 @@ impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
     }
 }
 
-struct BlockInfo {
-    snapshot_lock: Arc<RwLock<()>>,
-    series_options: SeriesOptions,
-    active_block_writer: ActiveBlockWriter,
-}
-
 pub struct Writer<W: BlockWriter> {
     series_map: Arc<DashMap<SeriesId, SeriesMetadata>>,
     ref_map: HashMap<SeriesId, usize>,
@@ -168,7 +175,7 @@ impl<W: BlockWriter> Writer<W> {
             series_options: Vec::new(),
             active_blocks: Vec::new(),
             buf: [0u8; BLOCKSZ],
-            block_writer: block_writer,
+            block_writer,
         }
     }
 
@@ -177,9 +184,12 @@ impl<W: BlockWriter> Writer<W> {
             Some(*idx)
         } else if let Some(ser) = self.series_map.get_mut(&id) {
             let result = self.active_segments.len();
-            self.active_segments.push(ser.mem_series.active_segment.writer());
-            self.snapshot_locks.push(ser.mem_series.snapshot_lock.clone());
-            self.active_blocks.push(ser.mem_series.active_block.writer());
+            self.active_segments
+                .push(ser.mem_series.active_segment.writer());
+            self.snapshot_locks
+                .push(ser.mem_series.snapshot_lock.clone());
+            self.active_blocks
+                .push(ser.mem_series.active_block.writer());
             self.series_options.push(ser.options.clone());
             Some(result)
         } else {
@@ -187,10 +197,22 @@ impl<W: BlockWriter> Writer<W> {
         }
     }
 
-    pub fn push(&mut self, series_id: SeriesId, id: usize, sample: Sample) -> Result<(), &'static str> {
+    // TODO: Optimization + API
+    // 1. Return ThreadID? Last serialized timestamp?
+    pub fn push(
+        &mut self,
+        series_id: SeriesId,
+        id: usize,
+        sample: Sample,
+    ) -> Result<(), &'static str> {
         let active_segment = &mut self.active_segments[id];
         let segment_len = active_segment.push(sample);
         if segment_len == SECTSZ {
+
+            // TODO: Optimizations:
+            // 1. minimize mtx_guard by not yielding and replacing until after compression and
+            //    flushing
+            // 2. concurrent compress + flush
 
             // Get block information and take the snapshot lock
             let mtx_guard = self.snapshot_locks[id].write();
@@ -208,9 +230,7 @@ impl<W: BlockWriter> Writer<W> {
 
             // Write the compressed segment into the active block
             let active_block_writer = &mut self.active_blocks[id];
-            if bytes <= active_block_writer.remaining() {
-                active_block_writer.push_section(mint, maxt, &self.buf[..bytes])
-            } else {
+            if bytes > active_block_writer.remaining() {
                 let block = active_block_writer.yield_replace();
                 let key = BlockKey {
                     id: series_id,
@@ -219,7 +239,7 @@ impl<W: BlockWriter> Writer<W> {
                 };
                 self.block_writer.write_block(key, block.slice())?;
             }
-
+            active_block_writer.push_section(mint, maxt, &self.buf[..bytes]);
             drop(mtx_guard)
         }
         Ok(())

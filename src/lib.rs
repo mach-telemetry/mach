@@ -4,16 +4,16 @@
 mod active_block;
 mod active_segment;
 mod block;
+mod compression;
 mod read_set;
+mod segment;
 mod tsdb;
 mod utils;
-mod segment;
-mod compression;
 //pub mod series;
 
 //pub use series::series::{Series, SeriesWriter, SeriesReader};
 pub use read_set::SeriesReadSet;
-pub use tsdb::{Db, SeriesOptions, WriterMetadata, Writer};
+pub use tsdb::{Db, SeriesOptions, Writer, WriterMetadata};
 
 #[cfg(test)]
 mod tests {

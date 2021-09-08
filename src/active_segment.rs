@@ -1,6 +1,6 @@
 use crate::{
-    tsdb::{Fl, Dt, Sample},
     segment::SegmentLike,
+    tsdb::{Dt, Fl, Sample},
 };
 use seq_macro::seq;
 use std::sync::{
@@ -82,9 +82,10 @@ impl InnerSegment {
 }
 
 #[derive(Clone)]
+#[allow(clippy::redundant_allocation)]
 pub struct ActiveSegment {
     inner: Arc<Arc<InnerSegment>>,
-    nvars: usize
+    nvars: usize,
 }
 
 impl ActiveSegment {
@@ -111,6 +112,7 @@ impl ActiveSegment {
     }
 }
 
+#[allow(clippy::redundant_allocation)]
 pub struct ActiveSegmentWriter {
     ptr: *mut InnerSegment,
     arc: Arc<Arc<InnerSegment>>,
@@ -130,10 +132,7 @@ impl ActiveSegmentWriter {
         self.ptr = Arc::as_ptr(&*self.arc) as *mut InnerSegment;
 
         let len = new.len.load(SeqCst);
-        ActiveSegmentBuffer {
-            inner: new,
-            len
-        }
+        ActiveSegmentBuffer { inner: new, len }
     }
 }
 
