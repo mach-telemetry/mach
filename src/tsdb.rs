@@ -21,7 +21,7 @@ pub type Dt = u64;
 pub type Fl = f64;
 
 #[derive(Hash, Copy, Clone, PartialEq, Eq)]
-pub struct SeriesId(u64);
+pub struct SeriesId(pub u64);
 
 #[derive(Clone)]
 pub struct SeriesOptions {
@@ -208,7 +208,6 @@ impl<W: BlockWriter> Writer<W> {
         let active_segment = &mut self.active_segments[id];
         let segment_len = active_segment.push(sample);
         if segment_len == SECTSZ {
-
             // TODO: Optimizations:
             // 1. minimize mtx_guard by not yielding and replacing until after compression and
             //    flushing
@@ -232,12 +231,12 @@ impl<W: BlockWriter> Writer<W> {
             let active_block_writer = &mut self.active_blocks[id];
             if bytes > active_block_writer.remaining() {
                 let block = active_block_writer.yield_replace();
-                let key = BlockKey {
-                    id: series_id,
-                    mint: block.mint(),
-                    maxt: block.maxt(),
-                };
-                self.block_writer.write_block(key, block.slice())?;
+                self.block_writer.write_block(
+                    series_id,
+                    block.mint(),
+                    block.maxt(),
+                    block.slice(),
+                )?;
             }
             active_block_writer.push_section(mint, maxt, &self.buf[..bytes]);
             drop(mtx_guard)

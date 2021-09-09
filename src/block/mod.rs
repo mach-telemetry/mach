@@ -21,7 +21,13 @@ where
 }
 
 pub trait BlockWriter {
-    fn write_block(&mut self, k: BlockKey, d: &[u8]) -> Result<(), &'static str>;
+    fn write_block(
+        &mut self,
+        series_id: SeriesId,
+        mint: Dt,
+        maxt: Dt,
+        d: &[u8],
+    ) -> Result<(), &'static str>;
 }
 
 pub trait BlockReader {

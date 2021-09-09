@@ -4,7 +4,7 @@ use crate::{
     utils::list::{List, ListReader, ListWriter},
 };
 use std::{
-    collections::HashMap,
+    collections::{hash_map::Entry, HashMap},
     convert::AsRef,
     fs::{File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
@@ -14,11 +14,14 @@ use std::{
         Arc,
     },
 };
-//use std::{
-//};
 use dashmap::DashMap;
 
-//const BLOCKSZ: usize = 8192;
+// File Size of 1GB
+#[cfg(not(test))]
+const FILESZ: usize = 1_000_000_000;
+
+#[cfg(test)]
+const FILESZ: usize = 1_000_000;
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct BlockId {
@@ -30,7 +33,7 @@ struct BlockId {
 
 #[derive(Clone)]
 pub struct FileStore {
-    index: DashMap<SeriesId, List<BlockId>>,
+    index: Arc<DashMap<SeriesId, List<BlockId>>>,
     file_allocator: Arc<AtomicUsize>,
     dir_path: PathBuf,
 }
@@ -38,7 +41,7 @@ pub struct FileStore {
 impl FileStore {
     pub fn new<P: AsRef<Path>>(dir: P) -> Self {
         Self {
-            index: DashMap::new(),
+            index: Arc::new(DashMap::new()),
             file_allocator: Arc::new(AtomicUsize::new(0)),
             dir_path: PathBuf::from(dir.as_ref()),
         }
@@ -52,7 +55,7 @@ impl FileStore {
             file: None,
             file_id: 0,
             block_count: 0,
-            max_blocks: 8092,
+            max_blocks: FILESZ / BLOCKSZ,
             dir_path: self.dir_path.clone(),
         }
     }
@@ -74,7 +77,7 @@ impl BlockStore<ThreadFileWriter, FileBlockLoader> for FileStore {
 }
 
 pub struct ThreadFileWriter {
-    index: DashMap<SeriesId, List<BlockId>>,
+    index: Arc<DashMap<SeriesId, List<BlockId>>>,
     index_writers: HashMap<SeriesId, ListWriter<BlockId>>,
     file_allocator: Arc<AtomicUsize>,
     file: Option<File>,
@@ -99,7 +102,13 @@ impl ThreadFileWriter {
 }
 
 impl BlockWriter for ThreadFileWriter {
-    fn write_block(&mut self, key: BlockKey, block: &[u8]) -> Result<(), &'static str> {
+    fn write_block(
+        &mut self,
+        series_id: SeriesId,
+        mint: Dt,
+        maxt: Dt,
+        d: &[u8],
+    ) -> Result<(), &'static str> {
         match &self.file {
             None => self.open_file()?,
             Some(_) => {
@@ -109,22 +118,28 @@ impl BlockWriter for ThreadFileWriter {
             }
         }
         let block_id = BlockId {
-            mint: key.mint,
-            maxt: key.maxt,
+            mint: mint,
+            maxt: maxt,
             file_id: self.file_id,
             block_id: self.block_count,
         };
 
-        #[allow(clippy::or_fun_call)]
-        self.index_writers
-            .entry(key.id)
-            .or_insert(self.index.entry(key.id).or_insert(List::new()).writer())
-            .push(block_id);
+        let entry = self.index_writers.entry(series_id);
+
+        // This entry shenegans needed because borrowing doesnt play nicely in entry.or_insert
+        // unless I'm doing something wrong
+        match entry {
+            Entry::Occupied(mut e) => e.get_mut().push(block_id),
+            Entry::Vacant(e) => {
+                let w = self.index.entry(series_id).or_insert(List::new()).writer();
+                e.insert(w).push(block_id);
+            }
+        }
 
         self.file
             .as_mut()
             .unwrap()
-            .write_all(block)
+            .write_all(d)
             .map_err(|_| "Can't flush file")?;
         self.block_count += 1;
         Ok(())
@@ -211,6 +226,119 @@ impl BlockReader for FileBlockLoader {
             self.read_block(block_id);
 
             Some(&self.buf)
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rand::prelude::*;
+    use tempdir::TempDir;
+
+    fn make_blocks() -> HashMap<SeriesId, Vec<(BlockKey, Vec<u8>)>> {
+        let mut rng = thread_rng();
+
+        let mut map = HashMap::new();
+        for i in 0..3 {
+            let mut v = Vec::new();
+            for dt in (0..7).step_by(3) {
+                let block = BlockKey {
+                    id: SeriesId(i),
+                    mint: dt,
+                    maxt: dt + 1,
+                };
+                let mut data = vec![0u8; 8192];
+                rng.try_fill(&mut data[..]).unwrap();
+                v.push((block, data));
+            }
+            map.insert(SeriesId(i), v);
+        }
+        map
+    }
+
+    #[test]
+    fn test_write_read() {
+        let dir = TempDir::new("test").unwrap();
+        let file_store = FileStore::new(dir.path());
+        let mut thread_writer = file_store.thread_writer();
+        let data = make_blocks();
+        for (id, blocks) in data.iter() {
+            for (key, block) in blocks {
+                thread_writer.write_block(key.id, key.mint, key.maxt, &block[..]).unwrap();
+            }
+        }
+
+        let mut reader = file_store.block_reader(SeriesId(0)).unwrap();
+        reader.set_range(0, 10);
+
+        let blocks = data.get(&SeriesId(0)).unwrap();
+        let mut counter = 0;
+        while let Some(block) = reader.next_block() {
+            assert_eq!(block, blocks[counter].1);
+            counter += 1;
+        }
+    }
+
+    #[test]
+    fn test_write_read_fill_file() {
+        let dir = TempDir::new("test2").unwrap();
+        let file_store = FileStore::new(dir.path());
+        let mut thread_writer = file_store.thread_writer();
+        let mut rng = thread_rng();
+
+        let data = (0..FILESZ/BLOCKSZ + 100).map(|_| {
+            let mut v = vec![0u8; BLOCKSZ];
+            rng.try_fill(&mut v[..]).unwrap();
+            v
+        }).collect::<Vec<Vec<u8>>>();
+
+        let id = SeriesId(0);
+        let mut currt = 0;
+        for block in data.iter() {
+            let maxt = currt + 3;
+            thread_writer.write_block(id, currt, maxt, &block[..]).unwrap();
+            currt = maxt;
+        }
+
+        let mut reader = file_store.block_reader(SeriesId(0)).unwrap();
+        reader.set_range(0, currt);
+
+        let mut counter = 0;
+        while let Some(block) = reader.next_block() {
+            assert_eq!(block, data[counter].as_slice());
+            counter += 1;
+        }
+    }
+
+    #[test]
+    fn test_write_some_read() {
+        let dir = TempDir::new("test3").unwrap();
+        let file_store = FileStore::new(dir.path());
+        let mut thread_writer = file_store.thread_writer();
+        let mut rng = thread_rng();
+
+        let data = (0..FILESZ/BLOCKSZ + 100).map(|_| {
+            let mut v = vec![0u8; BLOCKSZ];
+            rng.try_fill(&mut v[..]).unwrap();
+            v
+        }).collect::<Vec<Vec<u8>>>();
+
+        let id = SeriesId(0);
+        let mut currt = 0;
+        for block in data.iter() {
+            let maxt = currt + 3;
+            thread_writer.write_block(id, currt, maxt, &block[..]).unwrap();
+            currt = maxt;
+        }
+
+        let mut reader = file_store.block_reader(SeriesId(0)).unwrap();
+        reader.set_range(5, 11);
+
+        let mut counter = 1;
+        while let Some(block) = reader.next_block() {
+            assert_eq!(block, data[counter].as_slice());
+            counter += 1;
         }
     }
 }

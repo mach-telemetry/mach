@@ -21,7 +21,6 @@ pub struct DecompressBuf<'a> {
     pub len: usize,
 }
 
-
 #[derive(Clone)]
 pub enum Compression {
     Simple { precision: Vec<u8> },
@@ -82,8 +81,7 @@ impl Compression {
         offset += match self {
             Self::Simple { precision } => {
                 simple_compression(data, &mut buf[offset..], precision.as_slice())
-            }
-            //Self::Rows => rows_compression(data, &mut buf[offset..], precision),
+            } //Self::Rows => rows_compression(data, &mut buf[offset..], precision),
         };
 
         // write length in the first 2 bytes of the header

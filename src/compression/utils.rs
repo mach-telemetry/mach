@@ -1,4 +1,4 @@
-use crate::tsdb::{Fl};
+use crate::tsdb::Fl;
 use bitpacking::{BitPacker, BitPacker8x};
 use num::NumCast;
 use std::convert::TryFrom;

@@ -11,3 +11,7 @@ seq-macro = "0.2"
 num = "0.4.0"
 bitpacking = "0.8.4"
 lz4_flex = "0.8.2"
+
+[dev-dependencies]
+tempdir = "0.3"
+rand = "0.8.4"
