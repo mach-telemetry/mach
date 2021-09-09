@@ -3,6 +3,7 @@ use crate::{
     tsdb::{Dt, SeriesId},
     utils::list::{List, ListReader, ListWriter},
 };
+use dashmap::DashMap;
 use std::{
     collections::{hash_map::Entry, HashMap},
     convert::AsRef,
@@ -14,7 +15,6 @@ use std::{
         Arc,
     },
 };
-use dashmap::DashMap;
 
 // File Size of 1GB
 #[cfg(not(test))]
@@ -265,7 +265,9 @@ mod test {
         let data = make_blocks();
         for (id, blocks) in data.iter() {
             for (key, block) in blocks {
-                thread_writer.write_block(key.id, key.mint, key.maxt, &block[..]).unwrap();
+                thread_writer
+                    .write_block(key.id, key.mint, key.maxt, &block[..])
+                    .unwrap();
             }
         }
 
@@ -287,17 +289,21 @@ mod test {
         let mut thread_writer = file_store.thread_writer();
         let mut rng = thread_rng();
 
-        let data = (0..FILESZ/BLOCKSZ + 100).map(|_| {
-            let mut v = vec![0u8; BLOCKSZ];
-            rng.try_fill(&mut v[..]).unwrap();
-            v
-        }).collect::<Vec<Vec<u8>>>();
+        let data = (0..FILESZ / BLOCKSZ + 100)
+            .map(|_| {
+                let mut v = vec![0u8; BLOCKSZ];
+                rng.try_fill(&mut v[..]).unwrap();
+                v
+            })
+            .collect::<Vec<Vec<u8>>>();
 
         let id = SeriesId(0);
         let mut currt = 0;
         for block in data.iter() {
             let maxt = currt + 3;
-            thread_writer.write_block(id, currt, maxt, &block[..]).unwrap();
+            thread_writer
+                .write_block(id, currt, maxt, &block[..])
+                .unwrap();
             currt = maxt;
         }
 
@@ -318,17 +324,21 @@ mod test {
         let mut thread_writer = file_store.thread_writer();
         let mut rng = thread_rng();
 
-        let data = (0..FILESZ/BLOCKSZ + 100).map(|_| {
-            let mut v = vec![0u8; BLOCKSZ];
-            rng.try_fill(&mut v[..]).unwrap();
-            v
-        }).collect::<Vec<Vec<u8>>>();
+        let data = (0..FILESZ / BLOCKSZ + 100)
+            .map(|_| {
+                let mut v = vec![0u8; BLOCKSZ];
+                rng.try_fill(&mut v[..]).unwrap();
+                v
+            })
+            .collect::<Vec<Vec<u8>>>();
 
         let id = SeriesId(0);
         let mut currt = 0;
         for block in data.iter() {
             let maxt = currt + 3;
-            thread_writer.write_block(id, currt, maxt, &block[..]).unwrap();
+            thread_writer
+                .write_block(id, currt, maxt, &block[..])
+                .unwrap();
             currt = maxt;
         }
 

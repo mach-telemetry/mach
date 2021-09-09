@@ -201,6 +201,14 @@ mod test {
     }
 
     #[test]
+    fn test_multiple_writers_drop() {
+        let segment = ActiveSegment::new(2);
+        let writer = segment.writer();
+        drop(writer);
+        let writer = segment.writer();
+    }
+
+    #[test]
     fn test_yield_replace() {
         let mut rng = thread_rng();
         let segment = ActiveSegment::new(2);

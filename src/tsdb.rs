@@ -238,7 +238,7 @@ impl<W: BlockWriter> Writer<W> {
                     block.slice(),
                 )?;
             }
-            active_block_writer.push_section(mint, maxt, &self.buf[..bytes]);
+            active_block_writer.push_segment(mint, maxt, &self.buf[..bytes]);
             drop(mtx_guard)
         }
         Ok(())
