@@ -177,15 +177,15 @@ impl<T> ListReader<T> {
         }
     }
 
-    pub fn last(&self) -> Option<&T> {
+    pub fn _last(&self) -> Option<&T> {
         if self.len == 0 {
             None
         } else {
-            Some(self.value_at_index(self.len - 1))
+            Some(self._value_at_index(self.len - 1))
         }
     }
 
-    pub fn value_at_index(&self, idx: usize) -> &T {
+    pub fn _value_at_index(&self, idx: usize) -> &T {
         assert!(idx < self.len, "idx {} for list of len {}", idx, self.len);
 
         let mut cidx = 0;

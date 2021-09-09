@@ -49,20 +49,24 @@ impl SegmentLike for ActiveSegmentBuffer {
 
 type InnerSegment = GenericInner<[[f64; SECTSZ]]>;
 
+seq!(NVARS in 1..=50 {
+    fn inner_segment#NVARS() -> Arc<InnerSegment> {
+        Arc::new(GenericInner {
+            ts: [0; SECTSZ],
+            len: AtomicUsize::new(0),
+            values: [[0.; SECTSZ]; NVARS],
+        })
+    }
+});
+
 impl InnerSegment {
     fn arc_new(nvars: usize) -> Arc<Self> {
-        seq!(V in 1..=50 {
+        seq!(NVARS in 1..=50 {
             match nvars {
                 #(
-                    V => {
-                        Arc::new(GenericInner {
-                            ts: [0; SECTSZ],
-                            len: AtomicUsize::new(0),
-                            values: [[0.; SECTSZ]; V]
-                        })
-                    },
+                    NVARS => inner_segment#NVARS(),
                 )*
-                    _ => panic!("Unsupported nvars"),
+                _ => panic!("Unsupported nvars"),
             }
         })
     }
@@ -85,6 +89,7 @@ impl InnerSegment {
 #[allow(clippy::redundant_allocation)]
 pub struct ActiveSegment {
     inner: Arc<Arc<InnerSegment>>,
+    writer_count: Arc<AtomicUsize>,
     nvars: usize,
 }
 
@@ -92,6 +97,7 @@ impl ActiveSegment {
     pub fn new(nvars: usize) -> Self {
         Self {
             inner: Arc::new(InnerSegment::arc_new(nvars)),
+            writer_count: Arc::new(AtomicUsize::new(0)),
             nvars,
         }
     }
@@ -104,9 +110,14 @@ impl ActiveSegment {
     }
 
     pub fn writer(&self) -> ActiveSegmentWriter {
+        if self.writer_count.fetch_add(1, SeqCst) > 0 {
+            panic!("Multiple writers for ActiveSegment");
+        }
+
         ActiveSegmentWriter {
             ptr: Arc::as_ptr(&*self.inner) as *mut InnerSegment,
             arc: self.inner.clone(),
+            writer_count: self.writer_count.clone(),
             nvars: self.nvars,
         }
     }
@@ -116,6 +127,7 @@ impl ActiveSegment {
 pub struct ActiveSegmentWriter {
     ptr: *mut InnerSegment,
     arc: Arc<Arc<InnerSegment>>,
+    writer_count: Arc<AtomicUsize>,
     nvars: usize,
 }
 
@@ -136,7 +148,89 @@ impl ActiveSegmentWriter {
     }
 }
 
+impl Drop for ActiveSegmentWriter {
+    fn drop(&mut self) {
+        self.writer_count.fetch_sub(1, SeqCst);
+    }
+}
+
 pub struct ActiveSegmentReader {
     _inner: Arc<InnerSegment>,
     _len: usize,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rand::prelude::*;
+
+    #[test]
+    fn test_write() {
+        let mut rng = thread_rng();
+        let segment = ActiveSegment::new(2);
+        let mut writer = segment.writer();
+
+        let mut samples = Vec::new();
+        for dt in 0..3 {
+            let s = Sample {
+                ts: dt,
+                values: Box::new([rng.gen(), rng.gen()]),
+            };
+            samples.push(s);
+        }
+
+        let mut v0 = Vec::new();
+        let mut v1 = Vec::new();
+        for s in samples {
+            v0.push(s.values[0]);
+            v1.push(s.values[1]);
+            writer.push(s);
+        }
+
+        assert_eq!(segment.inner.len(), 3);
+        assert_eq!(&segment.inner.values[0][..3], v0.as_slice());
+        assert_eq!(&segment.inner.values[1][..3], v1.as_slice());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_multiple_write_panic() {
+        let segment = ActiveSegment::new(2);
+        let writer = segment.writer();
+        let writer = segment.writer();
+    }
+
+    #[test]
+    fn test_yield_replace() {
+        let mut rng = thread_rng();
+        let segment = ActiveSegment::new(2);
+        let mut writer = segment.writer();
+
+        let mut samples = Vec::new();
+        for dt in 0..3 {
+            let s = Sample {
+                ts: dt,
+                values: Box::new([rng.gen(), rng.gen()]),
+            };
+            samples.push(s);
+        }
+
+        let mut v0 = Vec::new();
+        let mut v1 = Vec::new();
+        for s in samples {
+            v0.push(s.values[0]);
+            v1.push(s.values[1]);
+            writer.push(s);
+        }
+        let buf = writer.yield_replace();
+
+        assert_eq!(buf.len(), 3);
+        assert_eq!(buf.variable(0), v0.as_slice());
+        assert_eq!(buf.variable(1), v1.as_slice());
+        assert_eq!(segment.inner.len(), 0);
+    }
+
+    //#[test]
+    //fn test_read() {
+    //}
 }
