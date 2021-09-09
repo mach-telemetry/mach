@@ -187,3 +187,78 @@ pub fn bitpack_256_decompress(out: &mut [u32; 256], data: &[u8]) -> usize {
     bitpacker.decompress(&data[3..3 + bytes as usize], &mut out[..], num_bits);
     bytes as usize + 3
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use rand::prelude::*;
+
+    #[test]
+    fn u64_differences_roll() {
+        let mut state = U64Differ::new();
+        assert_eq!(state.roll(11), 11); // first is not zigged
+        assert_eq!(state.roll(15), to_zigzag(4));
+        assert_eq!(state.roll(16), to_zigzag(-3));
+        assert_eq!(state.roll(20), to_zigzag(3));
+        assert_eq!(state.roll(21), to_zigzag(-3));
+    }
+
+    #[test]
+    fn u64_differences_unroll() {
+        let data = &[11, 15, 16, 20, 21];
+        let mut state = U64Differ::new();
+        let rolled: Vec<u64> = data.iter().map(|x| state.roll(*x)).collect();
+
+        let mut state = U64Differ::new();
+        let unrolled: Vec<u64> = rolled.iter().map(|x| state.unroll(*x)).collect();
+        assert_eq!(&data[..], &unrolled);
+    }
+
+    //#[test]
+    //fn fl_differences_roll() {
+    //    let mut state = FlDiffer::new(2);
+    //    assert_eq!(state.roll(1.2345), to_zigzag(123));
+    //    assert_eq!(state.roll(2.3456), to_zigzag(235 - 123));
+    //    assert_eq!(state.roll(3.4567), to_zigzag((346 - 235) - (235 - 123)));
+    //    assert_eq!(state.roll(4.5678), to_zigzag((457 - 346) - (346 - 235)));
+    //    assert_eq!(state.roll(2.4517), to_zigzag((245 - 457) - (457 - 346)));
+    //    assert_eq!(state.roll(1.6719), to_zigzag((167 - 245) - (245 - 457)));
+    //    assert_eq!(state.roll(-0.1234), to_zigzag((-12 - 167) - (167 - 245)));
+    //    assert_eq!(
+    //        state.roll(-10.7823),
+    //        to_zigzag((-1078 - (-12)) - ((-12) - 167))
+    //    );
+    //    assert_eq!(
+    //        state.roll(-2.3416),
+    //        to_zigzag((-234 - (-1078)) - (-1078 - (-12)))
+    //    );
+    //}
+
+    //#[test]
+    //fn fl_differences_unroll() {
+    //    let mut state = FlDiffer::new(2);
+    //    let data: &[Fl] = &[
+    //        1.2345, 2.3456, 3.4567, 4.567, 2.451, 1.671, -0.123, -10.782, -2.341,
+    //    ];
+    //    let exp: Vec<Fl> = data.iter().map(|x| (x * 100.).round() / 100.).collect();
+    //    let rolled: Vec<u64> = data.iter().map(|x| state.roll(*x)).collect();
+
+    //    let mut state = FlDiffer::new(2);
+    //    let unrolled: Vec<Fl> = rolled.iter().map(|x| state.unroll(*x)).collect();
+    //    assert_eq!(exp, unrolled);
+    //}
+
+    #[test]
+    fn bitpack_compress_decompress() {
+        let mut rng = thread_rng();
+        let buf = &mut [0u8; 8192];
+        let data = &mut [0u32; 256];
+        let res = &mut [0u32; 256];
+        rng.fill(&mut data[..]);
+        rng.fill(&mut buf[..]);
+        rng.fill(&mut res[..]);
+        let sz = bitpack_256_compress(buf, data);
+        bitpack_256_decompress(res, buf);
+        assert_eq!(res, data);
+    }
+}

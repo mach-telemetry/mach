@@ -1,3 +1,4 @@
+#![deny(unused_must_use)]
 #![feature(get_mut_unchecked)]
 #![feature(is_sorted)]
 
