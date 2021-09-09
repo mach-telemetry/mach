@@ -181,4 +181,33 @@ mod test {
         assert_eq!(block.inner.mint, 0);
         assert_eq!(block.inner.maxt, 3);
     }
+
+    #[test]
+    fn test_yield_replace() {
+        let mut rng = thread_rng();
+        let block = ActiveBlock::new();
+        let mut writer = block.writer();
+
+        let mut v1 = vec![0u8; 123];
+        rng.try_fill(&mut v1[..]);
+        writer.push_segment(0, 3, v1.as_slice());
+
+        let mut v2 = vec![0u8; 456];
+        rng.try_fill(&mut v2[..]);
+        writer.push_segment(4, 10, v2.as_slice());
+
+        let buf = writer.yield_replace();
+
+        let total_bytes: usize = 2 + 123 + 456;
+        assert_eq!(u16::from_le_bytes(buf.inner.block[..2].try_into().unwrap()), total_bytes as u16);
+        assert_eq!(&buf.inner.block[2..125], &v1[..]);
+        assert_eq!(&buf.inner.block[125..456 + 125], &v2[..]);
+        assert_eq!(buf.inner.offset.load(SeqCst), total_bytes);
+        assert_eq!(buf.inner.mint, 0);
+        assert_eq!(buf.inner.maxt, 10);
+
+        assert_eq!(block.inner.offset.load(SeqCst), 2);
+        assert_eq!(block.inner.mint, Dt::MAX);
+        assert_eq!(block.inner.maxt, Dt::MIN);
+    }
 }
