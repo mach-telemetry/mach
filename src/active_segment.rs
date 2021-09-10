@@ -166,15 +166,18 @@ impl SegmentIterator<ActiveSegmentBuffer> for ActiveSegmentReader {
     fn next_segment(&mut self, mint: Dt, maxt: Dt) -> Option<ActiveSegmentBuffer> {
         let ts = &self.inner.ts[..self.len];
         let overlaps = self.len > 0 && overlaps(ts[0], *ts.last().unwrap(), mint, maxt);
-        if self.yielded || !overlaps {
+        let result = if self.yielded || !overlaps {
             None
         } else {
+            self.yielded = true;
             let buf = ActiveSegmentBuffer {
                 inner: self.inner.clone(),
                 len: self.len,
             };
             Some(buf)
-        }
+        };
+        self.yielded = true;
+        result
     }
 
     fn reset(&mut self) {
@@ -259,6 +262,36 @@ mod test {
         assert_eq!(buf.variable(0), v0.as_slice());
         assert_eq!(buf.variable(1), v1.as_slice());
         assert_eq!(segment.inner.len(), 0);
+    }
+
+    #[test]
+    fn test_segment_reader() {
+        let mut rng = thread_rng();
+        let segment = ActiveSegment::new(2);
+        let mut writer = segment.writer();
+
+        let mut samples = Vec::new();
+        for dt in 0..3 {
+            let s = Sample {
+                ts: dt,
+                values: Box::new([rng.gen(), rng.gen()]),
+            };
+            samples.push(s);
+        }
+
+        for s in samples {
+            writer.push(s);
+        }
+
+        let mut reader = segment.snapshot();
+        assert!(reader.next_segment(0, 1).is_some());
+        assert!(reader.next_segment(0, 1).is_none());
+        reader.reset();
+        assert!(reader.next_segment(1, 4).is_some());
+        assert!(reader.next_segment(1, 4).is_none());
+        reader.reset();
+        assert!(reader.next_segment(4, 5).is_none());
+        assert!(reader.next_segment(1, 4).is_none());
     }
 
     //#[test]

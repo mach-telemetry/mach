@@ -1,7 +1,10 @@
 use crate::{
     block::{BlockKey, BlockReader, BlockStore, BlockWriter, BLOCKSZ},
     tsdb::{Dt, SeriesId},
-    utils::list::{List, ListReader, ListWriter},
+    utils::{
+        overlaps,
+        list::{List, ListReader, ListWriter},
+    },
 };
 use dashmap::DashMap;
 use std::{
