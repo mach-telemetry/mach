@@ -91,7 +91,6 @@ impl ActiveBlock {
         }
     }
 
-    // Snapshotting this from multiple threads assumes that there is a lock held
     pub fn snapshot(&self) -> ActiveBlockReader {
         ActiveBlockReader {
             _len: (*self.inner).offset.load(SeqCst),
@@ -147,7 +146,7 @@ pub struct ActiveBlockReader {
 mod test {
     use super::*;
     use rand::prelude::*;
-    use std::convert::{TryInto};
+    use std::convert::TryInto;
 
     #[test]
     #[should_panic]
@@ -172,10 +171,13 @@ mod test {
         let mut writer = block.writer();
 
         let mut v = vec![0u8; 123];
-        rng.try_fill(&mut v[..]);
+        rng.try_fill(&mut v[..]).unwrap();
         writer.push_segment(0, 3, v.as_slice());
 
-        assert_eq!(u16::from_le_bytes(block.inner.block[..2].try_into().unwrap()), 125);
+        assert_eq!(
+            u16::from_le_bytes(block.inner.block[..2].try_into().unwrap()),
+            125
+        );
         assert_eq!(&block.inner.block[2..125], &v[..]);
         assert_eq!(block.inner.offset.load(SeqCst), 125);
         assert_eq!(block.inner.mint, 0);
@@ -189,17 +191,20 @@ mod test {
         let mut writer = block.writer();
 
         let mut v1 = vec![0u8; 123];
-        rng.try_fill(&mut v1[..]);
+        rng.try_fill(&mut v1[..]).unwrap();
         writer.push_segment(0, 3, v1.as_slice());
 
         let mut v2 = vec![0u8; 456];
-        rng.try_fill(&mut v2[..]);
+        rng.try_fill(&mut v2[..]).unwrap();
         writer.push_segment(4, 10, v2.as_slice());
 
         let buf = writer.yield_replace();
 
         let total_bytes: usize = 2 + 123 + 456;
-        assert_eq!(u16::from_le_bytes(buf.inner.block[..2].try_into().unwrap()), total_bytes as u16);
+        assert_eq!(
+            u16::from_le_bytes(buf.inner.block[..2].try_into().unwrap()),
+            total_bytes as u16
+        );
         assert_eq!(&buf.inner.block[2..125], &v1[..]);
         assert_eq!(&buf.inner.block[125..456 + 125], &v2[..]);
         assert_eq!(buf.inner.offset.load(SeqCst), total_bytes);

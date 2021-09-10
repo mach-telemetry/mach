@@ -197,7 +197,7 @@ impl BlockReader for FileBlockLoader {
     fn set_range(&mut self, mint: Dt, maxt: Dt) {
         self.reset();
         for item in self.blocks.iter() {
-            if item.mint <= maxt && mint <= item.maxt {
+            if overlaps(item.mint, item.maxt, mint, maxt) {
                 self.items.push(*item);
             } else if item.mint > maxt {
                 break;

@@ -1,6 +1,7 @@
 use crate::{
-    segment::SegmentLike,
+    segment::{SegmentIterator, SegmentLike},
     tsdb::{Dt, Fl, Sample},
+    utils::overlaps,
 };
 use seq_macro::seq;
 use std::sync::{
@@ -104,8 +105,9 @@ impl ActiveSegment {
 
     pub fn snapshot(&self) -> ActiveSegmentReader {
         ActiveSegmentReader {
-            _inner: (*self.inner).clone(),
-            _len: self.inner.len(),
+            inner: (*self.inner).clone(),
+            len: self.inner.len(),
+            yielded: false,
         }
     }
 
@@ -155,8 +157,29 @@ impl Drop for ActiveSegmentWriter {
 }
 
 pub struct ActiveSegmentReader {
-    _inner: Arc<InnerSegment>,
-    _len: usize,
+    inner: Arc<InnerSegment>,
+    len: usize,
+    yielded: bool,
+}
+
+impl SegmentIterator<ActiveSegmentBuffer> for ActiveSegmentReader {
+    fn next_segment(&mut self, mint: Dt, maxt: Dt) -> Option<ActiveSegmentBuffer> {
+        let ts = &self.inner.ts[..self.len];
+        let overlaps = self.len > 0 && overlaps(ts[0], *ts.last().unwrap(), mint, maxt);
+        if self.yielded || !overlaps {
+            None
+        } else {
+            let buf = ActiveSegmentBuffer {
+                inner: self.inner.clone(),
+                len: self.len,
+            };
+            Some(buf)
+        }
+    }
+
+    fn reset(&mut self) {
+        self.yielded = false;
+    }
 }
 
 #[cfg(test)]
