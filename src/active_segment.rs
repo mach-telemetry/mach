@@ -1,5 +1,5 @@
 use crate::{
-    segment::{SegmentIterator, SegmentLike},
+    segment::{SegmentLike},
     tsdb::{Dt, Fl, Sample},
     utils::overlaps,
 };
@@ -107,7 +107,6 @@ impl ActiveSegment {
         ActiveSegmentReader {
             inner: (*self.inner).clone(),
             len: self.inner.len(),
-            yielded: false,
         }
     }
 
@@ -159,31 +158,30 @@ impl Drop for ActiveSegmentWriter {
 pub struct ActiveSegmentReader {
     inner: Arc<InnerSegment>,
     len: usize,
-    yielded: bool,
 }
 
-impl SegmentIterator<ActiveSegmentBuffer> for ActiveSegmentReader {
-    fn next_segment(&mut self, mint: Dt, maxt: Dt) -> Option<ActiveSegmentBuffer> {
-        let ts = &self.inner.ts[..self.len];
-        let overlaps = self.len > 0 && overlaps(ts[0], *ts.last().unwrap(), mint, maxt);
-        let result = if self.yielded || !overlaps {
-            None
-        } else {
-            self.yielded = true;
-            let buf = ActiveSegmentBuffer {
-                inner: self.inner.clone(),
-                len: self.len,
-            };
-            Some(buf)
-        };
-        self.yielded = true;
-        result
-    }
-
-    fn reset(&mut self) {
-        self.yielded = false;
-    }
-}
+//impl SegmentIterator<ActiveSegmentBuffer> for ActiveSegmentReader {
+//    fn next_segment(&mut self, mint: Dt, maxt: Dt) -> Option<ActiveSegmentBuffer> {
+//        let ts = &self.inner.ts[..self.len];
+//        let overlaps = self.len > 0 && overlaps(ts[0], *ts.last().unwrap(), mint, maxt);
+//        let result = if self.yielded || !overlaps {
+//            None
+//        } else {
+//            self.yielded = true;
+//            let buf = ActiveSegmentBuffer {
+//                inner: self.inner.clone(),
+//                len: self.len,
+//            };
+//            Some(buf)
+//        };
+//        self.yielded = true;
+//        result
+//    }
+//
+//    fn reset(&mut self) {
+//        self.yielded = false;
+//    }
+//}
 
 #[cfg(test)]
 mod test {

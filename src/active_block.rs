@@ -53,7 +53,8 @@ impl InnerActiveBlock {
     // 2: First segment mint (8 bytes)
     // 10: First segment maxt (8 bytes)
     // 18: First segment offset (2 bytes)
-    // 20: Second segment mint (8 bytes)
+    // 20: First segment len (2 bytes) // TODO: Can be elided
+    // 22: Second segment mint (8 bytes)
     // ...
     // Random lengths: segments in the tail
     // BLOCKSZ: End of the block
@@ -77,6 +78,11 @@ impl InnerActiveBlock {
         // Write the offset to the tail portion of this block
         let sz = size_of::<u16>();
         self.block[s..s + sz].copy_from_slice(&t.to_be_bytes()[..]);
+        s += sz;
+
+        // Write the len of this segment
+        let l = <u16>::try_from(slice.len()).unwrap();
+        self.block[s..s + sz].copy_from_slice(&l.to_be_bytes()[..]);
         s += sz;
 
         // Set new idx offset
@@ -175,6 +181,7 @@ struct IdxEntry {
     mint: Dt,
     maxt: Dt,
     offt: usize,
+    len: usize
 }
 
 pub struct ActiveBlockReader {
@@ -199,16 +206,20 @@ impl ActiveBlockReader {
             let offt = &block[offset..offset + size_of::<u16>()];
             offset += size_of::<u16>();
 
+            let len = &block[offset..offset + size_of::<u16>()];
+            offset += size_of::<u16>();
+
             v.push(IdxEntry {
                 mint: Dt::from_be_bytes(mint.try_into().unwrap()),
                 maxt: Dt::from_be_bytes(maxt.try_into().unwrap()),
                 offt: u16::from_be_bytes(offt.try_into().unwrap()) as usize,
+                len: u16::from_be_bytes(len.try_into().unwrap()) as usize,
             });
         }
         v
     }
 
-    fn iter(&self, mint: Dt, maxt: Dt) -> ActiveBlockIterator {
+    pub fn compressed_segments(&self, mint: Dt, maxt: Dt) -> CompressedSegmentIterator {
         let index = self.index();
         let mut offset = 0;
         for entry in index.iter() {
@@ -218,8 +229,9 @@ impl ActiveBlockReader {
                 break;
             }
         }
-        ActiveBlockIterator {
-            reader: self,
+
+        CompressedSegmentIterator {
+            reader: &self.inner.block[..],
             idx: index,
             offset,
             mint,
@@ -228,12 +240,23 @@ impl ActiveBlockReader {
     }
 }
 
-pub struct ActiveBlockIterator<'a> {
-    reader: &'a ActiveBlockReader,
+pub struct CompressedSegmentIterator<'a> {
+    reader: &'a [u8],
     idx: Vec<IdxEntry>,
     offset: usize,
     mint: Dt,
     maxt: Dt,
+}
+
+impl<'a> CompressedSegmentIterator<'a> {
+    pub fn next_compressed_segment(&self) -> Option<&[u8]> {
+        let entry = &self.idx[self.offset];
+        if entry.mint > self.maxt {
+            None
+        } else {
+            Some(&self.reader[entry.offt..entry.offt + entry.len])
+        }
+    }
 }
 
 #[cfg(test)]

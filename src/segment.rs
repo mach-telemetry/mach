@@ -11,7 +11,7 @@ pub trait SegmentLike {
     }
 }
 
-pub trait SegmentIterator<S: SegmentLike> {
-    fn next_segment(&mut self, mint: Dt, maxt: Dt) -> Option<S>;
-    fn reset(&mut self);
-}
+//pub trait SegmentIterator<S: SegmentLike> {
+//    fn next_segment(&mut self, mint: Dt, maxt: Dt) -> Option<S>;
+//    fn reset(&mut self);
+//}
