@@ -1,7 +1,8 @@
-use crate::{block::BLOCKSZ, tsdb::Dt};
+use crate::{block::BLOCKSZ, tsdb::Dt, utils::overlaps};
 
 use std::{
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
+    mem::size_of,
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc,
@@ -28,7 +29,9 @@ impl ActiveBlockBuffer {
 
 struct InnerActiveBlock {
     block: [u8; BLOCKSZ],
-    offset: AtomicUsize,
+    len: AtomicUsize,
+    idx_offset: usize,
+    tail_offset: usize,
     mint: Dt,
     maxt: Dt,
 }
@@ -37,31 +40,60 @@ impl InnerActiveBlock {
     fn new() -> Self {
         Self {
             block: [0u8; BLOCKSZ],
-            offset: AtomicUsize::new(2), // HEADER of size 2
+            len: AtomicUsize::new(0),
+            idx_offset: 2, // First two bytes are for
+            tail_offset: BLOCKSZ,
             mint: Dt::MAX,
             maxt: Dt::MIN,
         }
     }
 
+    // Segment format:
+    // 0: Number of segments (2 bytes)
+    // 2: First segment mint (8 bytes)
+    // 10: First segment maxt (8 bytes)
+    // 18: First segment offset (2 bytes)
+    // 20: Second segment mint (8 bytes)
+    // ...
+    // Random lengths: segments in the tail
+    // BLOCKSZ: End of the block
     fn push_segment(&mut self, mint: Dt, maxt: Dt, slice: &[u8]) {
-        let len = self.offset.load(SeqCst);
-
-        if BLOCKSZ - len < slice.len() {
+        if self.remaining() < size_of::<Dt>() * 2 + size_of::<u16>() + slice.len() {
             panic!("Not enough space in active block");
         }
 
-        let len = self.offset.load(SeqCst);
+        let mut s = self.idx_offset;
+        let t = self.tail_offset - slice.len();
+
+        // Write the mint and maxt of this block
+        let sz = size_of::<Dt>();
+
+        self.block[s..s + sz].copy_from_slice(&mint.to_be_bytes()[..]);
+        s += sz;
+
+        self.block[s..s + sz].copy_from_slice(&maxt.to_be_bytes()[..]);
+        s += sz;
+
+        // Write the offset to the tail portion of this block
+        let sz = size_of::<u16>();
+        self.block[s..s + sz].copy_from_slice(&t.to_be_bytes()[..]);
+        s += sz;
+
+        // Set new idx offset
+        self.idx_offset = s;
+
+        // Write slice information
+        self.block[t..t + slice.len()].copy_from_slice(slice);
+        self.tail_offset = t;
+
+        // Increment new information
         self.mint = self.mint.min(mint);
         self.maxt = maxt;
-        self.block[len..len + slice.len()].clone_from_slice(slice);
-        let old_size = self.offset.fetch_add(slice.len(), SeqCst);
-        let new_size = old_size + slice.len();
-        let sz = <u16>::try_from(new_size).unwrap().to_le_bytes();
-        self.block[..2].copy_from_slice(&sz);
+        self.len.fetch_add(1, SeqCst);
     }
 
     fn remaining(&self) -> usize {
-        BLOCKSZ - self.offset.load(SeqCst)
+        self.tail_offset - self.idx_offset
     }
 }
 
@@ -93,8 +125,10 @@ impl ActiveBlock {
 
     pub fn snapshot(&self) -> ActiveBlockReader {
         ActiveBlockReader {
-            _len: (*self.inner).offset.load(SeqCst),
-            _inner: (*self.inner).clone(),
+            len: (*self.inner).len.load(SeqCst),
+            inner: (*self.inner).clone(),
+            mint: self.inner.mint,
+            maxt: self.inner.maxt,
         }
     }
 }
@@ -137,9 +171,69 @@ impl Drop for ActiveBlockWriter {
     }
 }
 
+struct IdxEntry {
+    mint: Dt,
+    maxt: Dt,
+    offt: usize,
+}
+
 pub struct ActiveBlockReader {
-    _inner: Arc<InnerActiveBlock>,
-    _len: usize,
+    inner: Arc<InnerActiveBlock>,
+    len: usize,
+    mint: Dt,
+    maxt: Dt,
+}
+
+impl ActiveBlockReader {
+    fn index(&self) -> Vec<IdxEntry> {
+        let block = &self.inner.block[..];
+        let mut offset = 2;
+        let mut v = Vec::new();
+        for _ in 0..self.len {
+            let mint = &block[offset..offset + size_of::<Dt>()];
+            offset += size_of::<Dt>();
+
+            let maxt = &block[offset..offset + size_of::<Dt>()];
+            offset += size_of::<Dt>();
+
+            let offt = &block[offset..offset + size_of::<u16>()];
+            offset += size_of::<u16>();
+
+            v.push(IdxEntry {
+                mint: Dt::from_be_bytes(mint.try_into().unwrap()),
+                maxt: Dt::from_be_bytes(maxt.try_into().unwrap()),
+                offt: u16::from_be_bytes(offt.try_into().unwrap()) as usize,
+            });
+        }
+        v
+    }
+
+    fn iter(&self, mint: Dt, maxt: Dt) -> ActiveBlockIterator {
+        let index = self.index();
+        let mut offset = 0;
+        for entry in index.iter() {
+            if !overlaps(entry.mint, entry.maxt, mint, maxt) {
+                offset += 1;
+            } else {
+                break;
+            }
+        }
+        ActiveBlockIterator {
+            reader: self,
+            idx: index,
+            offset,
+            mint,
+            maxt,
+        }
+    }
+}
+
+pub struct ActiveBlockIterator<'a> {
+    reader: &'a ActiveBlockReader,
+    idx: Vec<IdxEntry>,
+    offset: usize,
+    mint: Dt,
+    maxt: Dt,
 }
 
 #[cfg(test)]

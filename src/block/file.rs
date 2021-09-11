@@ -2,8 +2,8 @@ use crate::{
     block::{BlockKey, BlockReader, BlockStore, BlockWriter, BLOCKSZ},
     tsdb::{Dt, SeriesId},
     utils::{
-        overlaps,
         list::{List, ListReader, ListWriter},
+        overlaps,
     },
 };
 use dashmap::DashMap;
