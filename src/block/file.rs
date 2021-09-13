@@ -181,11 +181,11 @@ impl FileBlockLoader {
         self.current_file_id = file_id;
     }
 
-    fn read_block(&mut self, block_id: usize) {
+    fn read_block(&mut self, block_id: usize, buf: &mut [u8]) {
         let offset = block_id * BLOCKSZ;
         let f = self.file.as_mut().unwrap();
         f.seek(SeekFrom::Start(offset as u64)).unwrap();
-        f.read_exact(&mut self.buf).unwrap();
+        f.read_exact(buf).unwrap();
     }
 
     fn reset(&mut self) {
@@ -209,7 +209,7 @@ impl BlockReader for FileBlockLoader {
         assert!(self.items.is_sorted());
     }
 
-    fn next_block(&mut self) -> Option<&[u8]> {
+    fn next_block(&mut self, buf: &mut [u8]) -> Option<usize> {
         if self.next_idx >= self.items.len() {
             None
         } else {
@@ -226,9 +226,9 @@ impl BlockReader for FileBlockLoader {
                 self.open_file(file_id);
             }
 
-            self.read_block(block_id);
+            self.read_block(block_id, buf);
 
-            Some(&self.buf)
+            Some(BLOCKSZ)
         }
     }
 }
@@ -239,48 +239,60 @@ mod test {
     use rand::prelude::*;
     use tempdir::TempDir;
 
-    fn make_blocks() -> HashMap<SeriesId, Vec<(BlockKey, Vec<u8>)>> {
-        let mut rng = thread_rng();
+    //fn make_blocks() -> HashMap<SeriesId, Vec<(BlockKey, Vec<u8>)>> {
+    //    let mut rng = thread_rng();
 
-        let mut map = HashMap::new();
-        for i in 0..3 {
-            let mut v = Vec::new();
-            for dt in (0..7).step_by(3) {
-                let block = BlockKey {
-                    id: SeriesId(i),
-                    mint: dt,
-                    maxt: dt + 1,
-                };
-                let mut data = vec![0u8; 8192];
-                rng.try_fill(&mut data[..]).unwrap();
-                v.push((block, data));
-            }
-            map.insert(SeriesId(i), v);
-        }
-        map
-    }
+    //    let mut map = HashMap::new();
+    //    for i in 0..3 {
+    //        let mut v = Vec::new();
+    //        for dt in (0..7).step_by(3) {
+    //            let block = BlockKey {
+    //                id: SeriesId(i),
+    //                mint: dt,
+    //                maxt: dt + 1,
+    //            };
+    //            let mut data = vec![0u8; 8192];
+    //            rng.try_fill(&mut data[..]).unwrap();
+    //            v.push((block, data));
+    //        }
+    //        map.insert(SeriesId(i), v);
+    //    }
+    //    map
+    //}
 
     #[test]
     fn test_write_read() {
         let dir = TempDir::new("test").unwrap();
         let file_store = FileStore::new(dir.path());
+        let mut rng = thread_rng();
         let mut thread_writer = file_store.thread_writer();
-        let data = make_blocks();
-        for (id, blocks) in data.iter() {
-            for (key, block) in blocks {
-                thread_writer
-                    .write_block(key.id, key.mint, key.maxt, &block[..])
-                    .unwrap();
-            }
+        let id = SeriesId(0);
+        let blocks = (0..5)
+            .map(|_| {
+                let mut v = vec![0u8; BLOCKSZ];
+                rng.try_fill(&mut v[..]).unwrap();
+                v
+            })
+            .collect::<Vec<Vec<u8>>>();
+
+        let mut currt = 0;
+        for block in blocks.iter() {
+            let maxt = currt + 3;
+            thread_writer
+                .write_block(id, currt, maxt, &block[..])
+                .unwrap();
+            currt = maxt;
         }
 
         let mut reader = file_store.block_reader(SeriesId(0)).unwrap();
         reader.set_range(0, 10);
 
-        let blocks = data.get(&SeriesId(0)).unwrap();
+        //let blocks = data.get(&SeriesId(0)).unwrap();
         let mut counter = 0;
-        while let Some(block) = reader.next_block() {
-            assert_eq!(block, blocks[counter].1);
+        let mut buf = [0u8; BLOCKSZ];
+        while let Some(sz) = reader.next_block(&mut buf[..]) {
+            assert_eq!(sz, BLOCKSZ);
+            assert_eq!(buf, &blocks[counter][..]);
             counter += 1;
         }
     }
@@ -314,8 +326,10 @@ mod test {
         reader.set_range(0, currt);
 
         let mut counter = 0;
-        while let Some(block) = reader.next_block() {
-            assert_eq!(block, data[counter].as_slice());
+        let mut buf = [0u8; BLOCKSZ];
+        while let Some(sz) = reader.next_block(&mut buf[..]) {
+            assert_eq!(sz, BLOCKSZ);
+            assert_eq!(buf, data[counter].as_slice());
             counter += 1;
         }
     }
@@ -349,8 +363,10 @@ mod test {
         reader.set_range(5, 11);
 
         let mut counter = 1;
-        while let Some(block) = reader.next_block() {
-            assert_eq!(block, data[counter].as_slice());
+        let mut buf = [0u8; BLOCKSZ];
+        while let Some(sz) = reader.next_block(&mut buf) {
+            assert_eq!(sz, BLOCKSZ);
+            assert_eq!(buf, data[counter].as_slice());
             counter += 1;
         }
     }

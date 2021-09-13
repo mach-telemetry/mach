@@ -26,5 +26,5 @@ pub trait BlockWriter {
 
 pub trait BlockReader {
     fn set_range(&mut self, mint: Dt, maxt: Dt);
-    fn next_block(&mut self) -> Option<&[u8]>;
+    fn next_block(&mut self, buf: &mut [u8]) -> Option<usize>;
 }
