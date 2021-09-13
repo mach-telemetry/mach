@@ -11,16 +11,6 @@ use std::convert::TryFrom;
 
 const MAGIC: &str = "202107280428";
 
-//pub type CompressFn<S> = fn(S, &SeriesOptions, &mut [u8]) -> usize;
-//pub type DecompressFn = fn(&mut DecompressBuf, &[u8]) -> usize;
-
-//#[derive(Debug)]
-//pub struct DecompressBuf<'a> {
-//    pub ts: &'a mut [Dt],
-//    pub values: &'a mut [&'a mut [Fl]],
-//    pub len: usize,
-//}
-
 #[derive(Clone)]
 pub enum Compression {
     Simple { precision: Vec<u8> },
