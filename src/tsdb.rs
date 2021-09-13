@@ -108,12 +108,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         let segment = metadata.mem_series.active_segment.snapshot();
         let block = metadata.mem_series.active_block.snapshot();
         let blocks = self.file_store.reader(id).ok_or("ID not found")?;
-        Ok(SeriesReadSet::new(
-            metadata.options.clone(),
-            segment,
-            block,
-            blocks,
-        ))
+        Ok(SeriesReadSet::new(segment, block, blocks))
     }
 }
 

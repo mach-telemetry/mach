@@ -156,7 +156,7 @@ pub struct FileBlockLoader {
     current_file_id: usize,
     file: Option<File>,
     dir: PathBuf,
-    buf: [u8; BLOCKSZ],
+    //buf: [u8; BLOCKSZ],
 }
 
 impl FileBlockLoader {
@@ -169,7 +169,7 @@ impl FileBlockLoader {
             current_file_id: 0,
             file: None,
             dir,
-            buf: [0u8; BLOCKSZ],
+            //buf: [0u8; BLOCKSZ],
         }
     }
 

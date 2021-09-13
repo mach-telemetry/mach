@@ -27,7 +27,7 @@ pub enum Compression {
 }
 
 pub struct Header {
-    size: usize,
+    _size: usize,
     _mint: Dt,
     _maxt: Dt,
     len: usize,
@@ -133,7 +133,7 @@ impl Compression {
         oft += 2;
 
         let h = Header {
-            size,
+            _size: size,
             _mint: min_timestamp,
             _maxt: max_timestamp,
             len,

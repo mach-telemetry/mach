@@ -9,6 +9,7 @@ use crate::{
 use std::{
     convert::{TryFrom, TryInto},
     mem::size_of,
+    ops::{Deref, DerefMut},
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc,
@@ -17,47 +18,72 @@ use std::{
 
 pub struct MemBlock {
     block: [u8; BLOCKSZ],
-    index: Vec<IdxEntry>,
+    index: Option<Vec<IdxEntry>>,
     offset: usize,
     qmint: Dt,
     qmaxt: Dt,
 }
 
-impl MemBlock {
-    pub fn _new(block: [u8; BLOCKSZ]) -> Self {
-        let len = <u16>::from_be_bytes(block[..2].try_into().unwrap()) as usize;
-        let index = block_index(&block[..], len);
+impl Deref for MemBlock {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        &self.block[..]
+    }
+}
 
-        MemBlock {
-            block,
-            index,
+impl DerefMut for MemBlock {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.block[..]
+    }
+}
+
+impl MemBlock {
+    pub fn new() -> Self {
+        Self {
+            block: [0u8; BLOCKSZ],
+            index: None,
             offset: 0,
             qmint: Dt::MIN,
             qmaxt: Dt::MAX,
         }
     }
 
+    pub fn load_index(&mut self) {
+        let len = <u16>::from_be_bytes(self.block[..2].try_into().unwrap()) as usize;
+        self.index = Some(block_index(&self.block[..], len));
+    }
+
     fn next_compressed_segment(&mut self) -> Option<&[u8]> {
-        if self.offset == self.index.len() {
-            None
-        } else {
-            let entry = &self.index[self.offset];
-            self.offset += 1;
-            Some(&self.block[entry.offt..entry.offt + entry.len])
+        match &self.index {
+            None => panic!("Index not loaded, call self.load_index()"),
+            Some(index) => {
+                if self.offset == index.len() {
+                    None
+                } else {
+                    let entry = index[self.offset];
+                    self.offset += 1;
+                    Some(&self.block[entry.offt..entry.offt + entry.len])
+                }
+            }
         }
     }
 }
 
 impl SegmentIterator for MemBlock {
     fn set_range(&mut self, mint: Dt, maxt: Dt) {
-        self.offset = 0;
-        self.qmint = mint;
-        self.qmaxt = maxt;
-        for entry in self.index.iter() {
-            if !overlaps(entry.mint, entry.maxt, self.qmint, self.qmaxt) {
-                self.offset += 1;
-            } else {
-                break;
+        match &self.index {
+            None => panic!("Index not loaded, call self.load_index()"),
+            Some(index) => {
+                self.offset = 0;
+                self.qmint = mint;
+                self.qmaxt = maxt;
+                for entry in index.iter() {
+                    if !overlaps(entry.mint, entry.maxt, self.qmint, self.qmaxt) {
+                        self.offset += 1;
+                    } else {
+                        break;
+                    }
+                }
             }
         }
     }
@@ -226,7 +252,7 @@ impl ActiveBlock {
             offset: 0,
             qmint: Dt::MIN,
             qmaxt: Dt::MAX,
-            len,
+            //len,
         }
     }
 }
@@ -280,7 +306,7 @@ struct IdxEntry {
 pub struct ActiveBlockReader {
     _inner: Arc<InnerActiveBlock>,
     block: *const u8,
-    len: usize,
+    //len: usize,
     index: Vec<IdxEntry>,
     offset: usize,
     qmint: Dt,
