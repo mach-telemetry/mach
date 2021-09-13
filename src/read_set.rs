@@ -1,13 +1,21 @@
 use crate::{
-    active_block::ActiveBlockReader, active_segment::ActiveSegmentReader, block::BlockReader,
-    tsdb::SeriesOptions,
+    active_block::ActiveBlockReader,
+    active_segment::ActiveSegmentReader,
+    block::BlockReader,
+    segment::{Segment, SegmentIterator},
+    tsdb::{Dt, Fl, SeriesOptions},
 };
 
+pub struct ReadSegment {
+    timestamps: Vec<Dt>,
+    values: Vec<Fl>,
+}
+
 pub struct SeriesReadSet<R: BlockReader> {
-    _opts: SeriesOptions,
-    _active_block: ActiveBlockReader,
-    _active_segment: ActiveSegmentReader,
-    _blocks: R,
+    opts: SeriesOptions,
+    active_block: ActiveBlockReader,
+    active_segment: ActiveSegmentReader,
+    blocks: R,
 }
 
 impl<R: BlockReader> SeriesReadSet<R> {
@@ -18,10 +26,20 @@ impl<R: BlockReader> SeriesReadSet<R> {
         blocks: R,
     ) -> Self {
         SeriesReadSet {
-            _opts: opts,
-            _active_block: active_block,
-            _active_segment: active_segment,
-            _blocks: blocks,
+            opts: opts,
+            active_block: active_block,
+            active_segment,
+            blocks: blocks,
         }
+    }
+
+    pub fn set_range(&mut self, mint: Dt, maxt: Dt) {
+        self.active_segment.set_range(mint, maxt);
+        self.active_block.set_range(mint, maxt);
+        self.blocks.set_range(mint, maxt);
+    }
+
+    pub fn next_segment(&mut self) -> Option<Segment> {
+        None
     }
 }

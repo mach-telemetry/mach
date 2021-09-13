@@ -1,4 +1,10 @@
-use crate::{block::BLOCKSZ, tsdb::Dt, utils::overlaps};
+use crate::{
+    block::BLOCKSZ,
+    compression::Compression,
+    segment::{Segment, SegmentIterator},
+    tsdb::Dt,
+    utils::overlaps,
+};
 
 use std::{
     convert::{TryFrom, TryInto},
@@ -8,6 +14,87 @@ use std::{
         Arc,
     },
 };
+
+pub struct MemBlock {
+    block: [u8; BLOCKSZ],
+    index: Vec<IdxEntry>,
+    offset: usize,
+    qmint: Dt,
+    qmaxt: Dt,
+}
+
+impl MemBlock {
+    pub fn _new(block: [u8; BLOCKSZ]) -> Self {
+        let len = <u16>::from_be_bytes(block[..2].try_into().unwrap()) as usize;
+        let index = block_index(&block[..], len);
+
+        MemBlock {
+            block,
+            index,
+            offset: 0,
+            qmint: Dt::MIN,
+            qmaxt: Dt::MAX,
+        }
+    }
+
+    fn next_compressed_segment(&mut self) -> Option<&[u8]> {
+        if self.offset == self.index.len() {
+            None
+        } else {
+            let entry = &self.index[self.offset];
+            self.offset += 1;
+            Some(&self.block[entry.offt..entry.offt + entry.len])
+        }
+    }
+}
+
+impl SegmentIterator for MemBlock {
+    fn set_range(&mut self, mint: Dt, maxt: Dt) {
+        self.offset = 0;
+        self.qmint = mint;
+        self.qmaxt = maxt;
+        for entry in self.index.iter() {
+            if !overlaps(entry.mint, entry.maxt, self.qmint, self.qmaxt) {
+                self.offset += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn next_segment(&mut self) -> Option<Segment> {
+        let compressed = self.next_compressed_segment()?;
+        let mut seg = Segment::new();
+        Compression::decompress(compressed, &mut seg);
+        Some(seg)
+    }
+}
+
+fn block_index(data: &[u8], len: usize) -> Vec<IdxEntry> {
+    let mut offset = 2;
+    let mut v = Vec::new();
+    for _ in 0..len {
+        let mint = &data[offset..offset + size_of::<Dt>()];
+        offset += size_of::<Dt>();
+
+        let maxt = &data[offset..offset + size_of::<Dt>()];
+        offset += size_of::<Dt>();
+
+        let offt = &data[offset..offset + size_of::<u16>()];
+        offset += size_of::<u16>();
+
+        let len = &data[offset..offset + size_of::<u16>()];
+        offset += size_of::<u16>();
+
+        v.push(IdxEntry {
+            mint: Dt::from_be_bytes(mint.try_into().unwrap()),
+            maxt: Dt::from_be_bytes(maxt.try_into().unwrap()),
+            offt: u16::from_be_bytes(offt.try_into().unwrap()) as usize,
+            len: u16::from_be_bytes(len.try_into().unwrap()) as usize,
+        });
+    }
+    v
+}
 
 pub struct ActiveBlockBuffer {
     inner: Arc<InnerActiveBlock>,
@@ -77,7 +164,7 @@ impl InnerActiveBlock {
 
         // Write the offset to the tail portion of this block
         let sz = size_of::<u16>();
-        self.block[s..s + sz].copy_from_slice(&t.to_be_bytes()[..]);
+        self.block[s..s + sz].copy_from_slice(&(<u16>::try_from(t).unwrap()).to_be_bytes()[..]);
         s += sz;
 
         // Write the len of this segment
@@ -130,11 +217,16 @@ impl ActiveBlock {
     }
 
     pub fn snapshot(&self) -> ActiveBlockReader {
+        let len = (*self.inner).len.load(SeqCst);
+        let index = block_index(&self.inner.block[..], len);
         ActiveBlockReader {
-            len: (*self.inner).len.load(SeqCst),
-            inner: (*self.inner).clone(),
-            mint: self.inner.mint,
-            maxt: self.inner.maxt,
+            _inner: (*self.inner).clone(),
+            block: (&self.inner.block[..]).as_ptr(),
+            index,
+            offset: 0,
+            qmint: Dt::MIN,
+            qmaxt: Dt::MAX,
+            len,
         }
     }
 }
@@ -177,85 +269,56 @@ impl Drop for ActiveBlockWriter {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 struct IdxEntry {
     mint: Dt,
     maxt: Dt,
     offt: usize,
-    len: usize
+    len: usize,
 }
 
 pub struct ActiveBlockReader {
-    inner: Arc<InnerActiveBlock>,
+    _inner: Arc<InnerActiveBlock>,
+    block: *const u8,
     len: usize,
-    mint: Dt,
-    maxt: Dt,
+    index: Vec<IdxEntry>,
+    offset: usize,
+    qmint: Dt,
+    qmaxt: Dt,
 }
 
 impl ActiveBlockReader {
-    fn index(&self) -> Vec<IdxEntry> {
-        let block = &self.inner.block[..];
-        let mut offset = 2;
-        let mut v = Vec::new();
-        for _ in 0..self.len {
-            let mint = &block[offset..offset + size_of::<Dt>()];
-            offset += size_of::<Dt>();
-
-            let maxt = &block[offset..offset + size_of::<Dt>()];
-            offset += size_of::<Dt>();
-
-            let offt = &block[offset..offset + size_of::<u16>()];
-            offset += size_of::<u16>();
-
-            let len = &block[offset..offset + size_of::<u16>()];
-            offset += size_of::<u16>();
-
-            v.push(IdxEntry {
-                mint: Dt::from_be_bytes(mint.try_into().unwrap()),
-                maxt: Dt::from_be_bytes(maxt.try_into().unwrap()),
-                offt: u16::from_be_bytes(offt.try_into().unwrap()) as usize,
-                len: u16::from_be_bytes(len.try_into().unwrap()) as usize,
-            });
+    fn next_compressed_segment(&mut self) -> Option<&[u8]> {
+        let data = unsafe { std::slice::from_raw_parts(self.block, BLOCKSZ) };
+        if self.offset == self.index.len() {
+            None
+        } else {
+            let entry = &self.index[self.offset];
+            self.offset += 1;
+            Some(&data[entry.offt..entry.offt + entry.len])
         }
-        v
     }
+}
 
-    pub fn compressed_segments(&self, mint: Dt, maxt: Dt) -> CompressedSegmentIterator {
-        let index = self.index();
-        let mut offset = 0;
-        for entry in index.iter() {
-            if !overlaps(entry.mint, entry.maxt, mint, maxt) {
-                offset += 1;
+impl SegmentIterator for ActiveBlockReader {
+    fn set_range(&mut self, mint: Dt, maxt: Dt) {
+        self.offset = 0;
+        self.qmint = mint;
+        self.qmaxt = maxt;
+        for entry in self.index.iter() {
+            if !overlaps(entry.mint, entry.maxt, self.qmint, self.qmaxt) {
+                self.offset += 1;
             } else {
                 break;
             }
         }
-
-        CompressedSegmentIterator {
-            reader: &self.inner.block[..],
-            idx: index,
-            offset,
-            mint,
-            maxt,
-        }
     }
-}
 
-pub struct CompressedSegmentIterator<'a> {
-    reader: &'a [u8],
-    idx: Vec<IdxEntry>,
-    offset: usize,
-    mint: Dt,
-    maxt: Dt,
-}
-
-impl<'a> CompressedSegmentIterator<'a> {
-    pub fn next_compressed_segment(&self) -> Option<&[u8]> {
-        let entry = &self.idx[self.offset];
-        if entry.mint > self.maxt {
-            None
-        } else {
-            Some(&self.reader[entry.offt..entry.offt + entry.len])
-        }
+    fn next_segment(&mut self) -> Option<Segment> {
+        let compressed = self.next_compressed_segment()?;
+        let mut seg = Segment::new();
+        Compression::decompress(compressed, &mut seg);
+        Some(seg)
     }
 }
 
@@ -287,18 +350,135 @@ mod test {
         let block = ActiveBlock::new();
         let mut writer = block.writer();
 
-        let mut v = vec![0u8; 123];
+        let mut v1 = vec![0u8; 123];
+        rng.try_fill(&mut v1[..]).unwrap();
+        writer.push_segment(0, 3, v1.as_slice());
+
+        let mut v2 = vec![0u8; 456];
+        rng.try_fill(&mut v2[..]).unwrap();
+        writer.push_segment(4, 10, v2.as_slice());
+
+        let mut v3 = vec![0u8; 234];
+        rng.try_fill(&mut v3[..]).unwrap();
+        writer.push_segment(11, 15, v3.as_slice());
+
+        let mut reader = block.snapshot();
+        let index = &reader.index;
+
+        assert_eq!(index.len(), 3);
+
+        assert_eq!(
+            index[0],
+            IdxEntry {
+                mint: 0,
+                maxt: 3,
+                offt: BLOCKSZ - 123,
+                len: 123,
+            }
+        );
+
+        assert_eq!(
+            index[1],
+            IdxEntry {
+                mint: 4,
+                maxt: 10,
+                offt: BLOCKSZ - 123 - 456,
+                len: 456,
+            }
+        );
+
+        assert_eq!(
+            index[2],
+            IdxEntry {
+                mint: 11,
+                maxt: 15,
+                offt: BLOCKSZ - 123 - 456 - 234,
+                len: 234,
+            }
+        );
+
+        reader.set_range(8, 12);
+        assert_eq!(reader.next_compressed_segment().unwrap(), v2.as_slice());
+        assert_eq!(reader.next_compressed_segment().unwrap(), v3.as_slice());
+        assert!(reader.next_compressed_segment().is_none());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_fill_block() {
+        let mut rng = thread_rng();
+        let block = ActiveBlock::new();
+        let mut writer = block.writer();
+
+        // 1522 bytes
+        let mut v = vec![0u8; 1500];
         rng.try_fill(&mut v[..]).unwrap();
         writer.push_segment(0, 3, v.as_slice());
 
-        assert_eq!(
-            u16::from_le_bytes(block.inner.block[..2].try_into().unwrap()),
-            125
-        );
-        assert_eq!(&block.inner.block[2..125], &v[..]);
-        assert_eq!(block.inner.offset.load(SeqCst), 125);
-        assert_eq!(block.inner.mint, 0);
-        assert_eq!(block.inner.maxt, 3);
+        let mut v = vec![0u8; 1500];
+        rng.try_fill(&mut v[..]).unwrap();
+        writer.push_segment(3, 9, v.as_slice());
+
+        let mut v = vec![0u8; 1500];
+        rng.try_fill(&mut v[..]).unwrap();
+        writer.push_segment(10, 15, v.as_slice());
+
+        let mut v = vec![0u8; 1500];
+        rng.try_fill(&mut v[..]).unwrap();
+        writer.push_segment(16, 23, v.as_slice());
+
+        let mut v = vec![0u8; 1500];
+        rng.try_fill(&mut v[..]).unwrap();
+        writer.push_segment(25, 26, v.as_slice());
+
+        assert_eq!(writer.remaining(), 582);
+
+        let mut v = vec![0u8; 1500];
+        rng.try_fill(&mut v[..]).unwrap();
+        writer.push_segment(27, 30, v.as_slice());
+    }
+
+    #[test]
+    fn test_get_many() {
+        let mut rng = thread_rng();
+        let block = ActiveBlock::new();
+        let mut writer = block.writer();
+
+        let bytes = (0..5)
+            .map(|_| {
+                let mut v = vec![0u8; 1500];
+                rng.try_fill(&mut v[..]).unwrap();
+                v
+            })
+            .collect::<Vec<Vec<u8>>>();
+
+        let mut next = 0;
+        for b in bytes.iter() {
+            writer.push_segment(next, next + 5, b);
+            next += 6;
+        }
+
+        let mut reader = block.snapshot();
+        let index = &reader.index;
+        let times = [(0, 5), (6, 11), (12, 17), (18, 23), (24, 29)];
+        for (e, r) in index.iter().zip(times.iter()) {
+            assert_eq!(e.mint, r.0);
+            assert_eq!(e.maxt, r.1);
+        }
+
+        let mut idx = 0;
+        reader.set_range(Dt::MIN, 6);
+        while let Some(segment) = reader.next_compressed_segment() {
+            assert_eq!(segment, bytes[idx].as_slice());
+            idx += 1;
+        }
+
+        let mut idx = 2;
+        reader.set_range(12, Dt::MAX);
+        while let Some(segment) = reader.next_compressed_segment() {
+            assert_eq!(segment, bytes[idx].as_slice());
+            idx += 1;
+        }
     }
 
     #[test]
@@ -316,19 +496,7 @@ mod test {
         writer.push_segment(4, 10, v2.as_slice());
 
         let buf = writer.yield_replace();
-
-        let total_bytes: usize = 2 + 123 + 456;
-        assert_eq!(
-            u16::from_le_bytes(buf.inner.block[..2].try_into().unwrap()),
-            total_bytes as u16
-        );
-        assert_eq!(&buf.inner.block[2..125], &v1[..]);
-        assert_eq!(&buf.inner.block[125..456 + 125], &v2[..]);
-        assert_eq!(buf.inner.offset.load(SeqCst), total_bytes);
-        assert_eq!(buf.inner.mint, 0);
-        assert_eq!(buf.inner.maxt, 10);
-
-        assert_eq!(block.inner.offset.load(SeqCst), 2);
+        assert_eq!(block.inner.len.load(SeqCst), 0);
         assert_eq!(block.inner.mint, Dt::MAX);
         assert_eq!(block.inner.maxt, Dt::MIN);
     }

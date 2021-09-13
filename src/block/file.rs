@@ -1,5 +1,5 @@
 use crate::{
-    block::{BlockKey, BlockReader, BlockStore, BlockWriter, BLOCKSZ},
+    block::{BlockReader, BlockStore, BlockWriter, BLOCKSZ},
     tsdb::{Dt, SeriesId},
     utils::{
         list::{List, ListReader, ListWriter},

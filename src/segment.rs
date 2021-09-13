@@ -11,7 +11,23 @@ pub trait SegmentLike {
     }
 }
 
-//pub trait SegmentIterator<S: SegmentLike> {
-//    fn next_segment(&mut self, mint: Dt, maxt: Dt) -> Option<S>;
-//    fn reset(&mut self);
-//}
+pub trait SegmentIterator {
+    fn set_range(&mut self, mint: Dt, maxt: Dt);
+    fn next_segment(&mut self) -> Option<Segment>;
+}
+
+pub struct Segment {
+    pub timestamps: Vec<Dt>,
+    pub values: Vec<Fl>,
+    pub len: usize,
+}
+
+impl Segment {
+    pub fn new() -> Self {
+        Self {
+            timestamps: Vec::new(),
+            values: Vec::new(),
+            len: 0,
+        }
+    }
+}

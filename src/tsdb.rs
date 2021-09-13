@@ -1,9 +1,9 @@
 use crate::{
     active_block::{ActiveBlock, ActiveBlockWriter},
-    active_segment::{ActiveSegment, ActiveSegmentWriter, SECTSZ},
+    active_segment::{ActiveSegment, ActiveSegmentWriter, SEGSZ},
     block::{
         file::{FileBlockLoader, FileStore, ThreadFileWriter},
-        BlockKey, BlockReader, BlockStore, BlockWriter, BLOCKSZ,
+        BlockReader, BlockStore, BlockWriter, BLOCKSZ,
     },
     compression::Compression,
     read_set::SeriesReadSet,
@@ -207,7 +207,7 @@ impl<W: BlockWriter> Writer<W> {
     ) -> Result<(), &'static str> {
         let active_segment = &mut self.active_segments[id];
         let segment_len = active_segment.push(sample);
-        if segment_len == SECTSZ {
+        if segment_len == SEGSZ {
             // TODO: Optimizations:
             // 1. minimize mtx_guard by not yielding and replacing until after compression and
             //    flushing

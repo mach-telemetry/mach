@@ -1,9 +1,12 @@
 use crate::{
-    compression::utils::*,
-    segment::SegmentLike,
+    compression::{utils::*, Header},
+    segment::{Segment, SegmentLike},
     tsdb::{Dt, Fl},
 };
-use std::{convert::TryFrom, mem::size_of};
+use std::{
+    convert::{TryFrom, TryInto},
+    mem::size_of,
+};
 
 //pub type CompressFn<S> = fn(segment: S, opts: SeriesOptions, buf: &mut [u8]) -> usize;
 pub fn simple_compression<S: SegmentLike>(
@@ -150,104 +153,104 @@ pub fn simple_compression<S: SegmentLike>(
     lz4_flex::compress_into(&buf[..off], final_buf, 0).unwrap()
 }
 
-//fn simple_decompression(header: &Header, buf: &mut DecompressBuf, compressed: &[u8]) {
-//    let mut sect = [0u8; 8192];
-//    let lz4_sz = lz4_flex::decompress_into(compressed, &mut sect[..], 0).unwrap();
-//
-//    let len = header.len;
-//    let mut oft = 0;
-//
-//    // Read the number of variables
-//    let nvars: u8 = sect[oft];
-//    oft += 1;
-//
-//    // Precision
-//    let end = oft + nvars as usize;
-//    let precision: &[u8] = &sect[oft..end];
-//    oft = end;
-//
-//    // First timetsamp
-//    let end = oft + size_of::<Dt>();
-//    let first = Dt::from_be_bytes(<[u8; 8]>::try_from(&sect[oft..end]).unwrap());
-//    oft = end;
-//
-//    //let mut sink = Section256Sink::<u64>::new();
-//    let mut d_buf = [0u32; 256];
-//    let mut to_unroll = [0u64; 256];
-//    //let mut values_rolled: Vec<u32> = Vec::new();
-//
-//    // Timeseries
-//    let read = bitpack_256_decompress(&mut d_buf, &sect[oft..]);
-//    oft += read;
-//    for j in 0..256 {
-//        to_unroll[j] = d_buf[j] as u64;
-//    }
-//
-//    let big_count = sect[oft];
-//    oft += 1;
-//
-//    let sz = size_of::<u64>();
-//    for _ in 0..big_count {
-//        let value = u64::from_be_bytes(sect[oft..oft+sz].try_into().unwrap());
-//        oft += sz;
-//        let offset = sect[oft];
-//        oft += 1;
-//        to_unroll[offset as usize] = value;
-//    }
-//
-//    let mut differ = U64Differ::new();
-//    for i in 0..len {
-//        buf.ts[i] = first + differ.unroll(to_unroll[i]);
-//    }
-//
-//    // Variables
-//    for (idx, p) in precision.iter().enumerate() {
-//        // First value
-//        let end = oft + size_of::<Fl>();
-//        let first = Fl::from_be_bytes(<[u8; size_of::<Fl>()]>::try_from(&sect[oft..end]).unwrap());
-//        let first_int: i64 = fl_to_int(*p, first).unwrap();
-//        oft = end;
-//
-//        let read = bitpack_256_decompress(&mut d_buf, &sect[oft..]);
-//        oft += read;
-//
-//        let mut to_unroll = [0u64; 256];
-//        for j in 0..256 {
-//            to_unroll[j] = d_buf[j] as u64;
-//        }
-//
-//        // Get the diffs that were too big
-//        let big_count = sect[oft];
-//        oft += 1;
-//
-//        let sz = size_of::<u64>();
-//        for _ in 0..big_count {
-//            let value = u64::from_be_bytes(sect[oft..oft+sz].try_into().unwrap());
-//            oft += sz;
-//            let offset = sect[oft];
-//            oft += 1;
-//            to_unroll[offset as usize] = value;
-//        }
-//
-//        let mut differ = I64Differ::new();
-//        for j in 0..len {
-//            let unrolled = differ.unroll(to_unroll[j]);
-//            buf.values[idx][j] = fl_from_int(*p, first_int + unrolled);
-//        }
-//
-//        // Get the raw values that couldn't be cast to an i64
-//        let raw_count = sect[oft];
-//        oft += 1;
-//
-//        let sz = size_of::<Fl>();
-//        for _ in 0..raw_count {
-//            let value = Fl::from_be_bytes(sect[oft..oft+sz].try_into().unwrap());
-//            oft += sz;
-//            let offset = sect[oft];
-//            oft += 1;
-//            buf.values[idx][offset as usize] = value;
-//        }
-//    }
-//
-//    buf.len = len;
-//}
+pub fn simple_decompression(header: &Header, buf: &mut Segment, compressed: &[u8]) {
+    let mut sect = [0u8; 8192];
+    let _lz4_sz = lz4_flex::decompress_into(compressed, &mut sect[..], 0).unwrap();
+
+    let len = header.len;
+    let mut oft = 0;
+
+    // Read the number of variables
+    let nvars: u8 = sect[oft];
+    oft += 1;
+
+    // Precision
+    let end = oft + nvars as usize;
+    let precision: &[u8] = &sect[oft..end];
+    oft = end;
+
+    // First timetsamp
+    let end = oft + size_of::<Dt>();
+    let first = Dt::from_be_bytes(<[u8; 8]>::try_from(&sect[oft..end]).unwrap());
+    oft = end;
+
+    //let mut sink = Section256Sink::<u64>::new();
+    let mut d_buf = [0u32; 256];
+    let mut to_unroll = [0u64; 256];
+    //let mut values_rolled: Vec<u32> = Vec::new();
+
+    // Timeseries
+    let read = bitpack_256_decompress(&mut d_buf, &sect[oft..]);
+    oft += read;
+    for j in 0..256 {
+        to_unroll[j] = d_buf[j] as u64;
+    }
+
+    let big_count = sect[oft];
+    oft += 1;
+
+    let sz = size_of::<u64>();
+    for _ in 0..big_count {
+        let value = u64::from_be_bytes(sect[oft..oft + sz].try_into().unwrap());
+        oft += sz;
+        let offset = sect[oft];
+        oft += 1;
+        to_unroll[offset as usize] = value;
+    }
+
+    let mut differ = U64Differ::new();
+    for i in 0..len {
+        buf.timestamps.push(first + differ.unroll(to_unroll[i]));
+    }
+
+    // Variables
+    for (idx, p) in precision.iter().enumerate() {
+        // First value
+        let end = oft + size_of::<Fl>();
+        let first = Fl::from_be_bytes(<[u8; size_of::<Fl>()]>::try_from(&sect[oft..end]).unwrap());
+        let first_int: i64 = fl_to_int(*p, first).unwrap();
+        oft = end;
+
+        let read = bitpack_256_decompress(&mut d_buf, &sect[oft..]);
+        oft += read;
+
+        let mut to_unroll = [0u64; 256];
+        for j in 0..256 {
+            to_unroll[j] = d_buf[j] as u64;
+        }
+
+        // Get the diffs that were too big
+        let big_count = sect[oft];
+        oft += 1;
+
+        let sz = size_of::<u64>();
+        for _ in 0..big_count {
+            let value = u64::from_be_bytes(sect[oft..oft + sz].try_into().unwrap());
+            oft += sz;
+            let offset = sect[oft];
+            oft += 1;
+            to_unroll[offset as usize] = value;
+        }
+
+        let mut differ = I64Differ::new();
+        for j in 0..len {
+            let unrolled = differ.unroll(to_unroll[j]);
+            buf.values.push(fl_from_int(*p, first_int + unrolled));
+        }
+
+        // Get the raw values that couldn't be cast to an i64
+        let raw_count = sect[oft];
+        oft += 1;
+
+        let sz = size_of::<Fl>();
+        for _ in 0..raw_count {
+            let value = Fl::from_be_bytes(sect[oft..oft + sz].try_into().unwrap());
+            oft += sz;
+            let offset = sect[oft];
+            oft += 1;
+            buf.values[idx * len + offset as usize] = value;
+        }
+    }
+
+    buf.len = len;
+}

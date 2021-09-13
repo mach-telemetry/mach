@@ -5,12 +5,6 @@ pub mod file;
 //pub const KEYSZ: usize = 24;
 pub const BLOCKSZ: usize = 8192;
 
-pub struct BlockKey {
-    pub id: SeriesId,
-    pub mint: Dt,
-    pub maxt: Dt,
-}
-
 pub trait BlockStore<W, R>: Clone
 where
     W: BlockWriter,

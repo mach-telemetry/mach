@@ -2,28 +2,36 @@ mod simple;
 mod utils;
 
 use crate::{
-    compression::simple::simple_compression,
-    segment::SegmentLike,
-    tsdb::{Dt, Fl},
+    compression::simple::{simple_compression, simple_decompression},
+    segment::{Segment, SegmentLike},
+    tsdb::Dt,
 };
 use num::NumCast;
-//use std::convert::TryFrom;
+use std::convert::TryFrom;
 
 const MAGIC: &str = "202107280428";
 
 //pub type CompressFn<S> = fn(S, &SeriesOptions, &mut [u8]) -> usize;
 //pub type DecompressFn = fn(&mut DecompressBuf, &[u8]) -> usize;
 
-#[derive(Debug)]
-pub struct DecompressBuf<'a> {
-    pub ts: &'a mut [Dt],
-    pub values: &'a mut [&'a mut [Fl]],
-    pub len: usize,
-}
+//#[derive(Debug)]
+//pub struct DecompressBuf<'a> {
+//    pub ts: &'a mut [Dt],
+//    pub values: &'a mut [&'a mut [Fl]],
+//    pub len: usize,
+//}
 
 #[derive(Clone)]
 pub enum Compression {
     Simple { precision: Vec<u8> },
+}
+
+pub struct Header {
+    size: usize,
+    _mint: Dt,
+    _maxt: Dt,
+    len: usize,
+    section_code: u8,
 }
 
 impl Compression {
@@ -92,60 +100,61 @@ impl Compression {
         offset
     }
 
-    //pub fn read_header(data: &[u8]) -> (Header, usize) {
-    //    let mut oft = 0;
+    pub fn read_header(data: &[u8]) -> (Header, usize) {
+        let mut oft = 0;
 
-    //    // First two bytes is the length of the section slice in bytes
-    //    let size = u16::from_le_bytes(<[u8; 2]>::try_from(&data[oft..oft + 2]).unwrap()) as usize;
-    //    oft += 2;
+        // First two bytes is the length of the section slice in bytes
+        let size = u16::from_le_bytes(<[u8; 2]>::try_from(&data[oft..oft + 2]).unwrap()) as usize;
+        oft += 2;
 
-    //    // Then magic and code
-    //    let magic_len = MAGIC.len();
-    //    assert_eq!(
-    //        &data[oft..oft + magic_len],
-    //        MAGIC.as_bytes(),
-    //        "Section magic does not match"
-    //    );
-    //    oft += magic_len;
+        // Then magic and code
+        let magic_len = MAGIC.len();
+        assert_eq!(
+            &data[oft..oft + magic_len],
+            MAGIC.as_bytes(),
+            "Section magic does not match"
+        );
+        oft += magic_len;
 
-    //    let section_code = data[oft];
-    //    oft += 1;
+        let section_code = data[oft];
+        oft += 1;
 
-    //    // Next 8 bytes is number of items in section
-    //    let min_timestamp = u64::from_le_bytes(<[u8; 8]>::try_from(&data[oft..oft + 8]).unwrap());
-    //    oft += 8;
+        // Next 8 bytes is number of items in section
+        let min_timestamp = u64::from_le_bytes(<[u8; 8]>::try_from(&data[oft..oft + 8]).unwrap());
+        oft += 8;
 
-    //    // Next 8 bytes is number of items in section
-    //    let max_timestamp = u64::from_le_bytes(<[u8; 8]>::try_from(&data[oft..oft + 8]).unwrap());
-    //    oft += 8;
+        // Next 8 bytes is number of items in section
+        let max_timestamp = u64::from_le_bytes(<[u8; 8]>::try_from(&data[oft..oft + 8]).unwrap());
+        oft += 8;
 
-    //    // Next two bytes is number of items in section
-    //    let len = u16::from_le_bytes(<[u8; 2]>::try_from(&data[oft..oft + 2]).unwrap()) as usize;
-    //    assert!(len > 0);
-    //    oft += 2;
+        // Next two bytes is number of items in section
+        let len = u16::from_le_bytes(<[u8; 2]>::try_from(&data[oft..oft + 2]).unwrap()) as usize;
+        assert!(len > 0);
+        oft += 2;
 
-    //    let h = Header {
-    //        size,
-    //        rng: Interval::new(min_timestamp, max_timestamp),
-    //        len,
-    //        section_code,
-    //    };
+        let h = Header {
+            size,
+            _mint: min_timestamp,
+            _maxt: max_timestamp,
+            len,
+            section_code,
+        };
 
-    //    (h, oft)
-    //}
+        (h, oft)
+    }
 
-    //pub fn decompress(data: &[u8], buf: &mut DecompressBuf) -> Header {
-    //    let mut offset = 0;
-    //    let (header, header_sz) = Self::read_header(data);
-    //    offset += header_sz;
+    pub fn decompress(data: &[u8], buf: &mut Segment) -> Header {
+        let mut offset = 0;
+        let (header, header_sz) = Self::read_header(data);
+        offset += header_sz;
 
-    //    match header.section_code {
-    //        1 => simple_decompression(&header, buf, &data[offset..]),
-    //        2 => rows_decompression(&header, buf, &data[offset..]),
-    //        _ => panic!("Invalid compression code!"),
-    //    };
-    //    buf.len = header.len;
+        match header.section_code {
+            1 => simple_decompression(&header, buf, &data[offset..]),
+            //2 => rows_decompression(&header, buf, &data[offset..]),
+            _ => panic!("Invalid compression code!"),
+        };
+        buf.len = header.len;
 
-    //    header
-    //}
+        header
+    }
 }
