@@ -79,11 +79,53 @@ impl BlockStore<ThreadFileWriter, FileBlockLoader> for FileStore {
     }
 }
 
+struct FileItem {
+    file: File,
+    flush_count: usize,
+    flush_channel: async_std::channel::Sender<()>,
+}
+
+impl FileItem {
+    fn new<P: AsRef<Path>>(dir: P, fid: usize) -> Result<Self, &'static str> {
+        let df = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(dir.as_ref().join(fid.to_string()))
+            .map_err(|_| "Can't open file")?;
+        let (tx, rx) = async_std::channel::bounded(1);
+        let flush_channel = tx;
+        let flush_count = 0;
+        async_std::task::spawn(flush_worker(PathBuf::from(dir.as_ref()), fid, rx));
+        Ok(Self {
+            file: df,
+            flush_channel,
+            flush_count,
+        })
+    }
+
+    fn write(&mut self, data: &[u8]) -> Result<(), &'static str> {
+        self.file.write_all(data).map_err(|_| "Can't write to file")?;
+        self.flush_count += 1;
+        if self.flush_count == 5 {
+            match self.flush_channel.try_send(()) {
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Drop for FileItem {
+    fn drop(&mut self) {
+        self.flush_channel.close();
+    }
+}
+
 pub struct ThreadFileWriter {
     index: Arc<DashMap<SeriesId, List<BlockId>>>,
     index_writers: HashMap<SeriesId, ListWriter<BlockId>>,
     file_allocator: Arc<AtomicUsize>,
-    file: Option<File>,
+    file: Option<FileItem>,
     file_id: usize,
     block_count: usize,
     max_blocks: usize,
@@ -93,12 +135,7 @@ pub struct ThreadFileWriter {
 impl ThreadFileWriter {
     fn open_file(&mut self) -> Result<(), &'static str> {
         self.file_id = self.file_allocator.fetch_add(1, SeqCst);
-        let df = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(self.dir_path.join(self.file_id.to_string()))
-            .map_err(|_| "Can't open file")?;
-        self.file = Some(df);
+        self.file = Some(FileItem::new(&self.dir_path, self.file_id)?);
         self.block_count = 0;
         Ok(())
     }
@@ -142,11 +179,51 @@ impl BlockWriter for ThreadFileWriter {
         self.file
             .as_mut()
             .unwrap()
-            .write_all(d)
-            .map_err(|_| "Can't flush file")?;
+            .write(d)?;
         self.block_count += 1;
         Ok(())
     }
+}
+
+async fn flush_worker(dir: PathBuf, fid: usize, rx: async_std::channel::Receiver<()>) {
+    use std::os::unix::io::AsRawFd;
+
+    //let mut path = async_std::path::PathBuf::from(&*KEYDIR);
+    //path.push(fid.to_string());
+    //let kf = async_std::fs::OpenOptions::new()
+    //    .write(true)
+    //    .open(path)
+    //    .await
+    //    .unwrap();
+
+    let mut path = async_std::path::PathBuf::from(dir);
+    path.push(fid.to_string());
+    let df = async_std::fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .await
+        .unwrap();
+
+    while let Ok(()) = rx.recv().await {
+        df.sync_all().await.unwrap();
+    }
+
+    //let dur = Duration::from_secs(1);
+    //while !done.load(SeqCst) {
+    //    df.sync_all().await.unwrap();
+    //    //kf.sync_all().await.unwrap();
+    //    task::sleep(dur).await;
+    //}
+    df.sync_all().await.unwrap();
+    //kf.sync_all().await.unwrap();
+
+    #[cfg(target_os = "linux")]
+    unsafe {
+        let df_fd = df.as_raw_fd();
+        //let kf_fd = kf.as_raw_fd();
+        libc::posix_fadvise64(df_fd, 0, 0, libc::POSIX_FADV_DONTNEED);
+        //libc::posix_fadvise64(kf_fd, 0, 0, libc::POSIX_FADV_DONTNEED);
+    };
 }
 
 pub struct FileBlockLoader {
