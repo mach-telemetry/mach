@@ -309,8 +309,8 @@ mod test {
     #[should_panic]
     fn test_multiple_write_panic() {
         let segment = ActiveSegment::new(2);
-        let writer = segment.writer();
-        let writer = segment.writer();
+        let _writer = segment.writer();
+        let _writer = segment.writer();
     }
 
     #[test]
@@ -318,7 +318,7 @@ mod test {
         let segment = ActiveSegment::new(2);
         let writer = segment.writer();
         drop(writer);
-        let writer = segment.writer();
+        let _writer = segment.writer();
     }
 
     #[test]

@@ -352,14 +352,14 @@ impl SegmentIterator for ActiveBlockReader {
 mod test {
     use super::*;
     use rand::prelude::*;
-    use std::convert::TryInto;
+    //use std::convert::TryInto;
 
     #[test]
     #[should_panic]
     fn test_multiple_write_panic() {
         let block = ActiveBlock::new();
-        let writer = block.writer();
-        let writer = block.writer();
+        let _writer = block.writer();
+        let _writer = block.writer();
     }
 
     #[test]
@@ -367,7 +367,7 @@ mod test {
         let block = ActiveBlock::new();
         let writer = block.writer();
         drop(writer);
-        let writer = block.writer();
+        let _writer = block.writer();
     }
 
     #[test]
@@ -521,7 +521,7 @@ mod test {
         rng.try_fill(&mut v2[..]).unwrap();
         writer.push_segment(4, 10, v2.as_slice());
 
-        let buf = writer.yield_replace();
+        let _buf = writer.yield_replace();
         assert_eq!(block.inner.len.load(SeqCst), 0);
         assert_eq!(block.inner.mint, Dt::MAX);
         assert_eq!(block.inner.maxt, Dt::MIN);

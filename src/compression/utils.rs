@@ -257,7 +257,7 @@ mod test {
         rng.fill(&mut data[..]);
         rng.fill(&mut buf[..]);
         rng.fill(&mut res[..]);
-        let sz = bitpack_256_compress(buf, data);
+        let _sz = bitpack_256_compress(buf, data);
         bitpack_256_decompress(res, buf);
         assert_eq!(res, data);
     }
