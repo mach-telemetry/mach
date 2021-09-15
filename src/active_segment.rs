@@ -207,9 +207,13 @@ impl SegmentIterator for ActiveSegmentReader {
     }
 
     fn next_segment(&mut self) -> Option<Segment> {
-        let ts = self.timestamps();
-        let contains = overlaps(self.mint, self.maxt, ts[0], *ts.last().unwrap());
+        let contains = {
+            let ts = self.timestamps();
+            overlaps(self.mint, self.maxt, ts[0], *ts.last().unwrap())
+        };
         if !self.yielded && contains {
+            self.yielded = true;
+            let ts = self.timestamps();
             let mut seg = Segment::new();
             let mut start = 0;
             let mut end = 0;

@@ -39,6 +39,7 @@ pub fn load_univariate() -> Vec<(String, Data)> {
             data.push((k.clone(), item));
         }
     }
+    data.sort_by_key(|x| x.0.clone());
     data
 }
 
@@ -75,6 +76,7 @@ pub fn load_multivariate() -> Vec<(String, Data)> {
             data.push((k.clone(), item));
         }
     }
+    data.sort_by_key(|x| x.0.clone());
     data
 }
 

@@ -305,7 +305,6 @@ mod test {
     use tempdir::TempDir;
 
     #[test]
-    #[ignore]
     fn test_write() {
         let data = test_utils::UNIVARIATE_DATA[0].1.clone();
         let dir = TempDir::new("tsdb0").unwrap();
@@ -334,10 +333,10 @@ mod test {
             timestamps.extend_from_slice(segment.timestamps());
             values.extend_from_slice(segment.variable(0));
         }
-        assert_eq!(timestamps, expected_timestamps);
-        assert_eq!(values, expected_values);
-    }
 
-    //use super::*;
-    //use crate::test::TEST_DATA_PATH;
+        assert_eq!(timestamps, expected_timestamps);
+        for (x, y) in values.iter().zip(expected_values.iter()) {
+            assert!((x - y).abs() < 0.01);
+        }
+    }
 }

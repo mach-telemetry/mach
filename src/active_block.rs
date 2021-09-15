@@ -172,7 +172,7 @@ impl InnerActiveBlock {
     // Random lengths: segments in the tail
     // BLOCKSZ: End of the block
     fn push_segment(&mut self, mint: Dt, maxt: Dt, slice: &[u8]) {
-        if self.remaining() < size_of::<Dt>() * 2 + size_of::<u16>() + slice.len() {
+        if self.remaining() < slice.len() {
             panic!("Not enough space in active block");
         }
 
@@ -211,9 +211,20 @@ impl InnerActiveBlock {
         self.len.fetch_add(1, SeqCst);
     }
 
+    fn write_len(&mut self) {
+        let len: u16 = self.len.load(SeqCst).try_into().unwrap();
+        self.block[..2].copy_from_slice(&len.to_be_bytes()[..]);
+    }
+
     fn remaining(&self) -> usize {
-        //println!("Tail: {} Idx: {}", self.tail_offset, self.idx_offset);
-        self.tail_offset - self.idx_offset
+        assert!(self.tail_offset > self.idx_offset);
+        let idx_entry_sz = (size_of::<Dt>() * 2 + size_of::<u16>() * 2);
+        let diff = self.tail_offset - self.idx_offset;
+        if diff > idx_entry_sz {
+            diff - idx_entry_sz
+        } else {
+            0
+        }
     }
 }
 
@@ -270,7 +281,7 @@ impl ActiveBlockWriter {
         unsafe {
             self.ptr
                 .as_mut()
-                .expect("inactive block ptr is null")
+                .expect("active block ptr is null")
                 .push_segment(mint, maxt, slice);
         }
     }
@@ -280,6 +291,13 @@ impl ActiveBlockWriter {
     }
 
     pub fn yield_replace(&mut self) -> ActiveBlockBuffer {
+        unsafe {
+            self.ptr
+                .as_mut()
+                .expect("active block ptr is null")
+                .write_len();
+        }
+
         let mut inner = Arc::new(InnerActiveBlock::new());
         unsafe {
             std::mem::swap(&mut *Arc::get_mut_unchecked(&mut self.arc), &mut inner);
@@ -307,7 +325,6 @@ struct IdxEntry {
 pub struct ActiveBlockReader {
     _inner: Arc<InnerActiveBlock>,
     block: *const u8,
-    //len: usize,
     index: Vec<IdxEntry>,
     offset: usize,
     qmint: Dt,
@@ -458,7 +475,8 @@ mod test {
         rng.try_fill(&mut v[..]).unwrap();
         writer.push_segment(25, 26, v.as_slice());
 
-        assert_eq!(writer.remaining(), 582);
+        // Need to leave room for one more index entry (20 bytes)
+        assert_eq!(writer.remaining(), 562);
 
         let mut v = vec![0u8; 1500];
         rng.try_fill(&mut v[..]).unwrap();
