@@ -16,10 +16,13 @@ pub struct SeriesReadSet<R: BlockReader> {
 
 impl<R: BlockReader> SeriesReadSet<R> {
     pub fn new(
-        active_segment: ActiveSegmentReader,
-        active_block: ActiveBlockReader,
-        blocks: R,
+        mut active_segment: ActiveSegmentReader,
+        mut active_block: ActiveBlockReader,
+        mut blocks: R,
     ) -> Self {
+        active_segment.set_range(Dt::MIN, Dt::MAX);
+        active_block.set_range(Dt::MIN, Dt::MAX);
+        blocks.set_range(Dt::MIN, Dt::MAX);
         SeriesReadSet {
             active_block: active_block,
             active_segment,
@@ -74,11 +77,4 @@ impl<R: BlockReader> SeriesReadSet<R> {
             Some(segment) => Some(segment),
         }
     }
-
-    //pub fn next_segment(&mut self) -> Option<Segment> {
-    //    match self.phase {
-    //        0 => {
-    //        }
-    //    }
-    //}
 }

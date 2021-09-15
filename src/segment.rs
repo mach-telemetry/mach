@@ -31,3 +31,31 @@ impl Segment {
         }
     }
 }
+
+impl SegmentLike for Segment {
+    fn timestamps(&self) -> &[Dt] {
+        self.timestamps.as_slice()
+    }
+
+    fn variable(&self, id: usize) -> &[Fl] {
+        let start = self.len() * id;
+        let end = start + self.len();
+        &self.values[start..end]
+    }
+
+    fn value(&self, varid: usize, idx: usize) -> Fl {
+        self.variable(varid)[idx]
+    }
+
+    fn row(&self, idx: usize) -> &[Fl] {
+        unimplemented!()
+    }
+
+    fn nvars(&self) -> usize {
+        self.values.len() / self.len()
+    }
+
+    fn len(&self) -> usize {
+        self.timestamps().len()
+    }
+}

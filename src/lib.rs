@@ -13,3 +13,6 @@ mod utils;
 
 pub use read_set::SeriesReadSet;
 pub use tsdb::{Db, SeriesOptions, Writer, WriterMetadata};
+
+#[cfg(test)]
+mod test_utils;

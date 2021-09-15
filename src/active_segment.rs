@@ -78,7 +78,7 @@ impl InnerSegment {
         for (var, val) in item.values.iter().enumerate() {
             self.values.as_mut()[var][len] = *val;
         }
-        self.len.fetch_add(1, SeqCst)
+        self.len.fetch_add(1, SeqCst) + 1
     }
 
     fn len(&self) -> usize {
@@ -124,6 +124,7 @@ impl ActiveSegment {
             arc: self.inner.clone(),
             writer_count: self.writer_count.clone(),
             nvars: self.nvars,
+            capacity: SEGSZ,
         }
     }
 }
@@ -134,11 +135,20 @@ pub struct ActiveSegmentWriter {
     arc: Arc<Arc<InnerSegment>>,
     writer_count: Arc<AtomicUsize>,
     nvars: usize,
+    capacity: usize,
 }
 
 impl ActiveSegmentWriter {
     pub fn push(&mut self, item: Sample) -> usize {
         unsafe { self.ptr.as_mut().unwrap().push(item) }
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    pub fn set_capacity(&mut self, cap: usize) {
+        self.capacity = cap;
     }
 
     pub fn yield_replace(&mut self) -> ActiveSegmentBuffer {

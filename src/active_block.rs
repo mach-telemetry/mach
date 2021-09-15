@@ -212,6 +212,7 @@ impl InnerActiveBlock {
     }
 
     fn remaining(&self) -> usize {
+        //println!("Tail: {} Idx: {}", self.tail_offset, self.idx_offset);
         self.tail_offset - self.idx_offset
     }
 }

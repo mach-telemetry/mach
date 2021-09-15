@@ -104,7 +104,9 @@ impl FileItem {
     }
 
     fn write(&mut self, data: &[u8]) -> Result<(), &'static str> {
-        self.file.write_all(data).map_err(|_| "Can't write to file")?;
+        self.file
+            .write_all(data)
+            .map_err(|_| "Can't write to file")?;
         self.flush_count += 1;
         if self.flush_count == 5 {
             match self.flush_channel.try_send(()) {
@@ -176,10 +178,7 @@ impl BlockWriter for ThreadFileWriter {
             }
         }
 
-        self.file
-            .as_mut()
-            .unwrap()
-            .write(d)?;
+        self.file.as_mut().unwrap().write(d)?;
         self.block_count += 1;
         Ok(())
     }
