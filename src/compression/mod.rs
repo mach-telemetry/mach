@@ -1,8 +1,10 @@
 mod simple;
+mod rows;
 mod utils;
 
 use crate::{
     compression::simple::{simple_compression, simple_decompression},
+    compression::rows::{rows_compression, rows_decompression},
     segment::{Segment, SegmentLike},
     tsdb::Dt,
 };
@@ -14,6 +16,7 @@ const MAGIC: &str = "202107280428";
 #[derive(Clone)]
 pub enum Compression {
     Simple { precision: Vec<u8> },
+    Rows { precision: Vec<u8> },
 }
 
 pub struct Header {
@@ -69,7 +72,7 @@ impl Compression {
     fn section_code(&self) -> u8 {
         match self {
             Self::Simple { .. } => 1,
-            //Self::Rows => 2,
+            Self::Rows { .. } => 2,
         }
     }
 
@@ -79,7 +82,10 @@ impl Compression {
         offset += match self {
             Self::Simple { precision } => {
                 simple_compression(data, &mut buf[offset..], precision.as_slice())
-            } //Self::Rows => rows_compression(data, &mut buf[offset..], precision),
+            },
+            Self::Rows { precision } => {
+                rows_compression(data, &mut buf[offset..], precision.as_slice())
+            },
         };
 
         // write length in the first 2 bytes of the header
@@ -140,7 +146,7 @@ impl Compression {
 
         match header.section_code {
             1 => simple_decompression(&header, buf, &data[offset..]),
-            //2 => rows_decompression(&header, buf, &data[offset..]),
+            2 => rows_decompression(&header, buf, &data[offset..]),
             _ => panic!("Invalid compression code!"),
         };
         buf.len = header.len;
@@ -194,5 +200,93 @@ mod test {
         assert_eq!(segment.values.len(), 512);
         assert_eq!(segment.variable(0), var0);
         assert_eq!(segment.variable(1), var1);
+    }
+
+    #[test]
+    fn test_rows_compress_decompress() {
+        let mut rng = thread_rng();
+        let active_segment = ActiveSegment::new(2);
+        let mut writer = active_segment.writer();
+
+        let mut samples = Vec::new();
+        let mut var0 = Vec::new();
+        let mut var1 = Vec::new();
+
+        // This should be less than 256 / nvars
+        for dt in 0..120 {
+            let v0 = rng.gen();
+            let v1 = rng.gen();
+            var0.push(round(3, v0));
+            var1.push(round(3, v1));
+            let s = Sample {
+                ts: dt,
+                values: Box::new([v0, v1]),
+            };
+            samples.push(s);
+        }
+
+        for s in samples {
+            writer.push(s);
+        }
+
+        let segment_buf = writer.yield_replace();
+        let compress = Compression::Rows {
+            precision: vec![3, 3],
+        };
+        let mut compressed_buf = [0u8; 8192];
+        let sz = compress.compress(&segment_buf, &mut compressed_buf[..]);
+
+        let mut segment = Segment::new();
+        Compression::decompress(&compressed_buf[..sz], &mut segment);
+        assert_eq!(segment.len(), 120);
+        assert_eq!(segment.nvars(), 2);
+        assert_eq!(segment.values.len(), 240);
+        assert_eq!(segment.variable(0), var0);
+        assert_eq!(segment.variable(1), var1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_rows_too_big_compress_decompress() {
+        let mut rng = thread_rng();
+        let active_segment = ActiveSegment::new(2);
+        let mut writer = active_segment.writer();
+
+        let mut samples = Vec::new();
+        let mut var0 = Vec::new();
+        let mut var1 = Vec::new();
+
+        // This should cause the rows compressor to panic because total number of values being
+        // compressed is > 256
+        for dt in 0..250 {
+            let v0 = rng.gen();
+            let v1 = rng.gen();
+            var0.push(round(3, v0));
+            var1.push(round(3, v1));
+            let s = Sample {
+                ts: dt,
+                values: Box::new([v0, v1]),
+            };
+            samples.push(s);
+        }
+
+        for s in samples {
+            writer.push(s);
+        }
+
+        let segment_buf = writer.yield_replace();
+        let compress = Compression::Rows {
+            precision: vec![3, 3],
+        };
+        let mut compressed_buf = [0u8; 8192];
+        compress.compress(&segment_buf, &mut compressed_buf[..]);
+
+        //let mut segment = Segment::new();
+        //Compression::decompress(&compressed_buf[..sz], &mut segment);
+        //assert_eq!(segment.len(), 120);
+        //assert_eq!(segment.nvars(), 2);
+        //assert_eq!(segment.values.len(), 240);
+        //assert_eq!(segment.variable(0), var0);
+        //assert_eq!(segment.variable(1), var1);
     }
 }

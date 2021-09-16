@@ -1,4 +1,4 @@
-use crate::tsdb::{Dt, Fl, Sample};
+use crate::tsdb::{Fl, Sample};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs::OpenOptions, io::Read, path::Path, sync::Arc};
