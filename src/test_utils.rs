@@ -1,14 +1,14 @@
 use crate::tsdb::{Fl, Sample};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::OpenOptions, io::Read, path::Path, sync::Arc};
+use std::{collections::HashMap, fs::OpenOptions, io::Read, path::{Path, PathBuf}, sync::Arc};
 
-pub const TEST_DATA_PATH: &str = "/data/fsolleza/data/data";
 pub const UNIVARIATE: &str = "bench1_univariate_small.json";
 pub const MULTIVARIATE: &str = "bench1_multivariate_small.json";
 pub const MIN_SAMPLES: usize = 30_000;
 
 lazy_static! {
+    pub static ref TEST_DATA_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
     pub static ref UNIVARIATE_DATA: Arc<Vec<(String, Data)>> = Arc::new(load_univariate());
     pub static ref MULTIVARIATE_DATA: Arc<Vec<(String, Data)>> = Arc::new(load_multivariate());
 }
@@ -25,7 +25,7 @@ pub fn load_univariate() -> Vec<(String, Data)> {
     println!("Loading univariate data");
     let mut file = OpenOptions::new()
         .read(true)
-        .open(Path::new(TEST_DATA_PATH).join(UNIVARIATE))
+        .open(Path::new(TEST_DATA_PATH.as_path()).join(UNIVARIATE))
         .unwrap();
     let mut json = String::new();
     file.read_to_string(&mut json).unwrap();
@@ -62,7 +62,7 @@ pub fn load_multivariate() -> Vec<(String, Data)> {
     println!("Loading multivariate data");
     let mut file = OpenOptions::new()
         .read(true)
-        .open(Path::new(TEST_DATA_PATH).join(MULTIVARIATE))
+        .open(Path::new(TEST_DATA_PATH.as_path()).join(MULTIVARIATE))
         .unwrap();
     let mut json = String::new();
     file.read_to_string(&mut json).unwrap();

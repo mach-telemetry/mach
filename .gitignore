@@ -1,3 +1,4 @@
+/data
 .*.swp
 /target
 Cargo.lock
