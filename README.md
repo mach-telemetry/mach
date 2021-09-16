@@ -15,8 +15,8 @@ unpack data.tar.gz to a path. update test data path
 Note: still need to clean-up how the tests interact with the data so ignore this for now
 
 ### TODOs
-- [ ] Persist file store
+- [x] Persist file store
 - [ ] Persist keys
 - [ ] XOR Compression
-- [ ] Row-based compression
+- [x] Row-based compression
 - [ ] Load files from directory

@@ -44,7 +44,7 @@ impl Default for SeriesOptions {
         Self {
             nvars: 1,
             default_compressor: Compression::Simple { precision: vec![3] },
-            fallback_compressor: Compression::Simple { precision: vec![3] },
+            fallback_compressor: Compression::Rows { precision: vec![3] },
             fall_back_sz: 50,
             max_compressed_sz: 0,
             block_bytes: BLOCKSZ,
@@ -257,15 +257,20 @@ impl<W: BlockWriter> Writer<W> {
             // And then compress it
             // TODO: Here, we could probably use something smarter to determine how to pack blocks
             let bytes = if opts.fall_back {
+                //println!("USING FALLBACK");
                 opts.fallback_compressor
                     .compress(&segment, &mut self.buf[..])
             } else {
+                //println!("USING DEFAULT");
                 opts.default_compressor
                     .compress(&segment, &mut self.buf[..])
             };
 
             // If there is no room in the current active block, flush the active block
-            if bytes > active_block_writer.remaining() {
+            let remaining = active_block_writer.remaining();
+            //println!("BLOCK IS {}% FULL", (1.0 - (remaining as f64 / BLOCKSZ as f64)) * 100.);
+            if bytes > remaining {
+                //println!("FLUSHING BLOCK");
                 let block = active_block_writer.yield_replace();
                 self.block_writer.write_block(
                     series_id,
@@ -289,6 +294,7 @@ impl<W: BlockWriter> Writer<W> {
             opts.max_compressed_sz = opts.max_compressed_sz.max(bytes);
             opts.block_bytes_remaining -= bytes;
             if opts.block_bytes_remaining < opts.max_compressed_sz {
+                //println!("SETTING FALLBACK FOR NEXT BLOCK");
                 opts.fall_back = true;
                 active_segment.set_capacity(opts.fall_back_sz);
             }
@@ -374,7 +380,6 @@ mod test {
         let mut timestamps = Vec::new();
         let mut values = Vec::new();
         while let Some(segment) = snapshot.next_segment() {
-            println!("HERE");
             timestamps.extend_from_slice(segment.timestamps());
             values.extend_from_slice(segment.variable(1));
         }
