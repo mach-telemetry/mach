@@ -1,7 +1,13 @@
 use crate::tsdb::{Fl, Sample};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::OpenOptions, io::Read, path::{Path, PathBuf}, sync::Arc};
+use std::{
+    collections::HashMap,
+    fs::OpenOptions,
+    io::Read,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 pub const UNIVARIATE: &str = "bench1_univariate_small.json";
 pub const MULTIVARIATE: &str = "bench1_multivariate_small.json";
