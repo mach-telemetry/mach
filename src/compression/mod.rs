@@ -1,10 +1,10 @@
-mod simple;
 mod rows;
+mod simple;
 mod utils;
 
 use crate::{
-    compression::simple::{simple_compression, simple_decompression},
     compression::rows::{rows_compression, rows_decompression},
+    compression::simple::{simple_compression, simple_decompression},
     segment::{Segment, SegmentLike},
     tsdb::Dt,
 };
@@ -82,10 +82,10 @@ impl Compression {
         offset += match self {
             Self::Simple { precision } => {
                 simple_compression(data, &mut buf[offset..], precision.as_slice())
-            },
+            }
             Self::Rows { precision } => {
                 rows_compression(data, &mut buf[offset..], precision.as_slice())
-            },
+            }
         };
 
         // write length in the first 2 bytes of the header

@@ -8,11 +8,7 @@ use std::{
     mem::size_of,
 };
 
-pub fn rows_compression<S: SegmentLike>(
-    data: &S,
-    final_buf: &mut [u8],
-    precision: &[u8],
-) -> usize {
+pub fn rows_compression<S: SegmentLike>(data: &S, final_buf: &mut [u8], precision: &[u8]) -> usize {
     assert!(256 >= data.nvars() * data.len());
     let mut buf = [0u8; 8192];
     let len = data.len();
@@ -63,7 +59,7 @@ pub fn rows_compression<S: SegmentLike>(
     off += 1;
     let sz = size_of::<u64>();
     for j in 0..big_count {
-        buf[off..off+sz].copy_from_slice(&big[j].to_be_bytes()[..]);
+        buf[off..off + sz].copy_from_slice(&big[j].to_be_bytes()[..]);
         off += sz;
         buf[off] = big_offset[j];
         off += 1;
@@ -79,7 +75,6 @@ pub fn rows_compression<S: SegmentLike>(
 
     // Then the variables
     for (idx, p) in precision.iter().enumerate() {
-
         let values = &data.variable(idx);
         let mut diff = I64Differ::new();
 
@@ -128,7 +123,7 @@ pub fn rows_compression<S: SegmentLike>(
                     big[big_count] = rolled;
                     big_offset[big_count] = scratch_offset as u8;
                     big_count += 1;
-                },
+                }
             }
             scratch_offset += 1;
         }
@@ -141,7 +136,7 @@ pub fn rows_compression<S: SegmentLike>(
     off += 1;
     let sz = size_of::<u64>();
     for j in 0..big_count {
-        buf[off..off+sz].copy_from_slice(&big[j].to_be_bytes()[..]);
+        buf[off..off + sz].copy_from_slice(&big[j].to_be_bytes()[..]);
         off += sz;
         buf[off] = big_offset[j];
         off += 1;
@@ -152,7 +147,7 @@ pub fn rows_compression<S: SegmentLike>(
     off += 1;
     let sz = size_of::<Fl>();
     for j in 0..raw_count {
-        buf[off..off+sz].copy_from_slice(&raw[j].to_be_bytes()[..]);
+        buf[off..off + sz].copy_from_slice(&raw[j].to_be_bytes()[..]);
         off += sz;
         buf[off] = raw_offset[j];
         off += 1;
@@ -202,7 +197,7 @@ pub fn rows_decompression(header: &Header, buf: &mut Segment, compressed: &[u8])
 
     let sz = size_of::<u64>();
     for _ in 0..big_count {
-        let value = u64::from_be_bytes(sect[oft..oft+sz].try_into().unwrap());
+        let value = u64::from_be_bytes(sect[oft..oft + sz].try_into().unwrap());
         oft += sz;
         let offset = sect[oft];
         oft += 1;
@@ -210,9 +205,9 @@ pub fn rows_decompression(header: &Header, buf: &mut Segment, compressed: &[u8])
     }
 
     let mut differ = U64Differ::new();
-    to_unroll[..len].iter().for_each(|x| {
-        buf.timestamps.push(first + differ.unroll(*x))
-    });
+    to_unroll[..len]
+        .iter()
+        .for_each(|x| buf.timestamps.push(first + differ.unroll(*x)));
 
     //for i in 0..len {
     //    buf.ts[i] = first + differ.unroll(to_unroll[i]);
@@ -232,7 +227,7 @@ pub fn rows_decompression(header: &Header, buf: &mut Segment, compressed: &[u8])
 
     let sz = size_of::<u64>();
     for _ in 0..big_count {
-        let value = u64::from_be_bytes(sect[s..s+sz].try_into().unwrap());
+        let value = u64::from_be_bytes(sect[s..s + sz].try_into().unwrap());
         s += sz;
         let offset = sect[s];
         s += 1;
@@ -261,7 +256,7 @@ pub fn rows_decompression(header: &Header, buf: &mut Segment, compressed: &[u8])
 
     let sz = size_of::<Fl>();
     for _ in 0..raw_count {
-        let value: Fl = Fl::from_be_bytes(sect[s..s+sz].try_into().unwrap());
+        let value: Fl = Fl::from_be_bytes(sect[s..s + sz].try_into().unwrap());
         s += sz;
         let offset = sect[s] as usize;
         s += 1;
@@ -270,7 +265,5 @@ pub fn rows_decompression(header: &Header, buf: &mut Segment, compressed: &[u8])
         buf.values[var * len + offset] = value;
     }
 
-
     buf.len = len;
 }
-
