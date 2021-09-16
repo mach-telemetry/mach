@@ -6,17 +6,19 @@
 ```
 cd this/directory
 rustup override set nightly
+tar -xzf data.tar.gz
 cargo test
 ```
 
 ### Data
 
-unpack data.tar.gz to a path. update test data path
-Note: still need to clean-up how the tests interact with the data so ignore this for now
+`tar -xzf data.tar.gz` extracts test univariate and multivariate data into `mach-private/data`.
+This directory is ignored in `.gitignore`
 
 ### TODOs
 - [x] Persist file store
 - [ ] Persist keys
 - [ ] XOR Compression
 - [x] Row-based compression
-- [ ] Load files from directory
+- [x] Load files from directory
+- [ ] Load key metadata from tsdb directory
