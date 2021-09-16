@@ -38,6 +38,11 @@ pub fn fl_from_int(p: u8, v: i64) -> Fl {
     (v as f64 / mult as f64) as Fl
 }
 
+#[cfg(test)]
+pub fn round(p: u8, v: Fl) -> Fl {
+    fl_from_int(p, fl_to_int(p, v).unwrap())
+}
+
 //pub fn round(p: u8, v: Fl) -> Fl {
 //    let mult = multiplier(p) as Fl;
 //    NumCast::from((v * mult).round() / mult).unwrap()

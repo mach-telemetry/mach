@@ -305,7 +305,7 @@ mod test {
     use tempdir::TempDir;
 
     #[test]
-    fn test_write() {
+    fn test_univariate() {
         let data = test_utils::UNIVARIATE_DATA[0].1.clone();
         let dir = TempDir::new("tsdb0").unwrap();
         let db = Db::new(dir.path(), 1);
@@ -339,4 +339,90 @@ mod test {
             assert!((x - y).abs() < 0.01);
         }
     }
+
+    #[test]
+    fn test_multivariate() {
+        let data = test_utils::MULTIVARIATE_DATA[0].1.clone();
+        let dir = TempDir::new("tsdb1").unwrap();
+        let db = Db::new(dir.path(), 1);
+
+        let nvars = data[0].values.len();
+        let mut opts = SeriesOptions::default();
+        opts.nvars = nvars;
+        opts.default_compressor = Compression::Simple {
+            precision: vec![3, 3],
+        };
+        opts.fallback_compressor = Compression::Simple {
+            precision: vec![3, 3],
+        };
+        let serid = SeriesId(0);
+
+        db.add_series(serid, opts);
+
+        let mut writer = db.writer(0);
+        let refid = writer.lookup(serid).unwrap();
+
+        let mut expected_timestamps = Vec::new();
+        let mut expected_values = Vec::new();
+        for item in data.iter() {
+            expected_timestamps.push(item.ts);
+            expected_values.push(item.values[1]);
+            writer.push(refid, serid, (*item).clone()).unwrap();
+        }
+
+        let mut snapshot = db.snapshot(serid).unwrap();
+        let mut timestamps = Vec::new();
+        let mut values = Vec::new();
+        while let Some(segment) = snapshot.next_segment() {
+            println!("HERE");
+            timestamps.extend_from_slice(segment.timestamps());
+            values.extend_from_slice(segment.variable(1));
+        }
+
+        assert_eq!(timestamps, expected_timestamps);
+        for (x, y) in values.iter().zip(expected_values.iter()) {
+            assert!((x - y).abs() < 0.01);
+        }
+    }
+
+    //#[test]
+    //fn test_multivariate_concurrent_read() {
+    //    let data = test_utils::MULTIVARIATE_DATA[0].1.clone();
+    //    let dir = TempDir::new("tsdb2").unwrap();
+    //    let db = Db::new(dir.path(), 1);
+
+    //    let nvars = data[0].values.len();
+    //    let mut opts = SeriesOptions::default();
+    //    opts.nvars = nvars;
+    //    opts.default_compressor = Compression::Simple { precision: vec![3, 3] };
+    //    opts.fallback_compressor = Compression::Simple { precision: vec![3, 3] };
+    //    let serid = SeriesId(0);
+
+    //    db.add_series(serid, opts);
+
+    //    let mut writer = db.writer(0);
+    //    let refid = writer.lookup(serid).unwrap();
+
+    //    let mut expected_timestamps = Vec::new();
+    //    let mut expected_values = Vec::new();
+    //    for item in data.iter() {
+    //        expected_timestamps.push(item.ts);
+    //        expected_values.push(item.values[1]);
+    //        writer.push(refid, serid, (*item).clone()).unwrap();
+    //    }
+
+    //    let mut snapshot = db.snapshot(serid).unwrap();
+    //    let mut timestamps = Vec::new();
+    //    let mut values = Vec::new();
+    //    while let Some(segment) = snapshot.next_segment() {
+    //        println!("HERE");
+    //        timestamps.extend_from_slice(segment.timestamps());
+    //        values.extend_from_slice(segment.variable(1));
+    //    }
+
+    //    assert_eq!(timestamps, expected_timestamps);
+    //    for (x, y) in values.iter().zip(expected_values.iter()) {
+    //        assert!((x - y).abs() < 0.01);
+    //    }
+    //}
 }

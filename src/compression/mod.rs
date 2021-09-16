@@ -148,3 +148,51 @@ impl Compression {
         header
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::{active_segment::ActiveSegment, compression::utils::round, tsdb::Sample};
+    use rand::prelude::*;
+
+    #[test]
+    fn test_simple_compress_decompress() {
+        let mut rng = thread_rng();
+        let active_segment = ActiveSegment::new(2);
+        let mut writer = active_segment.writer();
+
+        let mut samples = Vec::new();
+        let mut var0 = Vec::new();
+        let mut var1 = Vec::new();
+        for dt in 0..256 {
+            let v0 = rng.gen();
+            let v1 = rng.gen();
+            var0.push(round(3, v0));
+            var1.push(round(3, v1));
+            let s = Sample {
+                ts: dt,
+                values: Box::new([v0, v1]),
+            };
+            samples.push(s);
+        }
+
+        for s in samples {
+            writer.push(s);
+        }
+
+        let segment_buf = writer.yield_replace();
+        let compress = Compression::Simple {
+            precision: vec![3, 3],
+        };
+        let mut compressed_buf = [0u8; 8192];
+        let sz = compress.compress(&segment_buf, &mut compressed_buf[..]);
+
+        let mut segment = Segment::new();
+        Compression::decompress(&compressed_buf[..sz], &mut segment);
+        assert_eq!(segment.len(), 256);
+        assert_eq!(segment.nvars(), 2);
+        assert_eq!(segment.values.len(), 512);
+        assert_eq!(segment.variable(0), var0);
+        assert_eq!(segment.variable(1), var1);
+    }
+}
