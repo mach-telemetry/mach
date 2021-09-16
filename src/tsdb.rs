@@ -1,6 +1,6 @@
 use crate::{
     active_block::{ActiveBlock, ActiveBlockWriter},
-    active_segment::{ActiveSegment, ActiveSegmentWriter, SEGSZ},
+    active_segment::{ActiveSegment, ActiveSegmentWriter},
     block::{
         file::{FileBlockLoader, FileStore, ThreadFileWriter},
         BlockReader, BlockStore, BlockWriter, BLOCKSZ,

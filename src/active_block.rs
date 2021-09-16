@@ -218,7 +218,7 @@ impl InnerActiveBlock {
 
     fn remaining(&self) -> usize {
         assert!(self.tail_offset > self.idx_offset);
-        let idx_entry_sz = (size_of::<Dt>() * 2 + size_of::<u16>() * 2);
+        let idx_entry_sz = size_of::<Dt>() * 2 + size_of::<u16>() * 2;
         let diff = self.tail_offset - self.idx_offset;
         if diff > idx_entry_sz {
             diff - idx_entry_sz

@@ -18,14 +18,14 @@ pub struct SeriesReadSet<R: BlockReader> {
 
 impl<R: BlockReader> SeriesReadSet<R> {
     pub fn new(
-        mut active_segment: ActiveSegmentReader,
-        mut active_block: ActiveBlockReader,
-        mut blocks: R,
+        active_segment: ActiveSegmentReader,
+        active_block: ActiveBlockReader,
+        blocks: R,
     ) -> Self {
         let mut read_set = SeriesReadSet {
-            active_block: active_block,
+            active_block,
             active_segment,
-            blocks: blocks,
+            blocks,
             block_buf: None,
             stage: 0,
             qmint: Dt::MIN,

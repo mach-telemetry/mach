@@ -108,10 +108,8 @@ impl FileItem {
             .write_all(data)
             .map_err(|_| "Can't write to file")?;
         self.flush_count += 1;
-        if self.flush_count == 5 {
-            match self.flush_channel.try_send(()) {
-                _ => {}
-            }
+        if self.flush_count == 5 && self.flush_channel.try_send(()).is_ok() {
+            {}
         }
         Ok(())
     }
@@ -160,8 +158,8 @@ impl BlockWriter for ThreadFileWriter {
             }
         }
         let block_id = BlockId {
-            mint: mint,
-            maxt: maxt,
+            mint,
+            maxt,
             file_id: self.file_id,
             block_id: self.block_count,
         };

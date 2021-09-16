@@ -32,6 +32,12 @@ impl Segment {
     }
 }
 
+impl Default for Segment {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SegmentLike for Segment {
     fn timestamps(&self) -> &[Dt] {
         self.timestamps.as_slice()
@@ -47,7 +53,7 @@ impl SegmentLike for Segment {
         self.variable(varid)[idx]
     }
 
-    fn row(&self, idx: usize) -> &[Fl] {
+    fn row(&self, _idx: usize) -> &[Fl] {
         unimplemented!()
     }
 

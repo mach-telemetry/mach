@@ -42,6 +42,8 @@ pub fn simple_compression<S: SegmentLike>(
     let mut big_count: usize = 0;
 
     let mut diff = U64Differ::new();
+
+    #[allow(clippy::needless_range_loop)]
     for i in 0..len {
         let d_first = timestamps[i] - first;
         let v = diff.roll(d_first);
@@ -199,9 +201,13 @@ pub fn simple_decompression(header: &Header, buf: &mut Segment, compressed: &[u8
     }
 
     let mut differ = U64Differ::new();
-    for i in 0..len {
-        buf.timestamps.push(first + differ.unroll(to_unroll[i]));
+
+    for v in &to_unroll[..len] {
+        buf.timestamps.push(first + differ.unroll(*v));
     }
+    //for i in 0..len {
+    //    buf.timestamps.push(first + differ.unroll(to_unroll[i]));
+    //}
 
     // Variables
     for (idx, p) in precision.iter().enumerate() {
@@ -233,10 +239,16 @@ pub fn simple_decompression(header: &Header, buf: &mut Segment, compressed: &[u8
         }
 
         let mut differ = I64Differ::new();
-        for j in 0..len {
-            let unrolled = differ.unroll(to_unroll[j]);
+
+        for v in &to_unroll[..len] {
+            let unrolled = differ.unroll(*v);
             buf.values.push(fl_from_int(*p, first_int + unrolled));
         }
+
+        //for j in 0..len {
+        //    let unrolled = differ.unroll(to_unroll[j]);
+        //    buf.values.push(fl_from_int(*p, first_int + unrolled));
+        //}
 
         // Get the raw values that couldn't be cast to an i64
         let raw_count = sect[oft];
