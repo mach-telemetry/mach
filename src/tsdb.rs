@@ -143,10 +143,28 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
 
     fn resize(&mut self, thread_count: usize) {
         let fstore = self.file_store.clone();
-        // TODO: before scaling down, move datasets that are assigned to any
-        // threads that will be removed
-        self.threads
-            .resize_with(thread_count, || WriterMetadata::new(fstore.clone()));
+
+        if thread_count >= self.threads.len() {
+            // scaling up
+            self.threads
+                .resize_with(thread_count, || WriterMetadata::new(fstore.clone()));
+        } else {
+            // scaling down
+            let truncated_threads = &self.threads[thread_count..];
+            let remaining_threads = &self.threads[..thread_count];
+
+            // move data series from threads about to be truncated to threads that won't be deleted
+            for thread in truncated_threads {
+                thread.map.iter().for_each(|kv| {
+                    let series_id = kv.key();
+                    let meta = kv.value();
+                    let next_thread_id = series_id.0 as usize % thread_count;
+                    remaining_threads[next_thread_id].add_series(*series_id, meta.clone());
+                });
+            }
+
+            self.threads.truncate(thread_count);
+        }
     }
 }
 
