@@ -140,6 +140,14 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
     pub fn writer(&self, thread_id: usize) -> Writer<ThreadFileWriter> {
         self.threads[thread_id].writer()
     }
+
+    fn resize(&mut self, thread_count: usize) {
+        let fstore = self.threads[0].file_store.clone();
+        // TODO: before scaling down, move datasets that are assigned to any
+        // threads that will be removed
+        self.threads
+            .resize_with(thread_count, || WriterMetadata::new(fstore.clone()));
+    }
 }
 
 pub struct WriterMetadata<B, W, R>
@@ -309,6 +317,22 @@ mod test {
     use super::*;
     use crate::test_utils;
     use tempdir::TempDir;
+
+    #[test]
+    fn test_thraed_resize() {
+        let dir = TempDir::new("tsdb0").unwrap();
+        let mut db = Db::new(dir.path(), 1);
+
+        assert_eq!(db.threads.len(), 1);
+
+        // can scale up
+        db.resize(3);
+        assert_eq!(db.threads.len(), 3);
+
+        // can scale down
+        db.resize(1);
+        assert_eq!(db.threads.len(), 1);
+    }
 
     #[test]
     fn test_univariate() {
