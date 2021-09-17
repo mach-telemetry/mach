@@ -12,6 +12,7 @@ where
 {
     fn writer(&self) -> W;
     fn reader(&self, id: SeriesId) -> Option<R>;
+    fn ids(&self) -> Vec<SeriesId>; // TODO: this is a not so elegant hack, better to use an iterator but for now, this works
 }
 
 pub trait BlockWriter {

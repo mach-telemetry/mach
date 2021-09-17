@@ -20,10 +20,10 @@ use std::{
 pub type Dt = u64;
 pub type Fl = f64;
 
-#[derive(Hash, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
 pub struct SeriesId(pub u64);
 
-#[derive(Hash, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
 pub struct RefId(pub u64);
 
 #[derive(Clone)]
@@ -113,6 +113,11 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
             _r: PhantomData,
         }
     }
+
+    //pub fn load<P: AsRef<Path>>(dir: P, threads: usize) -> Self {
+    //    let file_store = FileStore::load(dir);
+    //    let threads = (0..threads).map(|_| WriterMetadata::new(file_store.clone())).collect();
+    //}
 
     pub fn add_series(&self, id: SeriesId, options: SeriesOptions) -> usize {
         // TODO: Optimizations
