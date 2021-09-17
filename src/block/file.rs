@@ -179,7 +179,6 @@ struct FileItem {
 
 impl FileItem {
     fn entries<P: AsRef<Path>>(path: P) -> Result<HashMap<SeriesId, Vec<BlockId>>, &'static str> {
-
         // Get the FileID, open the file
         let file_id = file_id_from_path(&path)?;
         let mut file = OpenOptions::new()
@@ -494,8 +493,7 @@ impl BlockReader for FileBlockLoader {
 }
 
 fn file_id_from_path<P: AsRef<Path>>(path: P) -> Result<usize, &'static str> {
-    path
-        .as_ref()
+    path.as_ref()
         .file_name()
         .ok_or("Can't get file name")?
         .to_str()
