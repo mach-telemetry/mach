@@ -114,6 +114,11 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         }
     }
 
+    //pub fn load<P: AsRef<Path>>(dir: P, threads: usize) -> Self {
+    //    let file_store = FileStore::load(dir);
+    //    let threads = (0..threads).map(|_| WriterMetadata::new(file_store.clone())).collect();
+    //}
+
     pub fn add_series(&self, id: SeriesId, options: SeriesOptions) -> usize {
         // TODO: Optimizations
         // 1. Autoscaling can be performed somewhere by moving writers around the writer metadata

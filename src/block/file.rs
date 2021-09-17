@@ -6,7 +6,7 @@ use crate::{
         overlaps,
     },
 };
-use dashmap::DashMap;
+use dashmap::{self, DashMap};
 use std::{
     collections::{hash_map::Entry, HashMap},
     convert::{AsRef, TryInto},
@@ -165,6 +165,10 @@ impl BlockStore<ThreadFileWriter, FileBlockLoader> for FileStore {
 
     fn reader(&self, id: SeriesId) -> Option<FileBlockLoader> {
         self.block_reader(id)
+    }
+
+    fn ids(&self) -> Vec<SeriesId> {
+        self.index.iter().map(|x| *x.key()).collect()
     }
 }
 

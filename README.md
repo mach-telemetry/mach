@@ -17,8 +17,10 @@ This directory is ignored in `.gitignore`
 
 ### TODOs
 - [x] Persist file store
-- [ ] Persist keys
+- [x] Persist keys
 - [ ] XOR Compression
 - [x] Row-based compression
 - [x] Load files from directory
-- [ ] Load key metadata from tsdb directory
+- [x] Load key metadata from tsdb directory
+- [ ] Persist time series options
+- [ ] Reload time series options into Db
