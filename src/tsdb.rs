@@ -20,10 +20,10 @@ use std::{
 pub type Dt = u64;
 pub type Fl = f64;
 
-#[derive(Hash, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
 pub struct SeriesId(pub u64);
 
-#[derive(Hash, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
 pub struct RefId(pub u64);
 
 #[derive(Clone)]
