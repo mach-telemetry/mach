@@ -12,6 +12,7 @@ use std::{
     convert::AsRef,
     fs::{File, OpenOptions},
     io::{Read, Seek, SeekFrom, Write},
+    mem::size_of,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
@@ -21,15 +22,45 @@ use std::{
 
 // File Size of 1GB
 #[cfg(not(test))]
-const FILESZ: usize = 1_000_000_000;
+const BLOCKS_IN_FILE: usize = 121_000; // File size ~1GB
 
 #[cfg(test)]
-const FILESZ: usize = 1_000_000;
+const BLOCKS_IN_FILE: usize = 121; // File size ~1MB
+
+const BLOCK_ENTRY_SZ: usize = size_of::<BlockId>();
+
+#[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct BlockEntry {
+    series_id: u64,
+    offset: u64,
+    mint: u64,
+    maxt: u64,
+}
+
+impl BlockEntry {
+    fn to_be_bytes(&self) -> [u8; BLOCK_ENTRY_SZ] {
+        let mut buf = [0u8; BLOCK_ENTRY_SZ];
+        let mut offt = 0;
+
+        buf[offt..offt + size_of::<u64>()].copy_from_slice(&self.series_id.to_be_bytes()[..]);
+        offt += size_of::<u64>();
+
+        buf[offt..offt + size_of::<u64>()].copy_from_slice(&self.offset.to_be_bytes()[..]);
+        offt += size_of::<u64>();
+
+        buf[offt..offt + size_of::<u64>()].copy_from_slice(&self.mint.to_be_bytes()[..]);
+        offt += size_of::<u64>();
+
+        buf[offt..offt + size_of::<u64>()].copy_from_slice(&self.maxt.to_be_bytes()[..]);
+
+        buf
+    }
+}
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct BlockId {
     file_id: usize,
-    block_id: usize,
+    offset: u64,
     mint: u64,
     maxt: u64,
 }
@@ -58,7 +89,7 @@ impl FileStore {
             file: None,
             file_id: 0,
             block_count: 0,
-            max_blocks: FILESZ / BLOCKSZ,
+            max_blocks: BLOCKS_IN_FILE,
             dir_path: self.dir_path.clone(),
         }
     }
@@ -80,8 +111,11 @@ impl BlockStore<ThreadFileWriter, FileBlockLoader> for FileStore {
 }
 
 struct FileItem {
+    file_id: usize,
     file: File,
-    flush_count: usize,
+    head_offset: u64,
+    blocks_offset: u64,
+    flush_counter: usize,
     flush_channel: async_std::channel::Sender<()>,
 }
 
@@ -94,24 +128,67 @@ impl FileItem {
             .map_err(|_| "Can't open file")?;
         let (tx, rx) = async_std::channel::bounded(1);
         let flush_channel = tx;
-        let flush_count = 0;
+        let head_offset = 0;
+        let blocks_offset = (BLOCKS_IN_FILE * BLOCK_ENTRY_SZ) as u64;
+        let flush_counter = 0;
         async_std::task::spawn(flush_worker(PathBuf::from(dir.as_ref()), fid, rx));
         Ok(Self {
+            file_id: fid,
             file: df,
             flush_channel,
-            flush_count,
+            head_offset,
+            blocks_offset,
+            flush_counter,
         })
     }
 
-    fn write(&mut self, data: &[u8]) -> Result<(), &'static str> {
+    fn write(
+        &mut self,
+        series_id: SeriesId,
+        mint: Dt,
+        maxt: Dt,
+        data: &[u8],
+    ) -> Result<BlockId, &'static str> {
+        assert_eq!(data.len(), BLOCKSZ);
+
+        // Write all data
+        let offset = self.blocks_offset;
+        self.blocks_offset += BLOCKSZ as u64;
         self.file
-            .write_all(data)
-            .map_err(|_| "Can't write to file")?;
-        self.flush_count += 1;
-        if self.flush_count == 5 && self.flush_channel.try_send(()).is_ok() {
+            .seek(SeekFrom::Start(offset))
+            .map_err(|_| "Can't seek file")?;
+        self.file.write_all(data).map_err(|_| "Can't write data")?;
+
+        // Write the block entry
+        let block_entry = BlockEntry {
+            series_id: series_id.0,
+            mint,
+            maxt,
+            offset: self.blocks_offset,
+        };
+
+        self.file
+            .seek(SeekFrom::Start(self.head_offset))
+            .map_err(|_| "Can't seek file")?;
+        self.file
+            .write_all(&block_entry.to_be_bytes()[..])
+            .map_err(|_| "Cant write block id")?;
+        self.head_offset += BLOCK_ENTRY_SZ as u64;
+
+        self.flush_counter += 1;
+        if self.flush_counter % 5 == 0
+            && self.flush_counter > 0
+            && self.flush_channel.try_send(()).is_ok()
+        {
             {}
         }
-        Ok(())
+
+        Ok(BlockId {
+            mint,
+            maxt,
+            offset,
+            file_id: self.file_id,
+        })
     }
 }
 
@@ -157,12 +234,13 @@ impl BlockWriter for ThreadFileWriter {
                 }
             }
         }
-        let block_id = BlockId {
-            mint,
-            maxt,
-            file_id: self.file_id,
-            block_id: self.block_count,
-        };
+
+        // Write the item into the file
+        let block_id = self
+            .file
+            .as_mut()
+            .unwrap()
+            .write(series_id, mint, maxt, d)?;
 
         let entry = self.index_writers.entry(series_id);
 
@@ -176,7 +254,6 @@ impl BlockWriter for ThreadFileWriter {
             }
         }
 
-        self.file.as_mut().unwrap().write(d)?;
         self.block_count += 1;
         Ok(())
     }
@@ -255,10 +332,9 @@ impl FileBlockLoader {
         self.current_file_id = file_id;
     }
 
-    fn read_block(&mut self, block_id: usize, buf: &mut [u8]) {
-        let offset = block_id * BLOCKSZ;
+    fn read_block(&mut self, offset: u64, buf: &mut [u8]) {
         let f = self.file.as_mut().unwrap();
-        f.seek(SeekFrom::Start(offset as u64)).unwrap();
+        f.seek(SeekFrom::Start(offset)).unwrap();
         f.read_exact(buf).unwrap();
     }
 
@@ -291,7 +367,7 @@ impl BlockReader for FileBlockLoader {
             self.next_idx += 1;
             let BlockId {
                 file_id,
-                block_id,
+                offset,
                 mint: _,
                 maxt: _,
             } = self.items[current_idx];
@@ -300,7 +376,7 @@ impl BlockReader for FileBlockLoader {
                 self.open_file(file_id);
             }
 
-            self.read_block(block_id, buf);
+            self.read_block(offset, buf);
 
             Some(BLOCKSZ)
         }
@@ -378,7 +454,7 @@ mod test {
         let mut thread_writer = file_store.thread_writer();
         let mut rng = thread_rng();
 
-        let data = (0..FILESZ / BLOCKSZ + 100)
+        let data = (0..BLOCKS_IN_FILE + 100)
             .map(|_| {
                 let mut v = vec![0u8; BLOCKSZ];
                 rng.try_fill(&mut v[..]).unwrap();
@@ -415,7 +491,7 @@ mod test {
         let mut thread_writer = file_store.thread_writer();
         let mut rng = thread_rng();
 
-        let data = (0..FILESZ / BLOCKSZ + 100)
+        let data = (0..BLOCKS_IN_FILE + 100)
             .map(|_| {
                 let mut v = vec![0u8; BLOCKSZ];
                 rng.try_fill(&mut v[..]).unwrap();
