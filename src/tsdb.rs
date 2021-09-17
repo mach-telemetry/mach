@@ -142,7 +142,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
     }
 
     fn resize(&mut self, thread_count: usize) {
-        let fstore = self.threads[0].file_store.clone();
+        let fstore = self.file_store.clone();
         // TODO: before scaling down, move datasets that are assigned to any
         // threads that will be removed
         self.threads
