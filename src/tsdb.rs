@@ -343,18 +343,31 @@ mod test {
 
     #[test]
     fn test_thraed_resize() {
+        let get_db_series_count = |db: &Db<FileStore, ThreadFileWriter, FileBlockLoader>| -> usize {
+            let series_count: usize = db.threads.iter().map(|t| t.map.iter().count()).sum();
+            series_count
+        };
+
         let dir = TempDir::new("tsdb0").unwrap();
-        let mut db = Db::new(dir.path(), 1);
+        let mut db = Db::new(dir.path(), 3);
 
-        assert_eq!(db.threads.len(), 1);
-
-        // can scale up
-        db.resize(3);
         assert_eq!(db.threads.len(), 3);
 
-        // can scale down
+        db.add_series(SeriesId(0), SeriesOptions::default());
+        db.add_series(SeriesId(1), SeriesOptions::default());
+        db.add_series(SeriesId(2), SeriesOptions::default());
+
+        assert_eq!(get_db_series_count(&db), 3);
+
+        // can scale up while keeping all data series
+        db.resize(10);
+        assert_eq!(db.threads.len(), 10);
+        assert_eq!(get_db_series_count(&db), 3);
+
+        // can scale down without deleting data series
         db.resize(1);
         assert_eq!(db.threads.len(), 1);
+        assert_eq!(get_db_series_count(&db), 3);
     }
 
     #[test]
