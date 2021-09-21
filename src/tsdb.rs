@@ -146,7 +146,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         self.threads[thread_id].writer()
     }
 
-    fn resize(&mut self, thread_count: usize) {
+    fn set_thread_count(&mut self, thread_count: usize) {
         let fstore = self.file_store.clone();
 
         if thread_count >= self.threads.len() {
@@ -342,7 +342,7 @@ mod test {
     use tempdir::TempDir;
 
     #[test]
-    fn test_thraed_resize() {
+    fn test_set_thread_count() {
         let get_db_series_count = |db: &Db<FileStore, ThreadFileWriter, FileBlockLoader>| -> usize {
             let series_count: usize = db.threads.iter().map(|t| t.map.iter().count()).sum();
             series_count
@@ -360,12 +360,12 @@ mod test {
         assert_eq!(get_db_series_count(&db), 3);
 
         // can scale up while keeping all data series
-        db.resize(10);
+        db.set_thread_count(10);
         assert_eq!(db.threads.len(), 10);
         assert_eq!(get_db_series_count(&db), 3);
 
         // can scale down without deleting data series
-        db.resize(1);
+        db.set_thread_count(1);
         assert_eq!(db.threads.len(), 1);
         assert_eq!(get_db_series_count(&db), 3);
     }
