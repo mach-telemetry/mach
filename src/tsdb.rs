@@ -222,6 +222,88 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
     pub fn writer(&self, thread_id: usize) -> Writer<ThreadFileWriter> {
         self.threads[thread_id].writer()
     }
+
+    fn _set_thread_count(&mut self, thread_count: usize) {
+        let old_thread_count = self.threads.len();
+        let fstore = self.file_store.clone();
+
+        if thread_count == old_thread_count {
+            return;
+        }
+        let series_migration_map = self._compute_series_migration_map(thread_count);
+
+        if thread_count > old_thread_count {
+            // data series migration will only be safe after new threads are allocated
+            self.threads
+                .resize_with(thread_count, || WriterMetadata::new(fstore.clone()));
+        }
+
+        // migrate data series
+        for entry in series_migration_map.iter() {
+            let serid = entry.key();
+            let (old_thread_id, new_thread_id) = entry.value();
+            self._move_series(*serid, *old_thread_id, *new_thread_id)
+                .unwrap_or(()); // unable to move series; TODO: consider how to handle exception here
+        }
+
+        if thread_count < old_thread_count {
+            // can safely delete threads b/c all data series have been migrated
+            self.threads.truncate(thread_count);
+        }
+    }
+
+    fn _move_series(
+        &mut self,
+        series_id: SeriesId,
+        from_thread: usize,
+        to_thread: usize,
+    ) -> Result<(), String> {
+        let old_thread = self.threads.get(from_thread).ok_or(format!(
+            "Cannot move series '{}' in thread '{}': thread does not exist.",
+            series_id.0 as usize, from_thread,
+        ))?;
+        let new_thread = self.threads.get(to_thread).ok_or(format!(
+            "Cannot move series '{}' to thread '{}': thread does not exist.",
+            series_id.0 as usize, to_thread
+        ))?;
+
+        let (_, series_meta) = old_thread.map.remove(&series_id).ok_or(format!(
+            "Series '{}' not found on thread '{}'",
+            series_id.0 as usize, from_thread
+        ))?;
+
+        new_thread.add_series(series_id, series_meta.clone());
+
+        Ok(())
+    }
+
+    /// Returns a mapping that describes how data series will be migrated
+    /// with the new thread count.
+    ///
+    /// The mapping's keys are IDs of data series that need to be moved.
+    /// The mapping's values are 2-element tuples: the first value is the
+    /// series' current thread ID, and the second is the thread ID to migrate to.
+    ///
+    /// Data series that do not need to be moved are not contained in the
+    /// returned mapping.
+    fn _compute_series_migration_map(
+        &self,
+        new_thread_count: usize,
+    ) -> DashMap<SeriesId, (usize, usize)> {
+        let migration_map: DashMap<SeriesId, (usize, usize)> = DashMap::new();
+
+        for (curr_thread_id, thread) in self.threads.iter().enumerate() {
+            for item in thread.map.iter() {
+                let serid = item.key();
+                let new_thread_id = serid.0 as usize % new_thread_count;
+                if new_thread_id != curr_thread_id {
+                    migration_map.insert(*serid, (curr_thread_id, new_thread_id));
+                }
+            }
+        }
+
+        migration_map
+    }
 }
 
 pub struct WriterMetadata<B, W, R>
@@ -469,9 +551,38 @@ mod test {
     use tempdir::TempDir;
 
     #[test]
+    fn test_set_thread_count() {
+        let get_db_series_count = |db: &Db<FileStore, ThreadFileWriter, FileBlockLoader>| -> usize {
+            let series_count: usize = db.threads.iter().map(|t| t.map.iter().count()).sum();
+            series_count
+        };
+
+        let dir = TempDir::new("tsdb0").unwrap();
+        let mut db = Db::new(dir.path(), 3).unwrap();
+
+        assert_eq!(db.threads.len(), 3);
+
+        db.add_series(SeriesId(0), SeriesOptions::default());
+        db.add_series(SeriesId(1), SeriesOptions::default());
+        db.add_series(SeriesId(2), SeriesOptions::default());
+
+        assert_eq!(get_db_series_count(&db), 3);
+
+        // can scale up while keeping all data series
+        db._set_thread_count(10);
+        assert_eq!(db.threads.len(), 10);
+        assert_eq!(get_db_series_count(&db), 3);
+
+        // can scale down without deleting data series
+        db._set_thread_count(1);
+        assert_eq!(db.threads.len(), 1);
+        assert_eq!(get_db_series_count(&db), 3);
+    }
+
+    #[test]
     fn test_univariate() {
         let data = test_utils::UNIVARIATE_DATA[0].1.clone();
-        let dir = TempDir::new("tsdb0").unwrap();
+        let dir = TempDir::new("tsdb1").unwrap();
         let db = Db::new(dir.path(), 1).unwrap();
 
         let opts = SeriesOptions::default();
@@ -507,7 +618,7 @@ mod test {
     #[test]
     fn test_multivariate() {
         let data = test_utils::MULTIVARIATE_DATA[0].1.clone();
-        let dir = TempDir::new("tsdb1").unwrap();
+        let dir = TempDir::new("tsdb2").unwrap();
         let db = Db::new(dir.path(), 1).unwrap();
 
         let nvars = data[0].values.len();
@@ -550,7 +661,7 @@ mod test {
 
     #[test]
     fn test_reload() {
-        let dir = TempDir::new("tsdb2").unwrap();
+        let dir = TempDir::new("tsdb3").unwrap();
         let db = Db::new(dir.path(), 1).unwrap();
 
         for i in 0..3 {
