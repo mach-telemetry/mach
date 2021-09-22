@@ -150,18 +150,28 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         let old_thread_count = self.threads.len();
         let fstore = self.file_store.clone();
 
-        // TODO: handle scaling down the number of threads
-        assert!(thread_count > old_thread_count);
-
+        if thread_count == old_thread_count {
+            return;
+        }
         let series_migration_map = self._compute_series_migration_map(thread_count);
 
-        self.threads
-            .resize_with(thread_count, || WriterMetadata::new(fstore.clone()));
-        for item in series_migration_map.iter() {
-            let serid = item.key();
-            let (old_thread_id, new_thread_id) = item.value();
+        if thread_count > old_thread_count {
+            // data series migration will only be safe after new threads are allocated
+            self.threads
+                .resize_with(thread_count, || WriterMetadata::new(fstore.clone()));
+        }
+
+        // migrate data series
+        for entry in series_migration_map.iter() {
+            let serid = entry.key();
+            let (old_thread_id, new_thread_id) = entry.value();
             self._move_series(*serid, *old_thread_id, *new_thread_id)
                 .unwrap_or(()); // unable to move series; TODO: consider how to handle exception here
+        }
+
+        if thread_count < old_thread_count {
+            // can safely delete threads b/c all data series have been migrated
+            self.threads.truncate(thread_count);
         }
     }
 
@@ -205,12 +215,12 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
     ) -> DashMap<SeriesId, (usize, usize)> {
         let migration_map: DashMap<SeriesId, (usize, usize)> = DashMap::new();
 
-        for (thread_id, thread) in self.threads.iter().enumerate() {
+        for (curr_thread_id, thread) in self.threads.iter().enumerate() {
             for item in thread.map.iter() {
                 let serid = item.key();
                 let new_thread_id = serid.0 as usize % new_thread_count;
-                if new_thread_id != thread_id {
-                    migration_map.insert(*serid, (thread_id, new_thread_id));
+                if new_thread_id != curr_thread_id {
+                    migration_map.insert(*serid, (curr_thread_id, new_thread_id));
                 }
             }
         }
@@ -411,9 +421,9 @@ mod test {
         assert_eq!(get_db_series_count(&db), 3);
 
         // can scale down without deleting data series
-        // db._set_thread_count(1);
-        // assert_eq!(db.threads.len(), 1);
-        // assert_eq!(get_db_series_count(&db), 3);
+        db._set_thread_count(1);
+        assert_eq!(db.threads.len(), 1);
+        assert_eq!(get_db_series_count(&db), 3);
     }
 
     #[test]
