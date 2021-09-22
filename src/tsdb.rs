@@ -558,7 +558,7 @@ mod test {
         };
 
         let dir = TempDir::new("tsdb0").unwrap();
-        let mut db = Db::new(dir.path(), 3);
+        let mut db = Db::new(dir.path(), 3).unwrap();
 
         assert_eq!(db.threads.len(), 3);
 
@@ -582,7 +582,7 @@ mod test {
     #[test]
     fn test_univariate() {
         let data = test_utils::UNIVARIATE_DATA[0].1.clone();
-        let dir = TempDir::new("tsdb0").unwrap();
+        let dir = TempDir::new("tsdb1").unwrap();
         let db = Db::new(dir.path(), 1).unwrap();
 
         let opts = SeriesOptions::default();
@@ -618,7 +618,7 @@ mod test {
     #[test]
     fn test_multivariate() {
         let data = test_utils::MULTIVARIATE_DATA[0].1.clone();
-        let dir = TempDir::new("tsdb1").unwrap();
+        let dir = TempDir::new("tsdb2").unwrap();
         let db = Db::new(dir.path(), 1).unwrap();
 
         let nvars = data[0].values.len();
@@ -661,7 +661,7 @@ mod test {
 
     #[test]
     fn test_reload() {
-        let dir = TempDir::new("tsdb2").unwrap();
+        let dir = TempDir::new("tsdb3").unwrap();
         let db = Db::new(dir.path(), 1).unwrap();
 
         for i in 0..3 {
