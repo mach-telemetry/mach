@@ -9,8 +9,8 @@ use crate::{
     tsdb::Dt,
 };
 use num::NumCast;
-use std::convert::TryFrom;
 use serde::*;
+use std::convert::TryFrom;
 
 const MAGIC: &str = "202107280428";
 

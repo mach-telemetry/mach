@@ -10,15 +10,15 @@ use crate::{
     segment::SegmentLike,
 };
 use dashmap::DashMap;
+use serde::*;
 use std::{
     collections::HashMap,
+    fs::{self, OpenOptions},
+    io::Write,
     marker::PhantomData,
     path::{Path, PathBuf},
     sync::{Arc, RwLock},
-    fs::{self, OpenOptions},
-    io::{Write},
 };
-use serde::*;
 
 pub type Dt = u64;
 pub type Fl = f64;
@@ -82,7 +82,7 @@ impl MemSeries {
 
 struct GlobalMetadata {
     map: DashMap<SeriesId, SeriesMetadata>,
-    path: PathBuf,
+    _path: PathBuf,
 }
 
 impl std::ops::Deref for GlobalMetadata {
@@ -102,7 +102,7 @@ impl GlobalMetadata {
     fn new<P: AsRef<Path>>(path: P) -> Self {
         Self {
             map: DashMap::new(),
-            path: PathBuf::from(path.as_ref()),
+            _path: PathBuf::from(path.as_ref()),
         }
     }
 
@@ -114,8 +114,14 @@ impl GlobalMetadata {
             data.insert(*k, v.options.clone());
         }
         let json = serde_json::to_string(&data).map_err(|_| "Can't parse to json")?;
-        let mut f = OpenOptions::new().write(true).create(true).truncate(true).open(&path).map_err(|_| "Cant open path")?;
-        f.write_all(json.as_bytes()).map_err(|_| "Cant write json")?;
+        let mut f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .map_err(|_| "Cant open path")?;
+        f.write_all(json.as_bytes())
+            .map_err(|_| "Cant write json")?;
         Ok(())
     }
 }
@@ -169,11 +175,14 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
 
         // Load filestore information
         let file_store = FileStore::load(data_path)?;
-        let threads = (0..threads).map(|_| WriterMetadata::new(file_store.clone())).collect();
+        let threads = (0..threads)
+            .map(|_| WriterMetadata::new(file_store.clone()))
+            .collect();
 
         // Load meta path
         let data = fs::read_to_string(&meta_path).map_err(|_| "Can't read global metadata file")?;
-        let map: HashMap<SeriesId, SeriesOptions> = serde_json::from_str(&data).map_err(|_| "Can't parse metadata file")?;
+        let map: HashMap<SeriesId, SeriesOptions> =
+            serde_json::from_str(&data).map_err(|_| "Can't parse metadata file")?;
 
         let db = Db {
             map: GlobalMetadata::new(meta_path),
@@ -272,7 +281,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
             series_id.0 as usize, from_thread
         ))?;
 
-        new_thread.add_series(series_id, series_meta.clone());
+        new_thread.add_series(series_id, series_meta);
 
         Ok(())
     }
@@ -436,12 +445,8 @@ impl<W: BlockWriter> Writer<W> {
             // Write compressed data into active segment, then flush
             active_block_writer.push_segment(mint, maxt, &self.buf[..bytes]);
             let block = active_block_writer.yield_replace();
-            self.block_writer.write_block(
-                series_id,
-                block.mint(),
-                block.maxt(),
-                block.slice(),
-            )?;
+            self.block_writer
+                .write_block(series_id, block.mint(), block.maxt(), block.slice())?;
             opts.max_compressed_sz = 0;
             opts.block_bytes_remaining = opts.block_bytes;
             opts.fall_back = false;
@@ -475,7 +480,6 @@ impl<W: BlockWriter> Writer<W> {
         let active_segment = &mut self.active_segments[id];
         let segment_len = active_segment.push(sample);
         if segment_len == active_segment.capacity() {
-
             // TODO: Optimizations:
             // 1. minimize mtx_guard by not yielding and replacing until after compression and
             //    flushing

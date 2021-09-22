@@ -41,7 +41,7 @@ struct BlockEntry {
 }
 
 impl BlockEntry {
-    fn to_be_bytes(&self) -> [u8; BLOCK_ENTRY_SZ] {
+    fn as_be_bytes(&self) -> [u8; BLOCK_ENTRY_SZ] {
         let mut buf = [0u8; BLOCK_ENTRY_SZ];
         let mut offt = 0;
 
@@ -225,7 +225,7 @@ impl FileItem {
                 maxt,
             };
             map.entry(SeriesId(series_id))
-                .or_insert(Vec::new())
+                .or_insert_with(Vec::new)
                 .push(block_id);
         }
 
@@ -296,7 +296,7 @@ impl FileItem {
             .seek(SeekFrom::Start(self.head_offset))
             .map_err(|_| "Can't seek file")?;
         self.file
-            .write_all(&block_entry.to_be_bytes()[..])
+            .write_all(&block_entry.as_be_bytes()[..])
             .map_err(|_| "Cant write block id")?;
         self.head_offset += BLOCK_ENTRY_SZ as u64;
 
@@ -356,7 +356,6 @@ impl BlockWriter for ThreadFileWriter {
         maxt: Dt,
         d: &[u8],
     ) -> Result<(), &'static str> {
-
         match &self.file {
             None => self.open_file()?,
             Some(_) => {
