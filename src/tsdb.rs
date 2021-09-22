@@ -13,20 +13,23 @@ use dashmap::DashMap;
 use std::{
     collections::HashMap,
     marker::PhantomData,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, RwLock},
+    fs::{self, OpenOptions},
+    io::{Write},
 };
+use serde::*;
 
 pub type Dt = u64;
 pub type Fl = f64;
 
-#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Hash, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SeriesId(pub u64);
 
 #[derive(Debug, Hash, Copy, Clone, PartialEq, Eq)]
 pub struct RefId(pub u64);
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SeriesOptions {
     pub nvars: usize,
     pub default_compressor: Compression,
@@ -77,6 +80,46 @@ impl MemSeries {
     }
 }
 
+struct GlobalMetadata {
+    map: DashMap<SeriesId, SeriesMetadata>,
+    path: PathBuf,
+}
+
+impl std::ops::Deref for GlobalMetadata {
+    type Target = DashMap<SeriesId, SeriesMetadata>;
+    fn deref(&self) -> &Self::Target {
+        &self.map
+    }
+}
+
+impl std::ops::DerefMut for GlobalMetadata {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.map
+    }
+}
+
+impl GlobalMetadata {
+    fn new<P: AsRef<Path>>(path: P) -> Self {
+        Self {
+            map: DashMap::new(),
+            path: PathBuf::from(path.as_ref()),
+        }
+    }
+
+    fn flush_series_options<P: AsRef<Path>>(&self, path: P) -> Result<(), &'static str> {
+        let mut data = HashMap::new();
+        for item in self.map.iter() {
+            let k = item.key();
+            let v = item.value();
+            data.insert(*k, v.options.clone());
+        }
+        let json = serde_json::to_string(&data).map_err(|_| "Can't parse to json")?;
+        let mut f = OpenOptions::new().write(true).create(true).truncate(true).open(&path).map_err(|_| "Cant open path")?;
+        f.write_all(json.as_bytes()).map_err(|_| "Cant write json")?;
+        Ok(())
+    }
+}
+
 #[derive(Clone)]
 struct SeriesMetadata {
     options: SeriesOptions,
@@ -91,8 +134,9 @@ where
     R: BlockReader,
 {
     // Global metadata information
-    map: DashMap<SeriesId, SeriesMetadata>,
+    map: GlobalMetadata,
     threads: Vec<WriterMetadata<B, W, R>>,
+    dir: PathBuf,
 
     // File storage information
     file_store: B,
@@ -101,23 +145,52 @@ where
 }
 
 impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
-    pub fn new<P: AsRef<Path>>(dir: P, threads: usize) -> Self {
-        let file_store = FileStore::new(dir);
-        Self {
-            map: DashMap::new(),
+    pub fn new<P: AsRef<Path>>(dir: P, threads: usize) -> Result<Self, &'static str> {
+        let data_path = dir.as_ref().join("data");
+        fs::create_dir_all(&data_path).map_err(|_| "can't create dir")?;
+        let meta_path = dir.as_ref().join("meta");
+        let file_store = FileStore::new(data_path);
+        Ok(Self {
+            map: GlobalMetadata::new(meta_path),
             threads: (0..threads)
                 .map(|_| WriterMetadata::new(file_store.clone()))
                 .collect(),
             file_store,
+            dir: PathBuf::from(dir.as_ref()),
             _w: PhantomData,
             _r: PhantomData,
-        }
+        })
     }
 
-    //pub fn load<P: AsRef<Path>>(dir: P, threads: usize) -> Self {
-    //    let file_store = FileStore::load(dir);
-    //    let threads = (0..threads).map(|_| WriterMetadata::new(file_store.clone())).collect();
-    //}
+    pub fn load<P: AsRef<Path>>(dir: P, threads: usize) -> Result<Self, &'static str> {
+        let data_path = dir.as_ref().join("data");
+        fs::create_dir_all(&data_path).map_err(|_| "can't create dir")?;
+        let meta_path = dir.as_ref().join("meta");
+
+        // Load filestore information
+        let file_store = FileStore::load(data_path)?;
+        let threads = (0..threads).map(|_| WriterMetadata::new(file_store.clone())).collect();
+
+        // Load meta path
+        let data = fs::read_to_string(&meta_path).map_err(|_| "Can't read global metadata file")?;
+        let map: HashMap<SeriesId, SeriesOptions> = serde_json::from_str(&data).map_err(|_| "Can't parse metadata file")?;
+
+        let db = Db {
+            map: GlobalMetadata::new(meta_path),
+            threads,
+            file_store,
+            dir: PathBuf::from(dir.as_ref()),
+            _w: PhantomData,
+            _r: PhantomData,
+        };
+
+        // Load metadata file
+        for (k, v) in map {
+            db.add_series(k, v);
+        }
+
+        Ok(db)
+    }
 
     pub fn add_series(&self, id: SeriesId, options: SeriesOptions) -> usize {
         // TODO: Optimizations
@@ -132,6 +205,10 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         self.threads[thread_id].add_series(id, meta.clone());
         self.map.insert(id, meta);
         thread_id
+    }
+
+    pub fn flush_series_options(&self) -> Result<(), &'static str> {
+        self.map.flush_series_options(self.dir.join("meta"))
     }
 
     pub fn snapshot(&self, id: SeriesId) -> Result<SeriesReadSet<FileBlockLoader>, &'static str> {
@@ -277,6 +354,12 @@ pub struct Writer<W: BlockWriter> {
     block_writer: W,
 }
 
+impl<W: BlockWriter> Drop for Writer<W> {
+    fn drop(&mut self) {
+        self.flush().expect("Can't flush files");
+    }
+}
+
 impl<W: BlockWriter> Writer<W> {
     fn new(series_map: Arc<DashMap<SeriesId, SeriesMetadata>>, block_writer: W) -> Self {
         Self {
@@ -311,6 +394,75 @@ impl<W: BlockWriter> Writer<W> {
         }
     }
 
+    pub fn flush(&mut self) -> Result<(), &'static str> {
+        for (sid, rid) in self.ref_map.iter() {
+            let id = rid.0 as usize;
+            let series_id = *sid;
+            let mtx_guard = self.snapshot_locks[id].write();
+
+            let segment = self.active_segments[id].yield_replace();
+            let (mint, maxt) = {
+                let timestamps = segment.timestamps();
+                (timestamps[0], *timestamps.last().unwrap())
+            };
+
+            let opts = &mut self.series_options[id];
+            let active_block_writer = &mut self.active_blocks[id];
+
+            // And then compress it
+            let bytes = if opts.fall_back {
+                opts.fallback_compressor
+                    .compress(&segment, &mut self.buf[..])
+            } else {
+                opts.default_compressor
+                    .compress(&segment, &mut self.buf[..])
+            };
+
+            // If there is no room in the current active block, flush the active block
+            let remaining = active_block_writer.remaining();
+            if bytes > remaining {
+                let block = active_block_writer.yield_replace();
+                self.block_writer.write_block(
+                    series_id,
+                    block.mint(),
+                    block.maxt(),
+                    block.slice(),
+                )?;
+                opts.max_compressed_sz = 0;
+                opts.block_bytes_remaining = opts.block_bytes;
+                opts.fall_back = false;
+            }
+
+            // Write compressed data into active segment, then flush
+            active_block_writer.push_segment(mint, maxt, &self.buf[..bytes]);
+            let block = active_block_writer.yield_replace();
+            self.block_writer.write_block(
+                series_id,
+                block.mint(),
+                block.maxt(),
+                block.slice(),
+            )?;
+            opts.max_compressed_sz = 0;
+            opts.block_bytes_remaining = opts.block_bytes;
+            opts.fall_back = false;
+
+            // Update metadata for the next push:
+            // 1. Largest compressed size
+            // 2. Should we use fall back compression in this next segment
+            // TODO: determine the block packing heuristic. For now, if bytes remaining is smaller
+            // than the maximum recorded compressed size, fall back
+            opts.max_compressed_sz = opts.max_compressed_sz.max(bytes);
+            opts.block_bytes_remaining -= bytes;
+            if opts.block_bytes_remaining < opts.max_compressed_sz {
+                //println!("SETTING FALLBACK FOR NEXT BLOCK");
+                opts.fall_back = true;
+                self.active_segments[id].set_capacity(opts.fall_back_sz);
+            }
+            drop(mtx_guard)
+        }
+        Ok(())
+    }
+
     // TODO: Optimization + API
     // 1. Return ThreadID? Last serialized timestamp?
     pub fn push(
@@ -323,6 +475,7 @@ impl<W: BlockWriter> Writer<W> {
         let active_segment = &mut self.active_segments[id];
         let segment_len = active_segment.push(sample);
         if segment_len == active_segment.capacity() {
+
             // TODO: Optimizations:
             // 1. minimize mtx_guard by not yielding and replacing until after compression and
             //    flushing
@@ -430,7 +583,7 @@ mod test {
     fn test_univariate() {
         let data = test_utils::UNIVARIATE_DATA[0].1.clone();
         let dir = TempDir::new("tsdb0").unwrap();
-        let db = Db::new(dir.path(), 1);
+        let db = Db::new(dir.path(), 1).unwrap();
 
         let opts = SeriesOptions::default();
         let serid = SeriesId(0);
@@ -466,7 +619,7 @@ mod test {
     fn test_multivariate() {
         let data = test_utils::MULTIVARIATE_DATA[0].1.clone();
         let dir = TempDir::new("tsdb1").unwrap();
-        let db = Db::new(dir.path(), 1);
+        let db = Db::new(dir.path(), 1).unwrap();
 
         let nvars = data[0].values.len();
         let mut opts = SeriesOptions::default();
@@ -500,6 +653,68 @@ mod test {
             values.extend_from_slice(segment.variable(1));
         }
 
+        assert_eq!(timestamps, expected_timestamps);
+        for (x, y) in values.iter().zip(expected_values.iter()) {
+            assert!((x - y).abs() < 0.01);
+        }
+    }
+
+    #[test]
+    fn test_reload() {
+        let dir = TempDir::new("tsdb2").unwrap();
+        let db = Db::new(dir.path(), 1).unwrap();
+
+        for i in 0..3 {
+            let data = test_utils::MULTIVARIATE_DATA[i].1.clone();
+            let nvars = data[0].values.len();
+            let mut opts = SeriesOptions::default();
+            opts.nvars = nvars;
+            opts.default_compressor = Compression::Simple {
+                precision: vec![3, 3],
+            };
+            opts.fallback_compressor = Compression::Simple {
+                precision: vec![3, 3],
+            };
+            let serid = SeriesId(i as u64);
+
+            db.add_series(serid, opts);
+
+            let mut writer = db.writer(0);
+            let refid = writer.lookup(serid).unwrap();
+
+            for item in data[..20_000].iter() {
+                writer.push(refid, serid, (*item).clone()).unwrap();
+            }
+        }
+        db.flush_series_options().unwrap();
+        drop(db);
+
+        let mut expected_timestamps = Vec::new();
+        let mut expected_values = Vec::new();
+        for item in test_utils::MULTIVARIATE_DATA[0].1.clone().iter() {
+            expected_timestamps.push(item.ts);
+            expected_values.push(item.values[1]);
+        }
+
+        let serid = SeriesId(0);
+        let data = test_utils::MULTIVARIATE_DATA[0].1.clone();
+        let db = Db::load(dir.path(), 1).unwrap();
+
+        let mut writer = db.writer(0);
+        let refid = writer.lookup(serid).unwrap();
+        for item in data[20_000..].iter() {
+            writer.push(refid, serid, (*item).clone()).unwrap();
+        }
+
+        let mut snapshot = db.snapshot(serid).unwrap();
+        let mut timestamps = Vec::new();
+        let mut values = Vec::new();
+        while let Some(segment) = snapshot.next_segment() {
+            timestamps.extend_from_slice(segment.timestamps());
+            values.extend_from_slice(segment.variable(1));
+        }
+
+        assert_eq!(timestamps.len(), expected_timestamps.len());
         assert_eq!(timestamps, expected_timestamps);
         for (x, y) in values.iter().zip(expected_values.iter()) {
             assert!((x - y).abs() < 0.01);

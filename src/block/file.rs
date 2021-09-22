@@ -246,7 +246,7 @@ impl FileItem {
         let flush_channel = tx;
         let head_offset = 32; // 24 (magic) + 8 (count)
         let block_count = 0;
-        let blocks_offset = (BLOCKS_IN_FILE * BLOCK_ENTRY_SZ) as u64;
+        let blocks_offset = (BLOCKS_IN_FILE * (BLOCK_ENTRY_SZ + 1)) as u64; // Because of header
         async_std::task::spawn(flush_worker(PathBuf::from(dir.as_ref()), fid, rx));
         Ok(Self {
             file_id: fid,
@@ -356,6 +356,7 @@ impl BlockWriter for ThreadFileWriter {
         maxt: Dt,
         d: &[u8],
     ) -> Result<(), &'static str> {
+
         match &self.file {
             None => self.open_file()?,
             Some(_) => {
@@ -514,7 +515,7 @@ mod test {
 
     #[test]
     fn test_write_read() {
-        let dir = TempDir::new("test").unwrap();
+        let dir = TempDir::new("filetest").unwrap();
         let file_store = FileStore::new(dir.path());
         let mut rng = thread_rng();
         let mut thread_writer = file_store.thread_writer();
@@ -551,7 +552,7 @@ mod test {
 
     #[test]
     fn test_write_read_fill_file() {
-        let dir = TempDir::new("test2").unwrap();
+        let dir = TempDir::new("filetest2").unwrap();
         let file_store = FileStore::new(dir.path());
         let mut thread_writer = file_store.thread_writer();
         let mut rng = thread_rng();
@@ -581,14 +582,14 @@ mod test {
         let mut buf = [0u8; BLOCKSZ];
         while let Some(sz) = reader.next_block(&mut buf[..]) {
             assert_eq!(sz, BLOCKSZ);
-            assert_eq!(buf, data[counter].as_slice());
+            assert_eq!(&buf[..50], &data[counter].as_slice()[..50]);
             counter += 1;
         }
     }
 
     #[test]
     fn test_write_some_read() {
-        let dir = TempDir::new("test3").unwrap();
+        let dir = TempDir::new("filetest3").unwrap();
         let file_store = FileStore::new(dir.path());
         let mut thread_writer = file_store.thread_writer();
         let mut rng = thread_rng();
@@ -625,7 +626,7 @@ mod test {
 
     #[test]
     fn test_write_restart() {
-        let dir = TempDir::new("test").unwrap();
+        let dir = TempDir::new("filetest4").unwrap();
         let file_store = FileStore::new(dir.path());
         let mut rng = thread_rng();
         let mut thread_writer = file_store.thread_writer();

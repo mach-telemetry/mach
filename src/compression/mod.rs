@@ -10,10 +10,11 @@ use crate::{
 };
 use num::NumCast;
 use std::convert::TryFrom;
+use serde::*;
 
 const MAGIC: &str = "202107280428";
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Compression {
     Simple { precision: Vec<u8> },
     Rows { precision: Vec<u8> },
