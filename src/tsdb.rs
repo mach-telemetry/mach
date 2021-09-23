@@ -349,15 +349,20 @@ impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
     }
 }
 
+#[repr(C)]
+struct SeriesRef {
+    active_segment: ActiveSegmentWriter,
+    active_block: ActiveBlockWriter,
+    snapshot_lock: Arc<RwLock<()>>,
+    series_option: SeriesOptions,
+}
+
 pub struct Writer<W: BlockWriter> {
     series_map: Arc<DashMap<SeriesId, SeriesMetadata>>,
     ref_map: HashMap<SeriesId, RefId>,
 
     // Reference these items in the push method
-    active_segments: Vec<ActiveSegmentWriter>,
-    snapshot_locks: Vec<Arc<RwLock<()>>>,
-    series_options: Vec<SeriesOptions>,
-    active_blocks: Vec<ActiveBlockWriter>,
+    series_refs: Vec<SeriesRef>,
 
     // Shared buffer for the compressor and the block writer
     buf: [u8; BLOCKSZ],
@@ -375,10 +380,7 @@ impl<W: BlockWriter> Writer<W> {
         Self {
             series_map,
             ref_map: HashMap::new(),
-            active_segments: Vec::new(),
-            snapshot_locks: Vec::new(),
-            series_options: Vec::new(),
-            active_blocks: Vec::new(),
+            series_refs: Vec::new(),
             buf: [0u8; BLOCKSZ],
             block_writer,
         }
@@ -388,14 +390,13 @@ impl<W: BlockWriter> Writer<W> {
         if let Some(idx) = self.ref_map.get(&id) {
             Some(*idx)
         } else if let Some(ser) = self.series_map.get_mut(&id) {
-            let result = self.active_segments.len();
-            self.active_segments
-                .push(ser.mem_series.active_segment.writer());
-            self.snapshot_locks
-                .push(ser.mem_series.snapshot_lock.clone());
-            self.active_blocks
-                .push(ser.mem_series.active_block.writer());
-            self.series_options.push(ser.options.clone());
+            let result = self.series_refs.len();
+            self.series_refs.push(SeriesRef {
+                active_segment: ser.mem_series.active_segment.writer(),
+                active_block: ser.mem_series.active_block.writer(),
+                series_option: ser.options.clone(),
+                snapshot_lock: ser.mem_series.snapshot_lock.clone(),
+            });
             let refid = RefId(result as u64);
             self.ref_map.insert(id, refid);
             Some(refid)
@@ -408,16 +409,18 @@ impl<W: BlockWriter> Writer<W> {
         for (sid, rid) in self.ref_map.iter() {
             let id = rid.0 as usize;
             let series_id = *sid;
-            let mtx_guard = self.snapshot_locks[id].write();
+            let series_ref = &mut self.series_refs[id];
 
-            let segment = self.active_segments[id].yield_replace();
+            let mtx_guard = series_ref.snapshot_lock.write();
+
+            let segment = series_ref.active_segment.yield_replace();
             let (mint, maxt) = {
                 let timestamps = segment.timestamps();
                 (timestamps[0], *timestamps.last().unwrap())
             };
 
-            let opts = &mut self.series_options[id];
-            let active_block_writer = &mut self.active_blocks[id];
+            let opts = &mut series_ref.series_option;
+            let active_block_writer = &mut series_ref.active_block;
 
             // And then compress it
             let bytes = if opts.fall_back {
@@ -462,7 +465,7 @@ impl<W: BlockWriter> Writer<W> {
             if opts.block_bytes_remaining < opts.max_compressed_sz {
                 //println!("SETTING FALLBACK FOR NEXT BLOCK");
                 opts.fall_back = true;
-                self.active_segments[id].set_capacity(opts.fall_back_sz);
+                series_ref.active_segment.set_capacity(opts.fall_back_sz);
             }
             drop(mtx_guard)
         }
@@ -478,7 +481,8 @@ impl<W: BlockWriter> Writer<W> {
         sample: Sample,
     ) -> Result<(), &'static str> {
         let id = reference_id.0 as usize;
-        let active_segment = &mut self.active_segments[id];
+        let series_ref = &mut self.series_refs[id];
+        let active_segment = &mut series_ref.active_segment;
         let segment_len = active_segment.push(sample);
         if segment_len == active_segment.capacity() {
             // TODO: Optimizations:
@@ -487,7 +491,7 @@ impl<W: BlockWriter> Writer<W> {
             // 2. concurrent compress + flush
 
             // Get block information and take the snapshot lock
-            let mtx_guard = self.snapshot_locks[id].write();
+            let mtx_guard = series_ref.snapshot_lock.write();
 
             // Take segment
             let segment = active_segment.yield_replace();
@@ -496,8 +500,8 @@ impl<W: BlockWriter> Writer<W> {
                 (timestamps[0], *timestamps.last().unwrap())
             };
 
-            let opts = &mut self.series_options[id];
-            let active_block_writer = &mut self.active_blocks[id];
+            let opts = &mut series_ref.series_option;
+            let active_block_writer = &mut series_ref.active_block;
 
             // And then compress it
             // TODO: Here, we could probably use something smarter to determine how to pack blocks
