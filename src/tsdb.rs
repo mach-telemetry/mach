@@ -160,7 +160,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         Ok(Self {
             map: GlobalMetadata::new(meta_path),
             threads: (0..threads)
-                .map(|_| WriterMetadata::new(file_store.clone()))
+                .map(|thread_id| WriterMetadata::new(file_store.clone(), thread_id))
                 .collect(),
             file_store,
             dir: PathBuf::from(dir.as_ref()),
@@ -177,7 +177,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         // Load filestore information
         let file_store = FileStore::load(data_path)?;
         let threads = (0..threads)
-            .map(|_| WriterMetadata::new(file_store.clone()))
+            .map(|thread_id| WriterMetadata::new(file_store.clone(), thread_id))
             .collect();
 
         // Load meta path
@@ -243,9 +243,12 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         let series_migration_map = self._compute_series_migration_map(thread_count);
 
         if thread_count > old_thread_count {
+            let mut next_thread_id = self.threads.len() - 1;
             // data series migration will only be safe after new threads are allocated
-            self.threads
-                .resize_with(thread_count, || WriterMetadata::new(fstore.clone()));
+            self.threads.resize_with(thread_count, || {
+                next_thread_id += 1;
+                WriterMetadata::new(fstore.clone(), next_thread_id)
+            });
         }
 
         // migrate data series
@@ -326,15 +329,17 @@ where
 
     // File storage information
     file_store: B,
+    thread_id: usize,
     _w: PhantomData<W>,
     _r: PhantomData<R>,
 }
 
 impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
-    fn new(file_store: FileStore) -> Self {
+    fn new(file_store: FileStore, thread_id: usize) -> Self {
         Self {
             map: Arc::new(DashMap::new()),
             file_store,
+            thread_id,
             _w: PhantomData,
             _r: PhantomData,
         }
@@ -345,7 +350,7 @@ impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
     }
 
     pub fn writer(&self) -> Writer<ThreadFileWriter> {
-        Writer::new(self.map.clone(), self.file_store.writer())
+        Writer::new(self.map.clone(), self.file_store.writer(), self.thread_id)
     }
 }
 
@@ -367,6 +372,7 @@ pub struct Writer<W: BlockWriter> {
     // Shared buffer for the compressor and the block writer
     buf: [u8; BLOCKSZ],
     block_writer: W,
+    thread_id: usize,
 }
 
 impl<W: BlockWriter> Drop for Writer<W> {
@@ -376,13 +382,18 @@ impl<W: BlockWriter> Drop for Writer<W> {
 }
 
 impl<W: BlockWriter> Writer<W> {
-    fn new(series_map: Arc<DashMap<SeriesId, SeriesMetadata>>, block_writer: W) -> Self {
+    fn new(
+        series_map: Arc<DashMap<SeriesId, SeriesMetadata>>,
+        block_writer: W,
+        thread_id: usize,
+    ) -> Self {
         Self {
             series_map,
             ref_map: HashMap::new(),
             series_refs: Vec::new(),
             buf: [0u8; BLOCKSZ],
             block_writer,
+            thread_id,
         }
     }
 
