@@ -9,6 +9,7 @@ use crate::{
     read_set::SeriesReadSet,
     segment::SegmentLike,
 };
+use core::sync::atomic::AtomicUsize;
 use dashmap::DashMap;
 use serde::*;
 use std::{
@@ -130,7 +131,7 @@ impl GlobalMetadata {
 struct SeriesMetadata {
     options: SeriesOptions,
     mem_series: MemSeries,
-    _thread_id: usize,
+    _thread_id: Arc<AtomicUsize>,
 }
 
 pub struct Db<B, W, R>
@@ -209,7 +210,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         let meta = SeriesMetadata {
             options,
             mem_series,
-            _thread_id: thread_id,
+            _thread_id: Arc::new(AtomicUsize::new(thread_id)),
         };
         self.threads[thread_id].add_series(id, meta.clone());
         self.map.insert(id, meta);
