@@ -9,7 +9,7 @@ use crate::{
     read_set::SeriesReadSet,
     segment::SegmentLike,
 };
-use core::sync::atomic::AtomicUsize;
+use core::sync::atomic::{AtomicUsize, Ordering};
 use dashmap::DashMap;
 use serde::*;
 use std::{
@@ -131,7 +131,7 @@ impl GlobalMetadata {
 struct SeriesMetadata {
     options: SeriesOptions,
     mem_series: MemSeries,
-    _thread_id: Arc<AtomicUsize>,
+    thread_id: Arc<AtomicUsize>,
 }
 
 pub struct Db<B, W, R>
@@ -210,7 +210,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         let meta = SeriesMetadata {
             options,
             mem_series,
-            _thread_id: Arc::new(AtomicUsize::new(thread_id)),
+            thread_id: Arc::new(AtomicUsize::new(thread_id)),
         };
         self.threads[thread_id].add_series(id, meta.clone());
         self.map.insert(id, meta);
@@ -360,6 +360,11 @@ struct SeriesRef {
     active_block: ActiveBlockWriter,
     snapshot_lock: Arc<RwLock<()>>,
     series_option: SeriesOptions,
+    thread_id: Arc<AtomicUsize>,
+}
+
+pub struct PushResult {
+    thread_id: usize,
 }
 
 pub struct Writer<W: BlockWriter> {
@@ -407,6 +412,7 @@ impl<W: BlockWriter> Writer<W> {
                 active_block: ser.mem_series.active_block.writer(),
                 series_option: ser.options.clone(),
                 snapshot_lock: ser.mem_series.snapshot_lock.clone(),
+                thread_id: ser.thread_id.clone(),
             });
             let refid = RefId(result as u64);
             self.ref_map.insert(id, refid);
@@ -490,7 +496,7 @@ impl<W: BlockWriter> Writer<W> {
         reference_id: RefId,
         series_id: SeriesId,
         sample: Sample,
-    ) -> Result<(), &'static str> {
+    ) -> Result<PushResult, &'static str> {
         let id = reference_id.0 as usize;
         let series_ref = &mut self.series_refs[id];
         let active_segment = &mut series_ref.active_segment;
@@ -560,7 +566,16 @@ impl<W: BlockWriter> Writer<W> {
             }
             drop(mtx_guard)
         }
-        Ok(())
+        let series_thread_id = series_ref.thread_id.load(Ordering::Relaxed);
+        if series_thread_id != self.thread_id {
+            // perform cleanup because series has been reassigned to another thread
+            // TODO: update `ref_map` to indicate changes in series ID to ref ID mapping?
+            self.series_refs.swap_remove(id);
+        }
+
+        Ok(PushResult {
+            thread_id: series_thread_id,
+        })
     }
 }
 
