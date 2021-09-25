@@ -524,7 +524,12 @@ impl<W: BlockWriter> Writer<W> {
         sample: Sample,
     ) -> Result<PushResult, &'static str> {
         let id = reference_id.0 as usize;
-        let mem_series = self.mem_series[id].as_mut().unwrap();
+
+        let mem_series = match self.mem_series[id].as_mut() {
+            Some(mem_series) => mem_series,
+            None => return Err("Refid invalid"),
+        };
+
         let active_segment = &mut mem_series.active_segment;
         let segment_len = active_segment.push(sample);
         if segment_len == active_segment.capacity() {
