@@ -366,6 +366,18 @@ struct WriterMemSeries {
     thread_id: Arc<AtomicUsize>,
 }
 
+impl WriterMemSeries {
+    fn new(mem_series: MemSeries, options: SeriesOptions, thread_id: Arc<AtomicUsize>) -> Self {
+        Self {
+            active_segment: mem_series.active_segment.writer(),
+            active_block: mem_series.active_block.writer(),
+            series_option: options,
+            snapshot_lock: mem_series.snapshot_lock.clone(),
+            thread_id: thread_id,
+        }
+    }
+}
+
 pub struct PushResult {
     thread_id: usize,
 }
@@ -413,13 +425,11 @@ impl<W: BlockWriter> Writer<W> {
         if let Some(idx) = self.ref_map.get(&id) {
             Some(*idx)
         } else if let Some(ser) = self.series_map.get_mut(&id) {
-            let mem_series = WriterMemSeries {
-                active_segment: ser.mem_series.active_segment.writer(),
-                active_block: ser.mem_series.active_block.writer(),
-                series_option: ser.options.clone(),
-                snapshot_lock: ser.mem_series.snapshot_lock.clone(),
-                thread_id: ser.thread_id.clone(),
-            };
+            let mem_series = WriterMemSeries::new(
+                ser.mem_series.clone(),
+                ser.options.clone(),
+                ser.thread_id.clone(),
+            );
 
             let result = if self.free_ref_ids.len() > 0 {
                 let free_index = self.free_ref_ids.pop().unwrap().0;
