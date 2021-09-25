@@ -378,7 +378,7 @@ pub struct Writer<W: BlockWriter> {
     // slots may be empty
     mem_series: Vec<Option<WriterMemSeries>>,
     /// Free mem series vec indices to write to, in increasing order.
-    mem_series_free_locs: BinaryHeap<Reverse<usize>>,
+    free_ref_ids: BinaryHeap<Reverse<usize>>,
 
     // Shared buffer for the compressor and the block writer
     buf: [u8; BLOCKSZ],
@@ -402,7 +402,7 @@ impl<W: BlockWriter> Writer<W> {
             series_map,
             ref_map: HashMap::new(),
             mem_series: Vec::new(),
-            mem_series_free_locs: BinaryHeap::new(),
+            free_ref_ids: BinaryHeap::new(),
             buf: [0u8; BLOCKSZ],
             block_writer,
             thread_id,
@@ -421,8 +421,8 @@ impl<W: BlockWriter> Writer<W> {
                 thread_id: ser.thread_id.clone(),
             };
 
-            let result = if self.mem_series_free_locs.len() > 0 {
-                let free_index = self.mem_series_free_locs.pop().unwrap().0;
+            let result = if self.free_ref_ids.len() > 0 {
+                let free_index = self.free_ref_ids.pop().unwrap().0;
                 self.mem_series[free_index] = Some(mem_series);
                 free_index
             } else {
@@ -587,7 +587,7 @@ impl<W: BlockWriter> Writer<W> {
         if series_thread_id != self.thread_id {
             // perform cleanup because series has been reassigned to another thread
             self.mem_series[id] = None;
-            self.mem_series_free_locs.push(Reverse(id));
+            self.free_ref_ids.push(Reverse(id));
         }
 
         Ok(PushResult {
