@@ -246,7 +246,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
 
         if thread_count > old_thread_count {
             // data series migration will only be safe after new threads are allocated
-            let new_threads = (self.threads.len()..thread_count - 1)
+            let new_threads = (self.threads.len()..thread_count)
                 .map(|thread_id| WriterMetadata::new(fstore.clone(), thread_id));
 
             self.threads.extend(new_threads);
