@@ -431,19 +431,18 @@ impl<W: BlockWriter> Writer<W> {
                 ser.thread_id.clone(),
             );
 
-            let result = if self.free_ref_ids.len() > 0 {
-                let free_index = self.free_ref_ids.pop().unwrap().0;
-                self.mem_series[free_index] = Some(mem_series);
-                free_index
-            } else {
-                let next_index = self.mem_series.len();
-                self.mem_series.push(Some(mem_series));
-                next_index
-            };
-
-            let refid = RefId(result as u64);
-            self.ref_map.insert(id, refid);
-            Some(refid)
+            match self.free_ref_ids.pop() {
+                Some(free_ref_id) => {
+                    let refid = free_ref_id.0; // extract from `Reverse(..)` wrapper.
+                    self.mem_series[refid] = Some(mem_series);
+                    Some(RefId(refid as u64))
+                }
+                None => {
+                    let refid = self.mem_series.len();
+                    self.mem_series.push(Some(mem_series));
+                    Some(RefId(refid as u64))
+                }
+            }
         } else {
             None
         }
