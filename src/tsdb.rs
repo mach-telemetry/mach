@@ -609,26 +609,42 @@ mod test {
             series_count
         };
 
+        let assert_series_in_thread =
+            |db: &Db<FileStore, ThreadFileWriter, FileBlockLoader>, series_id, thread_id: usize| {
+                let series = &db.threads[thread_id].map.get(&series_id).unwrap();
+                let tid = &series.value().thread_id;
+                assert_eq!(tid.load(Ordering::Relaxed), thread_id)
+            };
+
         let dir = TempDir::new("tsdb0").unwrap();
         let mut db = Db::new(dir.path(), 3).unwrap();
 
         assert_eq!(db.threads.len(), 3);
 
         db.add_series(SeriesId(0), SeriesOptions::default());
-        db.add_series(SeriesId(1), SeriesOptions::default());
-        db.add_series(SeriesId(2), SeriesOptions::default());
+        db.add_series(SeriesId(5), SeriesOptions::default());
+        db.add_series(SeriesId(8), SeriesOptions::default());
 
         assert_eq!(get_db_series_count(&db), 3);
+        assert_series_in_thread(&db, SeriesId(0), 0);
+        assert_series_in_thread(&db, SeriesId(5), 2);
+        assert_series_in_thread(&db, SeriesId(8), 2);
 
         // can scale up while keeping all data series
         db._set_thread_count(10);
         assert_eq!(db.threads.len(), 10);
         assert_eq!(get_db_series_count(&db), 3);
+        assert_series_in_thread(&db, SeriesId(0), 0);
+        assert_series_in_thread(&db, SeriesId(5), 5);
+        assert_series_in_thread(&db, SeriesId(8), 8);
 
         // can scale down without deleting data series
         db._set_thread_count(1);
         assert_eq!(db.threads.len(), 1);
         assert_eq!(get_db_series_count(&db), 3);
+        assert_series_in_thread(&db, SeriesId(0), 0);
+        assert_series_in_thread(&db, SeriesId(5), 0);
+        assert_series_in_thread(&db, SeriesId(8), 0);
     }
 
     #[test]
