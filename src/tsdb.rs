@@ -596,6 +596,7 @@ impl<W: BlockWriter> Writer<W> {
         if series_thread_id != self.thread_id {
             // perform cleanup because series has been reassigned to another thread
             self.mem_series[id] = None;
+            self.ref_map.remove(&series_id);
             self.free_ref_ids.push(Reverse(id));
         }
 
