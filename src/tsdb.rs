@@ -287,6 +287,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
             series_id.0 as usize, from_thread
         ))?;
 
+        series_meta.thread_id.store(to_thread, Ordering::Relaxed);
         new_thread.add_series(series_id, series_meta);
 
         Ok(())
