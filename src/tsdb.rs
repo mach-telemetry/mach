@@ -609,11 +609,22 @@ mod test {
             series_count
         };
 
-        let assert_series_in_thread =
-            |db: &Db<FileStore, ThreadFileWriter, FileBlockLoader>, series_id, thread_id: usize| {
-                let series = &db.threads[thread_id].map.get(&series_id).unwrap();
+        let assert_series_only_in_thread =
+            |db: &Db<FileStore, ThreadFileWriter, FileBlockLoader>,
+             series_id,
+             expected_thread: usize| {
+                // assert series is in the expected thread
+                let series = &db.threads[expected_thread].map.get(&series_id).unwrap();
                 let tid = &series.value().thread_id;
-                assert_eq!(tid.load(Ordering::Relaxed), thread_id)
+                assert_eq!(tid.load(Ordering::Relaxed), expected_thread);
+
+                // assert series is not in any other thread
+                for thread in db.threads.iter() {
+                    if thread.thread_id == expected_thread {
+                        continue;
+                    }
+                    assert!(thread.map.get(&series_id).is_none());
+                }
             };
 
         let dir = TempDir::new("tsdb0").unwrap();
@@ -626,25 +637,25 @@ mod test {
         db.add_series(SeriesId(8), SeriesOptions::default());
 
         assert_eq!(get_db_series_count(&db), 3);
-        assert_series_in_thread(&db, SeriesId(0), 0);
-        assert_series_in_thread(&db, SeriesId(5), 2);
-        assert_series_in_thread(&db, SeriesId(8), 2);
+        assert_series_only_in_thread(&db, SeriesId(0), 0);
+        assert_series_only_in_thread(&db, SeriesId(5), 2);
+        assert_series_only_in_thread(&db, SeriesId(8), 2);
 
         // can scale up while keeping all data series
         db._set_thread_count(10);
         assert_eq!(db.threads.len(), 10);
         assert_eq!(get_db_series_count(&db), 3);
-        assert_series_in_thread(&db, SeriesId(0), 0);
-        assert_series_in_thread(&db, SeriesId(5), 5);
-        assert_series_in_thread(&db, SeriesId(8), 8);
+        assert_series_only_in_thread(&db, SeriesId(0), 0);
+        assert_series_only_in_thread(&db, SeriesId(5), 5);
+        assert_series_only_in_thread(&db, SeriesId(8), 8);
 
         // can scale down without deleting data series
         db._set_thread_count(1);
         assert_eq!(db.threads.len(), 1);
         assert_eq!(get_db_series_count(&db), 3);
-        assert_series_in_thread(&db, SeriesId(0), 0);
-        assert_series_in_thread(&db, SeriesId(5), 0);
-        assert_series_in_thread(&db, SeriesId(8), 0);
+        assert_series_only_in_thread(&db, SeriesId(0), 0);
+        assert_series_only_in_thread(&db, SeriesId(5), 0);
+        assert_series_only_in_thread(&db, SeriesId(8), 0);
     }
 
     #[test]
