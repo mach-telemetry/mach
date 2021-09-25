@@ -357,7 +357,7 @@ impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
 }
 
 #[repr(C)]
-struct SeriesRef {
+struct WriterMemSeries {
     active_segment: ActiveSegmentWriter,
     active_block: ActiveBlockWriter,
     snapshot_lock: Arc<RwLock<()>>,
@@ -375,9 +375,9 @@ pub struct Writer<W: BlockWriter> {
 
     // Reference these items in the push method
     // slots may be empty
-    series_refs: Vec<Option<SeriesRef>>,
-    /// Free series ref indices to write to, in increasing order.
-    free_slots: BinaryHeap<Reverse<usize>>,
+    mem_series: Vec<Option<WriterMemSeries>>,
+    /// Free mem series vec indices to write to, in increasing order.
+    mem_series_free_locs: BinaryHeap<Reverse<usize>>,
 
     // Shared buffer for the compressor and the block writer
     buf: [u8; BLOCKSZ],
@@ -400,8 +400,8 @@ impl<W: BlockWriter> Writer<W> {
         Self {
             series_map,
             ref_map: HashMap::new(),
-            series_refs: Vec::new(),
-            free_slots: BinaryHeap::new(),
+            mem_series: Vec::new(),
+            mem_series_free_locs: BinaryHeap::new(),
             buf: [0u8; BLOCKSZ],
             block_writer,
             thread_id,
@@ -412,7 +412,7 @@ impl<W: BlockWriter> Writer<W> {
         if let Some(idx) = self.ref_map.get(&id) {
             Some(*idx)
         } else if let Some(ser) = self.series_map.get_mut(&id) {
-            let series_ref = SeriesRef {
+            let mem_series = WriterMemSeries {
                 active_segment: ser.mem_series.active_segment.writer(),
                 active_block: ser.mem_series.active_block.writer(),
                 series_option: ser.options.clone(),
@@ -420,13 +420,13 @@ impl<W: BlockWriter> Writer<W> {
                 thread_id: ser.thread_id.clone(),
             };
 
-            let result = if self.free_slots.len() > 0 {
-                let free_index = self.free_slots.pop().unwrap().0;
-                self.series_refs[free_index] = Some(series_ref);
+            let result = if self.mem_series_free_locs.len() > 0 {
+                let free_index = self.mem_series_free_locs.pop().unwrap().0;
+                self.mem_series[free_index] = Some(mem_series);
                 free_index
             } else {
-                let next_index = self.series_refs.len();
-                self.series_refs.push(Some(series_ref));
+                let next_index = self.mem_series.len();
+                self.mem_series.push(Some(mem_series));
                 next_index
             };
 
@@ -442,18 +442,18 @@ impl<W: BlockWriter> Writer<W> {
         for (sid, rid) in self.ref_map.iter() {
             let id = rid.0 as usize;
             let series_id = *sid;
-            let series_ref = self.series_refs[id].as_mut().unwrap();
+            let mem_series = self.mem_series[id].as_mut().unwrap();
 
-            let mtx_guard = series_ref.snapshot_lock.write();
+            let mtx_guard = mem_series.snapshot_lock.write();
 
-            let segment = series_ref.active_segment.yield_replace();
+            let segment = mem_series.active_segment.yield_replace();
             let (mint, maxt) = {
                 let timestamps = segment.timestamps();
                 (timestamps[0], *timestamps.last().unwrap())
             };
 
-            let opts = &mut series_ref.series_option;
-            let active_block_writer = &mut series_ref.active_block;
+            let opts = &mut mem_series.series_option;
+            let active_block_writer = &mut mem_series.active_block;
 
             // And then compress it
             let bytes = if opts.fall_back {
@@ -498,7 +498,7 @@ impl<W: BlockWriter> Writer<W> {
             if opts.block_bytes_remaining < opts.max_compressed_sz {
                 //println!("SETTING FALLBACK FOR NEXT BLOCK");
                 opts.fall_back = true;
-                series_ref.active_segment.set_capacity(opts.fall_back_sz);
+                mem_series.active_segment.set_capacity(opts.fall_back_sz);
             }
             drop(mtx_guard)
         }
@@ -514,8 +514,8 @@ impl<W: BlockWriter> Writer<W> {
         sample: Sample,
     ) -> Result<PushResult, &'static str> {
         let id = reference_id.0 as usize;
-        let series_ref = self.series_refs[id].as_mut().unwrap();
-        let active_segment = &mut series_ref.active_segment;
+        let mem_series = self.mem_series[id].as_mut().unwrap();
+        let active_segment = &mut mem_series.active_segment;
         let segment_len = active_segment.push(sample);
         if segment_len == active_segment.capacity() {
             // TODO: Optimizations:
@@ -524,7 +524,7 @@ impl<W: BlockWriter> Writer<W> {
             // 2. concurrent compress + flush
 
             // Get block information and take the snapshot lock
-            let mtx_guard = series_ref.snapshot_lock.write();
+            let mtx_guard = mem_series.snapshot_lock.write();
 
             // Take segment
             let segment = active_segment.yield_replace();
@@ -533,8 +533,8 @@ impl<W: BlockWriter> Writer<W> {
                 (timestamps[0], *timestamps.last().unwrap())
             };
 
-            let opts = &mut series_ref.series_option;
-            let active_block_writer = &mut series_ref.active_block;
+            let opts = &mut mem_series.series_option;
+            let active_block_writer = &mut mem_series.active_block;
 
             // And then compress it
             // TODO: Here, we could probably use something smarter to determine how to pack blocks
@@ -582,11 +582,11 @@ impl<W: BlockWriter> Writer<W> {
             }
             drop(mtx_guard)
         }
-        let series_thread_id = series_ref.thread_id.load(Ordering::Relaxed);
+        let series_thread_id = mem_series.thread_id.load(Ordering::Relaxed);
         if series_thread_id != self.thread_id {
             // perform cleanup because series has been reassigned to another thread
-            self.series_refs[id] = None;
-            self.free_slots.push(Reverse(id));
+            self.mem_series[id] = None;
+            self.mem_series_free_locs.push(Reverse(id));
         }
 
         Ok(PushResult {
