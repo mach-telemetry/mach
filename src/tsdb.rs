@@ -9,9 +9,11 @@ use crate::{
     read_set::SeriesReadSet,
     segment::SegmentLike,
 };
+use core::cmp::Reverse;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use dashmap::DashMap;
 use serde::*;
+use std::collections::BinaryHeap;
 use std::{
     collections::HashMap,
     fs::{self, OpenOptions},
@@ -372,7 +374,10 @@ pub struct Writer<W: BlockWriter> {
     ref_map: HashMap<SeriesId, RefId>,
 
     // Reference these items in the push method
-    series_refs: Vec<SeriesRef>,
+    // slots may be empty
+    series_refs: Vec<Option<SeriesRef>>,
+    /// Free series ref indices to write to, in increasing order.
+    free_slots: BinaryHeap<Reverse<usize>>,
 
     // Shared buffer for the compressor and the block writer
     buf: [u8; BLOCKSZ],
@@ -396,6 +401,7 @@ impl<W: BlockWriter> Writer<W> {
             series_map,
             ref_map: HashMap::new(),
             series_refs: Vec::new(),
+            free_slots: BinaryHeap::new(),
             buf: [0u8; BLOCKSZ],
             block_writer,
             thread_id,
@@ -406,14 +412,24 @@ impl<W: BlockWriter> Writer<W> {
         if let Some(idx) = self.ref_map.get(&id) {
             Some(*idx)
         } else if let Some(ser) = self.series_map.get_mut(&id) {
-            let result = self.series_refs.len();
-            self.series_refs.push(SeriesRef {
+            let series_ref = SeriesRef {
                 active_segment: ser.mem_series.active_segment.writer(),
                 active_block: ser.mem_series.active_block.writer(),
                 series_option: ser.options.clone(),
                 snapshot_lock: ser.mem_series.snapshot_lock.clone(),
                 thread_id: ser.thread_id.clone(),
-            });
+            };
+
+            let result = if self.free_slots.len() > 0 {
+                let free_index = self.free_slots.pop().unwrap().0;
+                self.series_refs[free_index] = Some(series_ref);
+                free_index
+            } else {
+                let next_index = self.series_refs.len();
+                self.series_refs.push(Some(series_ref));
+                next_index
+            };
+
             let refid = RefId(result as u64);
             self.ref_map.insert(id, refid);
             Some(refid)
@@ -426,7 +442,7 @@ impl<W: BlockWriter> Writer<W> {
         for (sid, rid) in self.ref_map.iter() {
             let id = rid.0 as usize;
             let series_id = *sid;
-            let series_ref = &mut self.series_refs[id];
+            let series_ref = self.series_refs[id].as_mut().unwrap();
 
             let mtx_guard = series_ref.snapshot_lock.write();
 
@@ -498,7 +514,7 @@ impl<W: BlockWriter> Writer<W> {
         sample: Sample,
     ) -> Result<PushResult, &'static str> {
         let id = reference_id.0 as usize;
-        let series_ref = &mut self.series_refs[id];
+        let series_ref = self.series_refs[id].as_mut().unwrap();
         let active_segment = &mut series_ref.active_segment;
         let segment_len = active_segment.push(sample);
         if segment_len == active_segment.capacity() {
@@ -569,8 +585,8 @@ impl<W: BlockWriter> Writer<W> {
         let series_thread_id = series_ref.thread_id.load(Ordering::Relaxed);
         if series_thread_id != self.thread_id {
             // perform cleanup because series has been reassigned to another thread
-            // TODO: update `ref_map` to indicate changes in series ID to ref ID mapping?
-            self.series_refs.swap_remove(id);
+            self.series_refs[id] = None;
+            self.free_slots.push(Reverse(id));
         }
 
         Ok(PushResult {
