@@ -245,12 +245,11 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         let series_migration_map = self._compute_series_migration_map(thread_count);
 
         if thread_count > old_thread_count {
-            let mut next_thread_id = self.threads.len() - 1;
             // data series migration will only be safe after new threads are allocated
-            self.threads.resize_with(thread_count, || {
-                next_thread_id += 1;
-                WriterMetadata::new(fstore.clone(), next_thread_id)
-            });
+            let new_threads = (self.threads.len()..thread_count - 1)
+                .map(|thread_id| WriterMetadata::new(fstore.clone(), thread_id));
+
+            self.threads.extend(new_threads);
         }
 
         // migrate data series
