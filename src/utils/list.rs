@@ -150,6 +150,9 @@ impl<T> Drop for ListWriter<T> {
     }
 }
 
+unsafe impl<T> Send for ListWriter<T> {}
+unsafe impl<T> Sync for ListWriter<T> {}
+
 pub struct ListReader<T> {
     inner: Arc<InnerList<T>>,
     len: usize,
@@ -239,6 +242,8 @@ impl<'a, T> Iterator for Iter<'a, T> {
         }
     }
 }
+unsafe impl<T> Send for ListReader<T> {}
+unsafe impl<T> Sync for ListReader<T> {}
 
 #[cfg(test)]
 mod test {
