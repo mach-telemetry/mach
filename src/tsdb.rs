@@ -9,8 +9,9 @@ use crate::{
     read_set::SeriesReadSet,
     segment::SegmentLike,
 };
-use core::cmp::Reverse;
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::cmp::{Ordering, Reverse};
+use core::sync::atomic::AtomicUsize;
+use core::sync::atomic::Ordering::SeqCst;
 use dashmap::DashMap;
 use serde::*;
 use std::collections::BinaryHeap;
@@ -236,33 +237,43 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
     }
 
     fn _set_thread_count(&mut self, thread_count: usize) {
-        let old_thread_count = self.threads.len();
+        match thread_count.cmp(&self.threads.len()) {
+            Ordering::Equal => {}
+            Ordering::Less => self._scale_down_threads(thread_count),
+            Ordering::Greater => self._scale_up_threads(thread_count),
+        }
+    }
+
+    fn _scale_down_threads(&mut self, target_thread_count: usize) {
+        assert!(target_thread_count < self.threads.len());
+
+        self._optimize_series_thread_assignment(target_thread_count);
+
+        // can safely delete threads b/c all data series have been migrated
+        self.threads.truncate(target_thread_count);
+    }
+
+    fn _scale_up_threads(&mut self, target_thread_count: usize) {
+        assert!(target_thread_count > self.threads.len());
+
         let fstore = self.file_store.clone();
 
-        if thread_count == old_thread_count {
-            return;
-        }
-        let series_migration_map = self._compute_series_migration_map(thread_count);
+        // data series migration will only be safe after new threads are allocated
+        let new_threads = (self.threads.len()..target_thread_count)
+            .map(|thread_id| WriterMetadata::new(fstore.clone(), thread_id));
+        self.threads.extend(new_threads);
 
-        if thread_count > old_thread_count {
-            // data series migration will only be safe after new threads are allocated
-            let new_threads = (self.threads.len()..thread_count)
-                .map(|thread_id| WriterMetadata::new(fstore.clone(), thread_id));
+        self._optimize_series_thread_assignment(target_thread_count);
+    }
 
-            self.threads.extend(new_threads);
-        }
+    fn _optimize_series_thread_assignment(&mut self, target_thread_count: usize) {
+        let migration_map = self._compute_series_migration_map(target_thread_count);
 
-        // migrate data series
-        for entry in series_migration_map.iter() {
+        for entry in migration_map.iter() {
             let serid = entry.key();
             let (old_thread_id, new_thread_id) = entry.value();
             self._move_series(*serid, *old_thread_id, *new_thread_id)
                 .unwrap_or(()); // unable to move series; TODO: consider how to handle exception here
-        }
-
-        if thread_count < old_thread_count {
-            // can safely delete threads b/c all data series have been migrated
-            self.threads.truncate(thread_count);
         }
     }
 
@@ -286,7 +297,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
             series_id.0 as usize, from_thread
         ))?;
 
-        series_meta.thread_id.store(to_thread, Ordering::SeqCst);
+        series_meta.thread_id.store(to_thread, SeqCst);
         new_thread.add_series(series_id, series_meta);
 
         Ok(())
@@ -599,7 +610,7 @@ impl<W: BlockWriter> Writer<W> {
             }
             drop(mtx_guard)
         }
-        let series_thread_id = mem_series.thread_id.load(Ordering::SeqCst);
+        let series_thread_id = mem_series.thread_id.load(SeqCst);
         if series_thread_id != self.thread_id {
             // perform cleanup because series has been reassigned to another thread
             self.mem_series[id] = None;
@@ -633,7 +644,7 @@ mod test {
                 // assert series is in the expected thread
                 let series = &db.threads[expected_thread].map.get(&series_id).unwrap();
                 let tid = &series.value().thread_id;
-                assert_eq!(tid.load(Ordering::SeqCst), expected_thread);
+                assert_eq!(tid.load(SeqCst), expected_thread);
 
                 // assert series is not in any other thread
                 for thread in db.threads.iter() {
