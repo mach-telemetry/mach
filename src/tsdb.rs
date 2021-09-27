@@ -286,7 +286,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
             series_id.0 as usize, from_thread
         ))?;
 
-        series_meta.thread_id.store(to_thread, Ordering::Relaxed);
+        series_meta.thread_id.store(to_thread, Ordering::SeqCst);
         new_thread.add_series(series_id, series_meta);
 
         Ok(())
@@ -599,7 +599,7 @@ impl<W: BlockWriter> Writer<W> {
             }
             drop(mtx_guard)
         }
-        let series_thread_id = mem_series.thread_id.load(Ordering::Relaxed);
+        let series_thread_id = mem_series.thread_id.load(Ordering::SeqCst);
         if series_thread_id != self.thread_id {
             // perform cleanup because series has been reassigned to another thread
             self.mem_series[id] = None;
@@ -633,7 +633,7 @@ mod test {
                 // assert series is in the expected thread
                 let series = &db.threads[expected_thread].map.get(&series_id).unwrap();
                 let tid = &series.value().thread_id;
-                assert_eq!(tid.load(Ordering::Relaxed), expected_thread);
+                assert_eq!(tid.load(Ordering::SeqCst), expected_thread);
 
                 // assert series is not in any other thread
                 for thread in db.threads.iter() {
