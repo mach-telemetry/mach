@@ -433,7 +433,7 @@ impl<W: BlockWriter> Writer<W> {
                     };
 
                     // And then compress it
-                    bytes = if opts.fall_back {
+                    let bytes = if opts.fall_back {
                         opts.fallback_compressor
                             .compress(&segment, &mut self.buf[..])
                     } else {
@@ -459,8 +459,9 @@ impl<W: BlockWriter> Writer<W> {
 
                     // Write compressed data into active segment, then flush
                     active_block_writer.push_segment(mint, maxt, &self.buf[..bytes]);
+                    bytes
                 }
-            }
+            };
 
             // Flush the last block
             let block = active_block_writer.yield_replace();
