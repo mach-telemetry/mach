@@ -472,17 +472,6 @@ impl<W: BlockWriter> Writer<W> {
             opts.fall_back = false;
             opts.max_compressed_sz = opts.max_compressed_sz.max(bytes);
 
-            // Update metadata for the next push:
-            // 1. Largest compressed size
-            // 2. Should we use fall back compression in this next segment
-            // TODO: determine the block packing heuristic. For now, if bytes remaining is smaller
-            // than the maximum recorded compressed size, fall back
-            opts.block_bytes_remaining -= bytes;
-            if opts.block_bytes_remaining < opts.max_compressed_sz {
-                //println!("SETTING FALLBACK FOR NEXT BLOCK");
-                opts.fall_back = true;
-                self.active_segments[id].set_capacity(opts.fall_back_sz);
-            }
             drop(mtx_guard)
         }
         Ok(())
@@ -494,7 +483,7 @@ impl<W: BlockWriter> Writer<W> {
         &mut self,
         reference_id: RefId,
         series_id: SeriesId,
-        sample: Sample,
+        sample: &Sample,
     ) -> Result<(), &'static str> {
         let id = reference_id.0 as usize;
         let active_segment = &mut self.active_segments[id];
