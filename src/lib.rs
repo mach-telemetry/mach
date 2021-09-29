@@ -12,7 +12,9 @@ mod tsdb;
 mod utils;
 
 pub use read_set::SeriesReadSet;
-pub use tsdb::{Db, Sample, SeriesOptions, Writer, WriterMetadata};
+pub use tsdb::{Db, SeriesId, RefId, Sample, SeriesOptions, Writer, WriterMetadata, SeriesMetadata};
+pub use block::file::{FileStore, ThreadFileWriter, FileBlockLoader};
+pub use segment::SegmentLike;
 
 #[cfg(test)]
 mod test_utils;

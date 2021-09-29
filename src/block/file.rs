@@ -228,7 +228,6 @@ impl FileItem {
                 .or_insert_with(Vec::new)
                 .push(block_id);
         }
-
         Ok(map)
     }
 
@@ -256,15 +255,6 @@ impl FileItem {
             blocks_offset,
             block_count,
         })
-    }
-
-    fn write_block_count(&mut self) -> Result<(), &'static str> {
-        self.file
-            .seek(SeekFrom::Start(24))
-            .map_err(|_| "Can't seek file")?;
-        self.file
-            .write_all(&self.block_count.to_be_bytes()[..])
-            .map_err(|_| "Can't write n blocks")
     }
 
     fn write(
@@ -302,7 +292,12 @@ impl FileItem {
 
         // Write nblocks
         self.block_count += 1;
-        self.write_block_count()?;
+        self.file
+            .seek(SeekFrom::Start(24))
+            .map_err(|_| "Can't seek file")?;
+        self.file
+            .write_all(&self.block_count.to_be_bytes()[..])
+            .map_err(|_| "Can't write n blocks")?;
 
         // Send flush signal to flush worker
         if self.block_count % 5 == 0
@@ -312,12 +307,13 @@ impl FileItem {
             {}
         }
 
-        Ok(BlockId {
+        let block_id = BlockId {
             mint,
             maxt,
             offset,
             file_id: self.file_id,
-        })
+        };
+        Ok(block_id)
     }
 }
 
@@ -484,6 +480,7 @@ impl BlockReader for FileBlockLoader {
                 mint: _,
                 maxt: _,
             } = self.items[current_idx];
+            //println!("LOADING BLOCK AT OFFSET: {}", offset);
 
             if self.file.is_none() || self.current_file_id != file_id {
                 self.open_file(file_id);
