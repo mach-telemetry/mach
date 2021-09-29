@@ -420,62 +420,57 @@ impl<W: BlockWriter> Writer<W> {
             let mtx_guard = self.snapshot_locks[id].write();
 
             let opts = &mut self.series_options[id];
+            let active_block_writer = &mut self.active_blocks[id];
+
             let segment = self.active_segments[id].yield_replace();
-            if segment.len() > 0 {
-                let (mint, maxt) = {
-                    let timestamps = segment.timestamps();
-                    (timestamps[0], *timestamps.last().unwrap())
-                };
 
-                let active_block_writer = &mut self.active_blocks[id];
+            let bytes = match segment.len() {
+                0 => 0, // There's nothing in the segment so we do nothing
+                _ => {  // There's something in the segment so we flush compress and flush
+                    let (mint, maxt) = {
+                        let timestamps = segment.timestamps();
+                        (timestamps[0], *timestamps.last().unwrap())
+                    };
 
-                // And then compress it
-                let bytes = if opts.fall_back {
-                    opts.fallback_compressor
-                        .compress(&segment, &mut self.buf[..])
-                } else {
-                    opts.default_compressor
-                        .compress(&segment, &mut self.buf[..])
-                };
+                    // And then compress it
+                    bytes = if opts.fall_back {
+                        opts.fallback_compressor
+                            .compress(&segment, &mut self.buf[..])
+                    } else {
+                        opts.default_compressor
+                            .compress(&segment, &mut self.buf[..])
+                    };
 
-                // If there is no room in the current active block, flush the active block
-                let remaining = active_block_writer.remaining();
-                if bytes > remaining {
-                    let block = active_block_writer.yield_replace();
-                    self.block_writer.write_block(
-                        series_id,
-                        block.mint(),
-                        block.maxt(),
-                        block.slice(),
-                    )?;
-                    opts.max_compressed_sz = 0;
-                    opts.block_bytes_remaining = opts.block_bytes;
-                    opts.fall_back = false;
-                    self.active_segments[id].set_capacity(SEGSZ);
-                }
+                    // If there is no room in the current active block, flush the active block
+                    let remaining = active_block_writer.remaining();
+                    if bytes > remaining {
+                        let block = active_block_writer.yield_replace();
+                        self.block_writer.write_block(
+                            series_id,
+                            block.mint(),
+                            block.maxt(),
+                            block.slice(),
+                        )?;
+                        opts.max_compressed_sz = 0;
+                        opts.block_bytes_remaining = opts.block_bytes;
+                        opts.fall_back = false;
+                        self.active_segments[id].set_capacity(SEGSZ);
+                    }
 
-                // Write compressed data into active segment, then flush
-                active_block_writer.push_segment(mint, maxt, &self.buf[..bytes]);
-                let block = active_block_writer.yield_replace();
-                self.block_writer
-                    .write_block(series_id, block.mint(), block.maxt(), block.slice())?;
-                opts.max_compressed_sz = 0;
-                opts.block_bytes_remaining = opts.block_bytes;
-                opts.fall_back = false;
-
-                // Update metadata for the next push:
-                // 1. Largest compressed size
-                // 2. Should we use fall back compression in this next segment
-                // TODO: determine the block packing heuristic. For now, if bytes remaining is smaller
-                // than the maximum recorded compressed size, fall back
-                opts.max_compressed_sz = opts.max_compressed_sz.max(bytes);
-                opts.block_bytes_remaining -= bytes;
-                if opts.block_bytes_remaining < opts.max_compressed_sz {
-                    //println!("SETTING FALLBACK FOR NEXT BLOCK");
-                    opts.fall_back = true;
-                    self.active_segments[id].set_capacity(opts.fall_back_sz);
+                    // Write compressed data into active segment, then flush
+                    active_block_writer.push_segment(mint, maxt, &self.buf[..bytes]);
                 }
             }
+
+            // Flush the last block
+            let block = active_block_writer.yield_replace();
+            self.block_writer
+                .write_block(series_id, block.mint(), block.maxt(), block.slice())?;
+            opts.max_compressed_sz = 0;
+            opts.block_bytes_remaining = opts.block_bytes;
+            opts.fall_back = false;
+            opts.max_compressed_sz = opts.max_compressed_sz.max(bytes);
+
             drop(mtx_guard)
         }
         Ok(())
