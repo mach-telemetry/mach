@@ -382,15 +382,16 @@ impl WriterMemSeries {
         Self {
             active_block: mem_series.active_block.writer(),
             series_option: options,
-            snapshot_lock: mem_series.snapshot_lock.clone(),
-            thread_id: thread_id,
+            snapshot_lock: mem_series.snapshot_lock,
+            thread_id,
         }
     }
 }
 
 pub struct PushResult {
-    thread_id: usize,
+    pub thread_id: usize,
 }
+
 pub struct Writer<W: BlockWriter> {
     pub series_map: Arc<DashMap<SeriesId, SeriesMetadata>>,
     ref_map: HashMap<SeriesId, RefId>,
@@ -484,7 +485,8 @@ impl<W: BlockWriter> Writer<W> {
 
             let bytes = match segment.len() {
                 0 => 0, // There's nothing in the segment so we do nothing
-                _ => {  // There's something in the segment so we flush compress and flush
+                _ => {
+                    // There's something in the segment so we flush compress and flush
                     let (mint, maxt) = {
                         let timestamps = segment.timestamps();
                         (timestamps[0], *timestamps.last().unwrap())
@@ -512,7 +514,10 @@ impl<W: BlockWriter> Writer<W> {
                         opts.max_compressed_sz = 0;
                         opts.block_bytes_remaining = opts.block_bytes;
                         opts.fall_back = false;
-                        self.active_segment[id].as_mut().unwrap().set_capacity(SEGSZ);
+                        self.active_segment[id]
+                            .as_mut()
+                            .unwrap()
+                            .set_capacity(SEGSZ);
                         //mem_series.active_segment.set_capacity(SEGSZ);
                     }
 
@@ -552,9 +557,7 @@ impl<W: BlockWriter> Writer<W> {
         };
 
         //let active_segment = self.active_segment[id].as_mut().unwrap();
-        let segment_len = unsafe {
-            active_segment.ptr.as_mut().unwrap().push(sample)
-        };
+        let segment_len = unsafe { active_segment.ptr.as_mut().unwrap().push(sample) };
         if segment_len == active_segment.capacity() {
             // TODO: Optimizations:
             // 1. minimize mtx_guard by not yielding and replacing until after compression and

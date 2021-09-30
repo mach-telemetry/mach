@@ -83,11 +83,6 @@ impl InnerSegment {
         self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
         self.len
     }
-
-    fn len(&self) -> usize {
-        self.len
-        //self.len.load(SeqCst)
-    }
 }
 
 #[derive(Clone)]
@@ -144,7 +139,7 @@ pub struct ActiveSegmentWriter {
 
 impl ActiveSegmentWriter {
     #[inline]
-    pub fn push(&mut self, item: Sample) -> usize {
+    pub fn _push(&mut self, item: Sample) -> usize {
         unsafe { self.ptr.as_mut().unwrap().push(item) }
     }
 

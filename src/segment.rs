@@ -9,6 +9,9 @@ pub trait SegmentLike {
     fn len(&self) -> usize {
         self.timestamps().len()
     }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 pub trait SegmentIterator {

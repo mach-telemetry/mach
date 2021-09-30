@@ -11,10 +11,12 @@ mod segment;
 mod tsdb;
 mod utils;
 
+pub use block::file::{FileBlockLoader, FileStore, ThreadFileWriter};
 pub use read_set::SeriesReadSet;
-pub use tsdb::{Db, SeriesId, RefId, Sample, SeriesOptions, Writer, WriterMetadata, SeriesMetadata};
-pub use block::file::{FileStore, ThreadFileWriter, FileBlockLoader};
 pub use segment::SegmentLike;
+pub use tsdb::{
+    Db, RefId, Sample, SeriesId, SeriesMetadata, SeriesOptions, Writer, WriterMetadata,
+};
 
 #[cfg(test)]
 mod test_utils;
