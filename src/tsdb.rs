@@ -483,11 +483,13 @@ impl<W: BlockWriter> Writer<W> {
         &mut self,
         reference_id: RefId,
         series_id: SeriesId,
-        sample: &Sample,
+        sample: Sample,
     ) -> Result<(), &'static str> {
         let id = reference_id.0 as usize;
         let active_segment = &mut self.active_segments[id];
-        let segment_len = active_segment.push(sample);
+        let segment_len = unsafe {
+            active_segment.ptr.as_mut().unwrap().push(sample)
+        };
         if segment_len == active_segment.capacity() {
             // TODO: Optimizations:
             // 1. minimize mtx_guard by not yielding and replacing until after compression and

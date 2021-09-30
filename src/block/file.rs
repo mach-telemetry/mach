@@ -300,6 +300,10 @@ impl FileItem {
             .map_err(|_| "Can't write n blocks")?;
 
         // Send flush signal to flush worker
+        //if self.block_count % 10 == 0
+        //    && self.block_count > 0 {
+        //        self.file.sync_all().unwrap()
+        //}
         if self.block_count % 5 == 0
             && self.block_count > 0
             && self.flush_channel.try_send(()).is_ok()
