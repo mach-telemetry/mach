@@ -18,6 +18,7 @@ use std::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc,
     },
+    time::Duration,
 };
 
 // File Size of 1GB
@@ -242,11 +243,12 @@ impl FileItem {
             .map_err(|_| "Can't write bytes")?;
 
         let (tx, rx) = async_std::channel::bounded(1);
-        let flush_channel = tx;
+        let flush_channel = tx.clone();
         let head_offset = 32; // 24 (magic) + 8 (count)
         let block_count = 0;
         let blocks_offset = (BLOCKS_IN_FILE * (BLOCK_ENTRY_SZ + 1)) as u64; // Because of header
         async_std::task::spawn(flush_worker(PathBuf::from(dir.as_ref()), fid, rx));
+        async_std::task::spawn(flush_signaller(tx));
         Ok(Self {
             file_id: fid,
             file: df,
@@ -386,6 +388,12 @@ impl BlockWriter for ThreadFileWriter {
 
         self.block_count += 1;
         Ok(())
+    }
+}
+
+async fn flush_signaller(tx: async_std::channel::Sender<()>) {
+    while let Ok(()) = tx.send(()).await {
+        async_std::task::sleep(Duration::from_secs(5)).await
     }
 }
 
