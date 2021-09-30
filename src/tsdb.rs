@@ -370,10 +370,7 @@ impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
     }
 }
 
-//<<<<<<< HEAD
-//#[repr(C)]
 struct WriterMemSeries {
-    //active_segment: ActiveSegmentWriter,
     snapshot_lock: Arc<RwLock<()>>,
     active_block: ActiveBlockWriter,
     series_option: SeriesOptions,
@@ -383,7 +380,6 @@ struct WriterMemSeries {
 impl WriterMemSeries {
     fn new(mem_series: MemSeries, options: SeriesOptions, thread_id: Arc<AtomicUsize>) -> Self {
         Self {
-            //active_segment: mem_series.active_segment.writer(),
             active_block: mem_series.active_block.writer(),
             series_option: options,
             snapshot_lock: mem_series.snapshot_lock.clone(),
@@ -395,11 +391,6 @@ impl WriterMemSeries {
 pub struct PushResult {
     thread_id: usize,
 }
-//=======
-//// TODO: This probably needs a cleanup
-////pub type ThreadWriter = Writer<ThreadFileWriter>;
-//>>>>>>> master
-
 pub struct Writer<W: BlockWriter> {
     pub series_map: Arc<DashMap<SeriesId, SeriesMetadata>>,
     ref_map: HashMap<SeriesId, RefId>,
@@ -407,15 +398,9 @@ pub struct Writer<W: BlockWriter> {
     // Reference these items in the push method
     // slots may be empty
     mem_series: Vec<Option<WriterMemSeries>>,
+    active_segment: Vec<Option<ActiveSegmentWriter>>, // for cache friendlyness, set this aside
 
-    // Data for in-mem series
-    active_segment: Vec<Option<ActiveSegmentWriter>>,
-    //snapshot_lock: Vec<Option<Arc<RwLock<()>>>>,
-    //active_block: Vec<Option<ActiveBlockWriter>>,
-    //series_option: Vec<Option<SeriesOptions>>,
-    //thread_id: Vec<Option<Arc<AtomicUsize>>>,
-
-    /// Free mem series vec indices to write to, in increasing order.
+    // Free mem series vec indices to write to, in increasing order.
     free_ref_ids: BinaryHeap<Reverse<usize>>,
 
     // Shared buffer for the compressor and the block writer
@@ -441,10 +426,6 @@ impl<W: BlockWriter> Writer<W> {
             ref_map: HashMap::new(),
             mem_series: Vec::new(),
             active_segment: Vec::new(),
-            //snapshot_lock: Vec::new(),
-            //active_block: Vec::new(),
-            //series_option: Vec::new(),
-            //thread_id: Vec::new(),
             free_ref_ids: BinaryHeap::new(),
             buf: [0u8; BLOCKSZ],
             block_writer,
@@ -497,17 +478,9 @@ impl<W: BlockWriter> Writer<W> {
 
             let mtx_guard = mem_series.snapshot_lock.write();
 
-//<<<<<<< HEAD
             let segment = self.active_segment[id].as_mut().unwrap().yield_replace();
-            //let segment = mem_series.active_segment.yield_replace();
             let opts = &mut mem_series.series_option;
             let active_block_writer = &mut mem_series.active_block;
-//=======
-//            let opts = &mut self.series_options[id];
-//            let active_block_writer = &mut self.active_blocks[id];
-//>>>>>>> master
-
-            //let segment = self.active_segments[id].yield_replace();
 
             let bytes = match segment.len() {
                 0 => 0, // There's nothing in the segment so we do nothing
