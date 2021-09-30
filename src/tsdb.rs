@@ -9,8 +9,12 @@ use crate::{
     read_set::SeriesReadSet,
     segment::SegmentLike,
 };
+use core::cmp::{Ordering, Reverse};
+use core::sync::atomic::AtomicUsize;
+use core::sync::atomic::Ordering::SeqCst;
 use dashmap::DashMap;
 use serde::*;
+use std::collections::BinaryHeap;
 use std::{
     collections::HashMap,
     fs::{self, OpenOptions},
@@ -130,7 +134,7 @@ impl GlobalMetadata {
 pub struct SeriesMetadata {
     pub options: SeriesOptions,
     mem_series: MemSeries,
-    _thread_id: usize,
+    thread_id: Arc<AtomicUsize>,
 }
 
 pub struct Db<B, W, R>
@@ -159,7 +163,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         Ok(Self {
             map: GlobalMetadata::new(meta_path),
             threads: (0..threads)
-                .map(|_| WriterMetadata::new(file_store.clone()))
+                .map(|thread_id| WriterMetadata::new(file_store.clone(), thread_id))
                 .collect(),
             file_store,
             dir: PathBuf::from(dir.as_ref()),
@@ -176,7 +180,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         // Load filestore information
         let file_store = FileStore::load(data_path)?;
         let threads = (0..threads)
-            .map(|_| WriterMetadata::new(file_store.clone()))
+            .map(|thread_id| WriterMetadata::new(file_store.clone(), thread_id))
             .collect();
 
         // Load meta path
@@ -209,7 +213,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         let meta = SeriesMetadata {
             options,
             mem_series,
-            _thread_id: thread_id,
+            thread_id: Arc::new(AtomicUsize::new(thread_id)),
         };
         self.threads[thread_id].add_series(id, meta.clone());
         self.map.insert(id, meta);
@@ -233,31 +237,43 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
     }
 
     fn _set_thread_count(&mut self, thread_count: usize) {
-        let old_thread_count = self.threads.len();
+        match thread_count.cmp(&self.threads.len()) {
+            Ordering::Equal => {}
+            Ordering::Less => self._scale_down_threads(thread_count),
+            Ordering::Greater => self._scale_up_threads(thread_count),
+        }
+    }
+
+    fn _scale_down_threads(&mut self, target_thread_count: usize) {
+        assert!(target_thread_count < self.threads.len());
+
+        self._optimize_series_thread_assignment(target_thread_count);
+
+        // can safely delete threads b/c all data series have been migrated
+        self.threads.truncate(target_thread_count);
+    }
+
+    fn _scale_up_threads(&mut self, target_thread_count: usize) {
+        assert!(target_thread_count > self.threads.len());
+
         let fstore = self.file_store.clone();
 
-        if thread_count == old_thread_count {
-            return;
-        }
-        let series_migration_map = self._compute_series_migration_map(thread_count);
+        // data series migration will only be safe after new threads are allocated
+        let new_threads = (self.threads.len()..target_thread_count)
+            .map(|thread_id| WriterMetadata::new(fstore.clone(), thread_id));
+        self.threads.extend(new_threads);
 
-        if thread_count > old_thread_count {
-            // data series migration will only be safe after new threads are allocated
-            self.threads
-                .resize_with(thread_count, || WriterMetadata::new(fstore.clone()));
-        }
+        self._optimize_series_thread_assignment(target_thread_count);
+    }
 
-        // migrate data series
-        for entry in series_migration_map.iter() {
+    fn _optimize_series_thread_assignment(&mut self, target_thread_count: usize) {
+        let migration_map = self._compute_series_migration_map(target_thread_count);
+
+        for entry in migration_map.iter() {
             let serid = entry.key();
             let (old_thread_id, new_thread_id) = entry.value();
             self._move_series(*serid, *old_thread_id, *new_thread_id)
                 .unwrap_or(()); // unable to move series; TODO: consider how to handle exception here
-        }
-
-        if thread_count < old_thread_count {
-            // can safely delete threads b/c all data series have been migrated
-            self.threads.truncate(thread_count);
         }
     }
 
@@ -281,6 +297,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
             series_id.0 as usize, from_thread
         ))?;
 
+        series_meta.thread_id.store(to_thread, SeqCst);
         new_thread.add_series(series_id, series_meta);
 
         Ok(())
@@ -328,15 +345,17 @@ where
 
     // File storage information
     file_store: B,
+    thread_id: usize,
     _w: PhantomData<W>,
     _r: PhantomData<R>,
 }
 
 impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
-    fn new(file_store: FileStore) -> Self {
+    fn new(file_store: FileStore, thread_id: usize) -> Self {
         Self {
             map: Arc::new(DashMap::new()),
             file_store,
+            thread_id,
             _w: PhantomData,
             _r: PhantomData,
         }
@@ -347,26 +366,47 @@ impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
     }
 
     pub fn writer(&self) -> Writer<ThreadFileWriter> {
-        Writer::new(self.map.clone(), self.file_store.writer())
+        Writer::new(self.map.clone(), self.file_store.writer(), self.thread_id)
     }
 }
 
-// TODO: This probably needs a cleanup
-//pub type ThreadWriter = Writer<ThreadFileWriter>;
+struct WriterMemSeries {
+    snapshot_lock: Arc<RwLock<()>>,
+    active_block: ActiveBlockWriter,
+    series_option: SeriesOptions,
+    thread_id: Arc<AtomicUsize>,
+}
 
+impl WriterMemSeries {
+    fn new(mem_series: MemSeries, options: SeriesOptions, thread_id: Arc<AtomicUsize>) -> Self {
+        Self {
+            active_block: mem_series.active_block.writer(),
+            series_option: options,
+            snapshot_lock: mem_series.snapshot_lock.clone(),
+            thread_id: thread_id,
+        }
+    }
+}
+
+pub struct PushResult {
+    thread_id: usize,
+}
 pub struct Writer<W: BlockWriter> {
     pub series_map: Arc<DashMap<SeriesId, SeriesMetadata>>,
     ref_map: HashMap<SeriesId, RefId>,
 
     // Reference these items in the push method
-    active_segments: Vec<ActiveSegmentWriter>,
-    snapshot_locks: Vec<Arc<RwLock<()>>>,
-    series_options: Vec<SeriesOptions>,
-    active_blocks: Vec<ActiveBlockWriter>,
+    // slots may be empty
+    mem_series: Vec<Option<WriterMemSeries>>,
+    active_segment: Vec<Option<ActiveSegmentWriter>>, // for cache friendlyness, set this aside
+
+    // Free mem series vec indices to write to, in increasing order.
+    free_ref_ids: BinaryHeap<Reverse<usize>>,
 
     // Shared buffer for the compressor and the block writer
     buf: [u8; BLOCKSZ],
     block_writer: W,
+    thread_id: usize,
 }
 
 impl<W: BlockWriter> Drop for Writer<W> {
@@ -376,16 +416,20 @@ impl<W: BlockWriter> Drop for Writer<W> {
 }
 
 impl<W: BlockWriter> Writer<W> {
-    fn new(series_map: Arc<DashMap<SeriesId, SeriesMetadata>>, block_writer: W) -> Self {
+    fn new(
+        series_map: Arc<DashMap<SeriesId, SeriesMetadata>>,
+        block_writer: W,
+        thread_id: usize,
+    ) -> Self {
         Self {
             series_map,
             ref_map: HashMap::new(),
-            active_segments: Vec::new(),
-            snapshot_locks: Vec::new(),
-            series_options: Vec::new(),
-            active_blocks: Vec::new(),
+            mem_series: Vec::new(),
+            active_segment: Vec::new(),
+            free_ref_ids: BinaryHeap::new(),
             buf: [0u8; BLOCKSZ],
             block_writer,
+            thread_id,
         }
     }
 
@@ -397,17 +441,30 @@ impl<W: BlockWriter> Writer<W> {
         if let Some(idx) = self.ref_map.get(&id) {
             Some(*idx)
         } else if let Some(ser) = self.series_map.get_mut(&id) {
-            let result = self.active_segments.len();
-            self.active_segments
-                .push(ser.mem_series.active_segment.writer());
-            self.snapshot_locks
-                .push(ser.mem_series.snapshot_lock.clone());
-            self.active_blocks
-                .push(ser.mem_series.active_block.writer());
-            self.series_options.push(ser.options.clone());
-            let refid = RefId(result as u64);
-            self.ref_map.insert(id, refid);
-            Some(refid)
+            let active_segment = ser.mem_series.active_segment.writer();
+            let mem_series = WriterMemSeries::new(
+                ser.mem_series.clone(),
+                ser.options.clone(),
+                ser.thread_id.clone(),
+            );
+
+            let ref_id = match self.free_ref_ids.pop() {
+                Some(free_ref_id) => free_ref_id.0,
+                None => self.mem_series.len(),
+            };
+
+            if ref_id >= self.mem_series.len() {
+                self.mem_series.push(Some(mem_series));
+                self.active_segment.push(Some(active_segment));
+            } else {
+                self.mem_series[ref_id] = Some(mem_series);
+                self.active_segment[ref_id] = Some(active_segment);
+            }
+
+            let result = RefId(ref_id as u64);
+            self.ref_map.insert(id, result);
+
+            Some(result)
         } else {
             None
         }
@@ -417,12 +474,13 @@ impl<W: BlockWriter> Writer<W> {
         for (sid, rid) in self.ref_map.iter() {
             let id = rid.0 as usize;
             let series_id = *sid;
-            let mtx_guard = self.snapshot_locks[id].write();
+            let mem_series = self.mem_series[id].as_mut().unwrap();
 
-            let opts = &mut self.series_options[id];
-            let active_block_writer = &mut self.active_blocks[id];
+            let mtx_guard = mem_series.snapshot_lock.write();
 
-            let segment = self.active_segments[id].yield_replace();
+            let segment = self.active_segment[id].as_mut().unwrap().yield_replace();
+            let opts = &mut mem_series.series_option;
+            let active_block_writer = &mut mem_series.active_block;
 
             let bytes = match segment.len() {
                 0 => 0, // There's nothing in the segment so we do nothing
@@ -454,7 +512,8 @@ impl<W: BlockWriter> Writer<W> {
                         opts.max_compressed_sz = 0;
                         opts.block_bytes_remaining = opts.block_bytes;
                         opts.fall_back = false;
-                        self.active_segments[id].set_capacity(SEGSZ);
+                        self.active_segment[id].as_mut().unwrap().set_capacity(SEGSZ);
+                        //mem_series.active_segment.set_capacity(SEGSZ);
                     }
 
                     // Write compressed data into active segment, then flush
@@ -484,9 +543,15 @@ impl<W: BlockWriter> Writer<W> {
         reference_id: RefId,
         series_id: SeriesId,
         sample: Sample,
-    ) -> Result<(), &'static str> {
+    ) -> Result<PushResult, &'static str> {
         let id = reference_id.0 as usize;
-        let active_segment = &mut self.active_segments[id];
+
+        let active_segment = match self.active_segment[id].as_mut() {
+            Some(x) => x,
+            None => return Err("Refid invalid"),
+        };
+
+        //let active_segment = self.active_segment[id].as_mut().unwrap();
         let segment_len = unsafe {
             active_segment.ptr.as_mut().unwrap().push(sample)
         };
@@ -497,7 +562,8 @@ impl<W: BlockWriter> Writer<W> {
             // 2. concurrent compress + flush
 
             // Get block information and take the snapshot lock
-            let mtx_guard = self.snapshot_locks[id].write();
+            let mem_series = self.mem_series[id].as_mut().unwrap();
+            let mtx_guard = mem_series.snapshot_lock.write();
 
             // Take segment
             let segment = active_segment.yield_replace();
@@ -506,8 +572,8 @@ impl<W: BlockWriter> Writer<W> {
                 (timestamps[0], *timestamps.last().unwrap())
             };
 
-            let opts = &mut self.series_options[id];
-            let active_block_writer = &mut self.active_blocks[id];
+            let opts = &mut mem_series.series_option;
+            let active_block_writer = &mut mem_series.active_block;
 
             // And then compress it
             // TODO: Here, we could probably use something smarter to determine how to pack blocks
@@ -554,9 +620,22 @@ impl<W: BlockWriter> Writer<W> {
                 opts.fall_back = true;
                 active_segment.set_capacity(opts.fall_back_sz);
             }
-            drop(mtx_guard)
+            drop(mtx_guard);
+            let series_thread_id = mem_series.thread_id.load(SeqCst);
+            if series_thread_id != self.thread_id {
+                // perform cleanup because series has been reassigned to another thread
+                self.mem_series[id] = None;
+                self.ref_map.remove(&series_id);
+                self.free_ref_ids.push(Reverse(id));
+            }
+            return Ok(PushResult {
+                thread_id: series_thread_id,
+            });
         }
-        Ok(())
+
+        Ok(PushResult {
+            thread_id: self.thread_id,
+        })
     }
 }
 
@@ -573,26 +652,53 @@ mod test {
             series_count
         };
 
+        let assert_series_only_in_thread =
+            |db: &Db<FileStore, ThreadFileWriter, FileBlockLoader>,
+             series_id,
+             expected_thread: usize| {
+                // assert series is in the expected thread
+                let series = &db.threads[expected_thread].map.get(&series_id).unwrap();
+                let tid = &series.value().thread_id;
+                assert_eq!(tid.load(SeqCst), expected_thread);
+
+                // assert series is not in any other thread
+                for thread in db.threads.iter() {
+                    if thread.thread_id == expected_thread {
+                        continue;
+                    }
+                    assert!(thread.map.get(&series_id).is_none());
+                }
+            };
+
         let dir = TempDir::new("tsdb0").unwrap();
         let mut db = Db::new(dir.path(), 3).unwrap();
 
         assert_eq!(db.threads.len(), 3);
 
         db.add_series(SeriesId(0), SeriesOptions::default());
-        db.add_series(SeriesId(1), SeriesOptions::default());
-        db.add_series(SeriesId(2), SeriesOptions::default());
+        db.add_series(SeriesId(5), SeriesOptions::default());
+        db.add_series(SeriesId(8), SeriesOptions::default());
 
         assert_eq!(get_db_series_count(&db), 3);
+        assert_series_only_in_thread(&db, SeriesId(0), 0);
+        assert_series_only_in_thread(&db, SeriesId(5), 2);
+        assert_series_only_in_thread(&db, SeriesId(8), 2);
 
         // can scale up while keeping all data series
         db._set_thread_count(10);
         assert_eq!(db.threads.len(), 10);
         assert_eq!(get_db_series_count(&db), 3);
+        assert_series_only_in_thread(&db, SeriesId(0), 0);
+        assert_series_only_in_thread(&db, SeriesId(5), 5);
+        assert_series_only_in_thread(&db, SeriesId(8), 8);
 
         // can scale down without deleting data series
         db._set_thread_count(1);
         assert_eq!(db.threads.len(), 1);
         assert_eq!(get_db_series_count(&db), 3);
+        assert_series_only_in_thread(&db, SeriesId(0), 0);
+        assert_series_only_in_thread(&db, SeriesId(5), 0);
+        assert_series_only_in_thread(&db, SeriesId(8), 0);
     }
 
     #[test]
