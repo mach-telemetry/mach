@@ -11,9 +11,10 @@ use std::sync::{
 
 pub const SEGSZ: usize = 256;
 
-struct GenericInner<T: ?Sized> {
+pub struct GenericInner<T: ?Sized> {
     ts: [Dt; SEGSZ],
-    len: AtomicUsize,
+    atomic_len: AtomicUsize,
+    len: usize,
     values: T,
 }
 
@@ -48,13 +49,14 @@ impl SegmentLike for ActiveSegmentBuffer {
     }
 }
 
-type InnerSegment = GenericInner<[[f64; SEGSZ]]>;
+pub type InnerSegment = GenericInner<[[f64; SEGSZ]]>;
 
 seq!(NVARS in 1..=50 {
     fn inner_segment#NVARS() -> Arc<InnerSegment> {
         Arc::new(GenericInner {
             ts: [0; SEGSZ],
-            len: AtomicUsize::new(0),
+            len: 0,
+            atomic_len: AtomicUsize::new(0),
             values: [[0.; SEGSZ]; NVARS],
         })
     }
@@ -72,17 +74,19 @@ impl InnerSegment {
         })
     }
 
-    fn push(&mut self, item: &Sample) -> usize {
-        let len = self.len();
+    pub fn push(&mut self, item: Sample) -> usize {
+        let len = self.len;
         self.ts[len] = item.ts;
         for (var, val) in item.values.iter().enumerate() {
             self.values.as_mut()[var][len] = *val;
         }
-        self.len.fetch_add(1, SeqCst) + 1
+        self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
+        self.len
     }
 
     fn len(&self) -> usize {
-        self.len.load(SeqCst)
+        self.len
+        //self.len.load(SeqCst)
     }
 }
 
@@ -104,7 +108,7 @@ impl ActiveSegment {
     }
 
     pub fn snapshot(&self) -> ActiveSegmentReader {
-        let len = self.inner.len();
+        let len = self.inner.atomic_len.load(SeqCst);
         ActiveSegmentReader {
             inner: (*self.inner).clone(),
             len,
@@ -131,7 +135,7 @@ impl ActiveSegment {
 
 #[allow(clippy::redundant_allocation)]
 pub struct ActiveSegmentWriter {
-    ptr: *mut InnerSegment,
+    pub ptr: *mut InnerSegment,
     arc: Arc<Arc<InnerSegment>>,
     writer_count: Arc<AtomicUsize>,
     nvars: usize,
@@ -139,7 +143,8 @@ pub struct ActiveSegmentWriter {
 }
 
 impl ActiveSegmentWriter {
-    pub fn push(&mut self, item: &Sample) -> usize {
+    #[inline]
+    pub fn push(&mut self, item: Sample) -> usize {
         unsafe { self.ptr.as_mut().unwrap().push(item) }
     }
 
@@ -158,7 +163,7 @@ impl ActiveSegmentWriter {
         }
         self.ptr = Arc::as_ptr(&*self.arc) as *mut InnerSegment;
 
-        let len = new.len.load(SeqCst);
+        let len = new.atomic_len.load(SeqCst);
         ActiveSegmentBuffer { inner: new, len }
     }
 }
