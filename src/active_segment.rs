@@ -311,7 +311,7 @@ mod test {
         for s in samples {
             v0.push(s.values[0]);
             v1.push(s.values[1]);
-            writer.push(s);
+            writer._push(s);
         }
 
         assert_eq!(segment.inner.len, 3);
@@ -355,7 +355,7 @@ mod test {
         for s in samples {
             v0.push(s.values[0]);
             v1.push(s.values[1]);
-            writer.push(s);
+            writer._push(s);
         }
         let buf = writer.yield_replace();
 
@@ -381,7 +381,7 @@ mod test {
         }
 
         for s in samples {
-            writer.push(s);
+            writer._push(s);
         }
 
         //let mut reader = segment.snapshot();

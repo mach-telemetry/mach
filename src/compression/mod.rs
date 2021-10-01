@@ -184,7 +184,7 @@ mod test {
         }
 
         for s in samples {
-            writer.push(s);
+            writer._push(s);
         }
 
         let segment_buf = writer.yield_replace();
@@ -227,7 +227,7 @@ mod test {
         }
 
         for s in samples {
-            writer.push(s);
+            writer._push(s);
         }
 
         let segment_buf = writer.yield_replace();
@@ -272,7 +272,7 @@ mod test {
         }
 
         for s in samples {
-            writer.push(s);
+            writer._push(s);
         }
 
         let segment_buf = writer.yield_replace();
