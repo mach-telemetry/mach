@@ -314,7 +314,7 @@ mod test {
             writer.push(s);
         }
 
-        assert_eq!(segment.inner.len(), 3);
+        assert_eq!(segment.inner.len, 3);
         assert_eq!(&segment.inner.values[0][..3], v0.as_slice());
         assert_eq!(&segment.inner.values[1][..3], v1.as_slice());
     }
@@ -362,7 +362,7 @@ mod test {
         assert_eq!(buf.len(), 3);
         assert_eq!(buf.variable(0), v0.as_slice());
         assert_eq!(buf.variable(1), v1.as_slice());
-        assert_eq!(segment.inner.len(), 0);
+        assert_eq!(segment.inner.len, 0);
     }
 
     #[test]
