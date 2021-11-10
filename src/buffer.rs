@@ -52,11 +52,11 @@ pub struct BufferMut<'buffer> {
 }
 
 impl<'buffer> BufferMut<'buffer> {
-    fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
+    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
         self.inner.push(ts, item)
     }
 
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.inner.clear();
     }
 }
@@ -66,7 +66,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub unsafe fn get_mut(& self) -> BufferMut {
+    pub unsafe fn get_mut(&self) -> BufferMut {
         BufferMut {
             inner: self.inner.get().as_mut().unwrap()
         }

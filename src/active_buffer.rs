@@ -1,5 +1,5 @@
 use crate::{
-    buffer::Buffer,
+    buffer::{self, Buffer},
     managed::{Manager, ManagedPtr},
 };
 use std::{
@@ -20,6 +20,11 @@ struct SwappableBuffer {
 }
 
 impl SwappableBuffer {
+
+    unsafe fn mut_inner(&self) -> &mut Buffer {
+        (self.curr_ptr as * mut Buffer).as_mut().unwrap()
+    }
+
     fn new(manager: Manager<Buffer>) -> Self {
         let buffer = manager.take_or_add(Buffer::new);
         let curr_ptr = ManagedPtr::raw_ptr(&buffer);
@@ -46,9 +51,14 @@ impl SwappableBuffer {
         }
     }
 
+    // Safety:
+    // This function should never race with clone_buffer
     fn swap_buffer(&mut self) -> ManagedPtr<Buffer> {
-        let mut buf = MaybeUninit::new(self.manager.take_or_add(Buffer::new));
+        let buf = self.manager.take_or_add(Buffer::new);
+        let ptr = ManagedPtr::raw_ptr(&buf);
+        let mut buf = MaybeUninit::new(buf);
 
+        self.curr_ptr = ptr;
         self.curr_cnt += 1;
         let next_idx = self.curr_cnt % 2;
 
@@ -105,11 +115,22 @@ impl Drop for ActiveBufferWriter {
 }
 
 impl ActiveBufferWriter {
-    fn push(&mut self) {
-        //fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
+    fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), buffer::Error> {
+        // Safety: there's only one writer so no races involved in swap. Inner.swap is also
+        // guaranteed to not race with any method in Inner struct except for mut_inner. Because
+        // push and swap are are &mut self, these two calls can't race.
+        unsafe {
+            self.inner.buffer.mut_inner().get_mut().push(ts, item)
+        }
     }
 
-    fn swap(&mut self) {
+    fn swap(&mut self) -> ManagedPtr<Buffer> {
+        // Safety: there's only one writer so no races involved in swap. Inner.swap is also
+        // guaranteed to not race with any method in Inner struct except for mut_inner. Because
+        // push and swap are are &mut self, these two calls can't race.
+        unsafe {
+            (Arc::as_ptr(&self.inner) as * mut Inner).as_mut().unwrap().buffer.swap_buffer()
+        }
     }
 }
 
