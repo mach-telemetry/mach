@@ -43,10 +43,6 @@ impl<T> ManagedPtr<T> {
         }
     }
 
-    pub unsafe fn get_mut(this: &Self) -> &mut T {
-        &mut (*this.ptr.as_ptr()).data
-    }
-
     pub fn raw_ptr(this: &Self) -> * const T {
         unsafe {
             &(*this.ptr.as_ptr()).data

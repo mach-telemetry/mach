@@ -5,6 +5,9 @@
 #![feature(cell_update)]
 #![feature(box_syntax)]
 
+#![allow(clippy::new_without_default)]
+#![allow(clippy::len_without_is_empty)]
+
 //mod active_block;
 //mod active_segment;
 //mod types;

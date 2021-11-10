@@ -65,6 +65,8 @@ pub struct Buffer {
 }
 
 impl Buffer {
+    /// # Safety
+    /// This is only safe if Buffer is accessed by one and only one writer
     pub unsafe fn get_mut(&self) -> BufferMut {
         BufferMut {
             inner: self.inner.get().as_mut().unwrap()

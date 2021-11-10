@@ -20,8 +20,9 @@ struct SwappableBuffer {
 
 impl SwappableBuffer {
 
-    unsafe fn mut_inner(&self) -> &mut Buffer {
-        (self.curr_ptr as * mut Buffer).as_mut().unwrap()
+    #[allow(clippy::mut_from_ref)]
+    unsafe fn raw_ptr(&self) -> * const Buffer {
+        self.curr_ptr
     }
 
     fn new(manager: Manager<Buffer>) -> Self {
@@ -130,7 +131,7 @@ impl ActiveBufferWriter {
         // guaranteed to not race with any method in Inner struct except for mut_inner. Because
         // push and swap are are &mut self, these two calls can't race.
         unsafe {
-            self.inner.buffer.mut_inner().get_mut().push(ts, item)
+            self.inner.buffer.raw_ptr().as_ref().unwrap().get_mut().push(ts, item)
         }
     }
 
