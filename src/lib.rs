@@ -5,11 +5,9 @@
 #![feature(cell_update)]
 #![feature(box_syntax)]
 
-#![allow(warnings)]
-
 //mod active_block;
 //mod active_segment;
-mod types;
+//mod types;
 //mod block;
 //mod compression;
 //mod read_set;
@@ -18,9 +16,9 @@ mod types;
 //mod utils;
 //mod tsdb2;
 //mod ids;
-mod managed;
-mod buffer;
-mod active_buffer;
+pub mod managed;
+pub mod buffer;
+pub mod active_buffer;
 
 //pub use block::file::{FileBlockLoader, FileStore, ThreadFileWriter};
 //pub use read_set::SeriesReadSet;

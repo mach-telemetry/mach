@@ -8,7 +8,6 @@ use std::{
         atomic::{AtomicUsize, Ordering::SeqCst},
     },
     mem::{self, MaybeUninit},
-    ops::{Deref, DerefMut},
 };
 
 struct SwappableBuffer {
@@ -85,7 +84,18 @@ pub struct ActiveBuffer {
 }
 
 impl ActiveBuffer {
-    fn writer(&self) -> ActiveBufferWriter {
+    pub fn new(manager: Manager<Buffer>) -> Self {
+        let buffer = SwappableBuffer::new(manager);
+        let writer_cnt = AtomicUsize::new(0);
+        ActiveBuffer {
+            inner: Arc::new(Inner {
+                buffer,
+                writer_cnt
+            })
+        }
+    }
+
+    pub fn writer(&self) -> ActiveBufferWriter {
         if self.inner.writer_cnt.fetch_add(1, SeqCst) == 1 {
             panic!("More than one writer");
         }
@@ -94,7 +104,7 @@ impl ActiveBuffer {
         }
     }
 
-    fn snapshot(&self) -> ActiveBufferReader {
+    pub fn snapshot(&self) -> ActiveBufferReader {
         let buffer = self.inner.buffer.clone_buffer();
         let len = buffer.len();
         ActiveBufferReader {
@@ -115,7 +125,7 @@ impl Drop for ActiveBufferWriter {
 }
 
 impl ActiveBufferWriter {
-    fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), buffer::Error> {
+    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), buffer::Error> {
         // Safety: there's only one writer so no races involved in swap. Inner.swap is also
         // guaranteed to not race with any method in Inner struct except for mut_inner. Because
         // push and swap are are &mut self, these two calls can't race.
@@ -124,7 +134,7 @@ impl ActiveBufferWriter {
         }
     }
 
-    fn swap(&mut self) -> ManagedPtr<Buffer> {
+    pub fn swap(&mut self) -> ManagedPtr<Buffer> {
         // Safety: there's only one writer so no races involved in swap. Inner.swap is also
         // guaranteed to not race with any method in Inner struct except for mut_inner. Because
         // push and swap are are &mut self, these two calls can't race.
@@ -137,6 +147,13 @@ impl ActiveBufferWriter {
 pub struct ActiveBufferReader {
     buffer: ManagedPtr<Buffer>,
     len: usize,
+}
+
+impl ActiveBufferReader {
+    pub fn warn_supressor(&self) {
+        let _ = &self.buffer;
+        let _ = self.len;
+    }
 }
 
 

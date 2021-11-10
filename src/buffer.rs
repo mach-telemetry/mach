@@ -2,7 +2,6 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering::SeqCst},
     cell::UnsafeCell,
     mem,
-    ops::{Deref, DerefMut},
 };
 
 const SEGSZ: usize = 256;

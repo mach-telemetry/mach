@@ -22,9 +22,7 @@ struct ManagedInner<T> {
 impl<T> Deref for ManagedInner<T> {
     type Target = T;
     fn deref(&self) -> &T {
-        unsafe {
-            &self.data
-        }
+        &self.data
     }
 }
 
@@ -44,10 +42,6 @@ impl<T> ManagedPtr<T> {
             manager
         }
     }
-
-    //fn manager(&self) -> Manager<T> {
-    //    self.manager.clone()
-    //}
 
     pub unsafe fn get_mut(this: &Self) -> &mut T {
         &mut (*this.ptr.as_ptr()).data
