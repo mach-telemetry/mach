@@ -1,14 +1,17 @@
+use crossbeam_queue::SegQueue;
 use std::{
-    sync::{Arc, Mutex, atomic::{AtomicUsize, AtomicIsize, Ordering::SeqCst}},
     mem,
     ptr::NonNull,
+    sync::{
+        atomic::{AtomicIsize, AtomicUsize, Ordering::SeqCst},
+        Arc, Mutex,
+    },
 };
-use crossbeam_queue::SegQueue;
 
 const SEGSZ: usize = 256;
 
 pub enum Error {
-    Full
+    Full,
 }
 
 struct Inner {
@@ -47,63 +50,62 @@ impl Inner {
     }
 }
 
-pub struct BufferMut<'buffer> {
-    inner: &'buffer mut Inner
-}
-
-impl<'buffer> BufferMut<'buffer> {
-    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
-        self.inner.push(ts, item)
-    }
-}
-
-pub struct BufferRef<'buffer> {
-    inner: &'buffer Inner,
-    len: usize,
-}
-
+//pub struct BufferMut<'buffer> {
+//    inner: &'buffer mut Inner,
+//}
+//
+//impl<'buffer> BufferMut<'buffer> {
+//    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
+//        self.inner.push(ts, item)
+//    }
+//}
+//
+//pub struct BufferRef<'buffer> {
+//    inner: &'buffer Inner,
+//    len: usize,
+//}
 
 pub struct Buffer {
     inner: NonNull<Inner>,
-    allocator: InnerQ
+    allocator: InnerQ,
 }
 
 impl Drop for Buffer {
     fn drop(&mut self) {
+        unsafe {
+            self.inner.as_mut().clear();
+        }
         self.allocator.push(self.inner);
     }
 }
 
-impl Buffer {
-    pub fn as_mut(&mut self) -> BufferMut {
-        unsafe {
-            BufferMut {
-                inner: self.inner.as_mut()
-            }
-        }
-    }
-
-    pub fn as_ref(&self) -> BufferRef {
-        let r = unsafe { self.inner.as_ref() };
-        let len = r.atomic_len.load(SeqCst);
-        BufferRef {
-            inner: r,
-            len
-        }
-    }
-}
+//impl Buffer {
+//    pub fn as_mut(&mut self) -> BufferMut {
+//        unsafe {
+//            BufferMut {
+//                inner: self.inner.as_mut(),
+//            }
+//        }
+//    }
+//
+//    pub fn as_ref(&self) -> BufferRef {
+//        let r = unsafe { self.inner.as_ref() };
+//        let len = r.atomic_len.load(SeqCst);
+//        BufferRef { inner: r, len }
+//    }
+//}
 
 type InnerQ = Arc<SegQueue<NonNull<Inner>>>;
 
 #[derive(Clone)]
 pub struct BufferAllocator {
-    inner: InnerQ
+    inner: InnerQ,
 }
 
 impl BufferAllocator {
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(SegQueue::new())
+            inner: Arc::new(SegQueue::new()),
         }
     }
 
@@ -117,7 +119,7 @@ impl BufferAllocator {
         };
         Buffer {
             inner: ptr,
-            allocator: self.inner.clone()
+            allocator: self.inner.clone(),
         }
     }
 }
@@ -131,10 +133,7 @@ impl SwappableBuffer {
     fn new(allocator: BufferAllocator) -> Self {
         let buffer = Mutex::new(Arc::new(allocator.take_or_add()));
 
-        Self {
-            buffer,
-            allocator
-        }
+        Self { buffer, allocator }
     }
 
     fn clone_buffer(&self) -> Arc<Buffer> {
@@ -152,7 +151,7 @@ impl SwappableBuffer {
     }
 }
 
-struct InnerActiveBuffer {
+pub struct InnerActiveBuffer {
     current: NonNull<Inner>,
     buffers: Vec<SwappableBuffer>,
     h: isize,
@@ -163,10 +162,11 @@ struct InnerActiveBuffer {
 }
 
 impl InnerActiveBuffer {
-    fn new(c: usize) -> Self {
-        let worker = Arc::new(SegQueue::new());
+    pub fn new(c: usize, worker: Arc<SegQueue<(Arc<AtomicIsize>, Arc<Buffer>)>>) -> Self {
         let allocator = BufferAllocator::new();
-        let mut buffers: Vec<SwappableBuffer> = (0..c).map(|_| SwappableBuffer::new(allocator.clone())).collect();
+        let mut buffers: Vec<SwappableBuffer> = (0..c)
+            .map(|_| SwappableBuffer::new(allocator.clone()))
+            .collect();
         let current = buffers[0].get_inner();
 
         InnerActiveBuffer {
@@ -180,13 +180,11 @@ impl InnerActiveBuffer {
         }
     }
 
-    fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
-        let buf = unsafe {
-            self.current.as_mut()
-        };
+    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
+        let buf = unsafe { self.current.as_mut() };
 
         if buf.push(ts, item).is_ok() {
-            return Ok(())
+            return Ok(());
         }
 
         let c = self.buffers.len();
@@ -194,9 +192,7 @@ impl InnerActiveBuffer {
 
         if self.h >= flushed + c as isize {
             Err(Error::Full)
-        }
-
-        else {
+        } else {
             // Swap out everything that's been flushed
             let flushed = self.flushed.load(SeqCst);
             while self.cleared < flushed {
@@ -247,4 +243,3 @@ impl InnerActiveBuffer {
 //        Ok(())
 //    }
 //}
-

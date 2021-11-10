@@ -4,7 +4,6 @@
 #![feature(maybe_uninit_uninit_array)]
 #![feature(cell_update)]
 #![feature(box_syntax)]
-
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
 
