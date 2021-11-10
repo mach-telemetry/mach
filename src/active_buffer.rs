@@ -1,160 +1,167 @@
 use crate::{
-    buffer::{self, Buffer},
-    managed::{Manager, ManagedPtr},
+    buffer::{self, Buffer, BufferAllocator},
 };
 use std::{
     sync::{
         Arc,
+        Mutex,
         atomic::{AtomicUsize, Ordering::SeqCst},
     },
     mem::{self, MaybeUninit},
+    ptr::NonNull,
 };
 
-struct SwappableBuffer {
-    idx: AtomicUsize,
-    curr_cnt: usize,
-    curr_ptr: * const Buffer,
-    buffers: [MaybeUninit<ManagedPtr<Buffer>>; 2],
-    manager: Manager<Buffer>,
-}
-
-impl SwappableBuffer {
-
-    #[allow(clippy::mut_from_ref)]
-    unsafe fn raw_ptr(&self) -> * const Buffer {
-        self.curr_ptr
-    }
-
-    fn new(manager: Manager<Buffer>) -> Self {
-        let buffer = manager.take_or_add(Buffer::new);
-        let curr_ptr = ManagedPtr::raw_ptr(&buffer);
-
-        let idx = AtomicUsize::new(0);
-        let curr_cnt = 0;
-        let buffers = [MaybeUninit::new(buffer), MaybeUninit::uninit()];
-
-        Self {
-            idx,
-            curr_cnt,
-            curr_ptr,
-            buffers,
-            manager,
-        }
-    }
-
-    fn clone_buffer(&self) -> ManagedPtr<Buffer> {
-        // Safety
-        // buffers[0] always initted.
-        // self.id == 1 iff swap has occured therefore buffers[1] is also initted
-        unsafe {
-            self.buffers[self.idx.load(SeqCst)].assume_init_ref().clone()
-        }
-    }
-
-    // Safety:
-    // This function should never race with clone_buffer
-    fn swap_buffer(&mut self) -> ManagedPtr<Buffer> {
-        let buf = self.manager.take_or_add(Buffer::new);
-        let ptr = ManagedPtr::raw_ptr(&buf);
-        let mut buf = MaybeUninit::new(buf);
-
-        self.curr_ptr = ptr;
-        self.curr_cnt += 1;
-        let next_idx = self.curr_cnt % 2;
-
-        // Write to the next index. All concurrent cloners (if any) will be cloning from
-        // self.id's atomic idx so no race here
-        mem::swap(&mut self.buffers[next_idx], &mut buf);
-
-        // Atomic switch to the new buffer
-        self.idx.store(next_idx, SeqCst);
-
-        // Safety: buffers[0] was initted at creation, subsequent buffers are only initted by
-        // calling self.swap function
-        unsafe { buf.assume_init() }
-    }
-}
-
-struct Inner {
-    buffer: SwappableBuffer,
-    writer_cnt: AtomicUsize,
-}
-
-pub struct ActiveBuffer {
-    inner: Arc<Inner>,
+struct ActiveBuffer {
+    current_buffer: NonNull<Buffer>
+    buffer: Mutex<Arc<Buffer>>,
+    allocator: BufferAllocator,
 }
 
 impl ActiveBuffer {
-    pub fn new(manager: Manager<Buffer>) -> Self {
-        let buffer = SwappableBuffer::new(manager);
-        let writer_cnt = AtomicUsize::new(0);
-        ActiveBuffer {
-            inner: Arc::new(Inner {
-                buffer,
-                writer_cnt
-            })
-        }
-    }
+    fn new(allocator: BufferAllocator) -> Self {
+        let buffer = Mutex::new(Arc::new(allocator.take_or_add()));
 
-    pub fn writer(&self) -> ActiveBufferWriter {
-        if self.inner.writer_cnt.fetch_add(1, SeqCst) == 1 {
-            panic!("More than one writer");
-        }
-        ActiveBufferWriter {
-            inner: self.inner.clone()
-        }
-    }
-
-    pub fn snapshot(&self) -> ActiveBufferReader {
-        let buffer = self.inner.buffer.clone_buffer();
-        let len = buffer.len();
-        ActiveBufferReader {
+        Self {
             buffer,
-            len
-        }
-    }
-}
-
-pub struct ActiveBufferWriter {
-    inner: Arc<Inner>
-}
-
-impl Drop for ActiveBufferWriter {
-    fn drop(&mut self) {
-        self.inner.writer_cnt.fetch_sub(1, SeqCst);
-    }
-}
-
-impl ActiveBufferWriter {
-    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), buffer::Error> {
-        // Safety: there's only one writer so no races involved in swap. Inner.swap is also
-        // guaranteed to not race with any method in Inner struct except for mut_inner. Because
-        // push and swap are are &mut self, these two calls can't race.
-        unsafe {
-            self.inner.buffer.raw_ptr().as_ref().unwrap().get_mut().push(ts, item)
+            allocator
         }
     }
 
-    pub fn swap(&mut self) -> ManagedPtr<Buffer> {
-        // Safety: there's only one writer so no races involved in swap. Inner.swap is also
-        // guaranteed to not race with any method in Inner struct except for mut_inner. Because
-        // push and swap are are &mut self, these two calls can't race.
-        unsafe {
-            (Arc::as_ptr(&self.inner) as * mut Inner).as_mut().unwrap().buffer.swap_buffer()
-        }
+    fn clone_buffer(&self) -> Arc<Buffer> {
+        self.buffer.lock().unwrap().clone()
+    }
+
+    fn swap_buffer(&self) -> Arc<Buffer> {
+        let mut buf = Arc::new(self.allocator.take_or_add());
+        mem::swap(&mut *self.buffer.lock().unwrap(), &mut buf);
+        buf
     }
 }
 
-pub struct ActiveBufferReader {
-    buffer: ManagedPtr<Buffer>,
-    len: usize,
+pub struct ActiveBuffers {
+    buffers: Vec<ActiveBuffers>,
+    buff_cnt: AtomicUsize,
 }
 
-impl ActiveBufferReader {
-    pub fn warn_supressor(&self) {
-        let _ = &self.buffer;
-        let _ = self.len;
-    }
-}
+//struct InnerBuffers {
+//    buffers: Vec<SwappableBuffer>,
+//    buff_cnt: AtomicUsize,
+//    has_writer: AtomicUsize,
+//}
+//
+//impl InnerBuffers {
+//    fn new(size: usize) -> Self {
+//        let manager: Manager<Buffer> = Manager::new();
+//        let buff_cnt = AtomicUsize::new(0);
+//        let has_writer = AtomicUsize::new(0);
+//        let mut buffers = Vec::new();
+//        for _ in 0..size {
+//            buffers.push(SwappableBuffer::new(manager.clone()));
+//        }
+//        InnerBuffers {
+//            buffers,
+//            buff_cnt,
+//            has_writer
+//        }
+//    }
+//
+//    fn curr_ptr(&self) -> * const Buffer {
+//        self.buffers[self.buff_cnt.load(SeqCst)].curr_ptr
+//    }
+//}
+//
+//pub struct ActiveBuffer {
+//    inner: Arc<InnerBuffers>
+//}
+//
+//impl ActiveBuffer {
+//    pub fn new(size: usize) -> Self {
+//        ActiveBuffer {
+//            inner: Arc::new(InnerBuffers::new(size))
+//        }
+//    }
+//
+//    pub fn writer(&self) -> ActiveBufferWriter {
+//        if self.inner.has_writer.fetch_add(1, SeqCst) > 1 {
+//            panic!("Multiple writers detected");
+//        }
+//        let ptr = unsafe { self.inner.curr_ptr().as_ref().unwrap() }.into();
+//
+//        ActiveBufferWriter {
+//            ptr,
+//            inner: self.inner.clone()
+//        }
+//    }
+//
+//    //pub fn snapshot(&self) -> ActiveBufferReader {
+//    //    let buffer = self.inner.clone_buffer();
+//    //    let len = buffer.len();
+//    //    ActiveBufferReader {
+//    //        buffer,
+//    //        len
+//    //    }
+//    //}
+//}
+//
+//pub struct ActiveBufferWriter {
+//    ptr: NonNull<Buffer>,
+//    inner: Arc<InnerBuffers>
+//}
+//
+//impl ActiveBufferWriter {
+//    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), buffer::Error> {
+//        // Safety: There's only one writer so no multiple mutable access to Buffer. There could be
+//        // concurrent snapshots. See ActiveBuffer.snapshot() which describes safety of snapshots
+//        unsafe {
+//            self.ptr.as_mut().push(ts, item)
+//        }
+//    }
+//}
+
+//impl ActiveBufferWriter {
+//
+//    pub fn raw_ptr(&self) -> * const Buffer {
+//        // Safety: there's only one writer so no races involved in swap. Inner.swap is also
+//        // guaranteed to not race with any method in Inner struct except for mut_inner. Because
+//        // push and swap are are &mut self, these two calls can't race.
+//        unsafe {
+//            self.inner.raw_ptr()
+//        }
+//    }
+//
+//    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), buffer::Error> {
+//        // Safety: there's only one writer so no races involved in swap. Inner.swap is also
+//        // guaranteed to not race with any method in Inner struct except for mut_inner. Because
+//        // push and swap are are &mut self, these two calls can't race.
+//        unsafe {
+//            self.inner.raw_ptr().as_ref().unwrap().get_mut().push(ts, item)
+//        }
+//    }
+//
+//    pub fn swap_buffer(&mut self) -> ManagedPtr<Buffer> {
+//        // Safety: there's only one writer so no races involved in swap. Inner.swap is also
+//        // guaranteed to not race with any method in Inner struct except for mut_inner. Because
+//        // push and swap are are &mut self, these two calls can't race.
+//        unsafe {
+//            (Arc::as_ptr(&self.inner) as * mut SwappableBuffer).as_mut().unwrap().swap_buffer()
+//        }
+//    }
+//
+//    pub fn yield_buffer(&self) -> ManagedPtr<Buffer> {
+//        self.inner.clone_buffer()
+//    }
+//}
+
+//pub struct ActiveBufferReader {
+//    buffer: ManagedPtr<Buffer>,
+//    len: usize,
+//}
+//
+//impl ActiveBufferReader {
+//    pub fn warn_supressor(&self) {
+//        let _ = &self.buffer;
+//        let _ = self.len;
+//    }
+//}
 
 

@@ -19,9 +19,10 @@
 //mod utils;
 //mod tsdb2;
 //mod ids;
-pub mod managed;
+//pub mod managed;
 pub mod buffer;
-pub mod active_buffer;
+//pub mod active_buffer;
+//pub mod active_segment;
 
 //pub use block::file::{FileBlockLoader, FileStore, ThreadFileWriter};
 //pub use read_set::SeriesReadSet;

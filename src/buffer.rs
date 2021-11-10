@@ -1,8 +1,9 @@
 use std::{
-    sync::atomic::{AtomicUsize, Ordering::SeqCst},
-    cell::UnsafeCell,
+    sync::{Arc, Mutex, atomic::{AtomicUsize, AtomicIsize, Ordering::SeqCst}},
     mem,
+    ptr::NonNull,
 };
+use crossbeam_queue::SegQueue;
 
 const SEGSZ: usize = 256;
 
@@ -54,38 +55,196 @@ impl<'buffer> BufferMut<'buffer> {
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
         self.inner.push(ts, item)
     }
-
-    pub fn clear(&mut self) {
-        self.inner.clear();
-    }
 }
 
+pub struct BufferRef<'buffer> {
+    inner: &'buffer Inner,
+    len: usize,
+}
+
+
 pub struct Buffer {
-    inner: UnsafeCell<Inner>,
+    inner: NonNull<Inner>,
+    allocator: InnerQ
+}
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        self.allocator.push(self.inner);
+    }
 }
 
 impl Buffer {
-    /// # Safety
-    /// This is only safe if Buffer is accessed by one and only one writer
-    pub unsafe fn get_mut(&self) -> BufferMut {
-        BufferMut {
-            inner: self.inner.get().as_mut().unwrap()
-        }
-    }
-
-    pub fn new() -> Self {
-        Buffer {
-            inner: UnsafeCell::new(Inner::new())
-        }
-    }
-
-    fn inner(&self) -> &Inner {
+    pub fn as_mut(&mut self) -> BufferMut {
         unsafe {
-            self.inner.get().as_ref().unwrap()
+            BufferMut {
+                inner: self.inner.as_mut()
+            }
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.inner().atomic_len.load(SeqCst)
+    pub fn as_ref(&self) -> BufferRef {
+        let r = unsafe { self.inner.as_ref() };
+        let len = r.atomic_len.load(SeqCst);
+        BufferRef {
+            inner: r,
+            len
+        }
     }
 }
+
+type InnerQ = Arc<SegQueue<NonNull<Inner>>>;
+
+#[derive(Clone)]
+pub struct BufferAllocator {
+    inner: InnerQ
+}
+
+impl BufferAllocator {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(SegQueue::new())
+        }
+    }
+
+    pub fn take_or_add(&self) -> Buffer {
+        let ptr: NonNull<Inner> = match self.inner.pop() {
+            Some(x) => x,
+            None => {
+                let b = box Inner::new();
+                Box::leak(b).into()
+            }
+        };
+        Buffer {
+            inner: ptr,
+            allocator: self.inner.clone()
+        }
+    }
+}
+
+struct SwappableBuffer {
+    buffer: Mutex<Arc<Buffer>>,
+    allocator: BufferAllocator,
+}
+
+impl SwappableBuffer {
+    fn new(allocator: BufferAllocator) -> Self {
+        let buffer = Mutex::new(Arc::new(allocator.take_or_add()));
+
+        Self {
+            buffer,
+            allocator
+        }
+    }
+
+    fn clone_buffer(&self) -> Arc<Buffer> {
+        self.buffer.lock().unwrap().clone()
+    }
+
+    fn swap_buffer(&self) -> Arc<Buffer> {
+        let mut buf = Arc::new(self.allocator.take_or_add());
+        mem::swap(&mut *self.buffer.lock().unwrap(), &mut buf);
+        buf
+    }
+
+    fn get_inner(&mut self) -> NonNull<Inner> {
+        self.buffer.get_mut().unwrap().inner
+    }
+}
+
+struct InnerActiveBuffer {
+    current: NonNull<Inner>,
+    buffers: Vec<SwappableBuffer>,
+    h: isize,
+    head: Arc<AtomicIsize>,
+    cleared: isize,
+    flushed: Arc<AtomicIsize>,
+    worker: Arc<SegQueue<(Arc<AtomicIsize>, Arc<Buffer>)>>,
+}
+
+impl InnerActiveBuffer {
+    fn new(c: usize) -> Self {
+        let worker = Arc::new(SegQueue::new());
+        let allocator = BufferAllocator::new();
+        let mut buffers: Vec<SwappableBuffer> = (0..c).map(|_| SwappableBuffer::new(allocator.clone())).collect();
+        let current = buffers[0].get_inner();
+
+        InnerActiveBuffer {
+            current,
+            buffers,
+            h: 0,
+            head: Arc::new(AtomicIsize::new(0)),
+            cleared: -1,
+            flushed: Arc::new(AtomicIsize::new(-1)),
+            worker,
+        }
+    }
+
+    fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
+        let buf = unsafe {
+            self.current.as_mut()
+        };
+
+        if buf.push(ts, item).is_ok() {
+            return Ok(())
+        }
+
+        let c = self.buffers.len();
+        let flushed = self.flushed.load(SeqCst);
+
+        if self.h >= flushed + c as isize {
+            Err(Error::Full)
+        }
+
+        else {
+            // Swap out everything that's been flushed
+            let flushed = self.flushed.load(SeqCst);
+            while self.cleared < flushed {
+                self.cleared += 1;
+                self.buffers[self.cleared as usize % c].swap_buffer(); // drop buffer to return it to queue
+            }
+
+            // Get the current buffer, send to worker
+            let buf = self.buffers[self.h as usize % c].clone_buffer();
+            self.worker.push((self.flushed.clone(), buf));
+
+            // Move to next buffer
+            self.h += 1;
+            self.current = self.buffers[self.h as usize % c].get_inner();
+            self.head.fetch_add(1, SeqCst);
+
+            // push into new buf
+            unsafe { self.current.as_mut() }.push(ts, item)
+        }
+    }
+}
+
+//pub struct ActiveBuffers {
+//    inner: Arc<InnerActiveBuffer>
+//}
+//
+//impl ActiveBuffers {
+//    fn new(n: usize) -> Self {
+//        Self {
+//            inner: Arc::new(InnerActiveBuffer::new(n))
+//        }
+//    }
+//}
+//
+//pub struct Writer {
+//    current_buffer: NonNull<Inner>,
+//    inner: Arc<InnerActiveBuffer>
+//}
+//
+//impl Writer {
+//    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
+//        let buf = unsafe {
+//            self.current_buffer.as_mut()
+//        };
+//        if buf.push(ts, item).is_err() {
+//
+//        }
+//        Ok(())
+//    }
+//}
+
