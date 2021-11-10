@@ -15,6 +15,7 @@ pub enum Error {
 }
 
 struct Inner {
+    id: isize,
     atomic_len: AtomicUsize,
     len: usize,
     ts: [u64; SEGSZ],
@@ -35,8 +36,13 @@ impl Inner {
         }
     }
 
+    fn len(&self) -> usize {
+        self.atomic_len.load(SeqCst)
+    }
+
     fn new() -> Self {
         Inner {
+            id: -1,
             ts: [0u64; SEGSZ],
             data: Vec::with_capacity(8 * 256),
             len: 0,
@@ -45,6 +51,7 @@ impl Inner {
     }
 
     fn clear(&mut self) {
+        self.id = -1;
         self.atomic_len.store(0, SeqCst);
         self.len = 0;
     }
@@ -72,9 +79,6 @@ pub struct Buffer {
 
 impl Drop for Buffer {
     fn drop(&mut self) {
-        unsafe {
-            self.inner.as_mut().clear();
-        }
         self.allocator.push(self.inner);
     }
 }
@@ -110,13 +114,16 @@ impl BufferAllocator {
     }
 
     pub fn take_or_add(&self) -> Buffer {
-        let ptr: NonNull<Inner> = match self.inner.pop() {
+        let mut ptr: NonNull<Inner> = match self.inner.pop() {
             Some(x) => x,
             None => {
                 let b = box Inner::new();
                 Box::leak(b).into()
             }
         };
+        unsafe {
+            ptr.as_mut().clear();
+        }
         Buffer {
             inner: ptr,
             allocator: self.inner.clone(),
@@ -140,6 +147,15 @@ impl SwappableBuffer {
         self.buffer.lock().unwrap().clone()
     }
 
+    fn snapshot(&self) -> SnapshotBuffer {
+        let buffer = self.clone_buffer();
+        let len = unsafe { buffer.inner.as_ref().len() };
+        SnapshotBuffer {
+            _buffer: buffer,
+            _len: len,
+        }
+    }
+
     fn swap_buffer(&self) -> Arc<Buffer> {
         let mut buf = Arc::new(self.allocator.take_or_add());
         mem::swap(&mut *self.buffer.lock().unwrap(), &mut buf);
@@ -151,11 +167,15 @@ impl SwappableBuffer {
     }
 }
 
+pub struct SnapshotBuffer {
+    _buffer: Arc<Buffer>,
+    _len: usize,
+}
+
 pub struct InnerActiveBuffer {
     current: NonNull<Inner>,
     buffers: Vec<SwappableBuffer>,
-    h: isize,
-    head: Arc<AtomicIsize>,
+    head: isize,
     cleared: isize,
     flushed: Arc<AtomicIsize>,
     worker: Arc<SegQueue<(Arc<AtomicIsize>, Arc<Buffer>)>>,
@@ -163,26 +183,34 @@ pub struct InnerActiveBuffer {
 
 impl InnerActiveBuffer {
     pub fn new(c: usize, worker: Arc<SegQueue<(Arc<AtomicIsize>, Arc<Buffer>)>>) -> Self {
+        // Initialize buffers and allocators
         let allocator = BufferAllocator::new();
         let mut buffers: Vec<SwappableBuffer> = (0..c)
             .map(|_| SwappableBuffer::new(allocator.clone()))
             .collect();
-        let current = buffers[0].get_inner();
+
+        // Get the current inner buffer and assign it a an ID
+        let mut current = buffers[0].get_inner();
+        unsafe { current.as_mut().id = 0 };
 
         InnerActiveBuffer {
             current,
             buffers,
-            h: 0,
-            head: Arc::new(AtomicIsize::new(0)),
+            head: 0,
             cleared: -1,
             flushed: Arc::new(AtomicIsize::new(-1)),
             worker,
         }
     }
 
+    pub fn snapshot(&self) -> Vec<SnapshotBuffer> {
+        self.buffers.iter().map(|x| x.snapshot()).collect()
+    }
+
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
         let buf = unsafe { self.current.as_mut() };
 
+        // Try pushing into current buffer. If that works, then we're done
         if buf.push(ts, item).is_ok() {
             return Ok(());
         }
@@ -190,24 +218,36 @@ impl InnerActiveBuffer {
         let c = self.buffers.len();
         let flushed = self.flushed.load(SeqCst);
 
-        if self.h >= flushed + c as isize {
+        // Otherwise the current buffer is full.
+        // If the last flushed index is too far behind, return an error If c = 3 (i.e. [0, 1, 2])
+        // and head = 2, then flushed should be at least 0 (head < flushed + c). Otherwise, all
+        // buffers prior to head have not been flushed and we must return an error.
+        if self.head >= flushed + c as isize {
             Err(Error::Full)
-        } else {
-            // Swap out everything that's been flushed
-            let flushed = self.flushed.load(SeqCst);
-            while self.cleared < flushed {
-                self.cleared += 1;
-                self.buffers[self.cleared as usize % c].swap_buffer(); // drop buffer to return it to queue
-            }
-
+        }
+        // If head = 2, buffers prior to head (at least buffer 0) has been flushed so we can move
+        // to the next buffer.
+        else {
             // Get the current buffer, send to worker
-            let buf = self.buffers[self.h as usize % c].clone_buffer();
+            let buf = self.buffers[self.head as usize % c].clone_buffer();
             self.worker.push((self.flushed.clone(), buf));
 
-            // Move to next buffer
-            self.h += 1;
-            self.current = self.buffers[self.h as usize % c].get_inner();
-            self.head.fetch_add(1, SeqCst);
+            // If head >= c, then we're cycling over the circular buffer. We need to swap out the
+            // flushed buffer (could be that more than just this buffer was flushed, that's fine,
+            // we don't want to do any more work than necessary)
+            if self.head >= c as isize {
+                let to_clear = (self.cleared + 1) as usize;
+                let flushed_buffer = self.buffers[to_clear % c].swap_buffer();
+                mem::drop(flushed_buffer); // drop the swapped out buffer to return it to queue
+                self.cleared = to_clear as isize;
+            }
+
+            // Now that there's an available buffer, move to next buffer
+            self.head += 1;
+            self.current = self.buffers[self.head as usize % c].get_inner();
+            unsafe {
+                self.current.as_mut().id = self.head;
+            }
 
             // push into new buf
             unsafe { self.current.as_mut() }.push(ts, item)
