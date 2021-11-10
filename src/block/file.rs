@@ -1,6 +1,6 @@
 use crate::{
     block::{BlockReader, BlockStore, BlockWriter, BLOCKSZ},
-    tsdb::{Dt, SeriesId},
+    tsdb::SeriesId,
     utils::{
         list::{List, ListReader, ListWriter},
         overlaps,
@@ -262,8 +262,8 @@ impl FileItem {
     fn write(
         &mut self,
         series_id: SeriesId,
-        mint: Dt,
-        maxt: Dt,
+        mint: u64,
+        maxt: u64,
         data: &[u8],
     ) -> Result<BlockId, &'static str> {
         assert_eq!(data.len(), BLOCKSZ);
@@ -354,8 +354,8 @@ impl BlockWriter for ThreadFileWriter {
     fn write_block(
         &mut self,
         series_id: SeriesId,
-        mint: Dt,
-        maxt: Dt,
+        mint: u64,
+        maxt: u64,
         d: &[u8],
     ) -> Result<(), &'static str> {
         match &self.file {
@@ -468,7 +468,7 @@ impl FileBlockLoader {
 }
 
 impl BlockReader for FileBlockLoader {
-    fn set_range(&mut self, mint: Dt, maxt: Dt) {
+    fn set_range(&mut self, mint: u64, maxt: u64) {
         self.reset();
         for item in self.blocks.iter() {
             if overlaps(item.mint, item.maxt, mint, maxt) {

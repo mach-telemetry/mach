@@ -6,7 +6,6 @@ use crate::{
     compression::rows::{rows_compression, rows_decompression},
     compression::simple::{simple_compression, simple_decompression},
     segment::{Segment, SegmentLike},
-    tsdb::Dt,
 };
 use num::NumCast;
 use serde::*;
@@ -22,8 +21,8 @@ pub enum Compression {
 
 pub struct Header {
     _size: usize,
-    _mint: Dt,
-    _maxt: Dt,
+    _mint: u64,
+    _maxt: u64,
     len: usize,
     section_code: u8,
 }

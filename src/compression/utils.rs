@@ -1,4 +1,3 @@
-use crate::tsdb::Fl;
 use bitpacking::{BitPacker, BitPacker8x};
 use num::NumCast;
 use std::convert::TryFrom;
@@ -16,7 +15,7 @@ pub fn multiplier(p: u8) -> i64 {
 }
 
 #[allow(clippy::many_single_char_names)]
-pub fn fl_to_int(p: u8, a: Fl) -> Result<i64, ()> {
+pub fn fl_to_int(p: u8, a: f64) -> Result<i64, ()> {
     let v: f64 = a as f64;
     let sign = v.signum();
     let v = v.abs();
@@ -33,18 +32,18 @@ pub fn fl_to_int(p: u8, a: Fl) -> Result<i64, ()> {
     NumCast::from(r).ok_or(())
 }
 
-pub fn fl_from_int(p: u8, v: i64) -> Fl {
+pub fn fl_from_int(p: u8, v: i64) -> f64 {
     let mult = multiplier(p);
-    (v as f64 / mult as f64) as Fl
+    (v as f64 / mult as f64) as f64
 }
 
 #[cfg(test)]
-pub fn round(p: u8, v: Fl) -> Fl {
+pub fn round(p: u8, v: f64) -> f64 {
     fl_from_int(p, fl_to_int(p, v).unwrap())
 }
 
-//pub fn round(p: u8, v: Fl) -> Fl {
-//    let mult = multiplier(p) as Fl;
+//pub fn round(p: u8, v: f64) -> f64 {
+//    let mult = multiplier(p) as f64;
 //    NumCast::from((v * mult).round() / mult).unwrap()
 //}
 
@@ -221,7 +220,7 @@ mod test {
 
     //#[test]
     //fn fl_differences_roll() {
-    //    let mut state = FlDiffer::new(2);
+    //    let mut state = f64Differ::new(2);
     //    assert_eq!(state.roll(1.2345), to_zigzag(123));
     //    assert_eq!(state.roll(2.3456), to_zigzag(235 - 123));
     //    assert_eq!(state.roll(3.4567), to_zigzag((346 - 235) - (235 - 123)));
@@ -241,15 +240,15 @@ mod test {
 
     //#[test]
     //fn fl_differences_unroll() {
-    //    let mut state = FlDiffer::new(2);
-    //    let data: &[Fl] = &[
+    //    let mut state = f64Differ::new(2);
+    //    let data: &[f64] = &[
     //        1.2345, 2.3456, 3.4567, 4.567, 2.451, 1.671, -0.123, -10.782, -2.341,
     //    ];
-    //    let exp: Vec<Fl> = data.iter().map(|x| (x * 100.).round() / 100.).collect();
+    //    let exp: Vec<f64> = data.iter().map(|x| (x * 100.).round() / 100.).collect();
     //    let rolled: Vec<u64> = data.iter().map(|x| state.roll(*x)).collect();
 
-    //    let mut state = FlDiffer::new(2);
-    //    let unrolled: Vec<Fl> = rolled.iter().map(|x| state.unroll(*x)).collect();
+    //    let mut state = f64Differ::new(2);
+    //    let unrolled: Vec<f64> = rolled.iter().map(|x| state.unroll(*x)).collect();
     //    assert_eq!(exp, unrolled);
     //}
 

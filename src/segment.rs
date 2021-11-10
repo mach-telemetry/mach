@@ -1,10 +1,9 @@
-use crate::tsdb::{Dt, Fl};
 
 pub trait SegmentLike {
-    fn timestamps(&self) -> &[Dt];
-    fn variable(&self, id: usize) -> &[Fl];
-    fn value(&self, varid: usize, idx: usize) -> Fl;
-    fn row(&self, idx: usize) -> &[Fl];
+    fn timestamps(&self) -> &[u64];
+    fn variable(&self, id: usize) -> &[f64];
+    fn value(&self, varid: usize, idx: usize) -> f64;
+    fn row(&self, idx: usize) -> &[f64];
     fn nvars(&self) -> usize;
     fn len(&self) -> usize {
         self.timestamps().len()
@@ -15,13 +14,13 @@ pub trait SegmentLike {
 }
 
 pub trait SegmentIterator {
-    fn set_range(&mut self, mint: Dt, maxt: Dt);
+    fn set_range(&mut self, mint: u64, maxt: u64);
     fn next_segment(&mut self) -> Option<Segment>;
 }
 
 pub struct Segment {
-    pub timestamps: Vec<Dt>,
-    pub values: Vec<Fl>,
+    pub timestamps: Vec<u64>,
+    pub values: Vec<f64>,
     pub len: usize,
 }
 
@@ -42,21 +41,21 @@ impl Default for Segment {
 }
 
 impl SegmentLike for Segment {
-    fn timestamps(&self) -> &[Dt] {
+    fn timestamps(&self) -> &[u64] {
         self.timestamps.as_slice()
     }
 
-    fn variable(&self, id: usize) -> &[Fl] {
+    fn variable(&self, id: usize) -> &[f64] {
         let start = self.len() * id;
         let end = start + self.len();
         &self.values[start..end]
     }
 
-    fn value(&self, varid: usize, idx: usize) -> Fl {
+    fn value(&self, varid: usize, idx: usize) -> f64 {
         self.variable(varid)[idx]
     }
 
-    fn row(&self, _idx: usize) -> &[Fl] {
+    fn row(&self, _idx: usize) -> &[f64] {
         unimplemented!()
     }
 

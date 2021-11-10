@@ -5,9 +5,10 @@ use crate::{
         file::{FileBlockLoader, FileStore, ThreadFileWriter},
         BlockReader, BlockStore, BlockWriter, BLOCKSZ,
     },
-    compression::Compression,
-    read_set::SeriesReadSet,
-    segment::SegmentLike,
+    types::{Sample, Type},
+    //compression::Compression,
+    //read_set::SeriesReadSet,
+    //segment::SegmentLike,
 };
 use core::cmp::{Ordering, Reverse};
 use core::sync::atomic::AtomicUsize;
@@ -24,9 +25,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-pub type Dt = u64;
-pub type Fl = f64;
-
 #[derive(Debug, Hash, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SeriesId(pub u64);
 
@@ -35,51 +33,35 @@ pub struct RefId(pub u64);
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SeriesOptions {
-    pub nvars: usize,
-    pub default_compressor: Compression,
-    pub fallback_compressor: Compression,
-    pub fall_back_sz: usize,
+    schema: Vec<Type>,
+}
 
-    fall_back: bool,
-    max_compressed_sz: usize,
-    block_bytes: usize,
-    block_bytes_remaining: usize,
+impl SeriesOptions {
+    fn set_schema(mut self, schema: Vec<Type>) -> Self {
+        self.schema = schema;
+        self
+    }
 }
 
 impl Default for SeriesOptions {
     fn default() -> Self {
         Self {
-            nvars: 1,
-            default_compressor: Compression::Simple { precision: vec![3] },
-            fallback_compressor: Compression::Rows { precision: vec![3] },
-            fall_back_sz: 50,
-            max_compressed_sz: 0,
-            block_bytes: BLOCKSZ,
-            block_bytes_remaining: BLOCKSZ,
-            fall_back: false,
+            schema: Vec::new()
         }
     }
-}
-
-#[derive(Clone)]
-pub struct Sample {
-    pub ts: Dt,
-    pub values: Box<[Fl]>,
 }
 
 #[derive(Clone)]
 struct MemSeries {
     active_segment: ActiveSegment,
     active_block: ActiveBlock,
-    snapshot_lock: Arc<RwLock<()>>,
 }
 
 impl MemSeries {
-    fn new(nvars: usize) -> Self {
+    fn new() -> Self {
         Self {
-            active_segment: ActiveSegment::new(nvars),
+            active_segment: ActiveSegment::new(),
             active_block: ActiveBlock::new(),
-            snapshot_lock: Arc::new(RwLock::new(())),
         }
     }
 }
@@ -137,24 +119,43 @@ pub struct SeriesMetadata {
     thread_id: Arc<AtomicUsize>,
 }
 
-pub struct Db<B, W, R>
-where
-    B: BlockStore<W, R>,
-    W: BlockWriter,
-    R: BlockReader,
-{
+pub struct WriterMetadata {
+    map: Arc<DashMap<SeriesId, SeriesMetadata>>,
+
+    // File storage information
+    file_store: FileStore,
+    thread_id: usize,
+}
+
+impl WriterMetadata {
+    fn new(file_store: FileStore, thread_id: usize) -> Self {
+        Self {
+            map: Arc::new(DashMap::new()),
+            file_store,
+            thread_id,
+        }
+    }
+
+    fn add_series(&self, id: SeriesId, ser: SeriesMetadata) {
+        self.map.insert(id, ser);
+    }
+
+    pub fn writer(&self) -> Writer {
+        Writer::new(self.map.clone(), self.file_store.writer(), self.thread_id)
+    }
+}
+
+pub struct Db {
     // Global metadata information
     map: GlobalMetadata,
-    threads: Vec<WriterMetadata<B, W, R>>,
+    threads: Vec<WriterMetadata>,
     dir: PathBuf,
 
     // File storage information
-    file_store: B,
-    _w: PhantomData<W>,
-    _r: PhantomData<R>,
+    file_store: FileStore,
 }
 
-impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
+impl Db {
     pub fn new<P: AsRef<Path>>(dir: P, threads: usize) -> Result<Self, &'static str> {
         let data_path = dir.as_ref().join("data");
         fs::create_dir_all(&data_path).map_err(|_| "can't create dir")?;
@@ -167,8 +168,6 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
                 .collect(),
             file_store,
             dir: PathBuf::from(dir.as_ref()),
-            _w: PhantomData,
-            _r: PhantomData,
         })
     }
 
@@ -193,8 +192,6 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
             threads,
             file_store,
             dir: PathBuf::from(dir.as_ref()),
-            _w: PhantomData,
-            _r: PhantomData,
         };
 
         // Load metadata file
@@ -209,7 +206,7 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         // TODO: Optimizations
         // 1. Autoscaling can be performed somewhere by moving writers around the writer metadata
         let thread_id = id.0 as usize % self.threads.len();
-        let mem_series = MemSeries::new(options.nvars);
+        let mem_series = MemSeries::new();
         let meta = SeriesMetadata {
             options,
             mem_series,
@@ -224,175 +221,118 @@ impl Db<FileStore, ThreadFileWriter, FileBlockLoader> {
         self.map.flush_series_options(self.dir.join("meta"))
     }
 
-    pub fn snapshot(&self, id: SeriesId) -> Result<SeriesReadSet<FileBlockLoader>, &'static str> {
-        let metadata = self.map.get(&id).ok_or("id not found")?;
-        let segment = metadata.mem_series.active_segment.snapshot();
-        let block = metadata.mem_series.active_block.snapshot();
-        let blocks = self.file_store.reader(id).ok_or("ID not found")?;
-        Ok(SeriesReadSet::new(segment, block, blocks))
-    }
+    //pub fn snapshot(&self, id: SeriesId) -> Result<SeriesReadSet<FileBlockLoader>, &'static str> {
+    //    let metadata = self.map.get(&id).ok_or("id not found")?;
+    //    let segment = metadata.mem_series.active_segment.snapshot();
+    //    let block = metadata.mem_series.active_block.snapshot();
+    //    let blocks = self.file_store.reader(id).ok_or("ID not found")?;
+    //    Ok(SeriesReadSet::new(segment, block, blocks))
+    //}
 
-    pub fn writer(&self, thread_id: usize) -> Writer<ThreadFileWriter> {
+    pub fn writer(&self, thread_id: usize) -> Writer {
         self.threads[thread_id].writer()
     }
 
-    fn _set_thread_count(&mut self, thread_count: usize) {
-        match thread_count.cmp(&self.threads.len()) {
-            Ordering::Equal => {}
-            Ordering::Less => self._scale_down_threads(thread_count),
-            Ordering::Greater => self._scale_up_threads(thread_count),
-        }
-    }
+    //fn _set_thread_count(&mut self, thread_count: usize) {
+    //    match thread_count.cmp(&self.threads.len()) {
+    //        Ordering::Equal => {}
+    //        Ordering::Less => self._scale_down_threads(thread_count),
+    //        Ordering::Greater => self._scale_up_threads(thread_count),
+    //    }
+    //}
 
-    fn _scale_down_threads(&mut self, target_thread_count: usize) {
-        assert!(target_thread_count < self.threads.len());
+    //fn _scale_down_threads(&mut self, target_thread_count: usize) {
+    //    assert!(target_thread_count < self.threads.len());
 
-        self._optimize_series_thread_assignment(target_thread_count);
+    //    self._optimize_series_thread_assignment(target_thread_count);
 
-        // can safely delete threads b/c all data series have been migrated
-        self.threads.truncate(target_thread_count);
-    }
+    //    // can safely delete threads b/c all data series have been migrated
+    //    self.threads.truncate(target_thread_count);
+    //}
 
-    fn _scale_up_threads(&mut self, target_thread_count: usize) {
-        assert!(target_thread_count > self.threads.len());
+    //fn _scale_up_threads(&mut self, target_thread_count: usize) {
+    //    assert!(target_thread_count > self.threads.len());
 
-        let fstore = self.file_store.clone();
+    //    let fstore = self.file_store.clone();
 
-        // data series migration will only be safe after new threads are allocated
-        let new_threads = (self.threads.len()..target_thread_count)
-            .map(|thread_id| WriterMetadata::new(fstore.clone(), thread_id));
-        self.threads.extend(new_threads);
+    //    // data series migration will only be safe after new threads are allocated
+    //    let new_threads = (self.threads.len()..target_thread_count)
+    //        .map(|thread_id| WriterMetadata::new(fstore.clone(), thread_id));
+    //    self.threads.extend(new_threads);
 
-        self._optimize_series_thread_assignment(target_thread_count);
-    }
+    //    self._optimize_series_thread_assignment(target_thread_count);
+    //}
 
-    fn _optimize_series_thread_assignment(&mut self, target_thread_count: usize) {
-        let migration_map = self._compute_series_migration_map(target_thread_count);
+    //fn _optimize_series_thread_assignment(&mut self, target_thread_count: usize) {
+    //    let migration_map = self._compute_series_migration_map(target_thread_count);
 
-        for entry in migration_map.iter() {
-            let serid = entry.key();
-            let (old_thread_id, new_thread_id) = entry.value();
-            self._move_series(*serid, *old_thread_id, *new_thread_id)
-                .unwrap_or(()); // unable to move series; TODO: consider how to handle exception here
-        }
-    }
+    //    for entry in migration_map.iter() {
+    //        let serid = entry.key();
+    //        let (old_thread_id, new_thread_id) = entry.value();
+    //        self._move_series(*serid, *old_thread_id, *new_thread_id)
+    //            .unwrap_or(()); // unable to move series; TODO: consider how to handle exception here
+    //    }
+    //}
 
-    fn _move_series(
-        &mut self,
-        series_id: SeriesId,
-        from_thread: usize,
-        to_thread: usize,
-    ) -> Result<(), String> {
-        let old_thread = self.threads.get(from_thread).ok_or(format!(
-            "Cannot move series '{}' in thread '{}': thread does not exist.",
-            series_id.0 as usize, from_thread,
-        ))?;
-        let new_thread = self.threads.get(to_thread).ok_or(format!(
-            "Cannot move series '{}' to thread '{}': thread does not exist.",
-            series_id.0 as usize, to_thread
-        ))?;
+    //fn _move_series(
+    //    &mut self,
+    //    series_id: SeriesId,
+    //    from_thread: usize,
+    //    to_thread: usize,
+    //) -> Result<(), String> {
+    //    let old_thread = self.threads.get(from_thread).ok_or(format!(
+    //        "Cannot move series '{}' in thread '{}': thread does not exist.",
+    //        series_id.0 as usize, from_thread,
+    //    ))?;
+    //    let new_thread = self.threads.get(to_thread).ok_or(format!(
+    //        "Cannot move series '{}' to thread '{}': thread does not exist.",
+    //        series_id.0 as usize, to_thread
+    //    ))?;
 
-        let (_, series_meta) = old_thread.map.remove(&series_id).ok_or(format!(
-            "Series '{}' not found on thread '{}'",
-            series_id.0 as usize, from_thread
-        ))?;
+    //    let (_, series_meta) = old_thread.map.remove(&series_id).ok_or(format!(
+    //        "Series '{}' not found on thread '{}'",
+    //        series_id.0 as usize, from_thread
+    //    ))?;
 
-        series_meta.thread_id.store(to_thread, SeqCst);
-        new_thread.add_series(series_id, series_meta);
+    //    series_meta.thread_id.store(to_thread, SeqCst);
+    //    new_thread.add_series(series_id, series_meta);
 
-        Ok(())
-    }
+    //    Ok(())
+    //}
 
-    /// Returns a mapping that describes how data series will be migrated
-    /// with the new thread count.
-    ///
-    /// The mapping's keys are IDs of data series that need to be moved.
-    /// The mapping's values are 2-element tuples: the first value is the
-    /// series' current thread ID, and the second is the thread ID to migrate to.
-    ///
-    /// Data series that do not need to be moved are not contained in the
-    /// returned mapping.
-    fn _compute_series_migration_map(
-        &self,
-        new_thread_count: usize,
-    ) -> DashMap<SeriesId, (usize, usize)> {
-        let migration_map: DashMap<SeriesId, (usize, usize)> = DashMap::new();
+    ///// Returns a mapping that describes how data series will be migrated
+    ///// with the new thread count.
+    /////
+    ///// The mapping's keys are IDs of data series that need to be moved.
+    ///// The mapping's values are 2-element tuples: the first value is the
+    ///// series' current thread ID, and the second is the thread ID to migrate to.
+    /////
+    ///// Data series that do not need to be moved are not contained in the
+    ///// returned mapping.
+    //fn _compute_series_migration_map(
+    //    &self,
+    //    new_thread_count: usize,
+    //) -> DashMap<SeriesId, (usize, usize)> {
+    //    let migration_map: DashMap<SeriesId, (usize, usize)> = DashMap::new();
 
-        for (curr_thread_id, thread) in self.threads.iter().enumerate() {
-            for item in thread.map.iter() {
-                let serid = item.key();
-                let new_thread_id = serid.0 as usize % new_thread_count;
-                if new_thread_id != curr_thread_id {
-                    migration_map.insert(*serid, (curr_thread_id, new_thread_id));
-                }
-            }
-        }
-        migration_map
-    }
+    //    for (curr_thread_id, thread) in self.threads.iter().enumerate() {
+    //        for item in thread.map.iter() {
+    //            let serid = item.key();
+    //            let new_thread_id = serid.0 as usize % new_thread_count;
+    //            if new_thread_id != curr_thread_id {
+    //                migration_map.insert(*serid, (curr_thread_id, new_thread_id));
+    //            }
+    //        }
+    //    }
+    //    migration_map
+    //}
 
-    pub fn init_writer(&self, thread_id: usize) -> Writer<ThreadFileWriter> {
-        self.threads[thread_id].writer()
-    }
+    //pub fn init_writer(&self, thread_id: usize) -> Writer<ThreadFileWriter> {
+    //    self.threads[thread_id].writer()
+    //}
 }
 
-pub struct WriterMetadata<B, W, R>
-where
-    B: BlockStore<W, R>,
-    W: BlockWriter,
-    R: BlockReader,
-{
-    map: Arc<DashMap<SeriesId, SeriesMetadata>>,
-
-    // File storage information
-    file_store: B,
-    thread_id: usize,
-    _w: PhantomData<W>,
-    _r: PhantomData<R>,
-}
-
-impl WriterMetadata<FileStore, ThreadFileWriter, FileBlockLoader> {
-    fn new(file_store: FileStore, thread_id: usize) -> Self {
-        Self {
-            map: Arc::new(DashMap::new()),
-            file_store,
-            thread_id,
-            _w: PhantomData,
-            _r: PhantomData,
-        }
-    }
-
-    fn add_series(&self, id: SeriesId, ser: SeriesMetadata) {
-        self.map.insert(id, ser);
-    }
-
-    pub fn writer(&self) -> Writer<ThreadFileWriter> {
-        Writer::new(self.map.clone(), self.file_store.writer(), self.thread_id)
-    }
-}
-
-struct WriterMemSeries {
-    snapshot_lock: Arc<RwLock<()>>,
-    active_block: ActiveBlockWriter,
-    series_option: SeriesOptions,
-    thread_id: Arc<AtomicUsize>,
-}
-
-impl WriterMemSeries {
-    fn new(mem_series: MemSeries, options: SeriesOptions, thread_id: Arc<AtomicUsize>) -> Self {
-        Self {
-            active_block: mem_series.active_block.writer(),
-            series_option: options,
-            snapshot_lock: mem_series.snapshot_lock,
-            thread_id,
-        }
-    }
-}
-
-pub struct PushResult {
-    pub thread_id: usize,
-}
-
-pub struct Writer<W: BlockWriter> {
+pub struct Writer {
     pub series_map: Arc<DashMap<SeriesId, SeriesMetadata>>,
     ref_map: HashMap<SeriesId, RefId>,
 
@@ -406,20 +346,40 @@ pub struct Writer<W: BlockWriter> {
 
     // Shared buffer for the compressor and the block writer
     buf: [u8; BLOCKSZ],
-    block_writer: W,
+    block_writer: ThreadFileWriter,
     thread_id: usize,
 }
 
-impl<W: BlockWriter> Drop for Writer<W> {
+impl Drop for Writer {
     fn drop(&mut self) {
-        self.flush().expect("Can't flush files");
+        //self.flush().expect("Can't flush files");
     }
 }
 
-impl<W: BlockWriter> Writer<W> {
+struct WriterMemSeries {
+    active_block: ActiveBlockWriter,
+    series_option: SeriesOptions,
+    thread_id: Arc<AtomicUsize>,
+}
+
+impl WriterMemSeries {
+    fn new(mem_series: MemSeries, options: SeriesOptions, thread_id: Arc<AtomicUsize>) -> Self {
+        Self {
+            active_block: mem_series.active_block.writer(),
+            series_option: options,
+            thread_id,
+        }
+    }
+}
+
+pub struct PushResult {
+    pub thread_id: usize,
+}
+
+impl Writer {
     fn new(
         series_map: Arc<DashMap<SeriesId, SeriesMetadata>>,
-        block_writer: W,
+        block_writer: ThreadFileWriter,
         thread_id: usize,
     ) -> Self {
         Self {
@@ -471,82 +431,13 @@ impl<W: BlockWriter> Writer<W> {
         }
     }
 
-    pub fn flush(&mut self) -> Result<(), &'static str> {
-        for (sid, rid) in self.ref_map.iter() {
-            let id = rid.0 as usize;
-            let series_id = *sid;
-            let mem_series = self.mem_series[id].as_mut().unwrap();
-
-            let mtx_guard = mem_series.snapshot_lock.write();
-
-            let segment = self.active_segment[id].as_mut().unwrap().yield_replace();
-            let opts = &mut mem_series.series_option;
-            let active_block_writer = &mut mem_series.active_block;
-
-            let bytes = match segment.len() {
-                0 => 0, // There's nothing in the segment so we do nothing
-                _ => {
-                    // There's something in the segment so we flush compress and flush
-                    let (mint, maxt) = {
-                        let timestamps = segment.timestamps();
-                        (timestamps[0], *timestamps.last().unwrap())
-                    };
-
-                    // And then compress it
-                    let bytes = if opts.fall_back {
-                        opts.fallback_compressor
-                            .compress(&segment, &mut self.buf[..])
-                    } else {
-                        opts.default_compressor
-                            .compress(&segment, &mut self.buf[..])
-                    };
-
-                    // If there is no room in the current active block, flush the active block
-                    let remaining = active_block_writer.remaining();
-                    if bytes > remaining {
-                        let block = active_block_writer.yield_replace();
-                        self.block_writer.write_block(
-                            series_id,
-                            block.mint(),
-                            block.maxt(),
-                            block.slice(),
-                        )?;
-                        opts.max_compressed_sz = 0;
-                        opts.block_bytes_remaining = opts.block_bytes;
-                        opts.fall_back = false;
-                        self.active_segment[id]
-                            .as_mut()
-                            .unwrap()
-                            .set_capacity(SEGSZ);
-                        //mem_series.active_segment.set_capacity(SEGSZ);
-                    }
-
-                    // Write compressed data into active segment, then flush
-                    active_block_writer.push_segment(mint, maxt, &self.buf[..bytes]);
-                    bytes
-                }
-            };
-
-            // Flush the last block
-            let block = active_block_writer.yield_replace();
-            self.block_writer
-                .write_block(series_id, block.mint(), block.maxt(), block.slice())?;
-            opts.max_compressed_sz = 0;
-            opts.block_bytes_remaining = opts.block_bytes;
-            opts.fall_back = false;
-            opts.max_compressed_sz = opts.max_compressed_sz.max(bytes);
-
-            drop(mtx_guard)
-        }
-        Ok(())
-    }
-
     // TODO: Optimization + API
     // 1. Return ThreadID? Last serialized timestamp?
     pub fn push(
         &mut self,
         reference_id: RefId,
         series_id: SeriesId,
+        ts: u64,
         sample: Sample,
     ) -> Result<PushResult, &'static str> {
         let id = reference_id.0 as usize;
@@ -556,92 +447,185 @@ impl<W: BlockWriter> Writer<W> {
             None => return Err("Refid invalid"),
         };
 
-        //let active_segment = self.active_segment[id].as_mut().unwrap();
-        let segment_len = unsafe { active_segment.ptr.as_mut().unwrap().push(sample) };
-        if segment_len == active_segment.capacity() {
-            // TODO: Optimizations:
-            // 1. minimize mtx_guard by not yielding and replacing until after compression and
-            //    flushing
-            // 2. concurrent compress + flush
-
-            // Get block information and take the snapshot lock
-            let mem_series = self.mem_series[id].as_mut().unwrap();
-            let mtx_guard = mem_series.snapshot_lock.write();
-
-            // Take segment
-            let segment = active_segment.yield_replace();
-            let (mint, maxt) = {
-                let timestamps = segment.timestamps();
-                (timestamps[0], *timestamps.last().unwrap())
-            };
-
-            let opts = &mut mem_series.series_option;
-            let active_block_writer = &mut mem_series.active_block;
-
-            // And then compress it
-            // TODO: Here, we could probably use something smarter to determine how to pack blocks
-            let bytes = if opts.fall_back {
-                //println!("USING FALLBACK");
-                opts.fallback_compressor
-                    .compress(&segment, &mut self.buf[..])
-            } else {
-                //println!("USING DEFAULT");
-                opts.default_compressor
-                    .compress(&segment, &mut self.buf[..])
-            };
-
-            // If there is no room in the current active block, flush the active block
-            let remaining = active_block_writer.remaining();
-            //println!("{:?} BLOCK IS {}% FULL", series_id, (1.0 - (remaining as f64 / BLOCKSZ as f64)) * 100.);
-            if bytes > remaining {
-                //println!("{:?} FLUSHING BLOCK", series_id);
-                let block = active_block_writer.yield_replace();
-                self.block_writer.write_block(
-                    series_id,
-                    block.mint(),
-                    block.maxt(),
-                    block.slice(),
-                )?;
-                opts.max_compressed_sz = 0;
-                opts.block_bytes_remaining = opts.block_bytes;
-                opts.fall_back = false;
-                active_segment.set_capacity(SEGSZ);
-            }
-
-            // Write compressed data into active segment
-            active_block_writer.push_segment(mint, maxt, &self.buf[..bytes]);
-
-            // Update metadata for the next push:
-            // 1. Largest compressed size
-            // 2. Should we use fall back compression in this next segment
-            // TODO: determine the block packing heuristic. For now, if bytes remaining is smaller
-            // than the maximum recorded compressed size, fall back
-            opts.max_compressed_sz = opts.max_compressed_sz.max(bytes);
-            opts.block_bytes_remaining -= bytes;
-            if opts.block_bytes_remaining < opts.max_compressed_sz {
-                //println!("SETTING FALLBACK FOR NEXT BLOCK");
-                opts.fall_back = true;
-                active_segment.set_capacity(opts.fall_back_sz);
-            }
-            drop(mtx_guard);
-            let series_thread_id = mem_series.thread_id.load(SeqCst);
-            if series_thread_id != self.thread_id {
-                // perform cleanup because series has been reassigned to another thread
-                self.mem_series[id] = None;
-                self.ref_map.remove(&series_id);
-                self.free_ref_ids.push(Reverse(id));
-            }
-            return Ok(PushResult {
-                thread_id: series_thread_id,
-            });
-        }
+        let segment_len = unsafe { active_segment.push(ts, &sample.data)};
 
         Ok(PushResult {
             thread_id: self.thread_id,
         })
     }
+
+    //pub fn flush(&mut self) -> Result<(), &'static str> {
+    //    for (sid, rid) in self.ref_map.iter() {
+    //        let id = rid.0 as usize;
+    //        let series_id = *sid;
+    //        let mem_series = self.mem_series[id].as_mut().unwrap();
+
+    //        let mtx_guard = mem_series.snapshot_lock.write();
+
+    //        let segment = self.active_segment[id].as_mut().unwrap().yield_replace();
+    //        let opts = &mut mem_series.series_option;
+    //        let active_block_writer = &mut mem_series.active_block;
+
+    //        let bytes = match segment.len() {
+    //            0 => 0, // There's nothing in the segment so we do nothing
+    //            _ => {
+    //                // There's something in the segment so we flush compress and flush
+    //                let (mint, maxt) = {
+    //                    let timestamps = segment.timestamps();
+    //                    (timestamps[0], *timestamps.last().unwrap())
+    //                };
+
+    //                // And then compress it
+    //                let bytes = if opts.fall_back {
+    //                    opts.fallback_compressor
+    //                        .compress(&segment, &mut self.buf[..])
+    //                } else {
+    //                    opts.default_compressor
+    //                        .compress(&segment, &mut self.buf[..])
+    //                };
+
+    //                // If there is no room in the current active block, flush the active block
+    //                let remaining = active_block_writer.remaining();
+    //                if bytes > remaining {
+    //                    let block = active_block_writer.yield_replace();
+    //                    self.block_writer.write_block(
+    //                        series_id,
+    //                        block.mint(),
+    //                        block.maxt(),
+    //                        block.slice(),
+    //                    )?;
+    //                    opts.max_compressed_sz = 0;
+    //                    opts.block_bytes_remaining = opts.block_bytes;
+    //                    opts.fall_back = false;
+    //                    self.active_segment[id]
+    //                        .as_mut()
+    //                        .unwrap()
+    //                        .set_capacity(SEGSZ);
+    //                    //mem_series.active_segment.set_capacity(SEGSZ);
+    //                }
+
+    //                // Write compressed data into active segment, then flush
+    //                active_block_writer.push_segment(mint, maxt, &self.buf[..bytes]);
+    //                bytes
+    //            }
+    //        };
+
+    //        // Flush the last block
+    //        let block = active_block_writer.yield_replace();
+    //        self.block_writer
+    //            .write_block(series_id, block.mint(), block.maxt(), block.slice())?;
+    //        opts.max_compressed_sz = 0;
+    //        opts.block_bytes_remaining = opts.block_bytes;
+    //        opts.fall_back = false;
+    //        opts.max_compressed_sz = opts.max_compressed_sz.max(bytes);
+
+    //        drop(mtx_guard)
+    //    }
+    //    Ok(())
+    //}
+
+    //// TODO: Optimization + API
+    //// 1. Return ThreadID? Last serialized timestamp?
+    //pub fn push(
+    //    &mut self,
+    //    reference_id: RefId,
+    //    series_id: SeriesId,
+    //    sample: Sample,
+    //) -> Result<PushResult, &'static str> {
+    //    let id = reference_id.0 as usize;
+
+    //    let active_segment = match self.active_segment[id].as_mut() {
+    //        Some(x) => x,
+    //        None => return Err("Refid invalid"),
+    //    };
+
+    //    //let active_segment = self.active_segment[id].as_mut().unwrap();
+    //    let segment_len = unsafe { active_segment.ptr.as_mut().unwrap().push(sample) };
+    //    if segment_len == active_segment.capacity() {
+    //        // TODO: Optimizations:
+    //        // 1. minimize mtx_guard by not yielding and replacing until after compression and
+    //        //    flushing
+    //        // 2. concurrent compress + flush
+
+    //        // Get block information and take the snapshot lock
+    //        let mem_series = self.mem_series[id].as_mut().unwrap();
+    //        let mtx_guard = mem_series.snapshot_lock.write();
+
+    //        // Take segment
+    //        let segment = active_segment.yield_replace();
+    //        let (mint, maxt) = {
+    //            let timestamps = segment.timestamps();
+    //            (timestamps[0], *timestamps.last().unwrap())
+    //        };
+
+    //        let opts = &mut mem_series.series_option;
+    //        let active_block_writer = &mut mem_series.active_block;
+
+    //        // And then compress it
+    //        // TODO: Here, we could probably use something smarter to determine how to pack blocks
+    //        let bytes = if opts.fall_back {
+    //            //println!("USING FALLBACK");
+    //            opts.fallback_compressor
+    //                .compress(&segment, &mut self.buf[..])
+    //        } else {
+    //            //println!("USING DEFAULT");
+    //            opts.default_compressor
+    //                .compress(&segment, &mut self.buf[..])
+    //        };
+
+    //        // If there is no room in the current active block, flush the active block
+    //        let remaining = active_block_writer.remaining();
+    //        //println!("{:?} BLOCK IS {}% FULL", series_id, (1.0 - (remaining as f64 / BLOCKSZ as f64)) * 100.);
+    //        if bytes > remaining {
+    //            //println!("{:?} FLUSHING BLOCK", series_id);
+    //            let block = active_block_writer.yield_replace();
+    //            self.block_writer.write_block(
+    //                series_id,
+    //                block.mint(),
+    //                block.maxt(),
+    //                block.slice(),
+    //            )?;
+    //            opts.max_compressed_sz = 0;
+    //            opts.block_bytes_remaining = opts.block_bytes;
+    //            opts.fall_back = false;
+    //            active_segment.set_capacity(SEGSZ);
+    //        }
+
+    //        // Write compressed data into active segment
+    //        active_block_writer.push_segment(mint, maxt, &self.buf[..bytes]);
+
+    //        // Update metadata for the next push:
+    //        // 1. Largest compressed size
+    //        // 2. Should we use fall back compression in this next segment
+    //        // TODO: determine the block packing heuristic. For now, if bytes remaining is smaller
+    //        // than the maximum recorded compressed size, fall back
+    //        opts.max_compressed_sz = opts.max_compressed_sz.max(bytes);
+    //        opts.block_bytes_remaining -= bytes;
+    //        if opts.block_bytes_remaining < opts.max_compressed_sz {
+    //            //println!("SETTING FALLBACK FOR NEXT BLOCK");
+    //            opts.fall_back = true;
+    //            active_segment.set_capacity(opts.fall_back_sz);
+    //        }
+    //        drop(mtx_guard);
+    //        let series_thread_id = mem_series.thread_id.load(SeqCst);
+    //        if series_thread_id != self.thread_id {
+    //            // perform cleanup because series has been reassigned to another thread
+    //            self.mem_series[id] = None;
+    //            self.ref_map.remove(&series_id);
+    //            self.free_ref_ids.push(Reverse(id));
+    //        }
+    //        return Ok(PushResult {
+    //            thread_id: series_thread_id,
+    //        });
+    //    }
+
+    //    Ok(PushResult {
+    //        thread_id: self.thread_id,
+    //    })
+    //}
 }
 
+/*
 #[cfg(test)]
 mod test {
     use super::*;
@@ -887,3 +871,4 @@ mod test {
     //    }
     //}
 }
+*/

@@ -2,7 +2,6 @@ use crate::{
     block::BLOCKSZ,
     compression::Compression,
     segment::{Segment, SegmentIterator},
-    tsdb::Dt,
     utils::overlaps,
 };
 
@@ -20,8 +19,8 @@ pub struct MemBlock {
     block: [u8; BLOCKSZ],
     index: Option<Vec<IdxEntry>>,
     offset: usize,
-    qmint: Dt,
-    qmaxt: Dt,
+    qmint: u64,
+    qmaxt: u64,
 }
 
 impl Deref for MemBlock {
@@ -43,8 +42,8 @@ impl MemBlock {
             block: [0u8; BLOCKSZ],
             index: None,
             offset: 0,
-            qmint: Dt::MIN,
-            qmaxt: Dt::MAX,
+            qmint: u64::MIN,
+            qmaxt: u64::MAX,
         }
     }
 
@@ -70,7 +69,7 @@ impl MemBlock {
 }
 
 impl SegmentIterator for MemBlock {
-    fn set_range(&mut self, mint: Dt, maxt: Dt) {
+    fn set_range(&mut self, mint: u64, maxt: u64) {
         match &self.index {
             None => panic!("Index not loaded, call self.load_index()"),
             Some(index) => {
@@ -100,11 +99,11 @@ fn block_index(data: &[u8], len: usize) -> Vec<IdxEntry> {
     let mut offset = 2;
     let mut v = Vec::new();
     for _ in 0..len {
-        let mint = &data[offset..offset + size_of::<Dt>()];
-        offset += size_of::<Dt>();
+        let mint = &data[offset..offset + size_of::<u64>()];
+        offset += size_of::<u64>();
 
-        let maxt = &data[offset..offset + size_of::<Dt>()];
-        offset += size_of::<Dt>();
+        let maxt = &data[offset..offset + size_of::<u64>()];
+        offset += size_of::<u64>();
 
         let offt = &data[offset..offset + size_of::<u16>()];
         offset += size_of::<u16>();
@@ -113,8 +112,8 @@ fn block_index(data: &[u8], len: usize) -> Vec<IdxEntry> {
         offset += size_of::<u16>();
 
         v.push(IdxEntry {
-            mint: Dt::from_be_bytes(mint.try_into().unwrap()),
-            maxt: Dt::from_be_bytes(maxt.try_into().unwrap()),
+            mint: u64::from_be_bytes(mint.try_into().unwrap()),
+            maxt: u64::from_be_bytes(maxt.try_into().unwrap()),
             offt: u16::from_be_bytes(offt.try_into().unwrap()) as usize,
             len: u16::from_be_bytes(len.try_into().unwrap()) as usize,
         });
@@ -131,11 +130,11 @@ impl ActiveBlockBuffer {
         &self.inner.block[..]
     }
 
-    pub fn mint(&self) -> Dt {
+    pub fn mint(&self) -> u64 {
         self.inner.mint
     }
 
-    pub fn maxt(&self) -> Dt {
+    pub fn maxt(&self) -> u64 {
         self.inner.maxt
     }
 }
@@ -145,8 +144,8 @@ struct InnerActiveBlock {
     len: AtomicUsize,
     idx_offset: usize,
     tail_offset: usize,
-    mint: Dt,
-    maxt: Dt,
+    mint: u64,
+    maxt: u64,
 }
 
 impl InnerActiveBlock {
@@ -156,8 +155,8 @@ impl InnerActiveBlock {
             len: AtomicUsize::new(0),
             idx_offset: 2, // First two bytes are for
             tail_offset: BLOCKSZ,
-            mint: Dt::MAX,
-            maxt: Dt::MIN,
+            mint: u64::MAX,
+            maxt: u64::MIN,
         }
     }
 
@@ -171,7 +170,7 @@ impl InnerActiveBlock {
     // ...
     // Random lengths: segments in the tail
     // BLOCKSZ: End of the block
-    fn push_segment(&mut self, mint: Dt, maxt: Dt, slice: &[u8]) {
+    fn push_segment(&mut self, mint: u64, maxt: u64, slice: &[u8]) {
         if self.remaining() < slice.len() {
             panic!("Not enough space in active block");
         }
@@ -180,7 +179,7 @@ impl InnerActiveBlock {
         let t = self.tail_offset - slice.len();
 
         // Write the mint and maxt of this block
-        let sz = size_of::<Dt>();
+        let sz = size_of::<u64>();
 
         self.block[s..s + sz].copy_from_slice(&mint.to_be_bytes()[..]);
         s += sz;
@@ -218,7 +217,7 @@ impl InnerActiveBlock {
 
     fn remaining(&self) -> usize {
         assert!(self.tail_offset >= self.idx_offset);
-        let idx_entry_sz = size_of::<Dt>() * 2 + size_of::<u16>() * 2;
+        let idx_entry_sz = size_of::<u64>() * 2 + size_of::<u16>() * 2;
         let diff = self.tail_offset - self.idx_offset;
         if diff > idx_entry_sz {
             diff - idx_entry_sz
@@ -262,8 +261,8 @@ impl ActiveBlock {
             block: (&self.inner.block[..]).as_ptr(),
             index,
             offset: 0,
-            qmint: Dt::MIN,
-            qmaxt: Dt::MAX,
+            qmint: u64::MIN,
+            qmaxt: u64::MAX,
             //len,
         }
     }
@@ -277,7 +276,7 @@ pub struct ActiveBlockWriter {
 }
 
 impl ActiveBlockWriter {
-    pub fn push_segment(&mut self, mint: Dt, maxt: Dt, slice: &[u8]) {
+    pub fn push_segment(&mut self, mint: u64, maxt: u64, slice: &[u8]) {
         unsafe {
             self.ptr
                 .as_mut()
@@ -316,8 +315,8 @@ impl Drop for ActiveBlockWriter {
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 struct IdxEntry {
-    mint: Dt,
-    maxt: Dt,
+    mint: u64,
+    maxt: u64,
     offt: usize,
     len: usize,
 }
@@ -327,8 +326,8 @@ pub struct ActiveBlockReader {
     block: *const u8,
     index: Vec<IdxEntry>,
     offset: usize,
-    qmint: Dt,
-    qmaxt: Dt,
+    qmint: u64,
+    qmaxt: u64,
 }
 
 impl ActiveBlockReader {
@@ -345,7 +344,7 @@ impl ActiveBlockReader {
 }
 
 impl SegmentIterator for ActiveBlockReader {
-    fn set_range(&mut self, mint: Dt, maxt: Dt) {
+    fn set_range(&mut self, mint: u64, maxt: u64) {
         self.offset = 0;
         self.qmint = mint;
         self.qmaxt = maxt;
@@ -512,14 +511,14 @@ mod test {
         }
 
         let mut idx = 0;
-        reader.set_range(Dt::MIN, 6);
+        reader.set_range(u64::MIN, 6);
         while let Some(segment) = reader.next_compressed_segment() {
             assert_eq!(segment, bytes[idx].as_slice());
             idx += 1;
         }
 
         let mut idx = 2;
-        reader.set_range(12, Dt::MAX);
+        reader.set_range(12, u64::MAX);
         while let Some(segment) = reader.next_compressed_segment() {
             assert_eq!(segment, bytes[idx].as_slice());
             idx += 1;
@@ -542,7 +541,7 @@ mod test {
 
         let _buf = writer.yield_replace();
         assert_eq!(block.inner.len.load(SeqCst), 0);
-        assert_eq!(block.inner.mint, Dt::MAX);
-        assert_eq!(block.inner.maxt, Dt::MIN);
+        assert_eq!(block.inner.mint, u64::MAX);
+        assert_eq!(block.inner.maxt, u64::MIN);
     }
 }
