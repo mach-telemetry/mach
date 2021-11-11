@@ -20,6 +20,7 @@
 //mod ids;
 //pub mod managed;
 pub mod buffer;
+//pub mod memseries;
 //pub mod active_buffer;
 //pub mod active_segment;
 
