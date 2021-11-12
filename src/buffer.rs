@@ -7,6 +7,7 @@ use std::{
         Arc, Mutex,
     },
 };
+use seq_macro::seq;
 
 const SEGSZ: usize = 256;
 
@@ -14,23 +15,27 @@ pub enum Error {
     Full,
 }
 
-struct Inner {
+type Bytes = [[[u8; 8]; SEGSZ]];
+
+struct Inner<T: ?Sized> {
     id: isize,
     atomic_len: AtomicUsize,
     len: usize,
     ts: [u64; SEGSZ],
-    data: Vec<u8>,
+    data: T,
 }
 
-impl Inner {
+impl Inner<Bytes> {
     fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
         if self.len == SEGSZ {
             Err(Error::Full)
         } else {
-            let item = unsafe { mem::transmute::<&[[u8; 8]], &[u8]>(item) };
+            let nvars = self.data.len();
 
             self.ts[self.len] = ts;
-            self.data.extend_from_slice(item);
+            for (i, b) in (&item[..nvars]).iter().enumerate() {
+                self.data[i][self.len] = *b;
+            }
             self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
             Ok(())
         }
@@ -40,16 +45,6 @@ impl Inner {
         self.atomic_len.load(SeqCst)
     }
 
-    fn new() -> Self {
-        Inner {
-            id: -1,
-            ts: [0u64; SEGSZ],
-            data: Vec::with_capacity(8 * 256),
-            len: 0,
-            atomic_len: AtomicUsize::new(0),
-        }
-    }
-
     fn clear(&mut self) {
         self.id = -1;
         self.atomic_len.store(0, SeqCst);
@@ -57,23 +52,35 @@ impl Inner {
     }
 }
 
-//pub struct BufferMut<'buffer> {
-//    inner: &'buffer mut Inner,
-//}
-//
-//impl<'buffer> BufferMut<'buffer> {
-//    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
-//        self.inner.push(ts, item)
-//    }
-//}
-//
-//pub struct BufferRef<'buffer> {
-//    inner: &'buffer Inner,
-//    len: usize,
-//}
+seq!(NVARS in 1..2 {
+    fn inner#NVARS() -> NonNull<Inner<Bytes>> {
+        let b = Box::new(Inner {
+            id: -1,
+            ts: [0u64; SEGSZ],
+            len: 0,
+            atomic_len: AtomicUsize::new(0),
+            data: [[[0u8; 8]; SEGSZ]; NVARS],
+        });
+        NonNull::new(Box::into_raw(b)).unwrap()
+    }
+});
+
+type InnerAllocator = fn() -> NonNull<Inner<Bytes>>;
+
+fn inner_allocator(nvars: usize) -> InnerAllocator {
+    let func = seq!(NVARS in 1..2 {
+        match nvars {
+             #(
+                    NVARS => inner#NVARS,
+              )*
+              _ => panic!("Unsupported nvars"),
+        }
+    });
+    func
+}
 
 pub struct Buffer {
-    inner: NonNull<Inner>,
+    inner: NonNull<Inner<Bytes>>,
     allocator: InnerQ,
 }
 
@@ -83,43 +90,26 @@ impl Drop for Buffer {
     }
 }
 
-//impl Buffer {
-//    pub fn as_mut(&mut self) -> BufferMut {
-//        unsafe {
-//            BufferMut {
-//                inner: self.inner.as_mut(),
-//            }
-//        }
-//    }
-//
-//    pub fn as_ref(&self) -> BufferRef {
-//        let r = unsafe { self.inner.as_ref() };
-//        let len = r.atomic_len.load(SeqCst);
-//        BufferRef { inner: r, len }
-//    }
-//}
-
-type InnerQ = Arc<SegQueue<NonNull<Inner>>>;
+type InnerQ = Arc<SegQueue<NonNull<Inner<Bytes>>>>;
 
 #[derive(Clone)]
 pub struct BufferAllocator {
     inner: InnerQ,
+    alloc: InnerAllocator,
 }
 
 impl BufferAllocator {
-    pub fn new() -> Self {
+    pub fn new(nvars: usize) -> Self {
         Self {
             inner: Arc::new(SegQueue::new()),
+            alloc: inner_allocator(nvars)
         }
     }
 
     pub fn take_or_add(&self) -> Buffer {
-        let mut ptr: NonNull<Inner> = match self.inner.pop() {
+        let mut ptr: NonNull<Inner<Bytes>> = match self.inner.pop() {
             Some(x) => x,
-            None => {
-                let b = box Inner::new();
-                Box::leak(b).into()
-            }
+            None => (self.alloc)()
         };
         unsafe {
             ptr.as_mut().clear();
@@ -162,7 +152,7 @@ impl SwappableBuffer {
         buf
     }
 
-    fn get_inner(&self) -> NonNull<Inner> {
+    fn get_inner(&self) -> NonNull<Inner<Bytes>> {
         self.buffer.lock().unwrap().inner
     }
 }
@@ -191,10 +181,10 @@ struct InnerActiveSegment {
 }
 
 impl InnerActiveSegment {
-    fn new(c: usize) -> Self {
+    fn new(nvars: usize, c: usize) -> Self {
 
         // Initialize buffers and allocators
-        let allocator = BufferAllocator::new();
+        let allocator = BufferAllocator::new(nvars);
         let buffers: Vec<SwappableBuffer> = (0..c)
             .map(|_| SwappableBuffer::new(allocator.clone()))
             .collect();
@@ -214,9 +204,9 @@ pub struct ActiveSegment {
 }
 
 impl ActiveSegment {
-    pub fn new(c: usize) -> Self {
+    pub fn new(nvars: usize, c: usize) -> Self {
         Self {
-            inner: Arc::new(InnerActiveSegment::new(c)),
+            inner: Arc::new(InnerActiveSegment::new(nvars, c)),
             writers: Arc::new(AtomicUsize::new(0)),
         }
     }
@@ -242,10 +232,8 @@ impl ActiveSegment {
     }
 }
 
-
-
 pub struct ActiveSegmentWriter {
-    current: NonNull<Inner>,
+    current: NonNull<Inner<Bytes>>,
     head: isize,
     cleared: isize,
     inner: Arc<InnerActiveSegment>,
@@ -306,28 +294,3 @@ impl ActiveSegmentWriter {
     }
 }
 
-//
-//impl ActiveBuffers {
-//    fn new(n: usize) -> Self {
-//        Self {
-//            inner: Arc::new(InnerActiveBuffer::new(n))
-//        }
-//    }
-//}
-//
-//pub struct Writer {
-//    current_buffer: NonNull<Inner>,
-//    inner: Arc<InnerActiveBuffer>
-//}
-//
-//impl Writer {
-//    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
-//        let buf = unsafe {
-//            self.current_buffer.as_mut()
-//        };
-//        if buf.push(ts, item).is_err() {
-//
-//        }
-//        Ok(())
-//    }
-//}
