@@ -7,6 +7,8 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
 
+#![allow(warnings)]
+
 //mod active_block;
 //mod active_segment;
 //mod types;
@@ -15,14 +17,18 @@
 //mod read_set;
 //mod segment;
 //mod tsdb;
-//mod utils;
 //mod tsdb2;
 //mod ids;
 //pub mod managed;
-pub mod buffer;
 //pub mod memseries;
 //pub mod active_buffer;
 //pub mod active_segment;
+
+pub mod buffer;
+pub mod active_block;
+//pub mod ids;
+
+//mod utils;
 
 //pub use block::file::{FileBlockLoader, FileStore, ThreadFileWriter};
 //pub use read_set::SeriesReadSet;

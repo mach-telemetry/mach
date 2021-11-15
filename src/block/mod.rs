@@ -1,5 +1,4 @@
-use crate::tsdb::SeriesId;
-
+use crate::ids::SeriesId;
 pub mod file;
 
 //pub const KEYSZ: usize = 24;
@@ -11,8 +10,8 @@ where
     R: BlockReader,
 {
     fn writer(&self) -> W;
-    fn reader(&self, id: SeriesId) -> Option<R>;
-    fn ids(&self) -> Vec<SeriesId>; // TODO: this is a not so elegant hack, better to use an iterator but for now, this works
+    fn reader(&self, series_id: SeriesId) -> Option<R>;
+    fn series_ids(&self) -> Vec<SeriesId>; // TODO: this is a not so elegant hack, better to use an iterator but for now, this works
 }
 
 pub trait BlockWriter {

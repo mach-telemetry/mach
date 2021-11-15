@@ -15,7 +15,8 @@ async-std = { version = "1.9", features = ["unstable", "attributes"] }
 libc = "0.2.96"
 serde = { version = "1.0.127", features = ["derive"] }
 serde_json = "1.0.66"
-crossbeam-queue = "0.3.2"
+crossbeam-queue = {path = "./crossbeam/crossbeam-queue"}
+crossbeam-skiplist = {path = "./crossbeam/crossbeam-skiplist"}
 
 [dev-dependencies]
 tempdir = "0.3"

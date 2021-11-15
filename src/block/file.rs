@@ -1,6 +1,6 @@
 use crate::{
     block::{BlockReader, BlockStore, BlockWriter, BLOCKSZ},
-    tsdb::SeriesId,
+    id::SeriesId,
     utils::{
         list::{List, ListReader, ListWriter},
         overlaps,
@@ -33,9 +33,17 @@ const MAGIC: [u8; 24] = [
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
 ];
 
+struct FileId(usize);
+impl Deref for FileId {
+    type Target = usize;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct BlockEntry {
-    series_id: u64,
+    series_id: SeriesId,
     offset: u64,
     mint: u64,
     maxt: u64,
@@ -86,7 +94,7 @@ impl BlockEntry {
 
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 struct BlockId {
-    file_id: usize,
+    file_id: FileId,
     offset: u64,
     mint: u64,
     maxt: u64,
