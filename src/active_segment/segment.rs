@@ -1,12 +1,9 @@
+use crate::active_segment::buffer::*;
+use crate::active_segment::Error;
 use std::{
     mem,
-    sync::{
-        atomic::{AtomicIsize, AtomicUsize, AtomicBool, Ordering::SeqCst},
-        Arc, Mutex,
-    },
+    sync::atomic::{AtomicIsize, AtomicUsize, Ordering::SeqCst},
 };
-use crate::active_segment::Error;
-use crate::active_segment::buffer::*;
 
 fn init_buffer_array<const B: usize, const V: usize>() -> [Buffer<V>; B] {
     let mut buffers: [mem::MaybeUninit<Buffer<V>>; B] = mem::MaybeUninit::uninit_array();
@@ -24,7 +21,6 @@ pub struct Segment<const B: usize, const V: usize> {
 }
 
 impl<const B: usize, const V: usize> Segment<B, V> {
-
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
         match self.buffers[self.local_head % B].push(ts, item) {
             Ok(()) => Ok(()),
@@ -38,12 +34,15 @@ impl<const B: usize, const V: usize> Segment<B, V> {
                 } else {
                     Err(Error::PushIntoFull)
                 }
-            },
+            }
             Err(x) => Err(x),
         }
     }
 
-    pub fn flush(&self, flusher: fn(usize, &[u64], &[Column]) -> Result<(), Error> ) -> Result<(), Error> {
+    pub fn flush(
+        &self,
+        flusher: fn(usize, &[u64], &[Column]) -> Result<(), Error>,
+    ) -> Result<(), Error> {
         let head = self.head.load(SeqCst);
         let to_flush = self.flushed.load(SeqCst) + 1;
         if head as isize > to_flush {
@@ -54,6 +53,20 @@ impl<const B: usize, const V: usize> Segment<B, V> {
         } else {
             Err(Error::Flushing)
         }
+    }
+
+    pub fn force_flush(
+        &mut self,
+        flusher: fn(usize, &[u64], &[Column]) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        let head = self.local_head;
+        let to_flush = self.flushed.load(SeqCst) + 1;
+        assert_eq!(head as isize, to_flush);
+        let buf = &self.buffers[to_flush as usize % B];
+        (flusher)(buf.len, &buf.ts, &buf.data)?;
+        self.local_head = self.head.fetch_add(1, SeqCst) + 1;
+        self.flushed.store(to_flush, SeqCst);
+        Ok(())
     }
 
     pub fn read(&self) -> Result<Vec<ReadBuffer>, Error> {
@@ -67,7 +80,7 @@ impl<const B: usize, const V: usize> Segment<B, V> {
                 } else {
                     try_counter += 1;
                     if try_counter == 3 {
-                        return Err(Error::InconsistentCopy)
+                        return Err(Error::InconsistentCopy);
                     }
                 }
             }
@@ -81,7 +94,7 @@ impl<const B: usize, const V: usize> Segment<B, V> {
             local_head: 0,
             head: AtomicUsize::new(0),
             flushed: AtomicIsize::new(-1),
-            buffers
+            buffers,
         }
     }
 }

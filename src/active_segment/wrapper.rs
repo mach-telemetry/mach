@@ -1,23 +1,17 @@
-use crate::active_segment::{
-    Error,
-    buffer::*,
-    segment,
-};
-use std::{
-    ptr::NonNull,
-};
-use enum_dispatch::*;
+use crate::active_segment::{buffer::*, segment, Error};
 
 macro_rules! cast {
     ($seg: ident, $b:expr, $v: expr) => {
-        ($seg.inner as *mut segment::Segment::<$b, $v>).as_mut().unwrap()
-    }
+        ($seg.inner as *mut segment::Segment<$b, $v>)
+            .as_mut()
+            .unwrap()
+    };
 }
 
 macro_rules! new {
     ($b:expr, $v: expr) => {
         Box::into_raw(Box::new(segment::Segment::<$b, $v>::new())) as *mut u8
-    }
+    };
 }
 
 #[derive(Clone, Copy)]
@@ -30,7 +24,6 @@ pub struct Segment {
 impl Segment {
     pub fn new(buffers: usize, vars: usize) -> Self {
         let boxed = match (buffers, vars) {
-
             (1, 1) => new!(1, 1),
             (1, 2) => new!(1, 2),
             (1, 3) => new!(1, 3),
@@ -547,7 +540,6 @@ impl Segment {
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
         unsafe {
             match (self.buffers, self.vars) {
-
                 (1, 1) => cast!(self, 1, 1).push(ts, item),
                 (1, 2) => cast!(self, 1, 2).push(ts, item),
                 (1, 3) => cast!(self, 1, 3).push(ts, item),
@@ -1054,10 +1046,12 @@ impl Segment {
         }
     }
 
-    pub fn flush(&self, flusher: fn(usize, &[u64], &[Column]) -> Result<(), Error> ) -> Result<(), Error> {
+    pub fn flush(
+        &self,
+        flusher: fn(usize, &[u64], &[Column]) -> Result<(), Error>,
+    ) -> Result<(), Error> {
         unsafe {
             match (self.buffers, self.vars) {
-
                 (1, 1) => cast!(self, 1, 1).flush(flusher),
                 (1, 2) => cast!(self, 1, 2).flush(flusher),
                 (1, 3) => cast!(self, 1, 3).flush(flusher),
@@ -1558,7 +1552,6 @@ impl Segment {
                 (10, 48) => cast!(self, 10, 48).flush(flusher),
                 (10, 49) => cast!(self, 10, 49).flush(flusher),
                 (10, 50) => cast!(self, 10, 50).flush(flusher),
-
 
                 (_, _) => unimplemented!(),
             }

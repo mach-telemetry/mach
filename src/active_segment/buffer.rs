@@ -1,19 +1,5 @@
 use crate::active_segment::Error;
-
-use crossbeam_queue::SegQueue;
-use std::{
-    mem,
-    ptr::NonNull,
-    sync::{
-        atomic::{AtomicIsize, AtomicUsize, AtomicBool, Ordering::SeqCst},
-        Arc, Mutex,
-    },
-    ops::{Deref, DerefMut},
-    convert::AsRef,
-    marker::PhantomData,
-    any::Any,
-};
-use seq_macro::seq;
+use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 const SEGSZ: usize = 256;
 
@@ -77,10 +63,7 @@ impl<const V: usize> Buffer<V> {
             data.extend_from_slice(&v[..len]);
         }
         if self.id.load(SeqCst) == id {
-            Ok(ReadBuffer {
-                len,
-                data,
-            })
+            Ok(ReadBuffer { len, data })
         } else {
             Err(Error::InconsistentCopy)
         }
@@ -130,8 +113,6 @@ pub struct ReadBuffer {
 //        }
 //    });
 //});
-
-
 
 //struct WriteBuffer<'segment> {
 //    inner: NonNull<InnerBuffer>,
