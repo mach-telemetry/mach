@@ -34,6 +34,10 @@ pub struct FlushSegment {
     inner: wrapper::Segment,
 }
 
+pub struct ReadSegment {
+    inner: Vec<buffer::ReadBuffer>,
+}
+
 /// Safety for send and sync: there can only be one writer and the writes and concurrent reads are
 /// protected (no races) within buffer
 unsafe impl Send for Segment {}
@@ -57,6 +61,12 @@ impl Segment {
                 flusher,
             })
         }
+    }
+
+    pub fn snapshot(&self) -> Result<ReadSegment, Error> {
+        Ok(ReadSegment {
+            inner: self.inner.read()?
+        })
     }
 }
 
