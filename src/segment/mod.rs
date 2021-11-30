@@ -55,7 +55,7 @@ impl Segment {
             Err(Error::MultipleWriters)
         } else {
             Ok(WriteSegment {
-                inner: self.inner,
+                inner: self.inner.clone(),
                 has_writer: self.has_writer.clone(),
                 flusher,
             })

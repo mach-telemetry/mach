@@ -1,8 +1,10 @@
 use std::{
     sync::{
-        atomic::{AtomicUsize, Ordering::SeqCst}
+        Arc,
+        atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst}
     },
     mem::{self, MaybeUninit},
+    ops::{Deref, DerefMut},
 };
 use crate::compression::Compression;
 use crate::utils::{QueueAllocator, Qrc};
@@ -60,6 +62,58 @@ impl Entry {
 }
 
 pub struct Chunk {
+    inner: Arc<InnerChunk>,
+    has_writer: Arc<AtomicBool>,
+}
+
+impl Chunk {
+    pub fn new(tsid: u64, compression: Compression) -> Self {
+        let inner = Arc::new(InnerChunk::new(tsid, compression));
+        let has_writer = Arc::new(AtomicBool::new(false));
+
+        Chunk {
+            inner,
+            has_writer
+        }
+    }
+
+    pub fn writer(&self) -> ChunkWriter {
+        if self.has_writer.swap(true, SeqCst) {
+            panic!("multiple writers")
+        } else {
+            ChunkWriter {
+                inner: self.inner.clone(),
+                has_writer: self.has_writer.clone(),
+            }
+        }
+    }
+
+    pub fn read(&self) -> Result<Vec<ChunkEntry>, Error> {
+        self.inner.read()
+    }
+}
+
+pub struct ChunkWriter {
+    inner: Arc<InnerChunk>,
+    has_writer: Arc<AtomicBool>,
+}
+
+impl ChunkWriter {
+    pub fn push(&mut self, ts: &[u64], values: &[&[[u8; 8]]]) {
+        // Safety: There's only one writer. Concurrent readers are coordinated with writers based
+        // on the Entry and InnerChunk structs. Entry coordinates by versions, and InnerChunk
+        // coordinates by atomic counter
+        unsafe { Arc::get_mut_unchecked(&mut self.inner).push(ts, values) }
+    }
+}
+
+impl Drop for ChunkWriter {
+    fn drop(&mut self) {
+        self.has_writer.swap(false, SeqCst);
+    }
+}
+
+struct InnerChunk {
     block: [Entry; CHUNK_THRESHOLD_SIZE],
     counter: AtomicUsize,
     compression: Compression,
@@ -69,8 +123,8 @@ pub struct Chunk {
     maxt: u64,
 }
 
-impl Chunk {
-    pub fn new(tsid: u64, compression: Compression) -> Chunk {
+impl InnerChunk {
+    fn new(tsid: u64, compression: Compression) -> Self {
         let block = {
             let mut block: [MaybeUninit<Entry>; CHUNK_THRESHOLD_SIZE] = MaybeUninit::uninit_array();
             for i in 0..256 {
@@ -83,7 +137,7 @@ impl Chunk {
             unsafe { MaybeUninit::array_assume_init(block) }
         };
 
-        Chunk {
+        InnerChunk {
             block,
             counter: AtomicUsize::new(0),
             allocator: QueueAllocator::new(Vec::new),
@@ -94,7 +148,7 @@ impl Chunk {
         }
     }
 
-    pub fn push(&mut self, ts: &[u64], values: &[&[[u8; 8]]]) {
+    fn push(&mut self, ts: &[u64], values: &[&[[u8; 8]]]) {
         assert!(ts.len() > 0);
         let c = self.counter.load(SeqCst);
         if c == 0 {
