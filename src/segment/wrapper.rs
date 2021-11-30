@@ -1,4 +1,4 @@
-use crate::active_segment::{buffer::*, segment, Error};
+use crate::segment::{buffer::*, segment, Error};
 
 macro_rules! cast {
     ($seg: ident, $b:expr, $v: expr) => {

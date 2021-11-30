@@ -1,4 +1,4 @@
-use crate::active_segment::{
+use crate::segment::{
     buffer::*,
     Error,
     FlushFn,

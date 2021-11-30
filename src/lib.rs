@@ -26,9 +26,9 @@
 //pub mod active_segment;
 
 #[allow(dead_code)]
-mod active_segment;
+mod segment;
 #[allow(dead_code)]
-mod block;
+mod chunk;
 mod compression;
 mod utils;
 //mod active_block;

@@ -15,19 +15,19 @@ pub enum Error {
 }
 
 #[derive(Clone)]
-struct BlockEntry {
+struct ChunkEntry {
     data: Qrc<Vec<u8>>,
     mint: u64,
     maxt: u64,
 }
 
 struct Entry {
-    data: MaybeUninit<BlockEntry>,
+    data: MaybeUninit<ChunkEntry>,
     version: AtomicUsize,
 }
 
 impl Entry {
-    fn update(&mut self, data: BlockEntry) {
+    fn update(&mut self, data: ChunkEntry) {
         let mut data = MaybeUninit::new(data);
         mem::swap(&mut data, &mut self.data);
         if self.version.fetch_add(1, SeqCst) > 0 {
@@ -40,7 +40,7 @@ impl Entry {
     }
 
     // Unsafe because update needs to be called first
-    unsafe fn load(&self) -> Result<BlockEntry, Error> {
+    unsafe fn load(&self) -> Result<ChunkEntry, Error> {
         let v = self.version.load(SeqCst);
 
         // This is a race with update function. However...
@@ -56,7 +56,7 @@ impl Entry {
     }
 }
 
-struct Block {
+struct Chunk {
     block: [Entry; 256],
     counter: AtomicUsize,
     compression: Compression,
@@ -66,8 +66,8 @@ struct Block {
     maxt: u64,
 }
 
-impl Block {
-    fn new(tsid: u64, compression: Compression) -> Block {
+impl Chunk {
+    fn new(tsid: u64, compression: Compression) -> Chunk {
         let block = {
             let mut block: [MaybeUninit<Entry>; 256] = MaybeUninit::uninit_array();
             for i in 0..256 {
@@ -80,7 +80,7 @@ impl Block {
             unsafe { MaybeUninit::array_assume_init(block) }
         };
 
-        Block {
+        Chunk {
             block,
             counter: AtomicUsize::new(0),
             allocator: QueueAllocator::new(Vec::new),
@@ -100,7 +100,7 @@ impl Block {
         self.maxt = *ts.last().unwrap();
         let mut data = self.allocator.allocate();
         self.compression.compress(ts, values, data.as_mut());
-        let entry = BlockEntry {
+        let entry = ChunkEntry {
             data,
             mint: ts[0],
             maxt: self.maxt,
@@ -109,7 +109,7 @@ impl Block {
         self.counter.fetch_add(1, SeqCst);
     }
 
-    // Block Format
+    // Chunk Format
     //
     // > header
     // len: [0..8]
@@ -198,7 +198,7 @@ impl Block {
         self.counter.store(0, SeqCst);
     }
 
-    fn read(&self) -> Result<Vec<BlockEntry>, Error> {
+    fn read(&self) -> Result<Vec<ChunkEntry>, Error> {
         let c = self.counter.load(SeqCst);
         let mut res = Vec::new();
 

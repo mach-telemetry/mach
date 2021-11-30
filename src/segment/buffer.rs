@@ -1,4 +1,4 @@
-use crate::active_segment::Error;
+use crate::segment::Error;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 const SEGSZ: usize = 256;
