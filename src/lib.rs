@@ -27,6 +27,11 @@
 
 #[allow(dead_code)]
 mod active_segment;
+#[allow(dead_code)]
+mod block;
+mod compression;
+mod utils;
+//mod active_block;
 
 //pub mod buffer;
 //pub mod active_block;

@@ -41,13 +41,17 @@ impl<const B: usize, const V: usize> Segment<B, V> {
 
     pub fn flush(
         &self,
-        flusher: fn(usize, &[u64], &[Column]) -> Result<(), Error>,
+        flusher: fn(&[u64], &[&[[u8; 8]]]) -> Result<(), Error>,
     ) -> Result<(), Error> {
         let head = self.head.load(SeqCst);
         let to_flush = self.flushed.load(SeqCst) + 1;
         if head as isize > to_flush {
             let buf = &self.buffers[to_flush as usize % B];
-            (flusher)(buf.len, &buf.ts, &buf.data)?;
+            let mut d = [&[[0u8; 8]][..]; V];
+            for i in 0..V {
+                d[i] = &buf.data[i][..buf.len];
+            }
+            (flusher)(&buf.ts[..buf.len], &d)?;
             self.flushed.store(to_flush, SeqCst);
             Ok(())
         } else {
@@ -57,17 +61,22 @@ impl<const B: usize, const V: usize> Segment<B, V> {
 
     pub fn force_flush(
         &mut self,
-        flusher: fn(usize, &[u64], &[Column]) -> Result<(), Error>,
+        flusher: fn(&[u64], &[&[[u8; 8]]]) -> Result<(), Error>,
+        //flusher: fn(usize, &[u64], &[Column]) -> Result<(), Error>,
     ) -> Result<(), Error> {
         let head = self.local_head;
         let to_flush = self.flushed.load(SeqCst) + 1;
         assert_eq!(head as isize, to_flush);
         let buf = &self.buffers[to_flush as usize % B];
-        (flusher)(buf.len, &buf.ts, &buf.data)?;
+        let mut d = [&[[0u8; 8]][..]; V];
+        for i in 0..V {
+            d[i] = &buf.data[i][..buf.len];
+        }
+        (flusher)(&buf.ts[..buf.len], &d)?;
         self.local_head = self.head.fetch_add(1, SeqCst) + 1;
         self.flushed.store(to_flush, SeqCst);
         Ok(())
-    }
+        }
 
     pub fn read(&self) -> Result<Vec<ReadBuffer>, Error> {
         let mut copies = Vec::new();

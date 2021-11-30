@@ -1048,7 +1048,7 @@ impl Segment {
 
     pub fn flush(
         &self,
-        flusher: fn(usize, &[u64], &[Column]) -> Result<(), Error>,
+        flusher: fn(&[u64], &[&[[u8; 8]]]) -> Result<(), Error>,
     ) -> Result<(), Error> {
         unsafe {
             match (self.buffers, self.vars) {

@@ -1,4 +1,4 @@
-use crate::tsdb::{Fl, Sample};
+//use crate::tsdb::{Fl, Sample};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -8,6 +8,12 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+
+#[derive(Clone)]
+pub struct Sample {
+    pub ts: u64,
+    pub values: Box<[f64]>,
+}
 
 pub const UNIVARIATE: &str = "bench1_univariate_small.json";
 pub const MULTIVARIATE: &str = "bench1_multivariate_small.json";
@@ -57,7 +63,7 @@ fn make_univariate_samples(data: &DataEntry) -> Data {
     // check all timestamps for sortedness
     let mut samples = Vec::new();
     for (ts, val) in data.timestamps.iter().zip(values.iter()) {
-        let v = vec![*val as Fl].into_boxed_slice();
+        let v = vec![*val as f64].into_boxed_slice();
         let s = Sample { ts: *ts, values: v };
         samples.push(s);
     }
@@ -100,7 +106,7 @@ fn make_multivariate_samples(data: &DataEntry) -> Data {
         }
         samples.push(Sample {
             ts: *t,
-            values: v.iter().map(|x| *x as Fl).collect(),
+            values: v.iter().map(|x| *x as f64).collect(),
         });
     }
     Arc::new(samples)
