@@ -64,11 +64,11 @@ impl<T> Qrc<T> {
         self.inner().refs.fetch_add(1, SeqCst);
     }
 
-    fn as_mut(&mut self) -> &mut T {
+    fn inner_as_mut(&mut self) -> &mut T {
         &mut self.inner_mut().inner
     }
 
-    fn as_ref(&self) -> &T {
+    fn inner_as_ref(&self) -> &T {
         &self.inner().inner
     }
 }
@@ -86,13 +86,13 @@ impl<T> Clone for Qrc<T> {
 impl<T> Deref for Qrc<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        self.as_ref()
+        self.inner_as_ref()
     }
 }
 
 impl<T> DerefMut for Qrc<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.as_mut()
+        self.inner_as_mut()
     }
 }
 

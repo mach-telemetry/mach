@@ -6,6 +6,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering::SeqCst},
     Arc,
 };
+pub use buffer::Flushable;
 
 //pub use wrapper::Segment;
 
@@ -16,7 +17,13 @@ pub enum Error {
     MultipleWriters,
     UnsupportedVariables,
     UnsupportedSegments,
-    Flushing,
+    FlushFailed,
+    FlushingHead,
+}
+
+pub enum PushStatus {
+    Done,
+    Flush
 }
 
 #[derive(Clone)]
@@ -28,14 +35,15 @@ pub struct Segment {
 pub struct WriteSegment {
     inner: wrapper::Segment,
     has_writer: Arc<AtomicBool>,
-    flusher: SegmentFlushFn,
+}
+
+pub struct FlushSegment {
+    inner: wrapper::Segment,
 }
 
 pub struct ReadSegment {
     inner: Vec<buffer::ReadBuffer>,
 }
-
-pub type SegmentFlushFn = fn(&[u64], &[&[[u8; 8]]]) -> Result<(), Error>;
 
 /// Safety for send and sync: there can only be one writer and the writes and concurrent reads are
 /// protected (no races) within buffer
@@ -50,14 +58,13 @@ impl Segment {
         }
     }
 
-    pub fn writer(&self, flusher: SegmentFlushFn) -> Result<WriteSegment, Error> {
+    pub fn writer(&self) -> Result<WriteSegment, Error> {
         if self.has_writer.swap(true, SeqCst) {
             Err(Error::MultipleWriters)
         } else {
             Ok(WriteSegment {
                 inner: self.inner.clone(),
                 has_writer: self.has_writer.clone(),
-                flusher,
             })
         }
     }
@@ -70,18 +77,23 @@ impl Segment {
 }
 
 impl WriteSegment {
-    pub fn push(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<(), Error> {
-        match self.inner.push(ts, val) {
-            Ok(()) => Ok(()),
-            Err(Error::PushIntoFull) => {
-                self.inner.flush(self.flusher)?;
-                self.inner.push(ts, val)
-            }
-            Err(x) => Err(x),
+    pub fn push(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<PushStatus, Error> {
+        self.inner.push(ts, val)
+    }
+
+    pub fn flush_segment(&self) -> FlushSegment {
+        FlushSegment {
+            inner: self.inner.clone()
         }
     }
 
     pub fn close(self) {
         self.has_writer.swap(false, SeqCst);
+    }
+}
+
+impl FlushSegment {
+    pub fn to_flush(&self) -> Option<Flushable> {
+        self.inner.to_flush()
     }
 }

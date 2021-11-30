@@ -6,6 +6,13 @@ const SEGSZ: usize = 256;
 pub type Column = [[u8; 8]; 256];
 pub type ColumnSet = [Column];
 
+pub struct Flushable<'a> {
+    len: usize,
+    nvars: usize,
+    ts: &'a [u64; SEGSZ],
+    data: &'a [Column],
+}
+
 #[repr(C)]
 pub struct Buffer<const V: usize> {
     pub id: AtomicUsize,
@@ -39,6 +46,15 @@ impl<const V: usize> Buffer<V> {
             self.len += 1;
             self.atomic_len.store(self.len, SeqCst);
             Ok(())
+        }
+    }
+
+    pub fn to_flush(&self) -> Flushable {
+        Flushable {
+            len: self.len,
+            nvars: V,
+            ts: &self.ts,
+            data: &self.data[..],
         }
     }
 

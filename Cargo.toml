@@ -11,10 +11,10 @@ num = "0.4.0"
 bitpacking = "0.8.4"
 fixed = "1.10.0"
 crossbeam = "0.8.1"
+async-std = { version = "1.9", features = ["unstable", "attributes"] }
 #dashmap = "4.0.2"
 #seq-macro = "0.2"
 #lz4_flex = "0.8.2"
-#async-std = { version = "1.9", features = ["unstable", "attributes"] }
 #libc = "0.2.96"
 #crossbeam-queue = {path = "./crossbeam/crossbeam-queue"}
 #crossbeam-skiplist = {path = "./crossbeam/crossbeam-skiplist"}
