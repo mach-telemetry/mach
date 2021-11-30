@@ -2,6 +2,7 @@ use crate::segment::{
     buffer::*,
     Error,
     PushStatus,
+    FullSegment,
 };
 use std::{
     mem,
@@ -43,7 +44,7 @@ impl<const B: usize, const V: usize> Segment<B, V> {
         }
     }
 
-    pub fn to_flush(&self) -> Option<Flushable> {
+    pub fn to_flush(&self) -> Option<FullSegment> {
         let head = self.head.load(SeqCst);
         let to_flush = self.flushed.load(SeqCst) + 1;
         if head as isize > to_flush {
@@ -52,6 +53,10 @@ impl<const B: usize, const V: usize> Segment<B, V> {
         } else {
             None
         }
+    }
+
+    pub fn flushed(&self) {
+        self.flushed.fetch_add(1, SeqCst);
     }
 
     //pub fn flush<T: FlushSegmentTrait>(&self, flusher: &mut T) -> Result<(), Error> {

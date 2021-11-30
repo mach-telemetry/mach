@@ -26,16 +26,19 @@ pub enum Error {
 pub struct Chunk {
     inner: Arc<InnerChunk>,
     has_writer: Arc<AtomicBool>,
+    has_flusher: Arc<AtomicBool>,
 }
 
 impl Chunk {
     pub fn new(tsid: u64, compression: Compression) -> Self {
         let inner = Arc::new(InnerChunk::new(tsid, compression));
         let has_writer = Arc::new(AtomicBool::new(false));
+        let has_flusher = Arc::new(AtomicBool::new(false));
 
         Chunk {
             inner,
-            has_writer
+            has_writer,
+            has_flusher,
         }
     }
 
@@ -46,6 +49,17 @@ impl Chunk {
             WriteChunk {
                 inner: self.inner.clone(),
                 has_writer: self.has_writer.clone(),
+            }
+        }
+    }
+
+    pub fn flusher(&self) -> FlushChunk {
+        if self.has_flusher.swap(true, SeqCst) {
+            panic!("multiple writers")
+        } else {
+            FlushChunk {
+                inner: self.inner.clone(),
+                has_flusher: self.has_flusher.clone(),
             }
         }
     }
@@ -62,16 +76,13 @@ pub struct WriteChunk {
 
 impl WriteChunk {
     pub fn push(&mut self, ts: &[u64], values: &[&[[u8; 8]]]) -> Result<(), Error> {
-        // Safety: There's only one writer. Concurrent readers are coordinated with writers based
-        // on the Entry and InnerChunk structs. Entry coordinates by versions, and InnerChunk
-        // coordinates by atomic counter
+        // Safety: There's only one writer and at most one flusher.
+        //
+        // Concurrent readers are coordinated with writers based on the Entry and InnerChunk
+        // structs. Entry coordinates by versions, and InnerChunk coordinates by atomic counter.
+        //
+        // Concurrent flusher do not overrun with writer. See generate_chunk method for why.
         unsafe { Arc::get_mut_unchecked(&mut self.inner).push(ts, values) }
-    }
-
-    pub fn flush_chunk(&self) -> FlushChunk {
-        FlushChunk {
-            inner: self.inner.clone()
-        }
     }
 }
 
@@ -82,7 +93,14 @@ impl Drop for WriteChunk {
 }
 
 pub struct FlushChunk {
-    inner: Arc<InnerChunk>
+    inner: Arc<InnerChunk>,
+    has_flusher: Arc<AtomicBool>,
+}
+
+impl Drop for FlushChunk {
+    fn drop(&mut self) {
+        self.has_flusher.swap(false, SeqCst);
+    }
 }
 
 //impl FlushChunk {

@@ -1,12 +1,14 @@
 mod buffer;
 mod segment;
 mod wrapper;
+mod full_segment;
 
 use std::sync::{
     atomic::{AtomicBool, Ordering::SeqCst},
     Arc,
 };
-pub use buffer::Flushable;
+
+pub use full_segment::FullSegment;
 
 //pub use wrapper::Segment;
 
@@ -19,6 +21,7 @@ pub enum Error {
     UnsupportedSegments,
     FlushFailed,
     FlushingHead,
+    MultipleFlushers,
 }
 
 pub enum PushStatus {
@@ -29,6 +32,7 @@ pub enum PushStatus {
 #[derive(Clone)]
 pub struct Segment {
     has_writer: Arc<AtomicBool>,
+    has_flusher: Arc<AtomicBool>,
     inner: wrapper::Segment,
 }
 
@@ -39,6 +43,7 @@ pub struct WriteSegment {
 
 pub struct FlushSegment {
     inner: wrapper::Segment,
+    has_flusher: Arc<AtomicBool>,
 }
 
 pub struct ReadSegment {
@@ -54,6 +59,7 @@ impl Segment {
     pub fn new(b: usize, v: usize) -> Self {
         Self {
             has_writer: Arc::new(AtomicBool::new(false)),
+            has_flusher: Arc::new(AtomicBool::new(false)),
             inner: wrapper::Segment::new(b, v),
         }
     }
@@ -69,31 +75,52 @@ impl Segment {
         }
     }
 
+    pub fn flusher(&self) -> Result<FlushSegment, Error> {
+        if self.has_flusher.swap(true, SeqCst) {
+            Err(Error::MultipleFlushers)
+        } else {
+            Ok(FlushSegment {
+                inner: self.inner.clone(),
+                has_flusher: self.has_flusher.clone(),
+            })
+        }
+    }
+
     pub fn snapshot(&self) -> Result<ReadSegment, Error> {
-        Ok(ReadSegment {
-            inner: self.inner.read()?
-        })
+        // Safety: Safe because a reader and a flusher do not race (see to_flush), and a reader and
+        // writer can race but the reader checks the version number before returning
+        unsafe {
+            Ok(ReadSegment {
+                inner: self.inner.read()?
+            })
+        }
     }
 }
 
 impl WriteSegment {
     pub fn push(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<PushStatus, Error> {
-        self.inner.push(ts, val)
-    }
-
-    pub fn flush_segment(&self) -> FlushSegment {
-        FlushSegment {
-            inner: self.inner.clone()
+        // Safety: Safe because there is only one writer, one flusher, and many concurrent readers.
+        // Readers don't race with the writer because of the atomic counter. Writer and flusher do
+        // not race because the writer is bounded by the flush_counter which can only be
+        // incremented by the flusher
+        unsafe {
+            self.inner.push(ts, val)
         }
-    }
-
-    pub fn close(self) {
-        self.has_writer.swap(false, SeqCst);
     }
 }
 
 impl FlushSegment {
-    pub fn to_flush(&self) -> Option<Flushable> {
-        self.inner.to_flush()
+    pub fn to_flush(&self) -> Option<FullSegment> {
+        // Safety: Safe because there is only one flusher, one writer, and many concurrent readers.
+        // Readers don't race with the flusher because the flusher does not modify the segments.
+        // Writer and flusher do not race because the writer is bounded by the flush_counter,
+        // incremented by this struct using the flushed method
+        unsafe {
+            self.inner.to_flush()
+        }
+    }
+
+    pub fn flushed(&self) {
+        self.inner.flushed()
     }
 }
