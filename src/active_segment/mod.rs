@@ -9,6 +9,7 @@ use std::sync::{
 
 //pub use wrapper::Segment;
 
+#[derive(Debug)]
 pub enum Error {
     PushIntoFull,
     InconsistentCopy,
@@ -27,16 +28,14 @@ pub struct Segment {
 pub struct WriteSegment {
     inner: wrapper::Segment,
     has_writer: Arc<AtomicBool>,
-    flusher: fn(FlushSegment),
-}
-
-pub struct FlushSegment {
-    inner: wrapper::Segment,
+    flusher: FlushFn,
 }
 
 pub struct ReadSegment {
     inner: Vec<buffer::ReadBuffer>,
 }
+
+pub type FlushFn = fn(&[u64], &[&[[u8; 8]]]) -> Result<(), Error>;
 
 /// Safety for send and sync: there can only be one writer and the writes and concurrent reads are
 /// protected (no races) within buffer
@@ -51,7 +50,7 @@ impl Segment {
         }
     }
 
-    pub fn writer(&self, flusher: fn(FlushSegment)) -> Result<WriteSegment, Error> {
+    pub fn writer(&self, flusher: FlushFn) -> Result<WriteSegment, Error> {
         if self.has_writer.swap(true, SeqCst) {
             Err(Error::MultipleWriters)
         } else {
@@ -75,10 +74,8 @@ impl WriteSegment {
         match self.inner.push(ts, val) {
             Ok(()) => Ok(()),
             Err(Error::PushIntoFull) => {
-                (self.flusher)(FlushSegment {
-                    inner: self.inner.clone(),
-                });
-                Err(Error::PushIntoFull)
+                self.inner.flush(self.flusher)?;
+                self.inner.push(ts, val)
             }
             Err(x) => Err(x),
         }
