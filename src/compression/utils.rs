@@ -2,6 +2,10 @@ use bitpacking::{BitPacker, BitPacker8x};
 use num::NumCast;
 use std::convert::TryFrom;
 
+pub fn multiplier(p: u8) -> i64 {
+    10i64.pow(p as u32 + 1)
+}
+
 pub fn to_zigzag(v: i64) -> u64 {
     ((v << 1) ^ (v >> 63)) as u64
 }
@@ -10,12 +14,21 @@ pub fn from_zigzag(v: u64) -> i64 {
     (v >> 1) as i64 ^ (-((v & 1) as i64))
 }
 
-pub fn multiplier(p: u8) -> i64 {
-    10i64.pow(p as u32)
+// p is the number of decimals to round to
+pub fn float_to_parts(v: f64, p: u8) -> (i64, u64) {
+    let integral = v.abs().trunc();
+    let part = ((v - integral) * 10f64.powi(p as i32 + 1)).trunc();
+    (integral as i64, part as u64)
+}
+
+pub fn float_from_parts(i: i64, d: u64, p: u8) -> f64 {
+    let i = i as f64;
+    let d = d as f64;
+    i + (d / 10f64.powi(p as i32 + 1))
 }
 
 #[allow(clippy::many_single_char_names)]
-pub fn fl_to_int(p: u8, a: f64) -> Result<i64, ()> {
+pub fn float_to_int(p: u8, a: f64) -> Result<i64, ()> {
     let v: f64 = a as f64;
     let sign = v.signum();
     let v = v.abs();
@@ -32,20 +45,10 @@ pub fn fl_to_int(p: u8, a: f64) -> Result<i64, ()> {
     NumCast::from(r).ok_or(())
 }
 
-pub fn fl_from_int(p: u8, v: i64) -> f64 {
+pub fn float_from_int(p: u8, v: i64) -> f64 {
     let mult = multiplier(p);
     (v as f64 / mult as f64) as f64
 }
-
-#[cfg(test)]
-pub fn round(p: u8, v: f64) -> f64 {
-    fl_from_int(p, fl_to_int(p, v).unwrap())
-}
-
-//pub fn round(p: u8, v: f64) -> f64 {
-//    let mult = multiplier(p) as f64;
-//    NumCast::from((v * mult).round() / mult).unwrap()
-//}
 
 #[derive(Copy, Clone)]
 pub struct U64Differ {
@@ -165,19 +168,28 @@ impl I64Differ {
 /// 2       -> number of bits required (bitpack.num_bits())
 /// ..      -> compressed data of Size bytes
 /// returns how many bytes were written into buf
-pub fn bitpack_256_compress(buf: &mut [u8], data: &[u32; 256]) -> usize {
+pub fn bitpack_256_compress(v: &mut Vec<u8>, data: &[u32; 256]) -> usize {
     let bitpacker = BitPacker8x::new();
+
+    let len = v.len();
+    let header = 3;
+    let maxsz = 1024;
+
+    v.resize(len + header + maxsz, 0);
+    let buf = &mut v[len..]; // we'll be writing to the end of the vector
 
     // Compress the data, reserve first two bytes for size, one byte for the numbits
     let num_bits: u8 = bitpacker.num_bits(&data[..]);
-    let size = bitpacker.compress(&data[..], &mut buf[3..], num_bits);
-
+    let size = bitpacker.compress(&data[..], &mut buf[header..], num_bits);
     // store the size of the compressed array
     let size_array: [u8; 2] = <u16 as NumCast>::from(size).unwrap().to_le_bytes();
     buf[..2].copy_from_slice(&size_array[..]);
 
     // store the num bits
     buf[2] = num_bits;
+    drop(buf);
+
+    v.resize(len + header + size, 0);
 
     size + 3
 }
@@ -195,7 +207,57 @@ pub fn bitpack_256_decompress(out: &mut [u32; 256], data: &[u8]) -> usize {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::test_utils::*;
+    use fixed::prelude::*;
+    use fixed::traits::{FromFixed, LossyFrom};
+    use fixed::{types::extra::*, FixedI16, FixedI64};
     use rand::prelude::*;
+
+    #[test]
+    fn test_float_parts() {
+        for (_, data) in UNIVARIATE_DATA.iter() {
+            let mut values = data.iter().map(|x| x.values[0]).collect::<Vec<f64>>();
+            for v in values {
+                let (integral, decimal) = float_to_parts(v, 3);
+                let recons = float_from_parts(integral, decimal, 3);
+                if (v - recons).abs() >= 0.001 {
+                    println!("{} {} {}", v, recons, (v - recons).abs());
+                    assert!(false);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_float_fixed() {
+        let v: f64 = -123.456;
+        println!("{:#018b}", v.to_bits());
+        let v: f64 = -123.458;
+        println!("{:#018b}", v.to_bits());
+
+        let conv1 = FixedI64::<U10>::from_num(-123.456);
+        println!("{:#018b}", conv1.to_bits());
+        let conv2 = FixedI64::<U10>::from_num(-123.458);
+        println!("{:#018b}", conv2.to_bits());
+        println!("{:#018b}", conv1.to_bits() ^ conv2.to_bits());
+        println!("{:#018b}", to_zigzag(conv2.to_bits() - conv1.to_bits()));
+
+        let conv1 = FixedI64::<U10>::from_num(-123456789.456);
+        println!("{:#018b}", conv1.to_bits());
+        let conv2 = FixedI64::<U10>::from_num(-123456791.123);
+        println!("{:#018b}", conv2.to_bits());
+        println!("{:#018b}", conv1.to_bits() ^ conv2.to_bits());
+        println!("{:#018b}", to_zigzag(conv2.to_bits() - conv1.to_bits()));
+
+        //let data = &UNIVARIATE_DATA[2].1;
+        //let mut values = data.iter().map(|x| x.values[0]).collect::<Vec<f64>>();
+        //for i in 1..values.len() {
+        //    let old = FixedI64::<U10>::from_num(values[i-1]);
+        //    let cur = FixedI64::<U10>::from_num(values[i]);
+        //    let diff = cur - old;
+        //    println!("{} {} {} {} {} {}", values[i], cur, values[i-1], old, diff, diff.to_bits());
+        //}
+    }
 
     #[test]
     fn u64_differences_roll() {
@@ -220,7 +282,7 @@ mod test {
 
     //#[test]
     //fn fl_differences_roll() {
-    //    let mut state = f64Differ::new(2);
+    //    let mut state = FlDiffer::new(2);
     //    assert_eq!(state.roll(1.2345), to_zigzag(123));
     //    assert_eq!(state.roll(2.3456), to_zigzag(235 - 123));
     //    assert_eq!(state.roll(3.4567), to_zigzag((346 - 235) - (235 - 123)));
@@ -240,15 +302,15 @@ mod test {
 
     //#[test]
     //fn fl_differences_unroll() {
-    //    let mut state = f64Differ::new(2);
-    //    let data: &[f64] = &[
+    //    let mut state = FlDiffer::new(2);
+    //    let data: &[Fl] = &[
     //        1.2345, 2.3456, 3.4567, 4.567, 2.451, 1.671, -0.123, -10.782, -2.341,
     //    ];
-    //    let exp: Vec<f64> = data.iter().map(|x| (x * 100.).round() / 100.).collect();
+    //    let exp: Vec<Fl> = data.iter().map(|x| (x * 100.).round() / 100.).collect();
     //    let rolled: Vec<u64> = data.iter().map(|x| state.roll(*x)).collect();
 
-    //    let mut state = f64Differ::new(2);
-    //    let unrolled: Vec<f64> = rolled.iter().map(|x| state.unroll(*x)).collect();
+    //    let mut state = FlDiffer::new(2);
+    //    let unrolled: Vec<Fl> = rolled.iter().map(|x| state.unroll(*x)).collect();
     //    assert_eq!(exp, unrolled);
     //}
 
@@ -266,3 +328,4 @@ mod test {
         assert_eq!(res, data);
     }
 }
+
