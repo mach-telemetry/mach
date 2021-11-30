@@ -115,12 +115,12 @@ mod test {
     use fixed::types::extra::U10;
 
     fn compress_decompress(data: &[f64]) {
-        let mut buf = [0u8; 8192];
+        let mut buf = Vec::new();
         let len = data.len().min(256);
-        let bytes = compress::<U10>(&data[..len], &mut buf[..]);
+        compress::<U10>(&data[..len], &mut buf);
 
         let mut res = [0f64; 256];
-        let (b, l) = decompress::<U10>(&buf[..bytes], &mut res[..]);
+        let (b, l) = decompress::<U10>(&buf[..], &mut res[..]);
 
         let diff = data[..len]
                 .iter()
@@ -129,7 +129,7 @@ mod test {
                 .fold(f64::NAN, f64::max);
 
         assert!(0.001 > diff);
-        assert_eq!(b, bytes);
+        assert_eq!(b, buf.len());
         assert_eq!(l, len);
     }
 

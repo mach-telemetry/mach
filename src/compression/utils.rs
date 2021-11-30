@@ -317,14 +317,14 @@ mod test {
     #[test]
     fn bitpack_compress_decompress() {
         let mut rng = thread_rng();
-        let buf = &mut [0u8; 8192];
+        let mut buf = Vec::new();
         let data = &mut [0u32; 256];
         let res = &mut [0u32; 256];
         rng.fill(&mut data[..]);
         rng.fill(&mut buf[..]);
         rng.fill(&mut res[..]);
-        let _sz = bitpack_256_compress(buf, data);
-        bitpack_256_decompress(res, buf);
+        let _sz = bitpack_256_compress(&mut buf, data);
+        bitpack_256_decompress(res, &buf[..]);
         assert_eq!(res, data);
     }
 }

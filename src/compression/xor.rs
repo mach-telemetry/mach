@@ -164,7 +164,7 @@ mod test {
     #[test]
     fn compress_decompress_values() {
         let data = UNIVARIATE_DATA.clone();
-        let mut buf = [0u8; 8192];
+        let mut buf = Vec::new();
         for (_id, samples) in data[..].iter().enumerate() {
             let raw = samples.1.iter().map(|x| x.values[0]).collect::<Vec<f64>>();
             for lo in (0..raw.len()).step_by(256) {
@@ -174,21 +174,8 @@ mod test {
                 let bytes = compress(exp, &mut buf);
                 decompress(&buf[..], &mut res[..]);
                 assert_eq!(res, exp);
+                buf.clear();
             }
-
-            //let lim = raw.len();
-            //let exp = &raw[..lim];
-            //let mut res = vec![0f64; exp.len()];
-            //let bytes = compress_values(exp);
-            //decompress_values(&bytes, &mut res[..]);
-            //let v = exp.iter().zip(res.iter()).map(|(x, y)| (x-y).abs()).collect::<Vec<f64>>();
-            //let mut max = f64::MIN;
-            //for i in v {
-            //    if i > max {
-            //        max = i;
-            //    }
-            //}
-            //assert!(max < 0.0000001);
         }
     }
 

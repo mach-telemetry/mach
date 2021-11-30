@@ -9,6 +9,6 @@ pub enum Compression {
 }
 
 impl Compression {
-    fn compress(&self, ts: &[u64], values: &[&[[u8; 8]]], buf: &mut [u8]) {
+    pub fn compress(&self, ts: &[u64], values: &[&[[u8; 8]]], buf: &mut Vec<u8>) {
     }
 }

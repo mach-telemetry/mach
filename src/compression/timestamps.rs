@@ -126,14 +126,14 @@ mod test {
     use crate::test_utils::*;
 
     fn compress_decompress(data: &[u64]) {
-        let mut buf = [0u8; 8192];
+        let mut buf = Vec::new();
         let len = data.len().min(256);
-        let bytes = compress_timestamps(&data[..len], &mut buf[..]);
+        compress_timestamps(&data[..len], &mut buf);
 
         let mut res = [0u64; 256];
-        let (b, l) = decompress_timestamps(&buf[..bytes], &mut res[..]);
+        let (b, l) = decompress_timestamps(&buf[..], &mut res[..]);
 
-        assert_eq!(b, bytes);
+        assert_eq!(b, buf.len());
         assert_eq!(l, len);
         assert_eq!(&res[..l], &data[..len]);
     }
@@ -151,10 +151,10 @@ mod test {
     #[test]
     fn test_compress_decompress_simple() {
         let data = [1, 2, 3, 4, 6, 8, 10];
-        let mut buf = [0u8; 1024];
-        let bytes = compress_timestamps(&data[..], &mut buf[..]);
+        let mut buf = Vec::new();
+        compress_timestamps(&data[..], &mut buf);
         let mut res = [0; 10];
-        let (b, l) = decompress_timestamps(&buf[..bytes], &mut res);
+        let (b, l) = decompress_timestamps(&buf[..], &mut res);
         assert_eq!(&res[..l], &data[..]);
     }
 }
