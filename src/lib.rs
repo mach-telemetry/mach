@@ -31,6 +31,7 @@ mod segment;
 mod chunk;
 mod compression;
 mod utils;
+mod memseries;
 //mod active_block;
 
 //pub mod buffer;

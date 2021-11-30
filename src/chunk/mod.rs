@@ -8,6 +8,9 @@ use crate::compression::Compression;
 use crate::utils::{QueueAllocator, Qrc};
 //use crate::compression::byte_vec::Compression;
 
+const CHUNK_THRESHOLD_SIZE: usize = 8192;
+const CHUNK_THRESHOLD_COUNT: usize = 16;
+
 pub enum Error {
     PushError,
     ReadError,
@@ -56,8 +59,8 @@ impl Entry {
     }
 }
 
-struct Chunk {
-    block: [Entry; 256],
+pub struct Chunk {
+    block: [Entry; CHUNK_THRESHOLD_SIZE],
     counter: AtomicUsize,
     compression: Compression,
     allocator: QueueAllocator<Vec<u8>>,
@@ -67,9 +70,9 @@ struct Chunk {
 }
 
 impl Chunk {
-    fn new(tsid: u64, compression: Compression) -> Chunk {
+    pub fn new(tsid: u64, compression: Compression) -> Chunk {
         let block = {
-            let mut block: [MaybeUninit<Entry>; 256] = MaybeUninit::uninit_array();
+            let mut block: [MaybeUninit<Entry>; CHUNK_THRESHOLD_SIZE] = MaybeUninit::uninit_array();
             for i in 0..256 {
                 block[i].write(Entry {
                     data: MaybeUninit::uninit(),
@@ -91,7 +94,7 @@ impl Chunk {
         }
     }
 
-    fn push(&mut self, ts: &[u64], values: &[&[[u8; 8]]]) {
+    pub fn push(&mut self, ts: &[u64], values: &[&[[u8; 8]]]) {
         assert!(ts.len() > 0);
         let c = self.counter.load(SeqCst);
         if c == 0 {

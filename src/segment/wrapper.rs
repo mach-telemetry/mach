@@ -1,4 +1,4 @@
-use crate::segment::{buffer::*, segment, Error};
+use crate::segment::{buffer::*, segment, Error, SegmentFlushFn};
 
 macro_rules! cast {
     ($seg: ident, $b:expr, $v: expr) => {
@@ -1048,7 +1048,7 @@ impl Segment {
 
     pub fn flush(
         &self,
-        flusher: fn(&[u64], &[&[[u8; 8]]]) -> Result<(), Error>,
+        flusher: SegmentFlushFn,
     ) -> Result<(), Error> {
         unsafe {
             match (self.buffers, self.vars) {
