@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 pub const SEGSZ: usize = 256;
 
-pub type Column = [[u8; 8]; 256];
+pub type Column = [[u8; 8]; SEGSZ];
 pub type ColumnSet = [Column];
 
 #[repr(C)]

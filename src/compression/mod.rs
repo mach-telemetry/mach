@@ -23,6 +23,24 @@ impl DecompressBuffer {
         self.len = 0;
         self.nvars = 0;
     }
+
+    fn new() -> Self {
+        Self {
+            ts: Vec::new(),
+            values: Vec::new(),
+            len: 0,
+            nvars: 0,
+        }
+    }
+
+    fn timestamps(&self) -> &[u64] {
+        &self.ts[..self.len]
+    }
+
+    fn values(&self, var: usize) -> &[[u8; 8]] {
+        let start = var * self.len;
+        &self.values[start..start + self.len]
+    }
 }
 
 
@@ -105,7 +123,7 @@ fn lz4_decompress(data: &[u8], buf: &mut DecompressBuffer) {
     off += 8;
 
     let mut bytes = vec![0u8; raw_sz as usize].into_boxed_slice();
-    assert_eq!(lz4::decompress(&data[off..off+cmp_sz as usize], &mut bytes[..]).unwrap(), cmp_sz as usize);
+    lz4::decompress(&data[off..off+cmp_sz as usize], &mut bytes[..]).unwrap();
 
     let mut off = 0;
     for i in 0..len {
@@ -128,4 +146,42 @@ fn lz4_decompress(data: &[u8], buf: &mut DecompressBuffer) {
 mod test {
     use super::*;
     use crate::test_utils::*;
+
+    #[test]
+    fn test_lz4() {
+
+        let data = &MULTIVARIATE_DATA[0].1;
+        let nvars = data[0].values.len();
+
+        let mut timestamps = [0; 256];
+        let mut v = Vec::new();
+        for _ in 0..nvars {
+            v.push([[0u8; 8]; 256]);
+        }
+
+        for (idx, sample) in data[0..256].iter().enumerate() {
+            timestamps[idx] = sample.ts;
+            for (var, val) in sample.values.iter().enumerate() {
+                v[var][idx] = val.to_be_bytes();
+            }
+        }
+
+        let segment = FullSegment {
+            len: 256,
+            nvars,
+            ts: &timestamps,
+            data: v.as_slice(),
+        };
+
+        let mut compressed = Vec::new();
+        lz4_compress(&segment, &mut compressed, 1);
+
+        let mut buf = DecompressBuffer::new();
+        lz4_decompress(&compressed[..], &mut buf);
+
+        assert_eq!(&buf.ts[..], &timestamps[..]);
+        for i in 0..nvars {
+            assert_eq!(buf.values(i), segment.values(i));
+        }
+    }
 }
