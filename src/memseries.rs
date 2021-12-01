@@ -1,6 +1,6 @@
 use crate::{
-    segment::{self, FullSegment, PushStatus, FlushSegment, WriteSegment, Segment},
-    chunk::{self, WriteChunk, FlushChunk},
+    segment::{self, FullSegment, FlushSegment, WriteSegment, Segment},
+    chunk::{self, SerializedChunk, WriteChunk, FlushChunk},
     compression::Compression,
 };
 use async_std::{task, channel};
@@ -10,55 +10,42 @@ struct SequentialWriter {
     flush_segment: FlushSegment,
     write_chunk: WriteChunk,
     flush_chunk: FlushChunk,
+    data: Vec<SerializedChunk>,
 }
 
 impl SequentialWriter {
     fn push(&mut self, ts: u64, values: &[[u8; 8]]) -> Result<(), &str> {
+
+        // Try to push into the segment
         match self.write_segment.push(ts, values) {
-            Ok(PushStatus::Done) => Ok(()),
-            Ok(PushStatus::Flush) => {
-                let full_segment = self.flush_segment.to_flush();
-                //self.write_chunk.push(
-                Ok(())
+            Ok(segment::PushStatus::Done) => Ok(()),
+
+            // Push succeeded but we can move segment to chunk
+            Ok(segment::PushStatus::Flush) => {
+
+                let full_segment = self.flush_segment.to_flush().unwrap();
+
+                // Try to push segment to chunk
+                match self.write_chunk.push(&full_segment) {
+                    Ok(status) => {
+
+                        // Data was written to the chunk so segment can be marked as flushed
+                        self.flush_segment.flushed();
+
+                        match status {
+                            chunk::PushStatus::Done => {},
+                            chunk::PushStatus::Flush => {
+                                let chunk = self.flush_chunk.serialize().unwrap();
+                                self.data.push(chunk);
+                                self.flush_chunk.clear();
+                            },
+                        };
+                        Ok(())
+                    }
+                    Err(_) => unimplemented!(),
+                }
             }
-            Err(_) => {
-                Ok(())
-            }
+            Err(_) => unimplemented!(),
         }
-
     }
-
-
-
-    //    match self.segment.push(ts, values) {
-    //        Ok(PushStatus::Done) => Ok(()),
-    //        Ok(PushStatus::Flush) => {
-    //            self.chunk.try_send(self.segment.flush_segment()).unwrap();
-    //            Ok(())
-    //        },
-    //        Err(segment::Error::PushIntoFull) => {
-    //            self.chunk.try_send(self.segment.flush_segment()).unwrap();
-    //            Err("Pushing into full")
-    //        },
-    //        Err(_) => Err("Unkown error"),
-    //    }
-    //}
 }
-
-//fn chunk_setup(chunk: Chunk) -> channel::Sender<FlushSegment> {
-//    let (sender, receiver) = channel::bounded(1);
-//    task::spawn(
-//    sender
-//}
-
-//async fn chunk_worker(chunk: WriteChunk, receiver: channel::Receiver<FlushSegment>) {
-//
-//    let flushing_function = move |x: &[u64], y: &[&[[u8; 8]]]| -> Result<(), segment::Error> {
-//        chunk.push(x, y)
-//    }
-//
-//    while let Ok(segment) = receiver.recv().await {
-//        segment.flush(flushing_function);
-//    }
-//}
-

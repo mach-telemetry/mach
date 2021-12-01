@@ -10,16 +10,31 @@ use std::{
 };
 use crate::compression::Compression;
 use crate::utils::{QueueAllocator, Qrc};
+use crate::segment::FullSegment;
 use inner::{InnerChunk, ChunkEntry};
 //use crate::compression::byte_vec::Compression;
 
 const CHUNK_THRESHOLD_SIZE: usize = 8192;
 const CHUNK_THRESHOLD_COUNT: usize = 16;
 
+#[derive(Eq, PartialEq, Debug)]
 pub enum Error {
     PushIntoFull,
     InconsistentChunkGeneration,
     ChunkEntryLoad,
+}
+
+#[derive(Eq, PartialEq, Debug)]
+pub enum PushStatus {
+    Done,
+    Flush,
+}
+
+pub struct SerializedChunk {
+    bytes: Box<[u8]>,
+    tsid: u64,
+    mint: u64,
+    maxt: u64,
 }
 
 #[derive(Clone)]
@@ -75,14 +90,14 @@ pub struct WriteChunk {
 }
 
 impl WriteChunk {
-    pub fn push(&mut self, ts: &[u64], values: &[&[[u8; 8]]]) -> Result<(), Error> {
+    pub fn push(&mut self, segment: &FullSegment) -> Result<PushStatus, Error> {
         // Safety: There's only one writer and at most one flusher.
         //
         // Concurrent readers are coordinated with writers based on the Entry and InnerChunk
         // structs. Entry coordinates by versions, and InnerChunk coordinates by atomic counter.
         //
         // Concurrent flusher do not overrun with writer. See generate_chunk method for why.
-        unsafe { Arc::get_mut_unchecked(&mut self.inner).push(ts, values) }
+        unsafe { Arc::get_mut_unchecked(&mut self.inner).push(segment) }
     }
 }
 
@@ -103,7 +118,17 @@ impl Drop for FlushChunk {
     }
 }
 
-//impl FlushChunk {
-//    pub fn generate_chunk(&self) -> 
-//}
+impl FlushChunk {
+
+    /// Serialize the chunk into bytes
+    pub fn serialize(&self) -> Result<SerializedChunk, Error> {
+        self.inner.serialize()
+    }
+
+    /// This clears the counter and size of the chunk. Only do this if they data have been
+    /// serialized!
+    pub fn clear(&self) {
+        self.inner.clear()
+    }
+}
 

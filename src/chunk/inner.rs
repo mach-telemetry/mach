@@ -7,8 +7,9 @@ use std::{
     ops::{Deref, DerefMut},
 };
 use crate::compression::Compression;
+use crate::segment::FullSegment;
 use crate::utils::{QueueAllocator, Qrc};
-use crate::chunk::{Error, CHUNK_THRESHOLD_SIZE, CHUNK_THRESHOLD_COUNT};
+use crate::chunk::{SerializedChunk, PushStatus, Error, CHUNK_THRESHOLD_SIZE, CHUNK_THRESHOLD_COUNT};
 
 #[derive(Clone)]
 pub struct ChunkEntry {
@@ -54,8 +55,9 @@ impl Entry {
 
 pub struct InnerChunk {
     block: [Entry; CHUNK_THRESHOLD_COUNT],
-    counter: AtomicUsize,
-    size: AtomicUsize,
+    counter: usize,
+    atomic_counter: AtomicUsize,
+    size: usize,
     compression: Compression,
     allocator: QueueAllocator<Vec<u8>>,
     tsid: u64,
@@ -79,8 +81,9 @@ impl InnerChunk {
 
         InnerChunk {
             block,
-            counter: AtomicUsize::new(0),
-            size: AtomicUsize::new(0),
+            counter: 0,
+            atomic_counter: AtomicUsize::new(0),
+            size: 0,
             allocator: QueueAllocator::new(Vec::new),
             compression,
             tsid,
@@ -89,20 +92,26 @@ impl InnerChunk {
         }
     }
 
-    pub fn push(&mut self, ts: &[u64], values: &[&[[u8; 8]]]) -> Result<(), Error> {
-        let full = self.counter.load(SeqCst) == CHUNK_THRESHOLD_COUNT || self.size.load(SeqCst) >= CHUNK_THRESHOLD_SIZE;
+    #[inline]
+    fn is_full(&self) -> bool {
+        let sz = self.size == CHUNK_THRESHOLD_SIZE;
+        let ct = self.counter == CHUNK_THRESHOLD_COUNT;
+        sz || ct
+    }
 
-        if full {
+    pub fn push(&mut self, segment: &FullSegment) -> Result<PushStatus, Error> {
+        if self.is_full() {
             Err(Error::PushIntoFull)
         } else {
+            let ts = segment.timestamps();
             assert!(ts.len() > 0);
-            let c = self.counter.load(SeqCst);
+            let c = self.atomic_counter.load(SeqCst);
             if c == 0 {
                 self.mint = ts[0];
             }
             self.maxt = *ts.last().unwrap();
             let mut data: Qrc<Vec<u8>> = self.allocator.allocate();
-            self.compression.compress(ts, values, data.as_mut());
+            self.compression.compress(segment, data.as_mut());
             let sz = data.len();
             let entry = ChunkEntry {
                 data,
@@ -110,9 +119,19 @@ impl InnerChunk {
                 maxt: self.maxt,
             };
             self.block[c].update(entry);
-            self.size.fetch_add(sz, SeqCst);
-            self.counter.fetch_add(1, SeqCst);
-            Ok(())
+
+            self.counter = self.atomic_counter.fetch_add(1, SeqCst) + 1;
+            if self.counter == 1 {
+                self.size = sz;
+            } else {
+                self.size += sz;
+            }
+
+            if self.is_full() {
+                Ok(PushStatus::Flush)
+            } else {
+                Ok(PushStatus::Done)
+            }
         }
     }
 
@@ -133,10 +152,10 @@ impl InnerChunk {
     //
     // > Segment data information
     // segments: [header bytes + segment count * 8 * 3 ..]
-    pub fn generate_chunk(&self) -> Result<Box<[u8]>, Error> {
+    pub fn serialize(&self) -> Result<SerializedChunk, Error> {
         let mut v = Vec::new();
 
-        let counter = self.counter.load(SeqCst) as u64;
+        let counter = self.atomic_counter.load(SeqCst) as u64;
 
         // Placeholder for length
         v.extend_from_slice(&[0u8; 8]);
@@ -198,16 +217,20 @@ impl InnerChunk {
         let len = v.len() as u64;
         v[..8].copy_from_slice(&len.to_le_bytes()[..]);
 
-        Ok(v.into_boxed_slice())
+        Ok(SerializedChunk {
+            bytes: v.into_boxed_slice(),
+            tsid: self.tsid,
+            mint: self.mint,
+            maxt: self.maxt,
+        })
     }
 
-    pub fn clear(&mut self) {
-        self.size.store(0, SeqCst);
-        self.counter.store(0, SeqCst);
+    pub fn clear(&self) {
+        self.atomic_counter.store(0, SeqCst);
     }
 
     pub fn read(&self) -> Result<Vec<ChunkEntry>, Error> {
-        let c = self.counter.load(SeqCst);
+        let c = self.atomic_counter.load(SeqCst);
         let mut res = Vec::new();
 
         for b in self.block[0..c].iter() {

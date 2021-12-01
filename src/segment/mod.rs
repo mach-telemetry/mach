@@ -12,7 +12,7 @@ pub use full_segment::FullSegment;
 
 //pub use wrapper::Segment;
 
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Debug)]
 pub enum Error {
     PushIntoFull,
     InconsistentCopy,
@@ -24,6 +24,7 @@ pub enum Error {
     MultipleFlushers,
 }
 
+#[derive(Eq, PartialEq, Debug)]
 pub enum PushStatus {
     Done,
     Flush

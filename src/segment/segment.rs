@@ -26,21 +26,36 @@ pub struct Segment<const B: usize, const V: usize> {
 
 impl<const B: usize, const V: usize> Segment<B, V> {
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<PushStatus, Error> {
-        match self.buffers[self.local_head % B].push(ts, item) {
-            Ok(()) => Ok(PushStatus::Done),
+        match self.current_buffer().push(ts, item) {
+            Ok(PushStatus::Done) => Ok(PushStatus::Done),
+            Ok(PushStatus::Flush) => {
+                self.try_next_buffer();
+                Ok(PushStatus::Flush)
+            }
             Err(Error::PushIntoFull) => {
-                let can_move = self.local_head as isize - self.flushed.load(SeqCst) < B as isize;
-                if can_move {
-                    self.local_head = self.head.fetch_add(1, SeqCst) + 1;
-                    let buf = &mut self.buffers[self.local_head % B];
-                    buf.reuse(self.local_head);
-                    buf.push(ts, item).unwrap();  // this must succeed
-                    Ok(PushStatus::Flush)
+                if self.try_next_buffer() {
+                    self.current_buffer().push(ts, item)
                 } else {
                     Err(Error::PushIntoFull)
                 }
             }
-            Err(x) => Err(x),
+            Err(_) => unimplemented!(),
+        }
+    }
+
+    #[inline]
+    fn current_buffer(&mut self) -> &mut Buffer<V> {
+        &mut self.buffers[self.local_head % B]
+    }
+
+    fn try_next_buffer(&mut self) -> bool {
+        if self.local_head as isize - self.flushed.load(SeqCst) < B as isize {
+            self.local_head = self.head.fetch_add(1, SeqCst) + 1;
+            let buf = &mut self.buffers[self.local_head % B];
+            buf.reuse(self.local_head);
+            true
+        } else {
+            false
         }
     }
 

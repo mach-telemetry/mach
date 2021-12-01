@@ -1,4 +1,4 @@
-use crate::segment::{full_segment::FullSegment, Error};
+use crate::segment::{PushStatus, full_segment::FullSegment, Error};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 pub const SEGSZ: usize = 256;
@@ -26,7 +26,7 @@ impl<const V: usize> Buffer<V> {
         }
     }
 
-    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<(), Error> {
+    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<PushStatus, Error> {
         if self.len == SEGSZ {
             Err(Error::PushIntoFull)
         } else {
@@ -38,7 +38,11 @@ impl<const V: usize> Buffer<V> {
             }
             self.len += 1;
             self.atomic_len.store(self.len, SeqCst);
-            Ok(())
+            if self.len == SEGSZ {
+                Ok(PushStatus::Done)
+            } else {
+                Ok(PushStatus::Flush)
+            }
         }
     }
 
