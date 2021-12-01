@@ -49,3 +49,9 @@ impl SequentialWriter {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::test_utils::*;
+}
