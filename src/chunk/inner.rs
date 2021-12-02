@@ -18,6 +18,12 @@ pub struct ChunkEntry {
     maxt: u64,
 }
 
+impl ChunkEntry {
+    pub fn bytes(&self) -> &[u8] {
+        &self.data[..]
+    }
+}
+
 struct Entry {
     data: MaybeUninit<ChunkEntry>,
     version: AtomicUsize,

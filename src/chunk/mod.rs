@@ -139,6 +139,7 @@ mod test {
     use super::*;
     use crate::test_utils::*;
     use crate::segment::{self, Segment};
+    use crate::compression::DecompressBuffer;
 
     #[test]
     fn test_push_behavior() {
@@ -196,56 +197,59 @@ mod test {
         }
     }
 
-    //#[test]
-    //fn test_push_flush_data() {
-    //    let data = &MULTIVARIATE_DATA[0].1;
-    //    let nvars = data[0].values.len();
-    //    let segment = Segment::new(3, nvars);
-    //    let mut writer = segment.writer().unwrap();
-    //    let mut flusher = segment.flusher().unwrap();
+    #[test]
+    fn test_check_data() {
+        let data = &MULTIVARIATE_DATA[0].1;
+        let nvars = data[0].values.len();
+        let segment = Segment::new(3, nvars);
+        let mut writer = segment.writer().unwrap();
+        let mut flusher = segment.flusher().unwrap();
 
-    //    let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
-    //        let mut values = vec![[0u8; 8]; nvars];
-    //        for (i, v) in items.iter().enumerate() {
-    //            values[i] = v.to_be_bytes();
-    //        }
-    //        values
-    //    };
+        let mut chunk = Chunk::new(0, Compression::LZ4(1));
+        let mut chunk_writer = chunk.writer().unwrap();
 
-    //    let mut exp_ts = Vec::new();
-    //    let mut exp_values = Vec::new();
-    //    for _ in 0..nvars {
-    //        exp_values.push(Vec::new());
-    //    }
+        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+            let mut values = vec![[0u8; 8]; nvars];
+            for (i, v) in items.iter().enumerate() {
+                values[i] = v.to_be_bytes();
+            }
+            values
+        };
 
-    //    for item in &data[..767] {
-    //        let v = to_values(&item.values[..]);
-    //        assert!(writer.push(item.ts, &v[..]).is_ok());
-    //        exp_ts.push(item.ts);
-    //        for (e, i) in exp_values.iter_mut().zip(v.iter()) {
-    //            e.push(*i)
-    //        }
-    //    }
+        let mut exp_ts = Vec::new();
+        let mut exp_values = Vec::new();
+        for _ in 0..nvars {
+            exp_values.push(Vec::new());
+        }
 
-    //    let seg = flusher.to_flush().unwrap();
-    //    assert_eq!(seg.len, 256);
-    //    assert_eq!(seg.nvars, nvars);
-    //    assert_eq!(seg.timestamps(), &exp_ts[..256]);
-    //    for i in 0..nvars {
-    //        assert_eq!(seg.values(i), &exp_values[i][..256]);
-    //    }
-    //    flusher.flushed();
+        for item in &data[..256 * CHUNK_THRESHOLD_COUNT] {
+            let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            for i in 0..nvars {
+                exp_values[i].push(v[i]);
+            }
+            match writer.push(item.ts, &v[..]) {
+                Ok(segment::PushStatus::Done) => {},
+                Ok(segment::PushStatus::Flush) => {
+                    let seg = flusher.to_flush().unwrap();
+                    assert!(chunk_writer.push(&seg).is_ok());
+                    flusher.flushed();
+                },
+                Err(_) => unimplemented!(),
+            }
+        }
 
-    //    let seg = flusher.to_flush().unwrap();
-    //    assert_eq!(seg.len, 256);
-    //    assert_eq!(seg.timestamps(), &exp_ts[256..512]);
-    //    for i in 0..nvars {
-    //        assert_eq!(seg.values(i), &exp_values[i][256..512]);
-    //    }
-    //    flusher.flushed();
+        let chunk_entries = chunk.read().unwrap();
+        let mut buf = DecompressBuffer::new();
+        for entry in chunk_entries.iter() {
+            let decompressed = Compression::decompress(entry.bytes(), &mut buf).unwrap();
+        }
 
-    //    assert!(flusher.to_flush().is_none()) // the current buffer is not flushable yet
-    //}
-
+        assert_eq!(buf.timestamps().len(), 256 * CHUNK_THRESHOLD_COUNT);
+        assert_eq!(buf.timestamps(), exp_ts.as_slice());
+        for i in 0..nvars {
+            assert_eq!(buf.values(i).len(), buf.timestamps().len());
+        }
+    }
 }
 

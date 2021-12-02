@@ -1,4 +1,5 @@
 mod timestamps;
+
 mod fixed;
 mod xor;
 mod utils;
@@ -7,24 +8,43 @@ use crate::segment::FullSegment;
 use lzzzz::lz4;
 use std::convert::TryInto;
 
-const MAGIC: &str = "202107280428";
+#[derive(Debug)]
+pub enum Error {
+    UnrecognizedMagic,
+    UnrecognizedCompressionType,
+    InconsistentBuffer,
+}
+
+const MAGIC: &[u8; 12] = b"202107280428";
 
 pub struct DecompressBuffer {
     ts: Vec<u64>,
-    values: Vec<[u8; 8]>,
+    values: Vec<Vec<[u8; 8]>>,
     len: usize,
     nvars: usize,
 }
 
 impl DecompressBuffer {
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.ts.clear();
-        self.values.clear();
+        self.values.iter_mut().for_each(|x| x.clear());
         self.len = 0;
-        self.nvars = 0;
     }
 
-    fn new() -> Self {
+    pub fn set_nvars(&mut self, nvars: usize) {
+        if self.nvars < nvars {
+            for _ in 0..nvars - self.nvars {
+                self.values.push(Vec::new());
+            }
+        } else if self.nvars > nvars {
+            for _ in 0..self.nvars - nvars {
+                self.values.pop();
+            }
+        }
+        self.nvars = nvars;
+    }
+
+    pub fn new() -> Self {
         Self {
             ts: Vec::new(),
             values: Vec::new(),
@@ -33,38 +53,97 @@ impl DecompressBuffer {
         }
     }
 
-    fn timestamps(&self) -> &[u64] {
+    pub fn timestamps(&self) -> &[u64] {
         &self.ts[..self.len]
     }
 
-    fn values(&self, var: usize) -> &[[u8; 8]] {
-        let start = var * self.len;
-        &self.values[start..start + self.len]
+    pub fn values(&self, var: usize) -> &[[u8; 8]] {
+        &self.values[var][..self.len]
     }
 }
 
+#[derive(Copy, Clone)]
+struct Header {
+    code: usize,
+    nvars: usize,
+    len: usize,
+}
 
-// Compression format
-// Magic: [0..12]
-// Compression type: [12..13]
-// Size in bytes: [13..17]
-// Data: [17..17 + size in bytes]
 pub enum Compression {
     LZ4(i32)
 }
 
 impl Compression {
-    fn header(&self, segmen: &FullSegment, buf: &mut Vec<u8>) {
+
+    // Header format:
+    // Magic: [0..12]
+    // Compression type: [12..20]
+    // N Variables: [20..28]
+    // N Samples: [28..36]
+    fn set_header(&self, segment: &FullSegment, buf: &mut Vec<u8>) -> Header {
+        let compression_id: u64 = match self {
+            Compression::LZ4(_) => 1,
+        };
+        buf.extend_from_slice(&MAGIC[..]);
+        buf.extend_from_slice(&compression_id.to_be_bytes()[..]);
+        buf.extend_from_slice(&segment.nvars.to_be_bytes()[..]);
+        buf.extend_from_slice(&segment.len.to_be_bytes()[..]);
+
+        Header {
+            code: compression_id as usize,
+            nvars: segment.nvars,
+            len: segment.len,
+        }
+    }
+
+    fn get_header(data: &[u8]) -> Result<(Header, usize), Error> {
+        let mut off = 0;
+        if &data[off..MAGIC.len()] != &MAGIC[..] {
+            return Err(Error::UnrecognizedMagic)
+        }
+
+        off += MAGIC.len();
+
+        let code = u64::from_be_bytes(data[off..off+8].try_into().unwrap()) as usize;
+        off += 8;
+
+        let nvars = u64::from_be_bytes(data[off..off+8].try_into().unwrap()) as usize;
+        off += 8;
+
+        let len = u64::from_be_bytes(data[off..off+8].try_into().unwrap()) as usize;
+        off += 8;
+
+        Ok((Header { code, nvars, len, }, off))
     }
 
     pub fn compress(&self, segment: &FullSegment, buf: &mut Vec<u8>) {
+        self.set_header(segment, buf);
         match self {
             Compression::LZ4(acc) => lz4_compress(segment, buf, *acc),
         }
     }
 
-    pub fn decompress(data: &mut [u8], buf: &mut DecompressBuffer) {
-        buf.clear();
+    pub fn decompress(data: &[u8], buf: &mut DecompressBuffer) -> Result<usize, Error> {
+        let (header, mut off) = Self::get_header(data)?;
+
+        buf.len += header.len as usize;
+        println!("buf.nvars {}", buf.nvars);
+        if buf.nvars == 0 {
+            println!("HERE");
+            buf.set_nvars(header.nvars);
+        }
+
+        if header.nvars != buf.nvars {
+            return Err(Error::InconsistentBuffer)
+        }
+
+        off += match header.code {
+            1 => lz4_decompress(header, &data[off..], buf)?,
+            _ => return Err(Error::UnrecognizedCompressionType),
+        };
+
+
+        Ok(off)
     }
 }
 
@@ -84,12 +163,6 @@ fn lz4_compress(segment: &FullSegment, buf: &mut Vec<u8>, acc: i32) {
     }
     let raw_sz = bytes.len() as u64;
 
-    // Number of variables
-    buf.extend_from_slice(&nvars.to_be_bytes()[..]);
-
-    // Number of samples
-    buf.extend_from_slice(&len.to_be_bytes()[..]);
-
     // Uncompressed size
     buf.extend_from_slice(&raw_sz.to_be_bytes()[..]);
 
@@ -98,23 +171,14 @@ fn lz4_compress(segment: &FullSegment, buf: &mut Vec<u8>, acc: i32) {
     buf.extend_from_slice(&0u64.to_be_bytes()[..]);         // compressed sz placeholder
 
     // Compress the raw data and record the compressed size
-    let oldlen = buf.len();
-    lz4::compress_to_vec(&bytes[..], buf, acc).unwrap();
-    let newlen = buf.len();
-    let csz = (newlen - oldlen) as u64;
+    let csz = lz4::compress_to_vec(&bytes[..], buf, acc).unwrap() as u64;
 
     // Write the compressed size
     buf[csz_off..csz_off + 8].copy_from_slice(&csz.to_be_bytes()[..]);
 }
 
-fn lz4_decompress(data: &[u8], buf: &mut DecompressBuffer) {
+fn lz4_decompress(header: Header, data: &[u8], buf: &mut DecompressBuffer) -> Result<usize, Error> {
     let mut off = 0;
-
-    let nvars = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
-    off += 8;
-
-    let len = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
-    off += 8;
 
     let raw_sz = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
     off += 8;
@@ -126,20 +190,19 @@ fn lz4_decompress(data: &[u8], buf: &mut DecompressBuffer) {
     lz4::decompress(&data[off..off+cmp_sz as usize], &mut bytes[..]).unwrap();
 
     let mut off = 0;
-    for i in 0..len {
+    for i in 0..header.len {
         buf.ts.push(u64::from_be_bytes(bytes[off..off + 8].try_into().unwrap()));
         off += 8;
     }
 
-    for var in 0..nvars {
-        for i in 0..len {
-            buf.values.push(bytes[off..off + 8].try_into().unwrap());
+    for var in 0..header.nvars {
+        for i in 0..header.len {
+            buf.values[var].push(bytes[off..off + 8].try_into().unwrap());
             off += 8;
         }
     }
 
-    buf.nvars = nvars as usize;
-    buf.len = len as usize;
+    Ok(off)
 }
 
 #[cfg(test)]
@@ -174,14 +237,52 @@ mod test {
         };
 
         let mut compressed = Vec::new();
-        lz4_compress(&segment, &mut compressed, 1);
-
         let mut buf = DecompressBuffer::new();
-        lz4_decompress(&compressed[..], &mut buf);
+        let header = Header {
+            code: 1,
+            nvars,
+            len: 256,
+        };
+
+        // Need to set this manually because the header is generated separately
+        buf.set_nvars(nvars);
+        buf.len = 256;
+
+        lz4_compress(&segment, &mut compressed, 1);
+        lz4_decompress(header, &compressed[..], &mut buf).unwrap();
 
         assert_eq!(&buf.ts[..], &timestamps[..]);
         for i in 0..nvars {
             assert_eq!(buf.values(i), segment.values(i));
+        }
+
+        for (idx, sample) in data[256..512].iter().enumerate() {
+            timestamps[idx] = sample.ts;
+            for (var, val) in sample.values.iter().enumerate() {
+                v[var][idx] = val.to_be_bytes();
+            }
+        }
+
+        let segment = FullSegment {
+            len: 256,
+            nvars,
+            ts: &timestamps,
+            data: v.as_slice(),
+        };
+
+        // Need to set this manually because the header is generated separately
+        buf.len += 256;
+
+        let mut compressed = Vec::new();
+        lz4_compress(&segment, &mut compressed, 1);
+        lz4_decompress(header, &compressed[..], &mut buf).unwrap();
+
+        assert_eq!(buf.len, 512);
+        assert_eq!(&buf.timestamps()[256..512], &timestamps[..]);
+        for i in 0..nvars {
+            let exp: &[[u8; 8]] = &buf.values(i)[256..];
+            let cmp: &[[u8; 8]] = segment.values(i);
+            assert_eq!(exp, cmp);
         }
     }
 }
