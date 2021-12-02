@@ -61,9 +61,7 @@ impl Entry {
 
 pub struct InnerChunk {
     block: [Entry; CHUNK_THRESHOLD_COUNT],
-    counter: usize,
-    atomic_counter: AtomicUsize,
-    size: usize,
+    counter: AtomicUsize,
     compression: Compression,
     allocator: QueueAllocator<Vec<u8>>,
     tsid: u64,
@@ -87,9 +85,7 @@ impl InnerChunk {
 
         InnerChunk {
             block,
-            counter: 0,
-            atomic_counter: AtomicUsize::new(0),
-            size: 0,
+            counter: AtomicUsize::new(0),
             allocator: QueueAllocator::new(Vec::new),
             compression,
             tsid,
@@ -98,21 +94,33 @@ impl InnerChunk {
         }
     }
 
-    #[inline]
-    fn is_full(&self) -> bool {
-        let sz = self.size == CHUNK_THRESHOLD_SIZE;
-        let ct = self.counter == CHUNK_THRESHOLD_COUNT;
-        sz || ct
+    fn counter_pack(&self, count: usize, sz: usize) {
+        self.counter.store(count << 32 | sz, SeqCst);
+    }
+
+    fn counter_unpack(&self) -> (usize, usize) {
+        let x = self.counter.load(SeqCst);
+        let sz = x & 0xffffffff;
+        let ct = x >> 32;
+        (ct, sz)
     }
 
     pub fn push(&mut self, segment: &FullSegment) -> Result<PushStatus, Error> {
-        if self.is_full() {
+
+
+        let full = |count: usize, size: usize| -> bool {
+            count == CHUNK_THRESHOLD_COUNT || size == CHUNK_THRESHOLD_SIZE
+        };
+
+
+        let (mut count, mut size) = self.counter_unpack();
+
+        if full(count, size) {
             Err(Error::PushIntoFull)
         } else {
             let ts = segment.timestamps();
             assert!(ts.len() > 0);
-            let c = self.atomic_counter.load(SeqCst);
-            if c == 0 {
+            if count == 0 {
                 self.mint = ts[0];
             }
             self.maxt = *ts.last().unwrap();
@@ -124,16 +132,17 @@ impl InnerChunk {
                 mint: ts[0],
                 maxt: self.maxt,
             };
-            self.block[c].update(entry);
+            self.block[count].update(entry);
 
-            self.counter = self.atomic_counter.fetch_add(1, SeqCst) + 1;
-            if self.counter == 1 {
-                self.size = sz;
+            count += 1;
+            if count == 1 {
+                size = sz;
             } else {
-                self.size += sz;
+                size += sz
             }
+            self.counter_pack(count, size);
 
-            if self.is_full() {
+            if full(count, size) {
                 Ok(PushStatus::Flush)
             } else {
                 Ok(PushStatus::Done)
@@ -161,7 +170,7 @@ impl InnerChunk {
     pub fn serialize(&self) -> Result<SerializedChunk, Error> {
         let mut v = Vec::new();
 
-        let counter = self.atomic_counter.load(SeqCst) as u64;
+        let (counter, _)  = self.counter_unpack();
 
         // Placeholder for length
         v.extend_from_slice(&[0u8; 8]);
@@ -232,11 +241,11 @@ impl InnerChunk {
     }
 
     pub fn clear(&self) {
-        self.atomic_counter.store(0, SeqCst);
+        self.counter.store(0, SeqCst);
     }
 
     pub fn read(&self) -> Result<Vec<ChunkEntry>, Error> {
-        let c = self.atomic_counter.load(SeqCst);
+        let c = self.counter.load(SeqCst);
         let mut res = Vec::new();
 
         for b in self.block[0..c].iter() {

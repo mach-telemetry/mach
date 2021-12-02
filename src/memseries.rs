@@ -1,3 +1,7 @@
+#[derive(PartialEq, Eq, Debug)]
+pub enum PushStatus {
+    Done,
+}
 
 #[cfg(test)]
 mod test {
@@ -9,6 +13,7 @@ mod test {
         test_utils::*,
     };
 
+    #[test]
     fn test_pipeline() {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
@@ -31,9 +36,12 @@ mod test {
             values
         };
 
-        for item in &data[..255] {
+        // 3 for the segments
+        // 16 for the first set of chunks
+        // 2 for another set of chunks not flushed
+        for item in &data[..256 * (3 + 16 + 2)] {
             let v = to_values(&item.values[..]);
-            //assert_eq!(writer.push(item.ts, &v[..]), Ok(segment::PushStatus::Done));
+            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
         }
     }
 
@@ -46,11 +54,11 @@ mod test {
     }
 
     impl Writer {
-        fn push(&mut self, ts: u64, values: &[[u8; 8]]) -> Result<(), &str> {
+        fn push(&mut self, ts: u64, values: &[[u8; 8]]) -> Result<PushStatus, &str> {
 
             // Try to push into the segment
             match self.write_segment.push(ts, values) {
-                Ok(segment::PushStatus::Done) => Ok(()),
+                Ok(segment::PushStatus::Done) => Ok(PushStatus::Done),
 
                 // Push succeeded but we can move segment to chunk
                 Ok(segment::PushStatus::Flush) => {
@@ -72,15 +80,18 @@ mod test {
                                     self.flush_chunk.clear();
                                 },
                             };
-                            Ok(())
+                            Ok(PushStatus::Done)
                         }
                         Err(x) => {
-                            println!("{:?}", x);
+                            println!("HERE1 {:?}", x);
                             unimplemented!();
                         },
                     }
                 }
-                Err(_) => unimplemented!(),
+                Err(_) => {
+                    println!("HERE1");
+                    unimplemented!();
+                }
             }
         }
     }
