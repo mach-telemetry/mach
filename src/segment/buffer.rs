@@ -38,7 +38,7 @@ impl<const V: usize> Buffer<V> {
             }
             self.len += 1;
             self.atomic_len.store(self.len, SeqCst);
-            if self.len == SEGSZ {
+            if self.len < SEGSZ {
                 Ok(PushStatus::Done)
             } else {
                 Ok(PushStatus::Flush)

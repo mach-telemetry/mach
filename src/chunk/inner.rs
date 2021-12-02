@@ -69,7 +69,7 @@ impl InnerChunk {
     pub fn new(tsid: u64, compression: Compression) -> Self {
         let block = {
             let mut block: [MaybeUninit<Entry>; CHUNK_THRESHOLD_COUNT] = MaybeUninit::uninit_array();
-            for i in 0..256 {
+            for i in 0..CHUNK_THRESHOLD_COUNT {
                 block[i].write(Entry {
                     data: MaybeUninit::uninit(),
                     version: AtomicUsize::new(0),

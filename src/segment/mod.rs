@@ -125,3 +125,92 @@ impl FlushSegment {
         self.inner.flushed()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::test_utils::*;
+
+    #[test]
+    fn test_push() {
+        let data = &MULTIVARIATE_DATA[0].1;
+        let nvars = data[0].values.len();
+        let segment = Segment::new(3, nvars);
+        let mut writer = segment.writer().unwrap();
+        let mut flusher = segment.flusher().unwrap();
+
+        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+            let mut values = vec![[0u8; 8]; nvars];
+            for (i, v) in items.iter().enumerate() {
+                values[i] = v.to_be_bytes();
+            }
+            values
+        };
+
+        for item in &data[..255] {
+            let v = to_values(&item.values[..]);
+            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
+        }
+
+        {
+            let item = &data[255];
+            let v = to_values(&item.values[..]);
+            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Flush));
+        }
+
+        for item in &data[256..512-1] {
+            let v = to_values(&item.values[..]);
+            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
+        }
+
+        {
+            let item = &data[511];
+            let v = to_values(&item.values[..]);
+            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Flush));
+        }
+
+        for item in &data[512..767] {
+            let v = to_values(&item.values[..]);
+            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
+        }
+
+        {
+            let item = &data[767];
+            let v = to_values(&item.values[..]);
+            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Flush));
+        }
+
+        {
+            let item = &data[768];
+            let v = to_values(&item.values[..]);
+            assert_eq!(writer.push(item.ts, &v[..]), Err(Error::PushIntoFull));
+        }
+
+        flusher.flushed();
+
+        for item in &data[768..1023] {
+            let v = to_values(&item.values[..]);
+            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
+        }
+
+        {
+            let item = &data[1023];
+            let v = to_values(&item.values[..]);
+            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Flush));
+        }
+
+        {
+            let item = &data[1024];
+            let v = to_values(&item.values[..]);
+            assert_eq!(writer.push(item.ts, &v[..]), Err(Error::PushIntoFull));
+        }
+
+        flusher.flushed();
+
+        {
+            let item = &data[1024];
+            let v = to_values(&item.values[..]);
+            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
+        }
+    }
+}

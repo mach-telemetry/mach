@@ -22,6 +22,8 @@ pub enum Error {
     PushIntoFull,
     InconsistentChunkGeneration,
     ChunkEntryLoad,
+    MultipleWriters,
+    MultipleFlushers,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -57,25 +59,25 @@ impl Chunk {
         }
     }
 
-    pub fn writer(&self) -> WriteChunk {
+    pub fn writer(&self) -> Result<WriteChunk, Error> {
         if self.has_writer.swap(true, SeqCst) {
-            panic!("multiple writers")
+            Err(Error::MultipleWriters)
         } else {
-            WriteChunk {
+            Ok(WriteChunk {
                 inner: self.inner.clone(),
                 has_writer: self.has_writer.clone(),
-            }
+            })
         }
     }
 
-    pub fn flusher(&self) -> FlushChunk {
+    pub fn flusher(&self) -> Result<FlushChunk, Error> {
         if self.has_flusher.swap(true, SeqCst) {
-            panic!("multiple writers")
+            Err(Error::MultipleFlushers)
         } else {
-            FlushChunk {
+            Ok(FlushChunk {
                 inner: self.inner.clone(),
                 has_flusher: self.has_flusher.clone(),
-            }
+            })
         }
     }
 
