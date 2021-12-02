@@ -43,6 +43,8 @@ mod test {
             let v = to_values(&item.values[..]);
             assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
         }
+
+        assert_eq!(writer.data.len(), 1);
     }
 
     struct Writer {
