@@ -81,8 +81,10 @@ impl Chunk {
         }
     }
 
-    pub fn read(&self) -> Result<Vec<ChunkEntry>, Error> {
-        self.inner.read()
+    pub fn read(&self) -> Result<ReadChunk, Error> {
+        Ok(ReadChunk {
+            inner: self.inner.read()?
+        })
     }
 }
 
@@ -131,6 +133,18 @@ impl FlushChunk {
     /// serialized!
     pub fn clear(&self) {
         self.inner.clear()
+    }
+}
+
+pub struct ReadChunk {
+    inner: Vec<ChunkEntry>,
+}
+
+impl Deref for ReadChunk {
+    type Target = [ChunkEntry];
+
+    fn deref(&self) -> &Self::Target {
+        self.inner.as_slice()
     }
 }
 

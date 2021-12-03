@@ -53,11 +53,11 @@ impl DecompressBuffer {
         }
     }
 
-    pub fn ts(&self) -> &[u64] {
+    pub fn timestamps(&self) -> &[u64] {
         &self.ts[..self.len]
     }
 
-    pub fn var(&self, var: usize) -> &[[u8; 8]] {
+    pub fn variable(&self, var: usize) -> &[[u8; 8]] {
         println!("{} {}", var, self.len);
         &self.values[var][..self.len]
     }
