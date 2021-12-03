@@ -12,7 +12,7 @@ impl<'a> FullSegment<'a> {
         &self.ts[..self.len]
     }
 
-    pub fn values(&self, var: usize) -> &[[u8; 8]] {
+    pub fn variable(&self, var: usize) -> &[[u8; 8]] {
         &self.data[var][..self.len]
     }
 }

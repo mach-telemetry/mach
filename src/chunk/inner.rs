@@ -61,7 +61,7 @@ impl Entry {
 
 pub struct InnerChunk {
     block: [Entry; CHUNK_THRESHOLD_COUNT],
-    counter: AtomicUsize,
+    ctr_sz: AtomicUsize,
     compression: Compression,
     allocator: QueueAllocator<Vec<u8>>,
     tsid: u64,
@@ -85,7 +85,7 @@ impl InnerChunk {
 
         InnerChunk {
             block,
-            counter: AtomicUsize::new(0),
+            ctr_sz: AtomicUsize::new(0),
             allocator: QueueAllocator::new(Vec::new),
             compression,
             tsid,
@@ -94,12 +94,12 @@ impl InnerChunk {
         }
     }
 
-    fn counter_pack(&self, count: usize, sz: usize) {
-        self.counter.store(count << 32 | sz, SeqCst);
+    fn ctr_sz_pack(&self, count: usize, sz: usize) {
+        self.ctr_sz.store(count << 32 | sz, SeqCst);
     }
 
-    fn counter_unpack(&self) -> (usize, usize) {
-        let x = self.counter.load(SeqCst);
+    fn ctr_sz_unpack(&self) -> (usize, usize) {
+        let x = self.ctr_sz.load(SeqCst);
         let sz = x & 0xffffffff;
         let ct = x >> 32;
         (ct, sz)
@@ -113,7 +113,7 @@ impl InnerChunk {
         };
 
 
-        let (mut count, mut size) = self.counter_unpack();
+        let (mut count, mut size) = self.ctr_sz_unpack();
 
         if full(count, size) {
             Err(Error::PushIntoFull)
@@ -140,7 +140,7 @@ impl InnerChunk {
             } else {
                 size += sz
             }
-            self.counter_pack(count, size);
+            self.ctr_sz_pack(count, size);
 
             if full(count, size) {
                 Ok(PushStatus::Flush)
@@ -170,7 +170,7 @@ impl InnerChunk {
     pub fn serialize(&self) -> Result<SerializedChunk, Error> {
         let mut v = Vec::new();
 
-        let (counter, _)  = self.counter_unpack();
+        let (counter, _)  = self.ctr_sz_unpack();
 
         // Placeholder for length
         v.extend_from_slice(&[0u8; 8]);
@@ -241,14 +241,14 @@ impl InnerChunk {
     }
 
     pub fn clear(&self) {
-        self.counter.store(0, SeqCst);
+        self.ctr_sz.store(0, SeqCst);
     }
 
     pub fn read(&self) -> Result<Vec<ChunkEntry>, Error> {
-        let c = self.counter.load(SeqCst);
+        let (counter, _) = self.ctr_sz_unpack();
         let mut res = Vec::new();
 
-        for b in self.block[0..c].iter() {
+        for b in self.block[0..counter].iter() {
             // Safety: This is safe because the load will only be called if C > 0 and it will only
             // be > 0 if data were pushed to block[0]
             unsafe { res.push(b.load()?); }

@@ -32,6 +32,7 @@ mod chunk;
 mod compression;
 mod utils;
 mod memseries;
+mod read_set;
 //mod active_block;
 
 //pub mod buffer;

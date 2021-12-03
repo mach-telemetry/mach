@@ -53,11 +53,12 @@ impl DecompressBuffer {
         }
     }
 
-    pub fn timestamps(&self) -> &[u64] {
+    pub fn ts(&self) -> &[u64] {
         &self.ts[..self.len]
     }
 
-    pub fn values(&self, var: usize) -> &[[u8; 8]] {
+    pub fn var(&self, var: usize) -> &[[u8; 8]] {
+        println!("{} {}", var, self.len);
         &self.values[var][..self.len]
     }
 }
@@ -157,7 +158,7 @@ fn lz4_compress(segment: &FullSegment, buf: &mut Vec<u8>, acc: i32) {
     }
 
     for var in 0..nvars {
-        for v in segment.values(var as usize).iter() {
+        for v in segment.variable(var as usize).iter() {
             bytes.extend_from_slice(&v[..]);
         }
     }
@@ -278,7 +279,7 @@ mod test {
         lz4_decompress(header, &compressed[..], &mut buf).unwrap();
 
         assert_eq!(buf.len, 512);
-        assert_eq!(&buf.timestamps()[256..512], &timestamps[..]);
+        assert_eq!(&buf.ts()[256..512], &timestamps[..]);
         for i in 0..nvars {
             let exp: &[[u8; 8]] = &buf.values(i)[256..];
             let cmp: &[[u8; 8]] = segment.values(i);

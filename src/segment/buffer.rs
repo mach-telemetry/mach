@@ -69,14 +69,16 @@ impl<const V: usize> Buffer<V> {
         let id = self.id.load(SeqCst);
         let len = self.atomic_len.load(SeqCst);
         let mut data = Vec::new();
+        let mut ts = [0u64; 256];
 
         // Note: In case this buffer is being recycled, this would race. That's fine because we can
         // just treat the data as junk and return an error
+        ts[..len].copy_from_slice(&self.ts[..len]);
         for v in self.data.iter() {
             data.extend_from_slice(&v[..len]);
         }
         if self.id.load(SeqCst) == id {
-            Ok(ReadBuffer { len, data })
+            Ok(ReadBuffer { len, id, ts, data })
         } else {
             Err(Error::InconsistentCopy)
         }
@@ -84,6 +86,21 @@ impl<const V: usize> Buffer<V> {
 }
 
 pub struct ReadBuffer {
-    len: usize,
-    data: Vec<[u8; 8]>,
+    pub id: usize,
+    pub len: usize,
+    pub ts: [u64; 256],
+    pub data: Vec<[u8; 8]>,
 }
+
+impl ReadBuffer {
+    pub fn timestamps(&self) -> &[u64] {
+        &self.ts[..self.len]
+    }
+
+    pub fn variable(&self, id: usize) -> &[[u8; 8]] {
+        let start = self.len * id;
+        &self.data[start..start + self.len]
+    }
+}
+
+

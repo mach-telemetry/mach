@@ -122,6 +122,11 @@ impl<const B: usize, const V: usize> Segment<B, V> {
                 }
             }
         }
+
+        // Make sure newest buffer is first
+        use std::cmp::Reverse;
+        copies.sort_by_key(|x| Reverse(x.id));
+
         Ok(copies)
     }
 

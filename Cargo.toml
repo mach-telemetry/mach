@@ -13,13 +13,13 @@ fixed = "1.10.0"
 crossbeam = "0.8.1"
 async-std = { version = "1.9", features = ["unstable", "attributes"] }
 lzzzz = "0.8.0"
+enum_dispatch = "0.3.7"
 #dashmap = "4.0.2"
 #seq-macro = "0.2"
 #lz4_flex = "0.8.2"
 #libc = "0.2.96"
 #crossbeam-queue = {path = "./crossbeam/crossbeam-queue"}
 #crossbeam-skiplist = {path = "./crossbeam/crossbeam-skiplist"}
-#enum_dispatch = "0.3.7"
 
 [dev-dependencies]
 tempdir = "0.3"

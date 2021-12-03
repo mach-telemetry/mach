@@ -7,8 +7,10 @@ use std::sync::{
     atomic::{AtomicBool, Ordering::SeqCst},
     Arc,
 };
+use std::ops::Deref;
 
 pub use full_segment::FullSegment;
+pub use buffer::ReadBuffer;
 
 //pub use wrapper::Segment;
 
@@ -49,6 +51,13 @@ pub struct FlushSegment {
 
 pub struct ReadSegment {
     inner: Vec<buffer::ReadBuffer>,
+}
+
+impl Deref for ReadSegment {
+    type Target = [buffer::ReadBuffer];
+    fn deref(&self) -> &Self::Target {
+        self.inner.as_slice()
+    }
 }
 
 /// Safety for send and sync: there can only be one writer and the writes and concurrent reads are
@@ -92,7 +101,7 @@ impl Segment {
         // writer can race but the reader checks the version number before returning
         unsafe {
             Ok(ReadSegment {
-                inner: self.inner.read()?
+                inner: self.inner.read()?,
             })
         }
     }
