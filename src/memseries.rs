@@ -10,7 +10,7 @@ mod test {
         segment::{self, FullSegment, FlushSegment, WriteSegment, Segment},
         chunk::{self, SerializedChunk, WriteChunk, FlushChunk, Chunk},
         compression::Compression,
-        backend::fs::{FileListWriter, FileList},
+        backend::fs::{FileListWriter, FileList, FileWriter},
         test_utils::*,
     };
 
@@ -20,7 +20,6 @@ mod test {
         let nvars = data[0].values.len();
         let segment = Segment::new(3, nvars);
         let chunk = Chunk::new(1, Compression::LZ4(1));
-        let file_list = FileList::new();
 
         let mut writer = Writer {
             write_segment: segment.writer().unwrap(),
