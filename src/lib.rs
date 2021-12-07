@@ -34,6 +34,8 @@ mod utils;
 mod memseries;
 mod read_set;
 mod backend;
+mod tags;
+
 //mod active_block;
 
 //pub mod buffer;
