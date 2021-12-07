@@ -8,7 +8,7 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
 
-//#![allow(warnings)]
+#![allow(warnings)]
 
 //mod active_block;
 //mod active_segment;

@@ -11,11 +11,22 @@ mod test {
         chunk::{self, SerializedChunk, WriteChunk, FlushChunk, Chunk},
         compression::Compression,
         backend::fs::{FileListWriter, FileList, FileWriter},
+        tags::Tags,
         test_utils::*,
     };
+    use std::sync::{Arc, atomic::{AtomicU64, Ordering::SeqCst}};
 
     #[test]
     fn test_pipeline() {
+
+        let shared_id = Arc::new(AtomicU64::new(0));
+        let mut file = FileWriter::new(shared_id.clone()).unwrap();
+        let mut tags = Tags::new();
+        tags.insert(("A".to_string(),"B".to_string()));
+        tags.insert(("C".to_string(),"D".to_string()));
+        let mut file_list = FileList::new(&tags);
+        let mut writer = file_list.writer().unwrap();
+
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
         let segment = Segment::new(3, nvars);
@@ -26,7 +37,8 @@ mod test {
             flush_segment: segment.flusher().unwrap(),
             write_chunk: chunk.writer().unwrap(),
             flush_chunk: chunk.flusher().unwrap(),
-            data: Vec::new(),
+            persistent: writer,
+            file,
         };
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
@@ -45,7 +57,7 @@ mod test {
             assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
         }
 
-        assert_eq!(writer.data.len(), 1);
+        //assert_eq!(writer.data.len(), 1);
     }
 
     struct Writer {
@@ -53,8 +65,9 @@ mod test {
         flush_segment: FlushSegment,
         write_chunk: WriteChunk,
         flush_chunk: FlushChunk,
-        data: Vec<SerializedChunk>,
-        //file_list_writer: FileListWriter,
+        //data: Vec<SerializedChunk>,
+        persistent: FileListWriter,
+        file: FileWriter
     }
 
     impl Writer {
@@ -81,7 +94,8 @@ mod test {
                                 chunk::PushStatus::Flush => {
                                     let mut v = Vec::new();
                                     let chunk = self.flush_chunk.serialize(&mut v).unwrap();
-                                    self.data.push(chunk);
+                                    //self.data.push(chunk);
+                                    self.persistent.push(&mut self.file, chunk.mint, chunk.maxt, &mut v[..chunk.bytes]).unwrap();
                                     self.flush_chunk.clear();
                                 },
                             };
