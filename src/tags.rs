@@ -7,7 +7,7 @@ pub enum Error {
     Deserialize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Tags(HashSet<(String, String)>);
 
 impl Tags {

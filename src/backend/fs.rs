@@ -12,12 +12,7 @@ const MAGICSTR: &str = "filebackend";
 
 #[cfg(test)]
 lazy_static! {
-    pub static ref DATADIR: PathBuf = {
-        let path = crate::test_utils::TEST_DATA_PATH.join("tmp");
-        fs::create_dir_all(path.as_path());
-        path
-    };
-
+    pub static ref DATADIR: PathBuf = crate::test_utils::TEST_DATA_PATH.join("tmp");
 }
 
 #[cfg(not(test))]
@@ -81,7 +76,7 @@ impl FileWriter {
     }
 
     pub fn write(&mut self, bytes: &[u8]) -> Result<(), Error> {
-        self.file.write_all(bytes)?;
+        let w = self.file.write_all(bytes)?;
         self.offset += bytes.len() as u64;
         Ok(())
     }
@@ -99,16 +94,18 @@ pub struct FileListIterator {
 
 impl FileListIterator {
     pub fn next_item(&mut self) -> Result<Option<FileChunk>, Error> {
+        println!("next offset: {}", self.next_offset);
         if self.next_offset == u64::MAX {
             return Ok(None)
         }
 
         else if self.file.is_none() {
             let file_name = format!("data-{}", self.next_file_id);
-            self.file = Some(OpenOptions::new().create(true).write(true).append(true).open(DATADIR.join(file_name))?);
+            self.file = Some(OpenOptions::new().read(true).open(DATADIR.join(file_name))?);
         }
 
         let mut file = self.file.as_mut().unwrap();
+        let meta = file.metadata().unwrap();
         file.seek(SeekFrom::Start(self.next_offset))?;
         let next_bytes = self.next_bytes as usize;
         self.buf.resize(next_bytes, 0u8);
@@ -164,6 +161,16 @@ impl FileListIterator {
             tags,
             bytes: &self.buf[off..end]
         };
+
+        // Update iterator state
+        self.next_offset = next_offset;
+        self.next_mint = next_mint;
+        self.next_maxt = next_maxt;
+        self.next_bytes = next_bytes;
+        if self.next_file_id != next_file_id {
+            self.file = None;
+            self.next_file_id = next_file_id;
+        }
         Ok(Some(f))
     }
 }
@@ -263,6 +270,10 @@ impl InnerFileList {
 
     fn push(&mut self, file: &mut FileWriter, mint: u64, maxt: u64, bytes: &[u8]) -> Result<(), Error> {
 
+        // Get the information of where the bytes will be written
+        let last_offset = file.offset;
+        let last_file_id = file.local_id;
+
         // Truncate data here to just the header information
         self.buf.truncate(self.init_buf_len);
 
@@ -285,8 +296,8 @@ impl InnerFileList {
         file.write(self.buf.as_slice())?;
 
         // Then update the metadata
-        self.last_offset = file.offset;
-        self.last_file_id = file.local_id;
+        self.last_offset = last_offset;
+        self.last_file_id = last_file_id;
         self.last_bytes = self.buf.len() as u64;
         self.last_mint = mint;
         self.last_maxt = maxt;
@@ -324,9 +335,8 @@ mod test {
 
     #[test]
     fn run_test() {
-        //let dir = tempfile::TempDir::new_in(TEST_DATA_PATH.as_path()).unwrap();
-        //std::fs::create_dir_all(dir.path()).unwrap();
-        //println!("dir: {:?}", dir);
+        std::fs::remove_dir_all(DATADIR.as_path()).unwrap();
+        std::fs::create_dir_all(DATADIR.as_path()).unwrap();
         let shared_id = Arc::new(AtomicU64::new(0));
         let mut file = FileWriter::new(shared_id.clone()).unwrap();
         let mut tags = Tags::new();
@@ -334,9 +344,9 @@ mod test {
         tags.insert(("C".to_string(),"D".to_string()));
         let mut file_list = FileList::new(&tags);
 
-        let data = (0..3).map(|_| {
-            let mut v = vec![0u8; 512];
-            thread_rng().fill(&mut v[..]);
+        let data = (0..3).map(|i| {
+            let mut v = vec![i + 1 as u8; 512];
+            //thread_rng().fill(&mut v[..]);
             v
         }).collect::<Vec<Vec<u8>>>();
 
@@ -344,5 +354,25 @@ mod test {
         writer.push(&mut file, 0, 5, data[0].as_slice()).unwrap();
         writer.push(&mut file, 6, 11, data[1].as_slice()).unwrap();
         writer.push(&mut file, 12, 13, data[2].as_slice()).unwrap();
+        file.file.sync_all().unwrap();
+
+        let mut reader = file_list.reader().unwrap();
+        let chunk = reader.next_item().unwrap().unwrap();
+        assert_eq!(chunk.bytes, data[2].as_slice());
+        assert_eq!(chunk.mint, 12);
+        assert_eq!(chunk.maxt, 13);
+        assert_eq!(chunk.tags, tags);
+
+        let chunk = reader.next_item().unwrap().unwrap();
+        assert_eq!(chunk.bytes, data[1].as_slice());
+        assert_eq!(chunk.mint, 6);
+        assert_eq!(chunk.maxt, 11);
+        assert_eq!(chunk.tags, tags);
+
+        let chunk = reader.next_item().unwrap().unwrap();
+        assert_eq!(chunk.bytes, data[0].as_slice());
+        assert_eq!(chunk.mint, 0);
+        assert_eq!(chunk.maxt, 5);
+        assert_eq!(chunk.tags, tags);
     }
 }
