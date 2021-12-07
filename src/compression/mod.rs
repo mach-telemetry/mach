@@ -254,7 +254,7 @@ mod test {
 
         assert_eq!(&buf.ts[..], &timestamps[..]);
         for i in 0..nvars {
-            assert_eq!(buf.values(i), segment.values(i));
+            assert_eq!(buf.variable(i), segment.variable(i));
         }
 
         for (idx, sample) in data[256..512].iter().enumerate() {
@@ -279,10 +279,10 @@ mod test {
         lz4_decompress(header, &compressed[..], &mut buf).unwrap();
 
         assert_eq!(buf.len, 512);
-        assert_eq!(&buf.ts()[256..512], &timestamps[..]);
+        assert_eq!(&buf.timestamps()[256..512], &timestamps[..]);
         for i in 0..nvars {
-            let exp: &[[u8; 8]] = &buf.values(i)[256..];
-            let cmp: &[[u8; 8]] = segment.values(i);
+            let exp: &[[u8; 8]] = &buf.variable(i)[256..];
+            let cmp: &[[u8; 8]] = segment.variable(i);
             assert_eq!(exp, cmp);
         }
     }

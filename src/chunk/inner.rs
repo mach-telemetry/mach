@@ -167,8 +167,10 @@ impl InnerChunk {
     //
     // > Segment data information
     // segments: [header bytes + segment count * 8 * 3 ..]
-    pub fn serialize(&self) -> Result<SerializedChunk, Error> {
-        let mut v = Vec::new();
+    pub fn serialize(&self, v: &mut Vec<u8>) -> Result<SerializedChunk, Error> {
+        //let mut v = Vec::new();
+
+        let start = v.len();
 
         let (counter, _)  = self.ctr_sz_unpack();
 
@@ -232,8 +234,10 @@ impl InnerChunk {
         let len = v.len() as u64;
         v[..8].copy_from_slice(&len.to_le_bytes()[..]);
 
+        let bytes = v.len() - start;
+
         Ok(SerializedChunk {
-            bytes: v.into_boxed_slice(),
+            bytes,
             tsid: self.tsid,
             mint: self.mint,
             maxt: self.maxt,

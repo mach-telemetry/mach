@@ -33,6 +33,7 @@ mod compression;
 mod utils;
 mod memseries;
 mod read_set;
+mod backend;
 //mod active_block;
 
 //pub mod buffer;

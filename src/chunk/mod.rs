@@ -33,10 +33,10 @@ pub enum PushStatus {
 }
 
 pub struct SerializedChunk {
-    bytes: Box<[u8]>,
-    tsid: u64,
-    mint: u64,
-    maxt: u64,
+    pub bytes: usize,
+    pub tsid: u64,
+    pub mint: u64,
+    pub maxt: u64,
 }
 
 #[derive(Clone)]
@@ -125,8 +125,8 @@ impl Drop for FlushChunk {
 impl FlushChunk {
 
     /// Serialize the chunk into bytes
-    pub fn serialize(&self) -> Result<SerializedChunk, Error> {
-        self.inner.serialize()
+    pub fn serialize(&self, v: &mut Vec<u8>) -> Result<SerializedChunk, Error> {
+        self.inner.serialize(v)
     }
 
     /// This clears the counter and size of the chunk. Only do this if they data have been
@@ -262,7 +262,7 @@ mod test {
         assert_eq!(buf.timestamps().len(), 256 * CHUNK_THRESHOLD_COUNT);
         assert_eq!(buf.timestamps(), exp_ts.as_slice());
         for i in 0..nvars {
-            assert_eq!(buf.values(i).len(), buf.timestamps().len());
+            assert_eq!(buf.variable(i).len(), buf.timestamps().len());
         }
     }
 }

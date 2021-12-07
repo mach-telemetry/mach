@@ -14,6 +14,7 @@ crossbeam = "0.8.1"
 async-std = { version = "1.9", features = ["unstable", "attributes"] }
 lzzzz = "0.8.0"
 enum_dispatch = "0.3.7"
+lazy_static = "1.4"
 #dashmap = "4.0.2"
 #seq-macro = "0.2"
 #lz4_flex = "0.8.2"
@@ -24,7 +25,6 @@ enum_dispatch = "0.3.7"
 [dev-dependencies]
 tempdir = "0.3"
 rand = "0.8.4"
-lazy_static = "1.4"
 serde = { version = "1.0.127", features = ["derive"] }
 serde_json = "1.0.66"
 

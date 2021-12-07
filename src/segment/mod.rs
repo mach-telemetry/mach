@@ -259,7 +259,7 @@ mod test {
         assert_eq!(seg.nvars, nvars);
         assert_eq!(seg.timestamps(), &exp_ts[..256]);
         for i in 0..nvars {
-            assert_eq!(seg.values(i), &exp_values[i][..256]);
+            assert_eq!(seg.variable(i), &exp_values[i][..256]);
         }
         flusher.flushed();
 
@@ -267,7 +267,7 @@ mod test {
         assert_eq!(seg.len, 256);
         assert_eq!(seg.timestamps(), &exp_ts[256..512]);
         for i in 0..nvars {
-            assert_eq!(seg.values(i), &exp_values[i][256..512]);
+            assert_eq!(seg.variable(i), &exp_values[i][256..512]);
         }
         flusher.flushed();
 

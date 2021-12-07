@@ -77,7 +77,8 @@ mod test {
                             match status {
                                 chunk::PushStatus::Done => {},
                                 chunk::PushStatus::Flush => {
-                                    let chunk = self.flush_chunk.serialize().unwrap();
+                                    let mut v = Vec::new();
+                                    let chunk = self.flush_chunk.serialize(&mut v).unwrap();
                                     self.data.push(chunk);
                                     self.flush_chunk.clear();
                                 },
