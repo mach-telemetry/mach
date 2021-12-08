@@ -1,8 +1,8 @@
+use bitstream_io::{BigEndian, BitRead, BitReader, BitWrite, BitWriter};
 use std::{
-    convert::{TryFrom},
+    convert::TryFrom,
     mem::{size_of, transmute},
 };
-use bitstream_io::{BigEndian, BitWrite, BitWriter, BitReader, BitRead};
 
 fn compress(data: &[f64], buf: &mut Vec<u8>) -> usize {
     // Code below inspire heavily from
@@ -87,7 +87,7 @@ fn compress(data: &[f64], buf: &mut Vec<u8>) -> usize {
 /// Decompresses data into buf
 /// Returns the number of bytes read from data and number of items decompressed.
 /// Panics if buf is not long enough.
-fn decompress(data: &[u8], buf: &mut[f64]) -> (usize, usize) {
+fn decompress(data: &[u8], buf: &mut [f64]) -> (usize, usize) {
     // Code below inspire heavily from
     // https://github.com/jeromefroe/tsz-rs
 
@@ -101,7 +101,7 @@ fn decompress(data: &[u8], buf: &mut[f64]) -> (usize, usize) {
 
     // Read first value
     let mut bits = data.read::<u64>(64).unwrap();
-    buf[idx] = unsafe{ transmute::<u64, f64>(bits) };
+    buf[idx] = unsafe { transmute::<u64, f64>(bits) };
     idx += 1;
     read += 64;
 
@@ -114,12 +114,10 @@ fn decompress(data: &[u8], buf: &mut[f64]) -> (usize, usize) {
 
         // Control bit = 0 means current is the same as the previous
         if !control {
-            buf[idx] = buf[idx-1];
+            buf[idx] = buf[idx - 1];
         }
-
         // Otherwise, need to read the next bit to see if the sig. bits are w/in a window
         else {
-
             // If the next bit is set, update the leading and trailing bits information
             // 11 condition
             if data.read_bit().unwrap() {
@@ -146,7 +144,7 @@ fn decompress(data: &[u8], buf: &mut[f64]) -> (usize, usize) {
             //               [ 18  ]   [  43 ]
             // 6 << 43 = actual value
             bits ^= cur_bits << trailing;
-            buf[idx] = unsafe{ transmute::<u64, f64>(bits) };
+            buf[idx] = unsafe { transmute::<u64, f64>(bits) };
         }
         idx += 1;
     }
@@ -170,7 +168,7 @@ mod test {
             for lo in (0..raw.len()).step_by(256) {
                 let hi = raw.len().min(lo + 256);
                 let exp = &raw[lo..hi];
-                let mut res = vec![0.; hi-lo];
+                let mut res = vec![0.; hi - lo];
                 let bytes = compress(exp, &mut buf);
                 decompress(&buf[..], &mut res[..]);
                 assert_eq!(res, exp);

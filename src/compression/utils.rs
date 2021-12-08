@@ -328,4 +328,3 @@ mod test {
         assert_eq!(res, data);
     }
 }
-

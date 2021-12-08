@@ -16,4 +16,3 @@ impl<'a> FullSegment<'a> {
         &self.data[var][..self.len]
     }
 }
-

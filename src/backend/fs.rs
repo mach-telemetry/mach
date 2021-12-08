@@ -1,18 +1,24 @@
-use std::{
-    sync::{Arc, atomic::{AtomicU64, AtomicBool, AtomicUsize, Ordering::SeqCst}},
-    fs::{OpenOptions, File},
-    path::{PathBuf, Path},
-    io::{self, prelude::*, SeekFrom},
-    convert::TryInto,
-};
 use crate::tags::{self, Tags};
 use lazy_static::*;
+use std::{
+    convert::TryInto,
+    fs::{File, OpenOptions},
+    io::{self, prelude::*, SeekFrom},
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::SeqCst},
+        Arc,
+    },
+};
 
 const MAGICSTR: &str = "filebackend";
 
 #[cfg(test)]
 lazy_static! {
-    pub static ref DATADIR: PathBuf = crate::test_utils::TEST_DATA_PATH.join("tmp");
+    pub static ref TMPDIR: tempfile::TempDir =
+        tempfile::TempDir::new_in(crate::test_utils::TEST_DATA_PATH.as_path()).unwrap();
+    pub static ref DATADIR: PathBuf = PathBuf::from(TMPDIR.path());
+    pub static ref SHARED_ID: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
 }
 
 #[cfg(not(test))]
@@ -41,7 +47,6 @@ impl From<tags::Error> for Error {
     }
 }
 
-
 pub struct FileWriter {
     offset: u64,
     local_id: u64,
@@ -55,7 +60,11 @@ impl FileWriter {
         //println!("path: {:?}", path);
         let local_id = shared_id.load(SeqCst);
         let file_name = format!("data-{}", local_id);
-        let file = OpenOptions::new().create(true).write(true).append(true).open(DATADIR.join(file_name))?;
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open(DATADIR.join(file_name))?;
         let offset = 0;
         Ok(Self {
             offset,
@@ -68,7 +77,11 @@ impl FileWriter {
     pub fn reset(&mut self) -> Result<(), Error> {
         let local_id = self.shared_id.load(SeqCst);
         let file_name = format!("data-{}", local_id);
-        let file = OpenOptions::new().create(true).write(true).append(true).open(DATADIR.join(file_name))?;
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open(DATADIR.join(file_name))?;
         self.offset = 0;
         self.local_id = local_id;
         self.file = file;
@@ -96,12 +109,14 @@ impl FileListIterator {
     pub fn next_item(&mut self) -> Result<Option<FileChunk>, Error> {
         println!("next offset: {}", self.next_offset);
         if self.next_offset == u64::MAX {
-            return Ok(None)
-        }
-
-        else if self.file.is_none() {
+            return Ok(None);
+        } else if self.file.is_none() {
             let file_name = format!("data-{}", self.next_file_id);
-            self.file = Some(OpenOptions::new().read(true).open(DATADIR.join(file_name))?);
+            self.file = Some(
+                OpenOptions::new()
+                    .read(true)
+                    .open(DATADIR.join(file_name))?,
+            );
         }
 
         let mut file = self.file.as_mut().unwrap();
@@ -119,11 +134,17 @@ impl FileListIterator {
             let end = MAGICSTR.as_bytes().len();
             let magic = std::str::from_utf8(&self.buf[off..end]);
             let fail = match magic {
-                Ok(x) => if x != MAGICSTR { true } else { false },
+                Ok(x) => {
+                    if x != MAGICSTR {
+                        true
+                    } else {
+                        false
+                    }
+                }
                 Err(_) => true,
             };
             if fail {
-                return Err(Error::InvalidMagic)
+                return Err(Error::InvalidMagic);
             }
             off = end;
         }
@@ -131,7 +152,7 @@ impl FileListIterator {
         // Get tags
         let tags_len = u64::from_be_bytes(self.buf[off..off + 8].try_into().unwrap()) as usize;
         off += 8;
-        let tags = Tags::from_bytes(&self.buf[off..off+tags_len])?;
+        let tags = Tags::from_bytes(&self.buf[off..off + tags_len])?;
         off += tags_len;
 
         // Get mint and maxt
@@ -159,7 +180,7 @@ impl FileListIterator {
             mint,
             maxt,
             tags,
-            bytes: &self.buf[off..end]
+            bytes: &self.buf[off..end],
         };
 
         // Update iterator state
@@ -181,7 +202,6 @@ pub struct FileChunk<'a> {
     pub tags: Tags,
     pub bytes: &'a [u8],
 }
-
 
 pub struct FileList {
     inner: Arc<InnerFileList>,
@@ -218,13 +238,16 @@ pub struct FileListWriter {
 }
 
 impl FileListWriter {
-    pub fn push(&mut self, file: &mut FileWriter, mint: u64, maxt: u64, bytes: &[u8]) -> Result<(), Error> {
-
+    pub fn push(
+        &mut self,
+        file: &mut FileWriter,
+        mint: u64,
+        maxt: u64,
+        bytes: &[u8],
+    ) -> Result<(), Error> {
         // Safety: Safe because there's only one writer and concurrent readers check versions
         // during each read.
-        unsafe {
-            Arc::get_mut_unchecked(&mut self.inner).push(file, mint, maxt, bytes)
-        }
+        unsafe { Arc::get_mut_unchecked(&mut self.inner).push(file, mint, maxt, bytes) }
     }
 }
 
@@ -268,8 +291,13 @@ impl InnerFileList {
         }
     }
 
-    fn push(&mut self, file: &mut FileWriter, mint: u64, maxt: u64, bytes: &[u8]) -> Result<(), Error> {
-
+    fn push(
+        &mut self,
+        file: &mut FileWriter,
+        mint: u64,
+        maxt: u64,
+        bytes: &[u8],
+    ) -> Result<(), Error> {
         // Get the information of where the bytes will be written
         let last_offset = file.offset;
         let last_file_id = file.local_id;
@@ -282,11 +310,16 @@ impl InnerFileList {
         self.buf.extend_from_slice(&maxt.to_be_bytes()[..]);
 
         // Write data about the last set of bytes
-        self.buf.extend_from_slice(&self.last_offset.to_be_bytes()[..]);
-        self.buf.extend_from_slice(&self.last_file_id.to_be_bytes()[..]);
-        self.buf.extend_from_slice(&self.last_mint.to_be_bytes()[..]);
-        self.buf.extend_from_slice(&self.last_maxt.to_be_bytes()[..]);
-        self.buf.extend_from_slice(&self.last_bytes.to_be_bytes()[..]);
+        self.buf
+            .extend_from_slice(&self.last_offset.to_be_bytes()[..]);
+        self.buf
+            .extend_from_slice(&self.last_file_id.to_be_bytes()[..]);
+        self.buf
+            .extend_from_slice(&self.last_mint.to_be_bytes()[..]);
+        self.buf
+            .extend_from_slice(&self.last_maxt.to_be_bytes()[..]);
+        self.buf
+            .extend_from_slice(&self.last_bytes.to_be_bytes()[..]);
 
         // Write the bytes
         self.buf.extend_from_slice(bytes);
@@ -330,25 +363,27 @@ impl InnerFileList {
 #[cfg(test)]
 mod test {
     use super::*;
-    use rand::{thread_rng, Rng};
     use crate::test_utils::*;
+    use rand::{thread_rng, Rng};
 
     #[test]
     fn run_test() {
         std::fs::remove_dir_all(DATADIR.as_path()).unwrap();
         std::fs::create_dir_all(DATADIR.as_path()).unwrap();
-        let shared_id = Arc::new(AtomicU64::new(0));
+        let shared_id = SHARED_ID.clone();
         let mut file = FileWriter::new(shared_id.clone()).unwrap();
         let mut tags = Tags::new();
-        tags.insert(("A".to_string(),"B".to_string()));
-        tags.insert(("C".to_string(),"D".to_string()));
+        tags.insert(("A".to_string(), "B".to_string()));
+        tags.insert(("C".to_string(), "D".to_string()));
         let mut file_list = FileList::new(&tags);
 
-        let data = (0..3).map(|i| {
-            let mut v = vec![i + 1 as u8; 512];
-            //thread_rng().fill(&mut v[..]);
-            v
-        }).collect::<Vec<Vec<u8>>>();
+        let data = (0..3)
+            .map(|i| {
+                let mut v = vec![i + 1 as u8; 512];
+                //thread_rng().fill(&mut v[..]);
+                v
+            })
+            .collect::<Vec<Vec<u8>>>();
 
         let mut writer = file_list.writer().unwrap();
         writer.push(&mut file, 0, 5, data[0].as_slice()).unwrap();

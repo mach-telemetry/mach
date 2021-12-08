@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use serde::{Serialize, Deserialize};
 
 #[derive(Debug)]
 pub enum Error {
@@ -22,7 +22,7 @@ impl Tags {
     pub fn from_bytes(data: &[u8]) -> Result<Self, Error> {
         match bincode::deserialize(data) {
             Ok(x) => Ok(x),
-            Err(_) => Err(Error::Deserialize)
+            Err(_) => Err(Error::Deserialize),
         }
     }
 }
@@ -45,5 +45,3 @@ impl Tags {
         Tags(HashSet::new())
     }
 }
-
-

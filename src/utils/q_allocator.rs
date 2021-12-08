@@ -1,9 +1,12 @@
-use std::{
-    sync::{Arc, {atomic::{AtomicUsize, Ordering::SeqCst}}},
-    ptr::NonNull,
-    ops::{Deref, DerefMut},
-};
 use crossbeam::queue::SegQueue;
+use std::{
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
+    sync::{
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Arc,
+    },
+};
 
 #[derive(Clone)]
 pub struct QueueAllocator<T> {
@@ -28,13 +31,12 @@ impl<T> QueueAllocator<T> {
                     inner,
                     refs: AtomicUsize::new(0),
                     queue: self.q.clone(),
-                }))).unwrap()
+                })))
+                .unwrap()
             }
         };
 
-        let res = Qrc {
-            ptr
-        };
+        let res = Qrc { ptr };
 
         res.increment_count();
         res
@@ -44,7 +46,7 @@ impl<T> QueueAllocator<T> {
 struct Inner<T> {
     inner: T,
     refs: AtomicUsize,
-    queue: Arc<SegQueue<NonNull<Inner<T>>>>
+    queue: Arc<SegQueue<NonNull<Inner<T>>>>,
 }
 
 pub struct Qrc<T> {
@@ -76,11 +78,8 @@ impl<T> Qrc<T> {
 impl<T> Clone for Qrc<T> {
     fn clone(&self) -> Self {
         self.increment_count();
-        Qrc {
-            ptr: self.ptr
-        }
+        Qrc { ptr: self.ptr }
     }
-
 }
 
 impl<T> Deref for Qrc<T> {
@@ -96,7 +95,6 @@ impl<T> DerefMut for Qrc<T> {
     }
 }
 
-
 impl<T> Drop for Qrc<T> {
     fn drop(&mut self) {
         if 1 == self.inner().refs.fetch_sub(1, SeqCst) {
@@ -104,4 +102,3 @@ impl<T> Drop for Qrc<T> {
         }
     }
 }
-

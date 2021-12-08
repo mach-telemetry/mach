@@ -1,5 +1,6 @@
-use std::{
-    sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}},
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
 };
 
 pub enum Error {
@@ -28,7 +29,7 @@ pub struct SegmentMetadata {
 
 struct InnerList<T: ListNode> {
     inner: T,
-    version: AtomicUsize
+    version: AtomicUsize,
 }
 
 impl<T: ListNode> InnerList<T> {
@@ -62,7 +63,7 @@ impl<T: ListNode> List<T> {
 
     pub fn reader(&self) -> ListReader<T> {
         ListReader {
-            inner: self.inner.clone()
+            inner: self.inner.clone(),
         }
     }
 }
@@ -77,8 +78,3 @@ impl<T: ListNode> ListReader<T> {
         self.load()
     }
 }
-
-
-
-
-

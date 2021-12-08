@@ -1,9 +1,4 @@
-use crate::segment::{
-    buffer::*,
-    Error,
-    PushStatus,
-    FullSegment,
-};
+use crate::segment::{buffer::*, Error, FullSegment, PushStatus};
 use std::{
     mem,
     sync::atomic::{AtomicIsize, AtomicUsize, Ordering::SeqCst},

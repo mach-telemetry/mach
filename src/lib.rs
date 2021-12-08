@@ -7,7 +7,6 @@
 #![feature(box_syntax)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
-
 #![allow(warnings)]
 
 //mod active_block;
@@ -25,17 +24,15 @@
 //pub mod active_buffer;
 //pub mod active_segment;
 
-#[allow(dead_code)]
-mod segment;
-#[allow(dead_code)]
+mod backend;
 mod chunk;
 mod compression;
-mod utils;
 mod memseries;
-mod read_set;
-mod backend;
+mod segment;
 mod tags;
+mod utils;
 
+//mod read_set;
 //mod active_block;
 
 //pub mod buffer;

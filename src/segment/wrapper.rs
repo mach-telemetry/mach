@@ -1,5 +1,8 @@
-use crate::segment::{buffer::*, FullSegment, segment, Error, PushStatus};
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
+use crate::segment::{buffer::*, segment, Error, FullSegment, PushStatus};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
 
 macro_rules! cast {
     ($seg: ident, $b:expr, $v: expr) => {
@@ -32,12 +35,9 @@ impl Drop for Segment {
     fn drop(&mut self) {
         let cnt = self.refcount.fetch_sub(1, SeqCst);
         if cnt == 1 {
-
             // Safety: This is the last reference held, with exclusive ownership, so can drop the
             // box safely.
-            unsafe {
-                self.drop_ptr()
-            }
+            unsafe { self.drop_ptr() }
         }
     }
 }
@@ -49,7 +49,7 @@ impl Clone for Segment {
             inner: self.inner,
             buffers: self.buffers,
             vars: self.vars,
-            refcount: self.refcount.clone()
+            refcount: self.refcount.clone(),
         }
     }
 }
@@ -1075,7 +1075,7 @@ impl Segment {
             inner,
             buffers,
             vars,
-            refcount: Arc::new(AtomicUsize::new(1))
+            refcount: Arc::new(AtomicUsize::new(1)),
         };
         segment
     }

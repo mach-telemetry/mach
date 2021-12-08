@@ -1,225 +1,294 @@
-mod inner;
-
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst}
-    },
-    mem::{self, MaybeUninit},
-    ops::{Deref, DerefMut},
+use crate::{
+    compression::Compression,
+    tags::Tags,
+    segment::FullSegment,
+    //chunk::Error,
 };
-use crate::compression::Compression;
-use crate::utils::{QueueAllocator, Qrc};
-use crate::segment::FullSegment;
-use inner::{InnerChunk, ChunkEntry};
-//use crate::compression::byte_vec::Compression;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst}
+};
+use serde::*;
+use bincode;
 
-const CHUNK_THRESHOLD_SIZE: usize = 8192;
-const CHUNK_THRESHOLD_COUNT: usize = 16;
+const MAGIC: &[u8] = b"CHUNKMAGIC";
+//const CHUNK_THRESHOLD_SIZE: usize = 8192;
+const THRESH: usize = 16;
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Debug)]
 pub enum Error {
-    PushIntoFull,
-    InconsistentChunkGeneration,
-    ChunkEntryLoad,
+    InconsistentRead,
     MultipleWriters,
-    MultipleFlushers,
 }
 
-#[derive(Eq, PartialEq, Debug)]
-pub enum PushStatus {
-    Done,
-    Flush,
+// Chunk Format
+//
+// > magic
+// magic: [0..10]
+//
+// tags size
+// tag bytes
+// mint (8)
+// maxt (8)
+// segment count (1)
+//
+// > Segment metadata information
+// segment offset (8)
+// segment mint: (8)
+// segment maxt: (8)
+// ... repeated for the segment count
+//
+// > Segment data information
+// segments: [header bytes + segment count * 8 * 3 ..]
+
+#[derive(Copy, Clone, Serialize, Deserialize)]
+struct SegmentMeta {
+    offset: u64,
+    mint: u64,
+    maxt: u64,
 }
 
-pub struct SerializedChunk {
-    pub bytes: usize,
-    pub tsid: u64,
-    pub mint: u64,
-    pub maxt: u64,
+struct Inner {
+    data: Vec<u8>,
+    counter: AtomicUsize,
+    version: AtomicUsize,
+    reset_flag: AtomicBool,
+    local_counter: usize,
+    compression: Compression,
+    header_len: usize,
+    metadata_offset: usize,
+    data_offset: usize,
+    mint: u64,
+    maxt: u64,
+    segment_meta: [SegmentMeta; THRESH],
+    has_writer: AtomicBool,
 }
 
-#[derive(Clone)]
+impl Inner {
+    fn new(tags: &Tags, compression: Compression) -> Self {
+
+        let mut data = Vec::new();
+        data.extend_from_slice(MAGIC);
+
+        // Filler for the length
+        data.extend_from_slice(&[0u8; 8][..]);
+
+        // Tags
+        data.extend_from_slice(&bincode::serialized_size(tags).unwrap().to_be_bytes()[..]);
+        bincode::serialize_into(&mut data, tags).unwrap();
+
+        // Fixed header information done
+        let header_len = data.len();
+
+        // Chunk mint, maxt, len
+        data.extend_from_slice(&[0u8; 8 + 8 + 1]);
+
+        // Filler for mint (8), maxt (8), segment count (1) , and segment information 16 * 3 * 8,
+        let metadata_offset = data.len();
+        data.extend_from_slice(&[0u8; THRESH * 3 * 8]);
+        let data_offset = data.len();
+
+
+        Inner {
+            data,
+            compression,
+            counter: AtomicUsize::new(0),
+            version: AtomicUsize::new(0),
+            reset_flag: AtomicBool::new(false),
+            local_counter: 0,
+            metadata_offset,
+            data_offset,
+            header_len,
+            mint: u64::MAX,
+            maxt: u64::MAX,
+            segment_meta: [SegmentMeta { offset: 0, mint: 0, maxt: 0 }; THRESH],
+            has_writer: AtomicBool::new(false),
+        }
+    }
+
+    fn as_bytes(&mut self) -> &[u8] {
+        let start = self.metadata_offset;
+
+        // Mint, Maxt, count
+        let mut off = self.header_len;
+        self.data[off..off + 8].copy_from_slice(&self.mint.to_be_bytes()[..]);
+        off += 8;
+        self.data[off..off + 8].copy_from_slice(&self.maxt.to_be_bytes()[..]);
+        off += 8;
+        self.data[off] = self.local_counter as u8;
+
+        // Segment Metadata
+        off = self.metadata_offset;
+        for i in 0..self.local_counter {
+            let m = self.segment_meta[i];
+            self.data[off..off+8].copy_from_slice(&m.offset.to_be_bytes()[..]);
+            off += 8;
+            self.data[off..off+8].copy_from_slice(&m.mint.to_be_bytes()[..]);
+            off += 8;
+            self.data[off..off+8].copy_from_slice(&m.maxt.to_be_bytes()[..]);
+            off += 8;
+        }
+        self.data.as_slice()
+    }
+
+    fn read(&self) -> Result<ReadChunk, Error> {
+        let v = self.version.load(SeqCst);
+
+        // Prevent entry while there is a concurrent reset
+        while self.reset_flag.load(SeqCst) {}
+
+        // Make the copy
+        let counter = self.counter.load(SeqCst);
+        let r = ReadChunk {
+            data: self.data.clone(),
+            segment_meta: Box::new(self.segment_meta.clone()),
+            counter,
+        };
+
+        // Prevent exit while there is a concurrent reset
+        while self.reset_flag.load(SeqCst) {}
+
+        // If there was a concurrent reset, the version would be incorrect
+        if v == self.version.load(SeqCst) {
+            Ok(r)
+        } else {
+            Err(Error::InconsistentRead)
+        }
+    }
+
+    fn reset(&mut self) {
+
+        // Prevent readers from entering or exiting
+        self.reset_flag.store(true, SeqCst);
+
+        // Readers already inside must have loaded this or prior version. They can't exit
+        // without seeing this version increment
+        self.version.fetch_add(1, SeqCst);
+
+        self.data.truncate(self.metadata_offset);
+        self.local_counter = 0;
+        self.mint = u64::MAX;
+        self.maxt = u64::MAX;
+        self.counter.store(0, SeqCst);
+
+        // Allow new readers to enter or concurrent readers to exit (and load the version)
+        self.reset_flag.store(false, SeqCst);
+    }
+
+    fn push(&mut self, segment: &FullSegment) -> Option<&[u8]> {
+        let (mint, maxt) = {
+            let ts = segment.timestamps();
+            let mint = ts[0];
+            let maxt = ts[ts.len()-1];
+            (mint, maxt)
+        };
+        if self.mint == u64::MAX {
+            self.mint = mint;
+        }
+        self.maxt = maxt;
+
+        let offset = self.data.len() as u64;
+        self.compression.compress(segment, &mut self.data);
+        self.segment_meta[self.local_counter] = SegmentMeta { offset, mint, maxt };
+        self.local_counter += 1;
+        self.counter.swap(self.local_counter, SeqCst);
+
+        if self.local_counter == THRESH {
+            Some(self.as_bytes())
+        } else {
+            None
+        }
+    }
+}
+
 pub struct Chunk {
-    inner: Arc<InnerChunk>,
-    has_writer: Arc<AtomicBool>,
-    has_flusher: Arc<AtomicBool>,
+    inner: Arc<Inner>,
 }
 
 impl Chunk {
-    pub fn new(tsid: u64, compression: Compression) -> Self {
-        let inner = Arc::new(InnerChunk::new(tsid, compression));
-        let has_writer = Arc::new(AtomicBool::new(false));
-        let has_flusher = Arc::new(AtomicBool::new(false));
-
-        Chunk {
-            inner,
-            has_writer,
-            has_flusher,
+    pub fn new(tags: &Tags, compression: Compression) -> Self {
+        Self {
+            inner: Arc::new(Inner::new(tags, compression))
         }
     }
 
     pub fn writer(&self) -> Result<WriteChunk, Error> {
-        if self.has_writer.swap(true, SeqCst) {
+        if self.inner.has_writer.swap(true, SeqCst) {
             Err(Error::MultipleWriters)
         } else {
             Ok(WriteChunk {
-                inner: self.inner.clone(),
-                has_writer: self.has_writer.clone(),
+                inner: self.inner.clone()
             })
         }
-    }
 
-    pub fn flusher(&self) -> Result<FlushChunk, Error> {
-        if self.has_flusher.swap(true, SeqCst) {
-            Err(Error::MultipleFlushers)
-        } else {
-            Ok(FlushChunk {
-                inner: self.inner.clone(),
-                has_flusher: self.has_flusher.clone(),
-            })
-        }
     }
 
     pub fn read(&self) -> Result<ReadChunk, Error> {
-        Ok(ReadChunk {
-            inner: self.inner.read()?
-        })
+        self.inner.read()
     }
 }
 
 pub struct WriteChunk {
-    inner: Arc<InnerChunk>,
-    has_writer: Arc<AtomicBool>,
+    inner: Arc<Inner>,
 }
 
 impl WriteChunk {
-    pub fn push(&mut self, segment: &FullSegment) -> Result<PushStatus, Error> {
-        // Safety: There's only one writer and at most one flusher.
-        //
-        // Concurrent readers are coordinated with writers based on the Entry and InnerChunk
-        // structs. Entry coordinates by versions, and InnerChunk coordinates by atomic counter.
-        //
-        // Concurrent flusher do not overrun with writer. See generate_chunk method for why.
+    pub fn push(&mut self, segment: &FullSegment) -> Option<&[u8]> {
+        // Safety: There can only be one writer. Concurrent readers on the Chunk struct and the
+        // writer push is coordianted using the atomic counter
         unsafe { Arc::get_mut_unchecked(&mut self.inner).push(segment) }
     }
-}
 
-impl Drop for WriteChunk {
-    fn drop(&mut self) {
-        self.has_writer.swap(false, SeqCst);
-    }
-}
-
-pub struct FlushChunk {
-    inner: Arc<InnerChunk>,
-    has_flusher: Arc<AtomicBool>,
-}
-
-impl Drop for FlushChunk {
-    fn drop(&mut self) {
-        self.has_flusher.swap(false, SeqCst);
-    }
-}
-
-impl FlushChunk {
-
-    /// Serialize the chunk into bytes
-    pub fn serialize(&self, v: &mut Vec<u8>) -> Result<SerializedChunk, Error> {
-        self.inner.serialize(v)
-    }
-
-    /// This clears the counter and size of the chunk. Only do this if they data have been
-    /// serialized!
-    pub fn clear(&self) {
-        self.inner.clear()
+    pub fn reset(&mut self) {
+        // Safety: There can only be one reseter. Concurrent readers on the Chunk struct and the
+        // writer push is coordianted by causing the reader to spin and versioning. See the read
+        // and reset functions
+        unsafe { Arc::get_mut_unchecked(&mut self.inner).reset() }
     }
 }
 
 pub struct ReadChunk {
-    inner: Vec<ChunkEntry>,
+    data: Vec<u8>,
+    counter: usize,
+    segment_meta: Box<[SegmentMeta; THRESH]>,
 }
 
-impl Deref for ReadChunk {
-    type Target = [ChunkEntry];
+impl ReadChunk {
+    pub fn get_segment_time_range(&self, id: usize) -> (u64, u64) {
+        let seg = &self.segment_meta[id];
+        (seg.mint, seg.maxt)
+    }
 
-    fn deref(&self) -> &Self::Target {
-        self.inner.as_slice()
+    pub fn get_segment_bytes(&self, id: usize) -> &[u8] {
+        let offset = self.segment_meta[id].offset as usize;
+        let end = if id == THRESH - 1 {
+            self.data.len()
+        } else {
+            self.segment_meta[id + 1].offset as usize
+        };
+        &self.data[offset..end]
     }
 }
 
 #[cfg(test)]
 mod test {
+
     use super::*;
-    use crate::test_utils::*;
     use crate::segment::{self, Segment};
+    use crate::test_utils::*;
     use crate::compression::DecompressBuffer;
-
-    #[test]
-    fn test_push_behavior() {
-        let data = &MULTIVARIATE_DATA[0].1;
-        let nvars = data[0].values.len();
-        let segment = Segment::new(3, nvars);
-        let mut writer = segment.writer().unwrap();
-        let mut flusher = segment.flusher().unwrap();
-
-        let mut chunk = Chunk::new(0, Compression::LZ4(1));
-        let mut chunk_writer = chunk.writer().unwrap();
-
-        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
-            let mut values = vec![[0u8; 8]; nvars];
-            for (i, v) in items.iter().enumerate() {
-                values[i] = v.to_be_bytes();
-            }
-            values
-        };
-
-        for item in &data[..256 * CHUNK_THRESHOLD_COUNT - 1] {
-            let v = to_values(&item.values[..]);
-            match writer.push(item.ts, &v[..]) {
-                Ok(segment::PushStatus::Done) => {},
-                Ok(segment::PushStatus::Flush) => {
-                    let seg = flusher.to_flush().unwrap();
-                    assert_eq!(chunk_writer.push(&seg), Ok(PushStatus::Done));
-                    flusher.flushed();
-                },
-                Err(_) => unimplemented!(),
-            }
-        }
-
-        {
-            let item = &data[256 * CHUNK_THRESHOLD_COUNT];
-            let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Ok(segment::PushStatus::Flush));
-            let seg = flusher.to_flush().unwrap();
-            assert_eq!(chunk_writer.push(&seg), Ok(PushStatus::Flush));
-            flusher.flushed();
-        }
-
-        for item in &data[256 * CHUNK_THRESHOLD_COUNT..256 * (CHUNK_THRESHOLD_COUNT + 1)] {
-            let v = to_values(&item.values[..]);
-            match writer.push(item.ts, &v[..]) {
-                Ok(segment::PushStatus::Done) => {},
-                Ok(segment::PushStatus::Flush) => { break; },
-                Err(_) => unimplemented!(),
-            }
-        }
-
-        {
-            let seg = flusher.to_flush().unwrap();
-            assert_eq!(chunk_writer.push(&seg), Err(Error::PushIntoFull));
-        }
-    }
 
     #[test]
     fn test_check_data() {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
+        let mut tags = Tags::new();
+        tags.insert(("A".to_string(), "B".to_string()));
+        tags.insert(("C".to_string(), "D".to_string()));
+
         let segment = Segment::new(3, nvars);
         let mut writer = segment.writer().unwrap();
-        let mut flusher = segment.flusher().unwrap();
-
-        let mut chunk = Chunk::new(0, Compression::LZ4(1));
+        let mut chunk = Chunk::new(&tags, Compression::LZ4(1));
         let mut chunk_writer = chunk.writer().unwrap();
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
@@ -236,33 +305,59 @@ mod test {
             exp_values.push(Vec::new());
         }
 
-        for item in &data[..256 * CHUNK_THRESHOLD_COUNT] {
+        for item in &data[..256 * (THRESH-1)] {
             let v = to_values(&item.values[..]);
             exp_ts.push(item.ts);
             for i in 0..nvars {
                 exp_values[i].push(v[i]);
             }
             match writer.push(item.ts, &v[..]) {
-                Ok(segment::PushStatus::Done) => {},
+                Ok(segment::PushStatus::Done) => {}
                 Ok(segment::PushStatus::Flush) => {
+                    let flusher = writer.flush();
                     let seg = flusher.to_flush().unwrap();
-                    assert!(chunk_writer.push(&seg).is_ok());
+                    assert!(chunk_writer.push(&seg).is_none());
                     flusher.flushed();
-                },
+                }
+                Err(_) => unimplemented!(),
+            }
+        }
+        let start = 256 * (THRESH-1);
+        for item in &data[start..start+256] {
+            let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            for i in 0..nvars {
+                exp_values[i].push(v[i]);
+            }
+            match writer.push(item.ts, &v[..]) {
+                Ok(segment::PushStatus::Done) => {}
+                Ok(segment::PushStatus::Flush) => {
+                    let flusher = writer.flush();
+                    let seg = flusher.to_flush().unwrap();
+                    assert!(chunk_writer.push(&seg).is_some());
+                    flusher.flushed();
+                }
                 Err(_) => unimplemented!(),
             }
         }
 
-        let chunk_entries = chunk.read().unwrap();
-        let mut buf = DecompressBuffer::new();
-        for entry in chunk_entries.iter() {
-            let decompressed = Compression::decompress(entry.bytes(), &mut buf).unwrap();
+        assert_eq!(chunk_writer.inner.counter.load(SeqCst), THRESH);
+
+        let reader = chunk.read().unwrap();
+        let bytes = reader.get_segment_bytes(0);
+        let mut decompressed = DecompressBuffer::new();
+        let bytes_read = Compression::decompress(bytes, &mut decompressed).unwrap();
+
+        //assert_eq!(bytes_read, bytes.len());
+        assert_eq!(decompressed.timestamps(), &exp_ts[..256]);
+        for i in 0..nvars {
+            assert_eq!(decompressed.variable(i), &exp_values[i][..256]);
         }
 
-        assert_eq!(buf.timestamps().len(), 256 * CHUNK_THRESHOLD_COUNT);
-        assert_eq!(buf.timestamps(), exp_ts.as_slice());
+        let bytes_read = Compression::decompress(reader.get_segment_bytes(1), &mut decompressed).unwrap();
+        assert_eq!(decompressed.timestamps(), &exp_ts[..512]);
         for i in 0..nvars {
-            assert_eq!(buf.variable(i).len(), buf.timestamps().len());
+            assert_eq!(decompressed.variable(i), &exp_values[i][..512]);
         }
     }
 }

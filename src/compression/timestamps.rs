@@ -1,7 +1,10 @@
 use crate::compression::utils::{
     bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag,
 };
-use std::{convert::{TryInto, TryFrom}, mem::size_of};
+use std::{
+    convert::{TryFrom, TryInto},
+    mem::size_of,
+};
 
 /// Compresses upto 256 timestamps into buf
 /// Returns the number of bytes written in buf.
@@ -158,4 +161,3 @@ mod test {
         assert_eq!(&res[..l], &data[..]);
     }
 }
-

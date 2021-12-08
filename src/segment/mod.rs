@@ -1,16 +1,16 @@
 mod buffer;
+mod full_segment;
 mod segment;
 mod wrapper;
-mod full_segment;
 
+use std::ops::Deref;
 use std::sync::{
     atomic::{AtomicBool, Ordering::SeqCst},
     Arc,
 };
-use std::ops::Deref;
 
-pub use full_segment::FullSegment;
 pub use buffer::ReadBuffer;
+pub use full_segment::FullSegment;
 
 //pub use wrapper::Segment;
 
@@ -29,13 +29,13 @@ pub enum Error {
 #[derive(Eq, PartialEq, Debug)]
 pub enum PushStatus {
     Done,
-    Flush
+    Flush,
 }
 
 #[derive(Clone)]
 pub struct Segment {
     has_writer: Arc<AtomicBool>,
-    has_flusher: Arc<AtomicBool>,
+    //has_flusher: Arc<AtomicBool>,
     inner: wrapper::Segment,
 }
 
@@ -46,7 +46,7 @@ pub struct WriteSegment {
 
 pub struct FlushSegment {
     inner: wrapper::Segment,
-    has_flusher: Arc<AtomicBool>,
+    //has_flusher: Arc<AtomicBool>,
 }
 
 pub struct ReadSegment {
@@ -69,7 +69,7 @@ impl Segment {
     pub fn new(b: usize, v: usize) -> Self {
         Self {
             has_writer: Arc::new(AtomicBool::new(false)),
-            has_flusher: Arc::new(AtomicBool::new(false)),
+            //has_flusher: Arc::new(AtomicBool::new(false)),
             inner: wrapper::Segment::new(b, v),
         }
     }
@@ -85,16 +85,16 @@ impl Segment {
         }
     }
 
-    pub fn flusher(&self) -> Result<FlushSegment, Error> {
-        if self.has_flusher.swap(true, SeqCst) {
-            Err(Error::MultipleFlushers)
-        } else {
-            Ok(FlushSegment {
-                inner: self.inner.clone(),
-                has_flusher: self.has_flusher.clone(),
-            })
-        }
-    }
+    //pub fn flusher(&self) -> Result<FlushSegment, Error> {
+    //    if self.has_flusher.swap(true, SeqCst) {
+    //        Err(Error::MultipleFlushers)
+    //    } else {
+    //        Ok(FlushSegment {
+    //            inner: self.inner.clone(),
+    //            has_flusher: self.has_flusher.clone(),
+    //        })
+    //    }
+    //}
 
     pub fn snapshot(&self) -> Result<ReadSegment, Error> {
         // Safety: Safe because a reader and a flusher do not race (see to_flush), and a reader and
@@ -113,8 +113,12 @@ impl WriteSegment {
         // Readers don't race with the writer because of the atomic counter. Writer and flusher do
         // not race because the writer is bounded by the flush_counter which can only be
         // incremented by the flusher
-        unsafe {
-            self.inner.push(ts, val)
+        unsafe { self.inner.push(ts, val) }
+    }
+
+    pub fn flush(&self) -> FlushSegment {
+        FlushSegment {
+            inner: self.inner.clone(),
         }
     }
 }
@@ -125,12 +129,10 @@ impl FlushSegment {
         // Readers don't race with the flusher because the flusher does not modify the segments.
         // Writer and flusher do not race because the writer is bounded by the flush_counter,
         // incremented by this struct using the flushed method
-        unsafe {
-            self.inner.to_flush()
-        }
+        unsafe { self.inner.to_flush() }
     }
 
-    pub fn flushed(&self) {
+    pub fn flushed(self) {
         self.inner.flushed()
     }
 }
@@ -146,7 +148,7 @@ mod test {
         let nvars = data[0].values.len();
         let segment = Segment::new(3, nvars);
         let mut writer = segment.writer().unwrap();
-        let mut flusher = segment.flusher().unwrap();
+        //let mut flusher = segment.flusher().unwrap();
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];
@@ -167,7 +169,7 @@ mod test {
             assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Flush));
         }
 
-        for item in &data[256..512-1] {
+        for item in &data[256..512 - 1] {
             let v = to_values(&item.values[..]);
             assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
         }
@@ -195,7 +197,7 @@ mod test {
             assert_eq!(writer.push(item.ts, &v[..]), Err(Error::PushIntoFull));
         }
 
-        flusher.flushed();
+        writer.flush().flushed();
 
         for item in &data[768..1023] {
             let v = to_values(&item.values[..]);
@@ -214,7 +216,8 @@ mod test {
             assert_eq!(writer.push(item.ts, &v[..]), Err(Error::PushIntoFull));
         }
 
-        flusher.flushed();
+        //flusher.flushed();
+        writer.flush().flushed();
 
         {
             let item = &data[1024];
@@ -229,7 +232,7 @@ mod test {
         let nvars = data[0].values.len();
         let segment = Segment::new(3, nvars);
         let mut writer = segment.writer().unwrap();
-        let mut flusher = segment.flusher().unwrap();
+        //let mut flusher = segment.flusher().unwrap();
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];
@@ -254,6 +257,7 @@ mod test {
             }
         }
 
+        let flusher = writer.flush();
         let seg = flusher.to_flush().unwrap();
         assert_eq!(seg.len, 256);
         assert_eq!(seg.nvars, nvars);
@@ -263,6 +267,7 @@ mod test {
         }
         flusher.flushed();
 
+        let flusher = writer.flush();
         let seg = flusher.to_flush().unwrap();
         assert_eq!(seg.len, 256);
         assert_eq!(seg.timestamps(), &exp_ts[256..512]);
@@ -271,7 +276,6 @@ mod test {
         }
         flusher.flushed();
 
-        assert!(flusher.to_flush().is_none()) // the current buffer is not flushable yet
+        assert!(writer.flush().to_flush().is_none()) // the current buffer is not flushable yet
     }
-
 }

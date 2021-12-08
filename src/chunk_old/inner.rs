@@ -1,15 +1,20 @@
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst}
-    },
-    mem::{self, MaybeUninit},
-    ops::{Deref, DerefMut},
+use crate::chunk::{
+    Error, PushStatus, SerializedChunk, CHUNK_THRESHOLD_COUNT, CHUNK_THRESHOLD_SIZE,
 };
 use crate::compression::Compression;
 use crate::segment::FullSegment;
-use crate::utils::{QueueAllocator, Qrc};
-use crate::chunk::{SerializedChunk, PushStatus, Error, CHUNK_THRESHOLD_SIZE, CHUNK_THRESHOLD_COUNT};
+use crate::utils::{Qrc, QueueAllocator};
+use crate::tags::Tags;
+use std::{
+    mem::{self, MaybeUninit},
+    ops::{Deref, DerefMut},
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
+        Arc,
+    },
+};
+
+pub const MAGIC: &[u8] = b"CHUNKMAGIC";
 
 #[derive(Clone)]
 pub struct ChunkEntry {
@@ -21,6 +26,10 @@ pub struct ChunkEntry {
 impl ChunkEntry {
     pub fn bytes(&self) -> &[u8] {
         &self.data[..]
+    }
+
+    pub fn time_range(&self) -> (u64, u64) {
+        (self.mint, self.maxt)
     }
 }
 
@@ -64,15 +73,16 @@ pub struct InnerChunk {
     ctr_sz: AtomicUsize,
     compression: Compression,
     allocator: QueueAllocator<Vec<u8>>,
-    tsid: u64,
+    tags: Vec<u8>,
     mint: u64,
     maxt: u64,
 }
 
 impl InnerChunk {
-    pub fn new(tsid: u64, compression: Compression) -> Self {
+    pub fn new(tags: &Tags, compression: Compression) -> Self {
         let block = {
-            let mut block: [MaybeUninit<Entry>; CHUNK_THRESHOLD_COUNT] = MaybeUninit::uninit_array();
+            let mut block: [MaybeUninit<Entry>; CHUNK_THRESHOLD_COUNT] =
+                MaybeUninit::uninit_array();
             for i in 0..CHUNK_THRESHOLD_COUNT {
                 block[i].write(Entry {
                     data: MaybeUninit::uninit(),
@@ -88,7 +98,7 @@ impl InnerChunk {
             ctr_sz: AtomicUsize::new(0),
             allocator: QueueAllocator::new(Vec::new),
             compression,
-            tsid,
+            tags: tags.serialize(),
             mint: 0,
             maxt: 0,
         }
@@ -106,12 +116,9 @@ impl InnerChunk {
     }
 
     pub fn push(&mut self, segment: &FullSegment) -> Result<PushStatus, Error> {
-
-
         let full = |count: usize, size: usize| -> bool {
             count == CHUNK_THRESHOLD_COUNT || size == CHUNK_THRESHOLD_SIZE
         };
-
 
         let (mut count, mut size) = self.ctr_sz_unpack();
 
@@ -150,14 +157,21 @@ impl InnerChunk {
         }
     }
 
+    pub fn entries(&self) -> &[Entry] {
+        let (counter, _) = self.ctr_sz_unpack();
+        &self.block[..counter]
+    }
+
     // Chunk Format
     //
-    // > header
-    // len: [0..8]
-    // tsid: [8..16]
-    // mint: [16..24]
-    // maxt: [24..32]
-    // segment count: [32..40]
+    // > magic
+    // magic: [0..10]
+    //
+    // len: [10..18]
+    // tsid: [18..26]
+    // mint: [26..34]
+    // maxt: [34..42]
+    // segment count: [42..50]
     //
     // > Segment metadata information
     // segment offset: [40..48]
@@ -172,13 +186,17 @@ impl InnerChunk {
 
         let start = v.len();
 
-        let (counter, _)  = self.ctr_sz_unpack();
+        let (counter, _) = self.ctr_sz_unpack();
+
+        // MAGIC:
+        v.extend_from_slice(MAGIC);
 
         // Placeholder for length
         v.extend_from_slice(&[0u8; 8]);
 
         // write the TSID
-        v.extend_from_slice(&self.tsid.to_le_bytes()[..]);
+        v.extend_from_slice(&self.tags.len().to_le_bytes()[..]);
+        v.extend_from_slice(self.tags.as_slice());
 
         // write the Min and Max timestamps
         v.extend_from_slice(&self.mint.to_le_bytes()[..]);
@@ -201,7 +219,6 @@ impl InnerChunk {
 
         // write each segment and the metadata for each segment
         for i in 0..counter {
-
             let mut off = (header + i * 8 * 3) as usize;
 
             // Safety: Will only be called if counter > 0 which means push happened
@@ -216,15 +233,15 @@ impl InnerChunk {
 
             // write the segment offset
             let l = v.len() as u64;
-            v[off..off+8].copy_from_slice(&l.to_le_bytes()[..]);
+            v[off..off + 8].copy_from_slice(&l.to_le_bytes()[..]);
             off += 8;
 
             // write the segment mint
-            v[off..off+8].copy_from_slice(&entry.mint.to_le_bytes()[..]);
+            v[off..off + 8].copy_from_slice(&entry.mint.to_le_bytes()[..]);
             off += 8;
 
             // write the segment maxt
-            v[off..off+8].copy_from_slice(&entry.maxt.to_le_bytes()[..]);
+            v[off..off + 8].copy_from_slice(&entry.maxt.to_le_bytes()[..]);
 
             // write the segment to the end of the vector
             v.extend_from_slice(&entry.data[..]);
@@ -238,7 +255,7 @@ impl InnerChunk {
 
         Ok(SerializedChunk {
             bytes,
-            tsid: self.tsid,
+            tsid: 0,
             mint: self.mint,
             maxt: self.maxt,
         })
@@ -255,10 +272,10 @@ impl InnerChunk {
         for b in self.block[0..counter].iter() {
             // Safety: This is safe because the load will only be called if C > 0 and it will only
             // be > 0 if data were pushed to block[0]
-            unsafe { res.push(b.load()?); }
+            unsafe {
+                res.push(b.load()?);
+            }
         }
         Ok(res)
     }
 }
-
-

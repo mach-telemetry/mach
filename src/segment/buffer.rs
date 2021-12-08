@@ -1,5 +1,5 @@
-use crate::segment::{PushStatus, full_segment::FullSegment, Error};
-use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+use crate::segment::{full_segment::FullSegment, Error, PushStatus};
+use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst};
 
 pub const SEGSZ: usize = 256;
 
@@ -13,6 +13,7 @@ pub struct Buffer<const V: usize> {
     pub len: usize,
     pub ts: [u64; SEGSZ],
     pub data: [Column; V],
+    pub reuse_flag: AtomicBool,
 }
 
 impl<const V: usize> Buffer<V> {
@@ -22,6 +23,7 @@ impl<const V: usize> Buffer<V> {
             ts: [0u64; SEGSZ],
             len: 0,
             atomic_len: AtomicUsize::new(0),
+            reuse_flag: AtomicBool::new(false),
             data: [[[0u8; 8]; 256]; V],
         }
     }
@@ -48,7 +50,7 @@ impl<const V: usize> Buffer<V> {
 
     pub fn to_flush(&self) -> FullSegment {
         FullSegment {
-            len: self.len,
+            len: self.atomic_len.load(SeqCst),
             nvars: V,
             ts: &self.ts,
             data: &self.data[..],
@@ -60,13 +62,18 @@ impl<const V: usize> Buffer<V> {
     }
 
     pub fn reuse(&mut self, id: usize) {
+        self.reuse_flag.store(true, SeqCst);
         self.id.store(id, SeqCst);
         self.atomic_len.store(0, SeqCst);
         self.len = 0;
+        self.reuse_flag.store(false, SeqCst);
     }
 
     pub fn read(&self) -> Result<ReadBuffer, Error> {
         let id = self.id.load(SeqCst);
+
+        while self.reuse_flag.load(SeqCst) {}
+
         let len = self.atomic_len.load(SeqCst);
         let mut data = Vec::new();
         let mut ts = [0u64; 256];
@@ -77,6 +84,8 @@ impl<const V: usize> Buffer<V> {
         for v in self.data.iter() {
             data.extend_from_slice(&v[..len]);
         }
+
+        while self.reuse_flag.load(SeqCst) {}
         if self.id.load(SeqCst) == id {
             Ok(ReadBuffer { len, id, ts, data })
         } else {
@@ -102,5 +111,3 @@ impl ReadBuffer {
         &self.data[start..start + self.len]
     }
 }
-
-

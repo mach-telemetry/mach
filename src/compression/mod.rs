@@ -1,8 +1,8 @@
 mod timestamps;
 
 mod fixed;
-mod xor;
 mod utils;
+mod xor;
 
 use crate::segment::FullSegment;
 use lzzzz::lz4;
@@ -71,11 +71,10 @@ struct Header {
 }
 
 pub enum Compression {
-    LZ4(i32)
+    LZ4(i32),
 }
 
 impl Compression {
-
     // Header format:
     // Magic: [0..12]
     // Compression type: [12..20]
@@ -100,21 +99,21 @@ impl Compression {
     fn get_header(data: &[u8]) -> Result<(Header, usize), Error> {
         let mut off = 0;
         if &data[off..MAGIC.len()] != &MAGIC[..] {
-            return Err(Error::UnrecognizedMagic)
+            return Err(Error::UnrecognizedMagic);
         }
 
         off += MAGIC.len();
 
-        let code = u64::from_be_bytes(data[off..off+8].try_into().unwrap()) as usize;
+        let code = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
         off += 8;
 
-        let nvars = u64::from_be_bytes(data[off..off+8].try_into().unwrap()) as usize;
+        let nvars = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
         off += 8;
 
-        let len = u64::from_be_bytes(data[off..off+8].try_into().unwrap()) as usize;
+        let len = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
         off += 8;
 
-        Ok((Header { code, nvars, len, }, off))
+        Ok((Header { code, nvars, len }, off))
     }
 
     pub fn compress(&self, segment: &FullSegment, buf: &mut Vec<u8>) {
@@ -135,14 +134,13 @@ impl Compression {
         }
 
         if header.nvars != buf.nvars {
-            return Err(Error::InconsistentBuffer)
+            return Err(Error::InconsistentBuffer);
         }
 
         off += match header.code {
             1 => lz4_decompress(header, &data[off..], buf)?,
             _ => return Err(Error::UnrecognizedCompressionType),
         };
-
 
         Ok(off)
     }
@@ -169,7 +167,7 @@ fn lz4_compress(segment: &FullSegment, buf: &mut Vec<u8>, acc: i32) {
 
     // write a place holder of compressed size
     let csz_off = buf.len();
-    buf.extend_from_slice(&0u64.to_be_bytes()[..]);         // compressed sz placeholder
+    buf.extend_from_slice(&0u64.to_be_bytes()[..]); // compressed sz placeholder
 
     // Compress the raw data and record the compressed size
     let csz = lz4::compress_to_vec(&bytes[..], buf, acc).unwrap() as u64;
@@ -181,18 +179,19 @@ fn lz4_compress(segment: &FullSegment, buf: &mut Vec<u8>, acc: i32) {
 fn lz4_decompress(header: Header, data: &[u8], buf: &mut DecompressBuffer) -> Result<usize, Error> {
     let mut off = 0;
 
-    let raw_sz = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+    let raw_sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap());
     off += 8;
 
-    let cmp_sz = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+    let cmp_sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap());
     off += 8;
 
     let mut bytes = vec![0u8; raw_sz as usize].into_boxed_slice();
-    lz4::decompress(&data[off..off+cmp_sz as usize], &mut bytes[..]).unwrap();
+    lz4::decompress(&data[off..off + cmp_sz as usize], &mut bytes[..]).unwrap();
 
     let mut off = 0;
     for i in 0..header.len {
-        buf.ts.push(u64::from_be_bytes(bytes[off..off + 8].try_into().unwrap()));
+        buf.ts
+            .push(u64::from_be_bytes(bytes[off..off + 8].try_into().unwrap()));
         off += 8;
     }
 
@@ -213,7 +212,6 @@ mod test {
 
     #[test]
     fn test_lz4() {
-
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
 

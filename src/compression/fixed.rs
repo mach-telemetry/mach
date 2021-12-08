@@ -4,8 +4,8 @@ use crate::compression::utils::{
 use fixed::prelude::*;
 use fixed::types::extra::{LeEqU64, Unsigned};
 use fixed::FixedI64;
-use std::mem::size_of;
 use std::convert::{TryFrom, TryInto};
+use std::mem::size_of;
 
 /// Compresses upto 256 floats into buf
 /// Returns the number of bytes written in buf.
@@ -123,10 +123,10 @@ mod test {
         let (b, l) = decompress::<U10>(&buf[..], &mut res[..]);
 
         let diff = data[..len]
-                .iter()
-                .zip(res[..l].iter())
-                .map(|(x, y)| (x - y).abs())
-                .fold(f64::NAN, f64::max);
+            .iter()
+            .zip(res[..l].iter())
+            .map(|(x, y)| (x - y).abs())
+            .fold(f64::NAN, f64::max);
 
         assert!(0.001 > diff);
         assert_eq!(b, buf.len());

@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use crate::{
-    segment::{ReadBuffer, ReadSegment},
     chunk::ReadChunk,
     compression::{Compression, DecompressBuffer},
+    segment::{ReadBuffer, ReadSegment},
 };
+use std::sync::Arc;
 
 struct ReadSet {
     segments: Arc<ReadSegment>,
@@ -33,12 +33,12 @@ impl ReadSet {
                     self.state += 1;
                     self.offset = 0;
                 }
-            },
+            }
             (1, x) => {
                 self.buffer.clear();
                 Compression::decompress(self.chunk[x].bytes(), &mut self.buffer).unwrap();
                 self.offset += 1;
-            },
+            }
             (_, _) => unimplemented!(),
         }
     }
@@ -48,7 +48,6 @@ impl ReadSet {
             (0, x) => self.segments[x].timestamps(),
             (1, _) => self.buffer.timestamps(),
             (_, _) => unimplemented!(),
-
         }
     }
 
@@ -57,11 +56,9 @@ impl ReadSet {
             (0, x) => self.segments[x].variable(id),
             (1, _) => self.buffer.variable(id),
             (_, _) => unimplemented!(),
-
         }
     }
 }
-
 
 //pub struct ReadBuffer {
 //    pub id: usize,

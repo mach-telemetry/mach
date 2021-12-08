@@ -1,7 +1,7 @@
-mod q_allocator;
 mod list;
+mod q_allocator;
 
-pub use crate::utils::q_allocator::{QueueAllocator, Qrc};
+pub use crate::utils::q_allocator::{Qrc, QueueAllocator};
 
 //pub mod q;
 //
