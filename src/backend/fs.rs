@@ -188,9 +188,9 @@ pub struct FileList {
 }
 
 impl FileList {
-    pub fn new(tags: &Tags) -> Self {
+    pub fn new() -> Self {
         Self {
-            inner: Arc::new(InnerFileList::new(tags)),
+            inner: Arc::new(InnerFileList::new()),
             has_writer: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -249,12 +249,9 @@ struct InnerFileList {
 }
 
 impl InnerFileList {
-    fn new(tags: &Tags) -> Self {
+    fn new() -> Self {
         let mut buf = Vec::new();
-        let tags = tags.serialize();
-
         buf.extend_from_slice(&MAGICSTR.as_bytes());
-
         Self {
             last_offset: u64::MAX,
             last_file_id: u64::MAX,
@@ -352,7 +349,7 @@ mod test {
         let mut tags = Tags::new();
         tags.insert(("A".to_string(), "B".to_string()));
         tags.insert(("C".to_string(), "D".to_string()));
-        let mut file_list = FileList::new(&tags);
+        let mut file_list = FileList::new();
 
         let data = (0..3)
             .map(|i| {

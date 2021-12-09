@@ -31,6 +31,7 @@ mod memseries;
 mod segment;
 mod tags;
 mod utils;
+mod flush_buffer;
 
 //mod read_set;
 //mod active_block;
