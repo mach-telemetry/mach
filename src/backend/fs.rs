@@ -109,7 +109,7 @@ pub struct FileListIterator {
 }
 
 impl FileListIterator {
-    pub fn next_item(&mut self) -> Result<Option<FileChunk>, Error> {
+    pub fn next_item(&mut self) -> Result<Option<ByteEntry>, Error> {
         println!("next offset: {}", self.next_offset);
         if self.next_offset == u64::MAX {
             return Ok(None);
@@ -163,7 +163,7 @@ impl FileListIterator {
         // Get the offsets for the chunk of bytes
         let end = self.buf.len() - 8;
 
-        let f = FileChunk {
+        let f = ByteEntry {
             mint,
             maxt,
             bytes: &self.buf[off..end],
@@ -180,12 +180,6 @@ impl FileListIterator {
         }
         Ok(Some(f))
     }
-}
-
-pub struct FileChunk<'a> {
-    pub mint: u64,
-    pub maxt: u64,
-    pub bytes: &'a [u8],
 }
 
 pub struct FileList {
@@ -305,6 +299,7 @@ impl InnerFileList {
         self.buf.extend_from_slice(&bytes.len().to_be_bytes()[..]);
 
         // Write all of it into the file
+        // TODO: Check this
         file.write(self.buf.as_slice())?;
 
         // Then update the metadata
@@ -365,9 +360,9 @@ mod test {
             .collect::<Vec<Vec<u8>>>();
 
         let mut writer = file_list.writer().unwrap();
-        writer.push(&mut file, 0, 5, data[0].as_slice()).unwrap();
-        writer.push(&mut file, 6, 11, data[1].as_slice()).unwrap();
-        writer.push(&mut file, 12, 13, data[2].as_slice()).unwrap();
+        writer.push(&mut file, ByteEntry { mint: 0, maxt: 5, bytes: data[0].as_slice()} ).unwrap();
+        writer.push(&mut file, ByteEntry { mint: 6, maxt: 11, bytes: data[1].as_slice()} ).unwrap();
+        writer.push(&mut file, ByteEntry { mint: 12, maxt: 13, bytes: data[2].as_slice()} ).unwrap();
         file.file.sync_all().unwrap();
 
         let mut reader = file_list.reader().unwrap();
@@ -375,18 +370,15 @@ mod test {
         assert_eq!(chunk.bytes, data[2].as_slice());
         assert_eq!(chunk.mint, 12);
         assert_eq!(chunk.maxt, 13);
-        assert_eq!(chunk.tags, tags);
 
         let chunk = reader.next_item().unwrap().unwrap();
         assert_eq!(chunk.bytes, data[1].as_slice());
         assert_eq!(chunk.mint, 6);
         assert_eq!(chunk.maxt, 11);
-        assert_eq!(chunk.tags, tags);
 
         let chunk = reader.next_item().unwrap().unwrap();
         assert_eq!(chunk.bytes, data[0].as_slice());
         assert_eq!(chunk.mint, 0);
         assert_eq!(chunk.maxt, 5);
-        assert_eq!(chunk.tags, tags);
     }
 }
