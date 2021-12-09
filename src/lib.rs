@@ -27,11 +27,11 @@
 mod backend;
 mod chunk;
 mod compression;
+mod flush_buffer;
 mod memseries;
 mod segment;
 mod tags;
 mod utils;
-mod flush_buffer;
 
 //mod read_set;
 //mod active_block;

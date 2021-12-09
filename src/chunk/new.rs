@@ -1,8 +1,5 @@
 use crate::{
-    compression::Compression,
-    segment::FullSegment,
-    tags::Tags,
-    flush_buffer::FlushBuffer,
+    compression::Compression, flush_buffer::FlushBuffer, segment::FullSegment, tags::Tags,
 };
 use bincode;
 use serde::*;
@@ -13,7 +10,6 @@ use std::{
         Arc,
     },
 };
-
 
 const MAGIC: &[u8] = b"CHUNKMAGIC";
 //const CHUNK_THRESHOLD_SIZE: usize = 8192;
@@ -87,7 +83,9 @@ impl<const H: usize, const T: usize> Inner<H, T> {
         // data.extend_from_slice(&[0u8; 8][..]);
 
         // Tags
-        flush_buffer.push_bytes(&bincode::serialized_size(tags).unwrap().to_be_bytes()[..]).unwrap();
+        flush_buffer
+            .push_bytes(&bincode::serialized_size(tags).unwrap().to_be_bytes()[..])
+            .unwrap();
         bincode::serialize_into(flush_buffer.pushable_vec().unwrap(), tags).unwrap();
 
         // Fixed header information done
@@ -123,7 +121,6 @@ impl<const H: usize, const T: usize> Inner<H, T> {
     }
 
     fn flush_buffer(&mut self) -> &mut FlushBuffer<H, T> {
-
         let data = self.flush_buffer.data_mut();
 
         // Mint, Maxt, count
@@ -205,7 +202,8 @@ impl<const H: usize, const T: usize> Inner<H, T> {
         self.maxt = maxt;
 
         let offset = self.flush_buffer.len() as u64;
-        self.compression.compress(segment, self.flush_buffer.pushable_vec().unwrap());
+        self.compression
+            .compress(segment, self.flush_buffer.pushable_vec().unwrap());
         self.segment_meta[self.local_counter] = SegmentMeta { offset, mint, maxt };
         self.local_counter += 1;
         self.counter.swap(self.local_counter, SeqCst);

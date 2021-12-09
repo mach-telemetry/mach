@@ -16,7 +16,7 @@ impl<const H: usize, const T: usize> FlushBuffer<H, T> {
         }
     }
 
-    pub fn header_mut(&mut self) -> &mut[u8] {
+    pub fn header_mut(&mut self) -> &mut [u8] {
         &mut self.data[..H]
     }
 
@@ -33,7 +33,7 @@ impl<const H: usize, const T: usize> FlushBuffer<H, T> {
         }
     }
 
-    pub fn tail_mut(&mut self) -> Option<&mut[u8]> {
+    pub fn tail_mut(&mut self) -> Option<&mut [u8]> {
         if self.has_tail {
             let start = self.data.len() - T;
             Some(&mut self.data[start..T])
@@ -104,7 +104,4 @@ impl<const H: usize, const T: usize> FlushBuffer<H, T> {
         self.data.truncate(H + offset);
         self.has_tail = false;
     }
-
 }
-
-

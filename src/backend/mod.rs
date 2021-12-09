@@ -12,9 +12,6 @@ impl<'a> ByteEntry<'a> {
     }
 }
 
-
-
-
 //pub enum PushMetadata {
 //    FS({
 //        offset: u64,
