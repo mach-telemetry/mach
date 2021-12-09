@@ -4,9 +4,12 @@ use crate::{
     segment::FullSegment,
     //chunk::Error,
 };
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst}
+use std::{
+    convert::TryInto,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst}
+    }
 };
 use serde::*;
 use bincode;
@@ -19,6 +22,14 @@ const THRESH: usize = 16;
 pub enum Error {
     InconsistentRead,
     MultipleWriters,
+    InvalidMagic,
+    Bincode(bincode::Error),
+}
+
+impl From<bincode::Error> for Error {
+    fn from(item: bincode::Error) -> Self {
+        Error::Bincode(item)
+    }
 }
 
 // Chunk Format
@@ -68,10 +79,12 @@ impl Inner {
     fn new(tags: &Tags, compression: Compression) -> Self {
 
         let mut data = Vec::new();
+
+        // Magic
         data.extend_from_slice(MAGIC);
 
         // Filler for the length
-        data.extend_from_slice(&[0u8; 8][..]);
+        // data.extend_from_slice(&[0u8; 8][..]);
 
         // Tags
         data.extend_from_slice(&bincode::serialized_size(tags).unwrap().to_be_bytes()[..]);
@@ -245,6 +258,12 @@ impl WriteChunk {
         // and reset functions
         unsafe { Arc::get_mut_unchecked(&mut self.inner).reset() }
     }
+
+    pub fn as_bytes(&mut self) -> &[u8] {
+        // Safety: Only the writer can access the inner method. The inner method modifies inner
+        // state but does not modify data accessed by concurrent readers
+        unsafe { Arc::get_mut_unchecked(&mut self.inner).as_bytes() }
+    }
 }
 
 pub struct ReadChunk {
@@ -254,6 +273,74 @@ pub struct ReadChunk {
 }
 
 impl ReadChunk {
+    pub fn get_segment_time_range(&self, id: usize) -> (u64, u64) {
+        let seg = &self.segment_meta[id];
+        (seg.mint, seg.maxt)
+    }
+
+    pub fn get_segment_bytes(&self, id: usize) -> &[u8] {
+        let offset = self.segment_meta[id].offset as usize;
+        let end = if id == THRESH - 1 {
+            self.data.len()
+        } else {
+            self.segment_meta[id + 1].offset as usize
+        };
+        &self.data[offset..end]
+    }
+}
+
+pub struct SerializedChunk<'a> {
+    data: &'a[u8],
+    counter: usize,
+    mint: u64,
+    maxt: u64,
+    tags: Tags,
+    segment_meta: Box<[SegmentMeta; THRESH]>,
+}
+
+impl<'a> SerializedChunk<'a> {
+    pub fn new(data: &'a [u8]) -> Result<Self, Error> {
+        if MAGIC != &data[..MAGIC.len()] {
+            return Err(Error::InvalidMagic);
+        }
+
+        let mut off = MAGIC.len();
+        let tag_len = u64::from_be_bytes(data[off..off+8].try_into().unwrap()) as usize;
+        off += 8;
+
+        let tags: Tags = bincode::deserialize(&data[off..off+tag_len])?;
+        off += tag_len;
+
+        let mint = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+        off += 8;
+
+        let maxt = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+        off += 8;
+
+        let counter: u8 = data[off];
+        off += 1;
+
+        let mut segment_meta = Box::new([SegmentMeta { offset: 0, mint: 0, maxt: 0 }; THRESH]);
+        for i in 0..counter as usize {
+            let offset = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+            off += 8;
+            let mint = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+            off += 8;
+            let maxt = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+            off += 8;
+            segment_meta[i] = SegmentMeta { offset, mint, maxt };
+        }
+
+        Ok(SerializedChunk {
+            data,
+            counter: counter.into(),
+            segment_meta,
+            mint,
+            maxt,
+            tags
+        })
+    }
+
     pub fn get_segment_time_range(&self, id: usize) -> (u64, u64) {
         let seg = &self.segment_meta[id];
         (seg.mint, seg.maxt)
@@ -355,6 +442,89 @@ mod test {
         }
 
         let bytes_read = Compression::decompress(reader.get_segment_bytes(1), &mut decompressed).unwrap();
+        assert_eq!(decompressed.timestamps(), &exp_ts[..512]);
+        for i in 0..nvars {
+            assert_eq!(decompressed.variable(i), &exp_values[i][..512]);
+        }
+    }
+
+    #[test]
+    fn serialized() {
+        let data = &MULTIVARIATE_DATA[0].1;
+        let nvars = data[0].values.len();
+        let mut tags = Tags::new();
+        tags.insert(("A".to_string(), "B".to_string()));
+        tags.insert(("C".to_string(), "D".to_string()));
+
+        let segment = Segment::new(3, nvars);
+        let mut writer = segment.writer().unwrap();
+        let mut chunk = Chunk::new(&tags, Compression::LZ4(1));
+        let mut chunk_writer = chunk.writer().unwrap();
+
+        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+            let mut values = vec![[0u8; 8]; nvars];
+            for (i, v) in items.iter().enumerate() {
+                values[i] = v.to_be_bytes();
+            }
+            values
+        };
+
+        let mut exp_ts = Vec::new();
+        let mut exp_values = Vec::new();
+        for _ in 0..nvars {
+            exp_values.push(Vec::new());
+        }
+
+        for item in &data[..256 * (THRESH-1)] {
+            let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            for i in 0..nvars {
+                exp_values[i].push(v[i]);
+            }
+            match writer.push(item.ts, &v[..]) {
+                Ok(segment::PushStatus::Done) => {}
+                Ok(segment::PushStatus::Flush) => {
+                    let flusher = writer.flush();
+                    let seg = flusher.to_flush().unwrap();
+                    assert!(chunk_writer.push(&seg).is_none());
+                    flusher.flushed();
+                }
+                Err(_) => unimplemented!(),
+            }
+        }
+        let start = 256 * (THRESH-1);
+        for item in &data[start..start+256] {
+            let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            for i in 0..nvars {
+                exp_values[i].push(v[i]);
+            }
+            match writer.push(item.ts, &v[..]) {
+                Ok(segment::PushStatus::Done) => {}
+                Ok(segment::PushStatus::Flush) => {
+                    let flusher = writer.flush();
+                    let seg = flusher.to_flush().unwrap();
+                    assert!(chunk_writer.push(&seg).is_some());
+                    flusher.flushed();
+                }
+                Err(_) => unimplemented!(),
+            }
+        }
+
+        let bytes = chunk_writer.as_bytes();
+        let mut v: Vec<u8> = bytes.try_into().unwrap();
+        let serialized_chunk = SerializedChunk::new(&v[..]).unwrap();
+
+        let bytes = serialized_chunk.get_segment_bytes(0);
+        let mut decompressed = DecompressBuffer::new();
+        let bytes_read = Compression::decompress(bytes, &mut decompressed).unwrap();
+
+        assert_eq!(decompressed.timestamps(), &exp_ts[..256]);
+        for i in 0..nvars {
+            assert_eq!(decompressed.variable(i), &exp_values[i][..256]);
+        }
+
+        let bytes_read = Compression::decompress(serialized_chunk.get_segment_bytes(1), &mut decompressed).unwrap();
         assert_eq!(decompressed.timestamps(), &exp_ts[..512]);
         for i in 0..nvars {
             assert_eq!(decompressed.variable(i), &exp_values[i][..512]);
