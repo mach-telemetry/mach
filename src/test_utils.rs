@@ -6,10 +6,7 @@ use std::{
     fs::OpenOptions,
     io::Read,
     path::{Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::AtomicU64
-    },
+    sync::{atomic::AtomicU64, Arc},
 };
 
 #[derive(Clone)]

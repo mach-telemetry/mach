@@ -4,7 +4,7 @@ mod test {
     use crate::{
         backend::fs::{FileList, FileListWriter, FileWriter},
         chunk::{self, FileChunk, SerializedChunk, WriteFileChunk},
-        compression::{DecompressBuffer, Compression},
+        compression::{Compression, DecompressBuffer},
         segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
         tags::Tags,
         test_utils::*,
@@ -49,7 +49,6 @@ mod test {
         for _ in 0..nvars {
             exp_values.push(Vec::new());
         }
-
 
         // 3 for the segments
         // 16 for the first chunk flushed
