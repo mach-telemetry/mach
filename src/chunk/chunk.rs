@@ -1,9 +1,10 @@
 use crate::{
-    compression::Compression, flush_buffer::{
-        FlushBuffer, FrozenBuffer, FlushEntry,
-    }, segment::FullSegment, tags::Tags,
     backend::fs,
     chunk::WriteFileChunk,
+    compression::Compression,
+    flush_buffer::{FlushBuffer, FlushEntry, FrozenBuffer},
+    segment::FullSegment,
+    tags::Tags,
 };
 use bincode;
 use serde::*;
@@ -151,7 +152,7 @@ impl<const H: usize, const T: usize> Inner<H, T> {
         FlushEntry {
             mint: self.mint,
             maxt: self.maxt,
-            buffer: self.flush_buffer.freeze()
+            buffer: self.flush_buffer.freeze(),
         }
     }
 

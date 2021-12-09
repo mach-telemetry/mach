@@ -5,4 +5,3 @@ pub use chunk::*;
 
 pub type FileChunk = Chunk<HEADERSZ, TAILSZ>;
 pub type WriteFileChunk = WriteChunk<HEADERSZ, TAILSZ>;
-

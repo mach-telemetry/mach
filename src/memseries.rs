@@ -88,8 +88,8 @@ mod test {
                         Some(buffer) => {
                             self.persistent.push(&mut self.file, buffer).unwrap();
                             self.write_chunk.reset();
-                        },
-                        None => {},
+                        }
+                        None => {}
                     }
                     flusher.flushed();
                     Ok(PushStatus::Done)

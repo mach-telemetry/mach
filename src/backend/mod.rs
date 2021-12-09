@@ -10,7 +10,7 @@ pub struct ByteEntry<'a> {
 }
 
 impl<'a> ByteEntry<'a> {
-    pub fn new(mint: u64, maxt: u64, bytes: &'a[u8]) -> Self {
+    pub fn new(mint: u64, maxt: u64, bytes: &'a [u8]) -> Self {
         Self { mint, maxt, bytes }
     }
 }

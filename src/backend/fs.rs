@@ -1,21 +1,21 @@
 use crate::{
     backend::{ByteEntry, FlushEntry},
-    tags::{self, Tags},
     flush_buffer::{FlushBuffer, FrozenBuffer},
+    tags::{self, Tags},
 };
 use lazy_static::*;
+use serde::*;
 use std::{
     convert::TryInto,
     fs::{File, OpenOptions},
     io::{self, prelude::*, SeekFrom},
+    mem::size_of,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::SeqCst},
         Arc,
     },
-    mem::size_of,
 };
-use serde::*;
 
 const MAGICSTR: [u8; 11] = *b"filebackend";
 pub const TAILSZ: usize = 8;
@@ -176,7 +176,7 @@ impl FileListIterator {
         let mut off = 0;
 
         // Get header
-        let header: Header = bincode::deserialize(&self.buf[off..off+HEADERSZ])?;
+        let header: Header = bincode::deserialize(&self.buf[off..off + HEADERSZ])?;
         if header.magic != MAGICSTR {
             return Err(Error::InvalidMagic);
         }
@@ -331,7 +331,6 @@ mod test {
     use super::*;
     use crate::test_utils::*;
     use rand::{thread_rng, Rng};
-
 
     #[test]
     fn run_test() {

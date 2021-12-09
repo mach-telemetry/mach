@@ -160,8 +160,6 @@ impl<const H: usize, const T: usize> FlushBuffer<H, T> {
     }
 
     pub fn freeze(&mut self) -> FrozenBuffer<H, T> {
-        FrozenBuffer {
-            buf: self
-        }
+        FrozenBuffer { buf: self }
     }
 }
