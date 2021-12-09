@@ -18,8 +18,8 @@ use std::{
 use serde::*;
 
 const MAGICSTR: [u8; 11] = *b"filebackend";
-const TAILSZ: usize = 8;
-const HEADERSZ: usize = size_of::<Header>();
+pub const TAILSZ: usize = 8;
+pub const HEADERSZ: usize = size_of::<Header>();
 
 pub type FileBuffer = FlushBuffer<HEADERSZ, TAILSZ>;
 pub type FileFrozenBuffer<'buffer> = FrozenBuffer<'buffer, HEADERSZ, TAILSZ>;
