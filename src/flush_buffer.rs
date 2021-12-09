@@ -3,6 +3,44 @@ pub enum Error {
     HasTail,
 }
 
+pub struct FrozenBuffer<'buffer, const H: usize, const T: usize> {
+    buf: &'buffer mut FlushBuffer<H, T>,
+}
+
+impl<'buffer, const H: usize, const T: usize> FrozenBuffer<'buffer, H, T> {
+    pub fn header_mut(&mut self) -> &mut [u8] {
+        self.buf.header_mut()
+    }
+
+    pub fn header(&self) -> &[u8] {
+        self.buf.header()
+    }
+
+    pub fn tail(&self) -> Option<&[u8]> {
+        self.buf.tail()
+    }
+
+    pub fn tail_mut(&mut self) -> Option<&mut [u8]> {
+        self.buf.tail_mut()
+    }
+
+    pub fn data(&self) -> &[u8] {
+        self.buf.data()
+    }
+
+    pub fn len(&self) -> usize {
+        self.buf.len()
+    }
+
+    pub fn write_tail(&mut self, tail: [u8; T]) {
+        self.buf.write_tail(tail)
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        self.buf.bytes()
+    }
+}
+
 pub struct FlushBuffer<const H: usize, const T: usize> {
     data: Vec<u8>,
     has_tail: bool,
@@ -103,5 +141,15 @@ impl<const H: usize, const T: usize> FlushBuffer<H, T> {
     pub fn truncate(&mut self, offset: usize) {
         self.data.truncate(H + offset);
         self.has_tail = false;
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        self.data.as_slice()
+    }
+
+    pub fn freeze(&mut self) -> FrozenBuffer<H, T> {
+        FrozenBuffer {
+            buf: self
+        }
     }
 }

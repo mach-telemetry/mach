@@ -1,6 +1,7 @@
 use crate::{
-    backend::ByteEntry,
+    backend::{ByteEntry, FlushEntry},
     tags::{self, Tags},
+    flush_buffer::{FlushBuffer, FrozenBuffer},
 };
 use lazy_static::*;
 use std::{
@@ -12,9 +13,44 @@ use std::{
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::SeqCst},
         Arc,
     },
+    mem::size_of,
 };
+use serde::*;
 
-const MAGICSTR: &str = "filebackend";
+const MAGICSTR: [u8; 11] = *b"filebackend";
+const TAILSZ: usize = 8;
+const HEADERSZ: usize = size_of::<Header>();
+
+pub type FileBuffer = FlushBuffer<HEADERSZ, TAILSZ>;
+pub type FileFrozenBuffer<'buffer> = FrozenBuffer<'buffer, HEADERSZ, TAILSZ>;
+pub type FileEntry<'buffer> = FlushEntry<'buffer, HEADERSZ, TAILSZ>;
+
+#[derive(Serialize, Deserialize)]
+struct Header {
+    magic: [u8; 11],
+    mint: u64,
+    maxt: u64,
+    last_offset: u64,
+    last_file_id: u64,
+    last_bytes: u64,
+    last_mint: u64,
+    last_maxt: u64,
+}
+
+impl Header {
+    fn new() -> Self {
+        Self {
+            magic: MAGICSTR,
+            mint: u64::MAX,
+            maxt: u64::MAX,
+            last_offset: u64::MAX,
+            last_file_id: u64::MAX,
+            last_bytes: u64::MAX,
+            last_mint: u64::MAX,
+            last_maxt: u64::MAX,
+        }
+    }
+}
 
 #[cfg(test)]
 lazy_static! {
@@ -32,6 +68,7 @@ lazy_static! {
 #[derive(Debug)]
 pub enum Error {
     IO(io::Error),
+    Bincode(bincode::Error),
     ReadVersion,
     MultipleWriters,
     InvalidMagic,
@@ -47,6 +84,12 @@ impl From<io::Error> for Error {
 impl From<tags::Error> for Error {
     fn from(item: tags::Error) -> Self {
         Error::Tags(item)
+    }
+}
+
+impl From<bincode::Error> for Error {
+    fn from(item: bincode::Error) -> Self {
+        Error::Bincode(item)
     }
 }
 
@@ -132,51 +175,30 @@ impl FileListIterator {
 
         let mut off = 0;
 
-        // Parse magic
-        {
-            let end = MAGICSTR.as_bytes().len();
-            let magic = std::str::from_utf8(&self.buf[off..end]);
-            if magic.is_err() || magic.unwrap() != MAGICSTR {
-                return Err(Error::InvalidMagic);
-            }
-            off = end;
+        // Get header
+        let header: Header = bincode::deserialize(&self.buf[off..off+HEADERSZ])?;
+        if header.magic != MAGICSTR {
+            return Err(Error::InvalidMagic);
         }
-
-        // Get mint and maxt
-        let mint = u64::from_be_bytes(self.buf[off..off + 8].try_into().unwrap());
-        off += 8;
-        let maxt = u64::from_be_bytes(self.buf[off..off + 8].try_into().unwrap());
-        off += 8;
-
-        // Get information for next item
-        let next_offset = u64::from_be_bytes(self.buf[off..off + 8].try_into().unwrap());
-        off += 8;
-        let next_file_id = u64::from_be_bytes(self.buf[off..off + 8].try_into().unwrap());
-        off += 8;
-        let next_mint = u64::from_be_bytes(self.buf[off..off + 8].try_into().unwrap());
-        off += 8;
-        let next_maxt = u64::from_be_bytes(self.buf[off..off + 8].try_into().unwrap());
-        off += 8;
-        let next_bytes = u64::from_be_bytes(self.buf[off..off + 8].try_into().unwrap());
-        off += 8;
+        off += HEADERSZ;
 
         // Get the offsets for the chunk of bytes
-        let end = self.buf.len() - 8;
+        let end = self.buf.len() - TAILSZ;
 
         let f = ByteEntry {
-            mint,
-            maxt,
+            mint: header.mint,
+            maxt: header.maxt,
             bytes: &self.buf[off..end],
         };
 
         // Update iterator state
-        self.next_offset = next_offset;
-        self.next_mint = next_mint;
-        self.next_maxt = next_maxt;
-        self.next_bytes = next_bytes;
-        if self.next_file_id != next_file_id {
+        self.next_offset = header.last_offset;
+        self.next_mint = header.last_mint;
+        self.next_maxt = header.last_maxt;
+        self.next_bytes = header.last_bytes;
+        if self.next_file_id != header.last_file_id {
             self.file = None;
-            self.next_file_id = next_file_id;
+            self.next_file_id = header.last_file_id;
         }
         Ok(Some(f))
     }
@@ -217,15 +239,15 @@ pub struct FileListWriter {
 }
 
 impl FileListWriter {
-    pub fn push(&mut self, file: &mut FileWriter, byte_entry: ByteEntry) -> Result<(), Error> {
+    pub fn push(&mut self, file: &mut FileWriter, mut entry: FileEntry) -> Result<(), Error> {
         // Safety: Safe because there's only one writer and concurrent readers check versions
         // during each read.
         unsafe {
             Arc::get_mut_unchecked(&mut self.inner).push(
                 file,
-                byte_entry.mint,
-                byte_entry.maxt,
-                byte_entry.bytes,
+                entry.mint,
+                entry.maxt,
+                &mut entry.buffer,
             )
         }
     }
@@ -238,29 +260,15 @@ impl Drop for FileListWriter {
 }
 
 struct InnerFileList {
-    last_offset: u64,
-    last_file_id: u64,
-    last_bytes: u64,
-    last_mint: u64,
-    last_maxt: u64,
+    header: Header,
     version: Arc<AtomicU64>,
-    init_buf_len: usize,
-    buf: Vec<u8>,
 }
 
 impl InnerFileList {
     fn new() -> Self {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&MAGICSTR.as_bytes());
         Self {
-            last_offset: u64::MAX,
-            last_file_id: u64::MAX,
-            last_bytes: u64::MAX,
-            last_mint: u64::MAX,
-            last_maxt: u64::MAX,
+            header: Header::new(),
             version: Arc::new(AtomicU64::new(0)),
-            init_buf_len: buf.len(),
-            buf,
         }
     }
 
@@ -269,45 +277,29 @@ impl InnerFileList {
         file: &mut FileWriter,
         mint: u64,
         maxt: u64,
-        bytes: &[u8],
+        buf: &mut FileFrozenBuffer,
     ) -> Result<(), Error> {
         // Get the information of where the bytes will be written
         let last_offset = file.offset;
         let last_file_id = file.local_id;
 
-        // Truncate data here to just the header information
-        self.buf.truncate(self.init_buf_len);
+        self.header.mint = mint;
+        self.header.maxt = maxt;
 
-        // Write data about the current set of bytes
-        self.buf.extend_from_slice(&mint.to_be_bytes()[..]);
-        self.buf.extend_from_slice(&maxt.to_be_bytes()[..]);
+        // Write header and tail
+        bincode::serialize_into(buf.header_mut(), &self.header)?;
+        buf.write_tail(buf.len().to_be_bytes());
 
-        // Write data about the last set of bytes
-        self.buf
-            .extend_from_slice(&self.last_offset.to_be_bytes()[..]);
-        self.buf
-            .extend_from_slice(&self.last_file_id.to_be_bytes()[..]);
-        self.buf
-            .extend_from_slice(&self.last_mint.to_be_bytes()[..]);
-        self.buf
-            .extend_from_slice(&self.last_maxt.to_be_bytes()[..]);
-        self.buf
-            .extend_from_slice(&self.last_bytes.to_be_bytes()[..]);
-
-        // Write the bytes
-        self.buf.extend_from_slice(bytes);
-        self.buf.extend_from_slice(&bytes.len().to_be_bytes()[..]);
-
-        // Write all of it into the file
-        // TODO: Check this
-        file.write(self.buf.as_slice())?;
+        let bytes = buf.bytes();
+        let len = bytes.len();
+        file.write(bytes)?;
 
         // Then update the metadata
-        self.last_offset = last_offset;
-        self.last_file_id = last_file_id;
-        self.last_bytes = self.buf.len() as u64;
-        self.last_mint = mint;
-        self.last_maxt = maxt;
+        self.header.last_offset = last_offset;
+        self.header.last_file_id = last_file_id;
+        self.header.last_bytes = len as u64;
+        self.header.last_mint = mint;
+        self.header.last_maxt = maxt;
 
         // Update versioning for concurrent readers
         self.version.fetch_add(1, SeqCst);
@@ -318,11 +310,11 @@ impl InnerFileList {
     fn read(&self) -> Result<FileListIterator, Error> {
         let v = self.version.load(SeqCst);
         let iterator = FileListIterator {
-            next_offset: self.last_offset,
-            next_file_id: self.last_file_id,
-            next_bytes: self.last_bytes,
-            next_mint: self.last_mint,
-            next_maxt: self.last_maxt,
+            next_offset: self.header.last_offset,
+            next_file_id: self.header.last_file_id,
+            next_bytes: self.header.last_bytes,
+            next_mint: self.header.last_mint,
+            next_maxt: self.header.last_maxt,
             file: None,
             buf: Vec::new(),
         };
@@ -339,6 +331,7 @@ mod test {
     use super::*;
     use crate::test_utils::*;
     use rand::{thread_rng, Rng};
+
 
     #[test]
     fn run_test() {
@@ -360,14 +353,20 @@ mod test {
             .collect::<Vec<Vec<u8>>>();
 
         let mut writer = file_list.writer().unwrap();
+        let mut buf = FileBuffer::new();
+        buf.push_bytes(data[0].as_slice()).unwrap();
         writer
-            .push(&mut file, ByteEntry::new(0, 5, data[0].as_slice()))
+            .push(&mut file, FileEntry::new(0, 5, buf.freeze()))
             .unwrap();
+        buf.truncate(0);
+        buf.push_bytes(data[1].as_slice()).unwrap();
         writer
-            .push(&mut file, ByteEntry::new(6, 11, data[1].as_slice()))
+            .push(&mut file, FileEntry::new(6, 11, buf.freeze()))
             .unwrap();
+        buf.truncate(0);
+        buf.push_bytes(data[2].as_slice()).unwrap();
         writer
-            .push(&mut file, ByteEntry::new(12, 13, data[2].as_slice()))
+            .push(&mut file, FileEntry::new(12, 13, buf.freeze()))
             .unwrap();
         file.file.sync_all().unwrap();
 
