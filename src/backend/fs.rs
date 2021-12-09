@@ -1,4 +1,7 @@
-use crate::tags::{self, Tags};
+use crate::{
+    backend::ByteEntry,
+    tags::{self, Tags},
+};
 use lazy_static::*;
 use std::{
     convert::TryInto,
@@ -133,27 +136,11 @@ impl FileListIterator {
         {
             let end = MAGICSTR.as_bytes().len();
             let magic = std::str::from_utf8(&self.buf[off..end]);
-            let fail = match magic {
-                Ok(x) => {
-                    if x != MAGICSTR {
-                        true
-                    } else {
-                        false
-                    }
-                }
-                Err(_) => true,
-            };
-            if fail {
-                return Err(Error::InvalidMagic);
+            if magic.is_err() || magic.unwrap() != MAGICSTR {
+                return Err(Error::InvalidMagic)
             }
             off = end;
         }
-
-        // Get tags
-        let tags_len = u64::from_be_bytes(self.buf[off..off + 8].try_into().unwrap()) as usize;
-        off += 8;
-        let tags = Tags::from_bytes(&self.buf[off..off + tags_len])?;
-        off += tags_len;
 
         // Get mint and maxt
         let mint = u64::from_be_bytes(self.buf[off..off + 8].try_into().unwrap());
@@ -179,7 +166,6 @@ impl FileListIterator {
         let f = FileChunk {
             mint,
             maxt,
-            tags,
             bytes: &self.buf[off..end],
         };
 
@@ -199,7 +185,6 @@ impl FileListIterator {
 pub struct FileChunk<'a> {
     pub mint: u64,
     pub maxt: u64,
-    pub tags: Tags,
     pub bytes: &'a [u8],
 }
 
@@ -241,13 +226,11 @@ impl FileListWriter {
     pub fn push(
         &mut self,
         file: &mut FileWriter,
-        mint: u64,
-        maxt: u64,
-        bytes: &[u8],
+        byte_entry: ByteEntry,
     ) -> Result<(), Error> {
         // Safety: Safe because there's only one writer and concurrent readers check versions
         // during each read.
-        unsafe { Arc::get_mut_unchecked(&mut self.inner).push(file, mint, maxt, bytes) }
+        unsafe { Arc::get_mut_unchecked(&mut self.inner).push(file, byte_entry.mint, byte_entry.maxt, byte_entry.bytes) }
     }
 }
 
@@ -263,7 +246,6 @@ struct InnerFileList {
     last_bytes: u64,
     last_mint: u64,
     last_maxt: u64,
-    tags: Vec<u8>,
     version: Arc<AtomicU64>,
     init_buf_len: usize,
     buf: Vec<u8>,
@@ -275,8 +257,6 @@ impl InnerFileList {
         let tags = tags.serialize();
 
         buf.extend_from_slice(&MAGICSTR.as_bytes());
-        buf.extend_from_slice(&tags.len().to_be_bytes()[..]);
-        buf.extend_from_slice(&tags[..]);
 
         Self {
             last_offset: u64::MAX,
@@ -284,7 +264,6 @@ impl InnerFileList {
             last_bytes: u64::MAX,
             last_mint: u64::MAX,
             last_maxt: u64::MAX,
-            tags,
             version: Arc::new(AtomicU64::new(0)),
             init_buf_len: buf.len(),
             buf,
