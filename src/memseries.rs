@@ -2,7 +2,7 @@
 mod test {
     use super::*;
     use crate::{
-        backend::fs::{SHARED_ID, FileList, FileListWriter, FileWriter},
+        backend::fs::{FileList, FileListWriter, FileWriter, SHARED_ID},
         chunk::{self, Chunk, SerializedChunk, WriteChunk},
         compression::Compression,
         segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},

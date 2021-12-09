@@ -1,18 +1,18 @@
 use crate::{
     compression::Compression,
-    tags::Tags,
     segment::FullSegment,
     //chunk::Error,
+    tags::Tags,
 };
+use bincode;
+use serde::*;
 use std::{
     convert::TryInto,
     sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
         Arc,
-        atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst}
-    }
+    },
 };
-use serde::*;
-use bincode;
 
 const MAGIC: &[u8] = b"CHUNKMAGIC";
 //const CHUNK_THRESHOLD_SIZE: usize = 8192;
@@ -77,7 +77,6 @@ struct Inner {
 
 impl Inner {
     fn new(tags: &Tags, compression: Compression) -> Self {
-
         let mut data = Vec::new();
 
         // Magic
@@ -101,7 +100,6 @@ impl Inner {
         data.extend_from_slice(&[0u8; THRESH * 3 * 8]);
         let data_offset = data.len();
 
-
         Inner {
             data,
             compression,
@@ -114,7 +112,11 @@ impl Inner {
             header_len,
             mint: u64::MAX,
             maxt: u64::MAX,
-            segment_meta: [SegmentMeta { offset: 0, mint: 0, maxt: 0 }; THRESH],
+            segment_meta: [SegmentMeta {
+                offset: 0,
+                mint: 0,
+                maxt: 0,
+            }; THRESH],
             has_writer: AtomicBool::new(false),
         }
     }
@@ -134,11 +136,11 @@ impl Inner {
         off = self.metadata_offset;
         for i in 0..self.local_counter {
             let m = self.segment_meta[i];
-            self.data[off..off+8].copy_from_slice(&m.offset.to_be_bytes()[..]);
+            self.data[off..off + 8].copy_from_slice(&m.offset.to_be_bytes()[..]);
             off += 8;
-            self.data[off..off+8].copy_from_slice(&m.mint.to_be_bytes()[..]);
+            self.data[off..off + 8].copy_from_slice(&m.mint.to_be_bytes()[..]);
             off += 8;
-            self.data[off..off+8].copy_from_slice(&m.maxt.to_be_bytes()[..]);
+            self.data[off..off + 8].copy_from_slice(&m.maxt.to_be_bytes()[..]);
             off += 8;
         }
         self.data.as_slice()
@@ -170,7 +172,6 @@ impl Inner {
     }
 
     fn reset(&mut self) {
-
         // Prevent readers from entering or exiting
         self.reset_flag.store(true, SeqCst);
 
@@ -192,7 +193,7 @@ impl Inner {
         let (mint, maxt) = {
             let ts = segment.timestamps();
             let mint = ts[0];
-            let maxt = ts[ts.len()-1];
+            let maxt = ts[ts.len() - 1];
             (mint, maxt)
         };
         if self.mint == u64::MAX {
@@ -221,7 +222,7 @@ pub struct Chunk {
 impl Chunk {
     pub fn new(tags: &Tags, compression: Compression) -> Self {
         Self {
-            inner: Arc::new(Inner::new(tags, compression))
+            inner: Arc::new(Inner::new(tags, compression)),
         }
     }
 
@@ -230,10 +231,9 @@ impl Chunk {
             Err(Error::MultipleWriters)
         } else {
             Ok(WriteChunk {
-                inner: self.inner.clone()
+                inner: self.inner.clone(),
             })
         }
-
     }
 
     pub fn read(&self) -> Result<ReadChunk, Error> {
@@ -290,7 +290,7 @@ impl ReadChunk {
 }
 
 pub struct SerializedChunk<'a> {
-    data: &'a[u8],
+    data: &'a [u8],
     counter: usize,
     mint: u64,
     maxt: u64,
@@ -305,28 +305,34 @@ impl<'a> SerializedChunk<'a> {
         }
 
         let mut off = MAGIC.len();
-        let tag_len = u64::from_be_bytes(data[off..off+8].try_into().unwrap()) as usize;
+        let tag_len = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
         off += 8;
 
-        let tags: Tags = bincode::deserialize(&data[off..off+tag_len])?;
+        let tags: Tags = bincode::deserialize(&data[off..off + tag_len])?;
         off += tag_len;
 
-        let mint = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+        let mint = u64::from_be_bytes(data[off..off + 8].try_into().unwrap());
         off += 8;
 
-        let maxt = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+        let maxt = u64::from_be_bytes(data[off..off + 8].try_into().unwrap());
         off += 8;
 
         let counter: u8 = data[off];
         off += 1;
 
-        let mut segment_meta = Box::new([SegmentMeta { offset: 0, mint: 0, maxt: 0 }; THRESH]);
+        let mut segment_meta = Box::new(
+            [SegmentMeta {
+                offset: 0,
+                mint: 0,
+                maxt: 0,
+            }; THRESH],
+        );
         for i in 0..counter as usize {
-            let offset = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+            let offset = u64::from_be_bytes(data[off..off + 8].try_into().unwrap());
             off += 8;
-            let mint = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+            let mint = u64::from_be_bytes(data[off..off + 8].try_into().unwrap());
             off += 8;
-            let maxt = u64::from_be_bytes(data[off..off+8].try_into().unwrap());
+            let maxt = u64::from_be_bytes(data[off..off + 8].try_into().unwrap());
             off += 8;
             segment_meta[i] = SegmentMeta { offset, mint, maxt };
         }
@@ -337,7 +343,7 @@ impl<'a> SerializedChunk<'a> {
             segment_meta,
             mint,
             maxt,
-            tags
+            tags,
         })
     }
 
@@ -361,9 +367,9 @@ impl<'a> SerializedChunk<'a> {
 mod test {
 
     use super::*;
+    use crate::compression::DecompressBuffer;
     use crate::segment::{self, Segment};
     use crate::test_utils::*;
-    use crate::compression::DecompressBuffer;
 
     #[test]
     fn test_check_data() {
@@ -392,7 +398,7 @@ mod test {
             exp_values.push(Vec::new());
         }
 
-        for item in &data[..256 * (THRESH-1)] {
+        for item in &data[..256 * (THRESH - 1)] {
             let v = to_values(&item.values[..]);
             exp_ts.push(item.ts);
             for i in 0..nvars {
@@ -409,8 +415,8 @@ mod test {
                 Err(_) => unimplemented!(),
             }
         }
-        let start = 256 * (THRESH-1);
-        for item in &data[start..start+256] {
+        let start = 256 * (THRESH - 1);
+        for item in &data[start..start + 256] {
             let v = to_values(&item.values[..]);
             exp_ts.push(item.ts);
             for i in 0..nvars {
@@ -441,7 +447,8 @@ mod test {
             assert_eq!(decompressed.variable(i), &exp_values[i][..256]);
         }
 
-        let bytes_read = Compression::decompress(reader.get_segment_bytes(1), &mut decompressed).unwrap();
+        let bytes_read =
+            Compression::decompress(reader.get_segment_bytes(1), &mut decompressed).unwrap();
         assert_eq!(decompressed.timestamps(), &exp_ts[..512]);
         for i in 0..nvars {
             assert_eq!(decompressed.variable(i), &exp_values[i][..512]);
@@ -475,7 +482,7 @@ mod test {
             exp_values.push(Vec::new());
         }
 
-        for item in &data[..256 * (THRESH-1)] {
+        for item in &data[..256 * (THRESH - 1)] {
             let v = to_values(&item.values[..]);
             exp_ts.push(item.ts);
             for i in 0..nvars {
@@ -492,8 +499,8 @@ mod test {
                 Err(_) => unimplemented!(),
             }
         }
-        let start = 256 * (THRESH-1);
-        for item in &data[start..start+256] {
+        let start = 256 * (THRESH - 1);
+        for item in &data[start..start + 256] {
             let v = to_values(&item.values[..]);
             exp_ts.push(item.ts);
             for i in 0..nvars {
@@ -524,7 +531,9 @@ mod test {
             assert_eq!(decompressed.variable(i), &exp_values[i][..256]);
         }
 
-        let bytes_read = Compression::decompress(serialized_chunk.get_segment_bytes(1), &mut decompressed).unwrap();
+        let bytes_read =
+            Compression::decompress(serialized_chunk.get_segment_bytes(1), &mut decompressed)
+                .unwrap();
         assert_eq!(decompressed.timestamps(), &exp_ts[..512]);
         for i in 0..nvars {
             assert_eq!(decompressed.variable(i), &exp_values[i][..512]);

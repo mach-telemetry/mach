@@ -1,5 +1,5 @@
 use crate::segment::{full_segment::FullSegment, Error, PushStatus};
-use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst};
 
 pub const SEGSZ: usize = 256;
 

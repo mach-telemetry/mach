@@ -137,7 +137,7 @@ impl FileListIterator {
             let end = MAGICSTR.as_bytes().len();
             let magic = std::str::from_utf8(&self.buf[off..end]);
             if magic.is_err() || magic.unwrap() != MAGICSTR {
-                return Err(Error::InvalidMagic)
+                return Err(Error::InvalidMagic);
             }
             off = end;
         }
@@ -217,14 +217,17 @@ pub struct FileListWriter {
 }
 
 impl FileListWriter {
-    pub fn push(
-        &mut self,
-        file: &mut FileWriter,
-        byte_entry: ByteEntry,
-    ) -> Result<(), Error> {
+    pub fn push(&mut self, file: &mut FileWriter, byte_entry: ByteEntry) -> Result<(), Error> {
         // Safety: Safe because there's only one writer and concurrent readers check versions
         // during each read.
-        unsafe { Arc::get_mut_unchecked(&mut self.inner).push(file, byte_entry.mint, byte_entry.maxt, byte_entry.bytes) }
+        unsafe {
+            Arc::get_mut_unchecked(&mut self.inner).push(
+                file,
+                byte_entry.mint,
+                byte_entry.maxt,
+                byte_entry.bytes,
+            )
+        }
     }
 }
 
@@ -360,9 +363,15 @@ mod test {
             .collect::<Vec<Vec<u8>>>();
 
         let mut writer = file_list.writer().unwrap();
-        writer.push(&mut file, ByteEntry { mint: 0, maxt: 5, bytes: data[0].as_slice()} ).unwrap();
-        writer.push(&mut file, ByteEntry { mint: 6, maxt: 11, bytes: data[1].as_slice()} ).unwrap();
-        writer.push(&mut file, ByteEntry { mint: 12, maxt: 13, bytes: data[2].as_slice()} ).unwrap();
+        writer
+            .push(&mut file, ByteEntry::new(0, 5, data[0].as_slice()))
+            .unwrap();
+        writer
+            .push(&mut file, ByteEntry::new(6, 11, data[1].as_slice()))
+            .unwrap();
+        writer
+            .push(&mut file, ByteEntry::new(12, 13, data[2].as_slice()))
+            .unwrap();
         file.file.sync_all().unwrap();
 
         let mut reader = file_list.reader().unwrap();
