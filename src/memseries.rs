@@ -2,9 +2,9 @@
 mod test {
     use super::*;
     use crate::{
-        backend::fs::{FileList, FileListWriter, FileWriter, SHARED_ID},
+        backend::fs::{FileList, FileListWriter, FileWriter},
         chunk::{self, FileChunk, SerializedChunk, WriteFileChunk},
-        compression::Compression,
+        compression::{DecompressBuffer, Compression},
         segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
         tags::Tags,
         test_utils::*,
@@ -16,7 +16,7 @@ mod test {
 
     #[test]
     fn test_pipeline() {
-        let shared_id = SHARED_ID.clone();
+        let shared_id = SHARED_FILE_ID.clone();
         let mut file = FileWriter::new(shared_id.clone()).unwrap();
         let mut tags = Tags::new();
         tags.insert(("A".to_string(), "B".to_string()));
@@ -44,16 +44,45 @@ mod test {
             values
         };
 
+        let mut exp_ts = Vec::new();
+        let mut exp_values = Vec::new();
+        for _ in 0..nvars {
+            exp_values.push(Vec::new());
+        }
+
+
         // 3 for the segments
         // 16 for the first chunk flushed
         // 2 for another set of segments not flushed
         for item in &data[..256 * (3 + 16 + 2)] {
             let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            for i in 0..nvars {
+                exp_values[i].push(v[i]);
+            }
             assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
         }
 
         let mut file_list_iterator = file_list.reader().unwrap();
-        let chunk = file_list_iterator.next_item().unwrap().unwrap();
+        let byte_entry = file_list_iterator.next_item().unwrap().unwrap();
+        let serialized_chunk = SerializedChunk::new(byte_entry.bytes).unwrap();
+        let bytes = serialized_chunk.get_segment_bytes(0);
+
+        let mut decompressed = DecompressBuffer::new();
+        let bytes_read = Compression::decompress(bytes, &mut decompressed).unwrap();
+
+        assert_eq!(decompressed.timestamps(), &exp_ts[..256]);
+        for i in 0..nvars {
+            assert_eq!(decompressed.variable(i), &exp_values[i][..256]);
+        }
+
+        let bytes_read =
+            Compression::decompress(serialized_chunk.get_segment_bytes(1), &mut decompressed)
+                .unwrap();
+        assert_eq!(decompressed.timestamps(), &exp_ts[..512]);
+        for i in 0..nvars {
+            assert_eq!(decompressed.variable(i), &exp_values[i][..512]);
+        }
 
         //assert_eq!(chunk.tags, tags);
 

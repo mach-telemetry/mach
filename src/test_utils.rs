@@ -6,7 +6,10 @@ use std::{
     fs::OpenOptions,
     io::Read,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::AtomicU64
+    },
 };
 
 #[derive(Clone)]
@@ -23,6 +26,7 @@ lazy_static! {
     pub static ref TEST_DATA_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
     pub static ref UNIVARIATE_DATA: Arc<Vec<(String, Data)>> = Arc::new(load_univariate());
     pub static ref MULTIVARIATE_DATA: Arc<Vec<(String, Data)>> = Arc::new(load_multivariate());
+    pub static ref SHARED_FILE_ID: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
 }
 
 pub type Data = Arc<Vec<Sample>>;

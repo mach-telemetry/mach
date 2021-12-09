@@ -57,7 +57,6 @@ lazy_static! {
     pub static ref TMPDIR: tempfile::TempDir =
         tempfile::TempDir::new_in(crate::test_utils::TEST_DATA_PATH.as_path()).unwrap();
     pub static ref DATADIR: PathBuf = PathBuf::from(TMPDIR.path());
-    pub static ref SHARED_ID: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
 }
 
 #[cfg(not(test))]
@@ -104,7 +103,7 @@ impl FileWriter {
     pub fn new(shared_id: Arc<AtomicU64>) -> Result<Self, Error> {
         //let path = PathBuf::from(path.as_ref());
         //println!("path: {:?}", path);
-        let local_id = shared_id.load(SeqCst);
+        let local_id = shared_id.fetch_add(1, SeqCst);
         let file_name = format!("data-{}", local_id);
         let file = OpenOptions::new()
             .create(true)
@@ -121,7 +120,7 @@ impl FileWriter {
     }
 
     pub fn reset(&mut self) -> Result<(), Error> {
-        let local_id = self.shared_id.load(SeqCst);
+        let local_id = self.shared_id.fetch_add(1, SeqCst);
         let file_name = format!("data-{}", local_id);
         let file = OpenOptions::new()
             .create(true)
@@ -181,6 +180,7 @@ impl FileListIterator {
             return Err(Error::InvalidMagic);
         }
         off += HEADERSZ;
+        //println!("{:?}", std::str::from_utf8(&self.buf[off..off + 11]));
 
         // Get the offsets for the chunk of bytes
         let end = self.buf.len() - TAILSZ;
@@ -291,6 +291,7 @@ impl InnerFileList {
         buf.write_tail(buf.len().to_be_bytes());
 
         let bytes = buf.bytes();
+        //println!("{:?}", std::str::from_utf8(&bytes[HEADERSZ..HEADERSZ+10]));
         let len = bytes.len();
         file.write(bytes)?;
 
@@ -336,7 +337,7 @@ mod test {
     fn run_test() {
         std::fs::remove_dir_all(DATADIR.as_path()).unwrap();
         std::fs::create_dir_all(DATADIR.as_path()).unwrap();
-        let shared_id = SHARED_ID.clone();
+        let shared_id = SHARED_FILE_ID.clone();
         let mut file = FileWriter::new(shared_id.clone()).unwrap();
         let mut tags = Tags::new();
         tags.insert(("A".to_string(), "B".to_string()));
