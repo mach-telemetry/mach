@@ -32,6 +32,7 @@ mod memseries;
 mod segment;
 mod tags;
 mod utils;
+mod writer;
 
 //mod read_set;
 //mod active_block;

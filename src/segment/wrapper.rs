@@ -1,4 +1,4 @@
-use crate::segment::{buffer::*, segment, Error, FullSegment, PushStatus};
+use crate::segment::{buffer::*, segment, Error, FullSegment, InnerPushStatus};
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
@@ -1080,7 +1080,7 @@ impl Segment {
         segment
     }
 
-    pub unsafe fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<PushStatus, Error> {
+    pub unsafe fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         match (self.buffers, self.vars) {
             (1, 1) => cast!(self, 1, 1).push(ts, item),
             (1, 2) => cast!(self, 1, 2).push(ts, item),

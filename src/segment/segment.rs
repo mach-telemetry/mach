@@ -1,4 +1,4 @@
-use crate::segment::{buffer::*, Error, FullSegment, PushStatus};
+use crate::segment::{buffer::*, Error, FullSegment, InnerPushStatus};
 use std::{
     mem,
     sync::atomic::{AtomicIsize, AtomicUsize, Ordering::SeqCst},
@@ -20,12 +20,12 @@ pub struct Segment<const B: usize, const V: usize> {
 }
 
 impl<const B: usize, const V: usize> Segment<B, V> {
-    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<PushStatus, Error> {
+    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         match self.current_buffer().push(ts, item) {
-            Ok(PushStatus::Done) => Ok(PushStatus::Done),
-            Ok(PushStatus::Flush) => {
+            Ok(InnerPushStatus::Done) => Ok(InnerPushStatus::Done),
+            Ok(InnerPushStatus::Flush) => {
                 self.try_next_buffer();
-                Ok(PushStatus::Flush)
+                Ok(InnerPushStatus::Flush)
             }
             Err(Error::PushIntoFull) => {
                 if self.try_next_buffer() {

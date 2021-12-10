@@ -107,8 +107,7 @@ mod test {
                 Ok(segment::PushStatus::Done) => Ok(PushStatus::Done),
 
                 // Push succeeded but we can move segment to chunk
-                Ok(segment::PushStatus::Flush) => {
-                    let flusher = self.write_segment.flush();
+                Ok(segment::PushStatus::Flush(flusher)) => {
                     let full_segment = flusher.to_flush().unwrap();
 
                     // Try to push segment to chunk

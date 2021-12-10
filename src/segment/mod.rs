@@ -27,9 +27,31 @@ pub enum Error {
 }
 
 #[derive(Eq, PartialEq, Debug)]
-pub enum PushStatus {
+enum InnerPushStatus {
     Done,
     Flush,
+}
+
+//#[derive(Debug)]
+pub enum PushStatus {
+    Done,
+    Flush(FlushSegment),
+}
+
+impl PushStatus {
+    pub fn is_done(&self) -> bool {
+        match self {
+            PushStatus::Done => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_flush(&self) -> bool {
+        match self {
+            PushStatus::Flush(_) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -113,7 +135,11 @@ impl WriteSegment {
         // Readers don't race with the writer because of the atomic counter. Writer and flusher do
         // not race because the writer is bounded by the flush_counter which can only be
         // incremented by the flusher
-        unsafe { self.inner.push(ts, val) }
+        let res = unsafe { self.inner.push(ts, val) }?;
+        Ok(match res {
+            InnerPushStatus::Done => PushStatus::Done,
+            InnerPushStatus::Flush => PushStatus::Flush(self.flush()),
+        })
     }
 
     pub fn flush(&self) -> FlushSegment {
@@ -160,60 +186,62 @@ mod test {
 
         for item in &data[..255] {
             let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
+            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
         }
 
         {
             let item = &data[255];
             let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Flush));
+            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
         }
 
         for item in &data[256..512 - 1] {
             let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
+            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
         }
 
         {
             let item = &data[511];
             let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Flush));
+            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
         }
 
         for item in &data[512..767] {
             let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
+            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
         }
 
         {
             let item = &data[767];
             let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Flush));
+            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
         }
 
         {
             let item = &data[768];
             let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Err(Error::PushIntoFull));
+            let res = writer.push(item.ts, &v[..]);
+            assert_eq!(res.err(), Some(Error::PushIntoFull));
         }
 
         writer.flush().flushed();
 
         for item in &data[768..1023] {
             let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
+            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
         }
 
         {
             let item = &data[1023];
             let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Flush));
+            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
         }
 
         {
             let item = &data[1024];
             let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Err(Error::PushIntoFull));
+            let res = writer.push(item.ts, &v[..]);
+            assert_eq!(res.err(), Some(Error::PushIntoFull));
         }
 
         //flusher.flushed();
@@ -222,7 +250,7 @@ mod test {
         {
             let item = &data[1024];
             let v = to_values(&item.values[..]);
-            assert_eq!(writer.push(item.ts, &v[..]), Ok(PushStatus::Done));
+            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
         }
     }
 

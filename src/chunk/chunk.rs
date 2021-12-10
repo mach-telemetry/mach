@@ -417,8 +417,7 @@ mod test {
             }
             match writer.push(item.ts, &v[..]) {
                 Ok(segment::PushStatus::Done) => {}
-                Ok(segment::PushStatus::Flush) => {
-                    let flusher = writer.flush();
+                Ok(segment::PushStatus::Flush(flusher)) => {
                     let seg = flusher.to_flush().unwrap();
                     assert!(chunk_writer.push(&seg).is_none());
                     flusher.flushed();
@@ -435,8 +434,7 @@ mod test {
             }
             match writer.push(item.ts, &v[..]) {
                 Ok(segment::PushStatus::Done) => {}
-                Ok(segment::PushStatus::Flush) => {
-                    let flusher = writer.flush();
+                Ok(segment::PushStatus::Flush(flusher)) => {
                     let seg = flusher.to_flush().unwrap();
                     assert!(chunk_writer.push(&seg).is_some());
                     flusher.flushed();
@@ -501,8 +499,7 @@ mod test {
             }
             match writer.push(item.ts, &v[..]) {
                 Ok(segment::PushStatus::Done) => {}
-                Ok(segment::PushStatus::Flush) => {
-                    let flusher = writer.flush();
+                Ok(segment::PushStatus::Flush(flusher)) => {
                     let seg = flusher.to_flush().unwrap();
                     assert!(chunk_writer.push(&seg).is_none());
                     flusher.flushed();
@@ -519,8 +516,7 @@ mod test {
             }
             match writer.push(item.ts, &v[..]) {
                 Ok(segment::PushStatus::Done) => {}
-                Ok(segment::PushStatus::Flush) => {
-                    let flusher = writer.flush();
+                Ok(segment::PushStatus::Flush(flusher)) => {
                     let seg = flusher.to_flush().unwrap();
                     assert!(chunk_writer.push(&seg).is_some());
                     flusher.flushed();
