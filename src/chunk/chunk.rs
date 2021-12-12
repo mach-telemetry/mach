@@ -226,6 +226,7 @@ impl<const H: usize, const T: usize> Inner<H, T> {
     }
 }
 
+#[derive(Clone)]
 pub struct Chunk<const H: usize, const T: usize> {
     inner: Arc<Inner<H, T>>,
 }

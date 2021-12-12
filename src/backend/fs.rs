@@ -204,6 +204,7 @@ impl FileListIterator {
     }
 }
 
+#[derive(Clone)]
 pub struct FileList {
     inner: Arc<InnerFileList>,
     has_writer: Arc<AtomicBool>,

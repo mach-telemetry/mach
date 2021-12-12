@@ -87,6 +87,10 @@ impl Deref for ReadSegment {
 unsafe impl Send for Segment {}
 unsafe impl Sync for Segment {}
 
+unsafe impl Send for FlushSegment {}
+unsafe impl Send for WriteSegment {}
+unsafe impl Sync for WriteSegment {}
+
 impl Segment {
     pub fn new(b: usize, v: usize) -> Self {
         Self {

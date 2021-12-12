@@ -5,6 +5,7 @@
 #![feature(maybe_uninit_array_assume_init)]
 #![feature(cell_update)]
 #![feature(box_syntax)]
+#![feature(thread_id_value)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
 #![allow(warnings)]
@@ -28,11 +29,18 @@ mod backend;
 mod chunk;
 mod compression;
 mod flush_buffer;
-mod memseries;
 mod segment;
 mod tags;
 mod utils;
 mod writer;
+
+use std::sync::atomic::AtomicU64;
+struct SeriesMetadata {
+    pub thread_id: AtomicU64,
+    pub segment: segment::Segment,
+    pub chunk: chunk::FileChunk,
+    pub list: backend::fs::FileList,
+}
 
 //mod read_set;
 //mod active_block;
@@ -52,3 +60,6 @@ mod writer;
 
 #[cfg(test)]
 mod test_utils;
+
+#[cfg(test)]
+mod serial_memseries;

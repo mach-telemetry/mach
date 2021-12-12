@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 
 #[derive(Debug)]
 pub enum Error {
@@ -7,7 +8,7 @@ pub enum Error {
     Deserialize,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Tags(HashSet<(String, String)>);
 
 impl Tags {
@@ -23,6 +24,16 @@ impl Tags {
         match bincode::deserialize(data) {
             Ok(x) => Ok(x),
             Err(_) => Err(Error::Deserialize),
+        }
+    }
+}
+
+impl Hash for Tags {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let mut data: Vec<&(String, String)> = self.0.iter().collect();
+        data.sort();
+        for i in data {
+            i.hash(state)
         }
     }
 }
