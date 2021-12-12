@@ -83,7 +83,9 @@ impl FileWriter {
     }
 
     fn get_reference_id(&mut self, tags: Tags) -> Result<u64, Error> {
-        //id_map.entry(tags).or_insert(self.reference.get(tags
-        Err(Error::SeriesNotFound)
+        match self.id_map.get(tags) {
+            Some(item) => Ok(*item),
+            None => Err(Error::SeriesNotFound)
+        }
     }
 }
