@@ -1,4 +1,5 @@
 pub mod fs;
+pub mod kafka;
 
 // Re-export flushentry
 use crate::flush_buffer::FlushEntry;
