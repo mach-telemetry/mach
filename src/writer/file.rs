@@ -287,9 +287,9 @@ mod test {
         // 3 for the segments
         // 16 for the first chunk flushed
         // 2 for another set of segments not flushed
-        let tot = data.len() - data.len() % 256;
+        //let tot = data.len() - data.len() % 256;
         //for item in &data[..tot] {
-        for item in &data[..256 * (3 + 16)] {
+        for item in &data[..256 + 3] {
             let v = to_values(&item.values[..]);
             exp_ts.push(item.ts);
             for i in 0..nvars {
@@ -302,20 +302,34 @@ mod test {
             }
         }
 
+
         writer.close();
 
         let mut file_list_iterator = meta.list.reader().unwrap();
-        let mut decompressed = DecompressBuffer::new();
         let mut count = 0;
+        let rev_exp_ts = exp_ts.iter().rev().copied().collect::<Vec<u64>>();
+        //println!("ORIGIN ORDER");
+        //println!("{:?}", exp_ts);
+        //println!("REVERSE ORDER");
+        //println!("{:?}", rev_exp_ts);
+        let mut timestamps = Vec::new();
         while let Some(byte_entry) = file_list_iterator.next_item().unwrap() {
             count += 1;
             let chunk = SerializedChunk::new(byte_entry.bytes).unwrap();
             let counter = chunk.n_segments();
             for i in 0..counter {
+                let mut decompressed = DecompressBuffer::new();
                 let bytes = chunk.get_segment_bytes(i);
                 let bytes_read = Compression::decompress(bytes, &mut decompressed).unwrap();
+                for i in 0..decompressed.len() {
+                    timestamps.push(decompressed.timestamp_at(i));
+                }
             }
         }
+        //println!("TIMESTAMPS READ ORDER");
+        //println!("{:?}", timestamps);
+        assert_eq!(timestamps, rev_exp_ts);
+
 
         //let mut file_list_iterator = meta.list.reader().unwrap();
         //let byte_entry = file_list_iterator.next_item().unwrap().unwrap();
