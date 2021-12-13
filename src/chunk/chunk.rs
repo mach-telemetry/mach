@@ -129,7 +129,7 @@ impl<const H: usize, const T: usize> Inner<H, T> {
 
     fn flush_buffer(&mut self) -> Option<FlushEntry<H, T>> {
         if self.local_counter == 0 {
-            return None
+            return None;
         }
 
         let data = self.flush_buffer.data_mut();
@@ -372,7 +372,7 @@ impl<'a> SerializedChunk<'a> {
             off += 8;
 
             // Reverse the items here so that the lower ID gets the more recent chunk first
-            segment_meta[counter-i-1] = SegmentMeta { offset, mint, maxt };
+            segment_meta[counter - i - 1] = SegmentMeta { offset, mint, maxt };
         }
 
         Ok(SerializedChunk {
@@ -482,7 +482,7 @@ mod test {
 
         let reader = chunk.read().unwrap();
         println!("LEN: {}", reader.len());
-        let bytes = reader.get_segment_bytes(reader.len()-1);
+        let bytes = reader.get_segment_bytes(reader.len() - 1);
         let mut decompressed = DecompressBuffer::new();
         let bytes_read = Compression::decompress(bytes, &mut decompressed).unwrap();
 
@@ -560,7 +560,7 @@ mod test {
         let serialized_chunk = SerializedChunk::new(&v[..]).unwrap();
         let len = serialized_chunk.len();
 
-        let bytes = serialized_chunk.get_segment_bytes(len-1);
+        let bytes = serialized_chunk.get_segment_bytes(len - 1);
         let mut decompressed = DecompressBuffer::new();
         let bytes_read = Compression::decompress(bytes, &mut decompressed).unwrap();
 

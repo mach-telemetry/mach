@@ -1,6 +1,6 @@
 mod file;
 
-use crate::{tags::Tags, segment, SeriesMetadata};
+use crate::{segment, tags::Tags, SeriesMetadata};
 use dashmap::DashMap;
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -26,5 +26,3 @@ impl From<segment::Error> for Error {
 pub enum PushStatus {
     Done,
 }
-
-

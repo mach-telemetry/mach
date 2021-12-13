@@ -1,4 +1,10 @@
-use crate::{SeriesMetadata, backend::fs, chunk, segment, tags::Tags, writer::{PushStatus, Error}};
+use crate::{
+    backend::fs,
+    chunk, segment,
+    tags::Tags,
+    writer::{Error, PushStatus},
+    SeriesMetadata,
+};
 use async_std::channel::{unbounded, Receiver, Sender};
 //use crossbeam::queue::SegQueue;
 use dashmap::DashMap;
@@ -7,7 +13,7 @@ use std::{
     sync::{
         atomic::{AtomicU64, Ordering::SeqCst},
         Arc, Barrier,
-    }
+    },
 };
 
 enum FlushMsg {
@@ -34,7 +40,7 @@ impl ToFlush {
                 Some(buffer) => {
                     self.list.writer().unwrap().push(file, buffer).unwrap();
                     write_chunk.reset();
-                },
+                }
                 None => {
                     if self.full_flush {
                         if let Some(buff) = write_chunk.flush_buffer() {
@@ -136,10 +142,10 @@ async fn file_flush_worker(file_allocator: Arc<AtomicU64>, queue: Receiver<Flush
         match item {
             FlushMsg::ToFlush(item) => {
                 item.flush(&mut file);
-            },
+            }
             FlushMsg::ToWait(barrier) => {
                 barrier.wait();
-            },
+            }
         };
     }
 }
@@ -185,13 +191,8 @@ impl FileWriter {
                         let chunk = item.chunk.clone();
                         let list = item.list.clone();
                         let flush_worker = self.flush_worker.clone();
-                        let writer = SeriesWriter::new(
-                            tags.clone(),
-                            segment,
-                            chunk,
-                            list,
-                            flush_worker,
-                        );
+                        let writer =
+                            SeriesWriter::new(tags.clone(), segment, chunk, list, flush_worker);
                         let meta = Metadata {
                             writer,
                             meta: item.clone(),
@@ -234,19 +235,15 @@ impl FileWriter {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{
-        test_utils::*,
-        compression::*,
-        chunk::*,
-    };
+    use crate::{chunk::*, compression::*, test_utils::*};
 
     #[test]
     fn test_pipeline() {
-    //fn new(
-    //    thread_id: Option<u64>,
-    //    reference: Arc<DashMap<Tags, Arc<SeriesMetadata>>>,
-    //    shared_file: Arc<AtomicU64>,
-    //) -> Self {
+        //fn new(
+        //    thread_id: Option<u64>,
+        //    reference: Arc<DashMap<Tags, Arc<SeriesMetadata>>>,
+        //    shared_file: Arc<AtomicU64>,
+        //) -> Self {
 
         // Setup data
         let mut tags = Tags::new();
@@ -302,7 +299,6 @@ mod test {
             }
         }
 
-
         writer.close();
 
         let mut file_list_iterator = meta.list.reader().unwrap();
@@ -330,7 +326,6 @@ mod test {
         //println!("{:?}", timestamps);
         assert_eq!(timestamps, rev_exp_ts);
 
-
         //let mut file_list_iterator = meta.list.reader().unwrap();
         //let byte_entry = file_list_iterator.next_item().unwrap().unwrap();
         //let serialized_chunk = SerializedChunk::new(byte_entry.bytes).unwrap();
@@ -351,7 +346,6 @@ mod test {
         //for i in 0..nvars {
         //    assert_eq!(decompressed.variable(i), &exp_values[i][..512]);
         //}
-
 
         // Wait for all flushes to clear
 
@@ -380,5 +374,4 @@ mod test {
 
         //assert_eq!(writer.data.len(), 1);
     }
-
 }

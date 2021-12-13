@@ -51,7 +51,7 @@ impl<const V: usize> Buffer<V> {
     pub fn to_flush(&self) -> Option<FullSegment> {
         let len = self.atomic_len.load(SeqCst);
         if self.len > 0 {
-            Some( FullSegment {
+            Some(FullSegment {
                 len: self.atomic_len.load(SeqCst),
                 nvars: V,
                 ts: &self.ts,
