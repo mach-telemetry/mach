@@ -288,7 +288,6 @@ mod test {
                 e.push(*i)
             }
         }
-
         let flusher = writer.flush();
         let seg = flusher.to_flush().unwrap();
         assert_eq!(seg.len, 256);
@@ -309,5 +308,48 @@ mod test {
         flusher.flushed();
 
         assert!(writer.flush().to_flush().is_some()) // the current buffer may be flushed
+    }
+
+    #[test]
+    fn test_push_snapshot() {
+        let data = &MULTIVARIATE_DATA[0].1;
+        let nvars = data[0].values.len();
+        let segment = Segment::new(3, nvars);
+        let mut writer = segment.writer().unwrap();
+        //let mut flusher = segment.flusher().unwrap();
+
+        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+            let mut values = vec![[0u8; 8]; nvars];
+            for (i, v) in items.iter().enumerate() {
+                values[i] = v.to_be_bytes();
+            }
+            values
+        };
+
+        let mut exp_ts = Vec::new();
+        let mut exp_values = Vec::new();
+        for _ in 0..nvars {
+            exp_values.push(Vec::new());
+        }
+
+        for item in &data[..636] {
+            let v = to_values(&item.values[..]);
+            assert!(writer.push(item.ts, &v[..]).is_ok());
+            exp_ts.push(item.ts);
+            for (e, i) in exp_values.iter_mut().zip(v.iter()) {
+                e.push(*i)
+            }
+        }
+        let rev_exp_ts = exp_ts.iter().rev().copied().collect::<Vec<u64>>();
+
+        let read = segment.snapshot().unwrap();
+
+        let mut v = Vec::new();
+        for i in read.inner.iter() {
+            for j in 0..i.len() {
+                v.push(i.get_timestamp_at(j));
+            }
+        }
+        assert_eq!(v, rev_exp_ts);
     }
 }

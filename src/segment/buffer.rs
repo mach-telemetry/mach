@@ -107,10 +107,15 @@ pub struct ReadBuffer {
 }
 
 impl ReadBuffer {
-    //pub fn get_timstamp_at(&self, i: usize) -> u64 {
-    //    let i = self.len - i - 1;
-    //    self.ts[
-    //}
+    pub fn get_timestamp_at(&self, i: usize) -> u64 {
+        let i = self.len - i - 1;
+        self.ts[i]
+    }
+
+    pub fn get_value_at(&self, var: usize, i: usize) -> [u8; 8] {
+        let i = self.len - i - 1;
+        self.variable(var)[i]
+    }
 
     pub fn len(&self) -> usize {
         self.len
