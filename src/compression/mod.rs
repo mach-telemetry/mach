@@ -58,7 +58,7 @@ impl DecompressBuffer {
     }
 
     pub fn variable(&self, var: usize) -> &[[u8; 8]] {
-        println!("{} {}", var, self.len);
+        //println!("{} {}", var, self.len);
         &self.values[var][..self.len]
     }
 }
@@ -70,6 +70,7 @@ struct Header {
     len: usize,
 }
 
+#[derive(Clone)]
 pub enum Compression {
     LZ4(i32),
 }
@@ -127,9 +128,9 @@ impl Compression {
         let (header, mut off) = Self::get_header(data)?;
 
         buf.len += header.len as usize;
-        println!("buf.nvars {}", buf.nvars);
+        //println!("buf.nvars {}", buf.nvars);
         if buf.nvars == 0 {
-            println!("HERE");
+            //println!("HERE");
             buf.set_nvars(header.nvars);
         }
 

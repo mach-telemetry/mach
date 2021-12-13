@@ -44,12 +44,15 @@ impl<const B: usize, const V: usize> Segment<B, V> {
     }
 
     fn try_next_buffer(&mut self) -> bool {
-        if self.local_head as isize - self.flushed.load(SeqCst) < B as isize {
+        //println!("{} {} {}", self.local_head, self.flushed.load(SeqCst), self.head.load(SeqCst));
+        let flushed = self.flushed.load(SeqCst);
+        if self.local_head as isize - flushed < B as isize {
             self.local_head = self.head.fetch_add(1, SeqCst) + 1;
             let buf = &mut self.buffers[self.local_head % B];
             buf.reuse(self.local_head);
             true
         } else {
+            //println!("local head: {} flushed: {}", self.local_head, flushed);
             false
         }
     }
@@ -57,49 +60,19 @@ impl<const B: usize, const V: usize> Segment<B, V> {
     pub fn to_flush(&self) -> Option<FullSegment> {
         let head = self.head.load(SeqCst);
         let to_flush = self.flushed.load(SeqCst) + 1;
-        if head as isize > to_flush {
+        //println!("CALLED TOFLUSH head: {}, to flush: {}", head, to_flush);
+        if head as isize >= to_flush {
             let buf = &self.buffers[to_flush as usize % B];
-            Some(buf.to_flush())
+            buf.to_flush()
         } else {
             None
         }
     }
 
     pub fn flushed(&self) {
+        //println!("CALLED FLUSHED");
         self.flushed.fetch_add(1, SeqCst);
     }
-
-    //pub fn flush<T: FlushSegmentTrait>(&self, flusher: &mut T) -> Result<(), Error> {
-    //    let head = self.head.load(SeqCst);
-    //    let to_flush = self.flushed.load(SeqCst) + 1;
-    //    if head as isize > to_flush {
-    //        let buf = &self.buffers[to_flush as usize % B];
-    //        let mut d = [&[[0u8; 8]][..]; V];
-    //        for i in 0..V {
-    //            d[i] = &buf.data[i][..buf.len];
-    //        }
-    //        flusher.flush_segment(&buf.ts[..buf.len], &d)?;
-    //        self.flushed.store(to_flush, SeqCst);
-    //        Ok(())
-    //    } else {
-    //        Err(Error::FlushingHead)
-    //    }
-    //}
-
-    //pub fn force_flush(&mut self, flusher: FlushFn) -> Result<(), Error> {
-    //    let head = self.local_head;
-    //    let to_flush = self.flushed.load(SeqCst) + 1;
-    //    assert_eq!(head as isize, to_flush);
-    //    let buf = &self.buffers[to_flush as usize % B];
-    //    let mut d = [&[[0u8; 8]][..]; V];
-    //    for i in 0..V {
-    //        d[i] = &buf.data[i][..buf.len];
-    //    }
-    //    (flusher)(&buf.ts[..buf.len], &d)?;
-    //    self.local_head = self.head.fetch_add(1, SeqCst) + 1;
-    //    self.flushed.store(to_flush, SeqCst);
-    //    Ok(())
-    //}
 
     pub fn read(&self) -> Result<Vec<ReadBuffer>, Error> {
         let mut copies = Vec::new();

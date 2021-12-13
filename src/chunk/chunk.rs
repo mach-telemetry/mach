@@ -54,7 +54,7 @@ impl From<bincode::Error> for Error {
 // > Segment data information
 // segments: [header bytes + segment count * 8 * 3 ..]
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 struct SegmentMeta {
     offset: u64,
     mint: u64,
@@ -73,8 +73,9 @@ struct Inner<const H: usize, const T: usize> {
     data_offset: usize,
     mint: u64,
     maxt: u64,
-    segment_meta: [SegmentMeta; THRESH],
+    segment_meta: Box<[SegmentMeta; THRESH]>,
     has_writer: AtomicBool,
+    tags: Tags,
 }
 
 impl<const H: usize, const T: usize> Inner<H, T> {
@@ -116,16 +117,21 @@ impl<const H: usize, const T: usize> Inner<H, T> {
             header_len,
             mint: u64::MAX,
             maxt: u64::MAX,
-            segment_meta: [SegmentMeta {
+            segment_meta: box [SegmentMeta {
                 offset: 0,
                 mint: 0,
                 maxt: 0,
             }; THRESH],
             has_writer: AtomicBool::new(false),
+            tags: tags.clone(),
         }
     }
 
-    fn flush_buffer(&mut self) -> FlushEntry<H, T> {
+    fn flush_buffer(&mut self) -> Option<FlushEntry<H, T>> {
+        if self.local_counter == 0 {
+            return None
+        }
+
         let data = self.flush_buffer.data_mut();
 
         // Mint, Maxt, count
@@ -149,11 +155,11 @@ impl<const H: usize, const T: usize> Inner<H, T> {
         }
         drop(data);
 
-        FlushEntry {
+        Some(FlushEntry {
             mint: self.mint,
             maxt: self.maxt,
             buffer: self.flush_buffer.freeze(),
-        }
+        })
     }
 
     fn read(&self) -> Result<ReadChunk, Error> {
@@ -166,7 +172,7 @@ impl<const H: usize, const T: usize> Inner<H, T> {
         let counter = self.counter.load(SeqCst);
         let r = ReadChunk {
             data: self.flush_buffer.data().into(),
-            segment_meta: Box::new(self.segment_meta.clone()),
+            segment_meta: self.segment_meta.clone(),
             counter,
         };
 
@@ -182,6 +188,12 @@ impl<const H: usize, const T: usize> Inner<H, T> {
     }
 
     fn reset(&mut self) {
+        //let mut new = Self::new(&self.tags, self.compression.clone());
+        //self.reset_flag.store(true, SeqCst);
+        //self.version.fetch_add(1, SeqCst);
+        //std::mem::swap(&mut new, self);
+        //self.reset_flag.store(false, SeqCst);
+
         // Prevent readers from entering or exiting
         self.reset_flag.store(true, SeqCst);
 
@@ -189,7 +201,7 @@ impl<const H: usize, const T: usize> Inner<H, T> {
         // without seeing this version increment
         self.version.fetch_add(1, SeqCst);
 
-        self.flush_buffer.truncate(self.metadata_offset);
+        self.flush_buffer.truncate(self.data_offset);
         self.local_counter = 0;
         self.mint = u64::MAX;
         self.maxt = u64::MAX;
@@ -219,7 +231,7 @@ impl<const H: usize, const T: usize> Inner<H, T> {
         self.counter.swap(self.local_counter, SeqCst);
 
         if self.local_counter == THRESH {
-            Some(self.flush_buffer())
+            self.flush_buffer()
         } else {
             None
         }
@@ -271,10 +283,16 @@ impl<const H: usize, const T: usize> WriteChunk<H, T> {
         unsafe { Arc::get_mut_unchecked(&mut self.inner).reset() }
     }
 
-    pub fn flush_buffer(&mut self) -> FlushEntry<H, T> {
+    pub fn flush_buffer(&mut self) -> Option<FlushEntry<H, T>> {
         // Safety: Only the writer can access the inner method. The inner method modifies inner
         // state but does not modify data accessed by concurrent readers
         unsafe { Arc::get_mut_unchecked(&mut self.inner).flush_buffer() }
+    }
+}
+
+impl<const H: usize, const T: usize> Drop for WriteChunk<H, T> {
+    fn drop(&mut self) {
+        assert!(self.inner.has_writer.swap(false, SeqCst));
     }
 }
 
@@ -366,12 +384,16 @@ impl<'a> SerializedChunk<'a> {
 
     pub fn get_segment_bytes(&self, id: usize) -> &[u8] {
         let offset = self.segment_meta[id].offset as usize;
-        let end = if id == THRESH - 1 {
+        let end = if id == self.counter - 1 {
             self.data.len()
         } else {
             self.segment_meta[id + 1].offset as usize
         };
         &self.data[offset..end]
+    }
+
+    pub fn n_segments(&self) -> usize {
+        self.counter
     }
 }
 
@@ -526,7 +548,7 @@ mod test {
             }
         }
 
-        let buf = chunk_writer.flush_buffer();
+        let buf = chunk_writer.flush_buffer().unwrap();
         let bytes = buf.buffer.data();
         let mut v: Vec<u8> = bytes.try_into().unwrap();
         let serialized_chunk = SerializedChunk::new(&v[..]).unwrap();

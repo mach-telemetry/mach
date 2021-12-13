@@ -25,7 +25,7 @@ pub type FileBuffer = FlushBuffer<HEADERSZ, TAILSZ>;
 pub type FileFrozenBuffer<'buffer> = FrozenBuffer<'buffer, HEADERSZ, TAILSZ>;
 pub type FileEntry<'buffer> = FlushEntry<'buffer, HEADERSZ, TAILSZ>;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Header {
     magic: [u8; 11],
     mint: u64,
@@ -102,7 +102,6 @@ pub struct FileWriter {
 impl FileWriter {
     pub fn new(shared_id: Arc<AtomicU64>) -> Result<Self, Error> {
         //let path = PathBuf::from(path.as_ref());
-        //println!("path: {:?}", path);
         let local_id = shared_id.fetch_add(1, SeqCst);
         let file_name = format!("data-{}", local_id);
         let file = OpenOptions::new()
@@ -152,7 +151,6 @@ pub struct FileListIterator {
 
 impl FileListIterator {
     pub fn next_item(&mut self) -> Result<Option<ByteEntry>, Error> {
-        println!("next offset: {}", self.next_offset);
         if self.next_offset == u64::MAX {
             return Ok(None);
         } else if self.file.is_none() {
@@ -180,7 +178,6 @@ impl FileListIterator {
             return Err(Error::InvalidMagic);
         }
         off += HEADERSZ;
-        //println!("{:?}", std::str::from_utf8(&self.buf[off..off + 11]));
 
         // Get the offsets for the chunk of bytes
         let end = self.buf.len() - TAILSZ;
@@ -256,7 +253,7 @@ impl FileListWriter {
 
 impl Drop for FileListWriter {
     fn drop(&mut self) {
-        self.has_writer.swap(false, SeqCst);
+        assert!(self.has_writer.swap(false, SeqCst));
     }
 }
 
@@ -280,7 +277,8 @@ impl InnerFileList {
         maxt: u64,
         buf: &mut FileFrozenBuffer,
     ) -> Result<(), Error> {
-        // Get the information of where the bytes will be written
+
+        // Wher to access these bytes
         let last_offset = file.offset;
         let last_file_id = file.local_id;
 
@@ -292,7 +290,6 @@ impl InnerFileList {
         buf.write_tail(buf.len().to_be_bytes());
 
         let bytes = buf.bytes();
-        //println!("{:?}", std::str::from_utf8(&bytes[HEADERSZ..HEADERSZ+10]));
         let len = bytes.len();
         file.write(bytes)?;
 

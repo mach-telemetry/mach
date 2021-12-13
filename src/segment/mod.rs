@@ -308,6 +308,6 @@ mod test {
         }
         flusher.flushed();
 
-        assert!(writer.flush().to_flush().is_none()) // the current buffer is not flushable yet
+        assert!(writer.flush().to_flush().is_some()) // the current buffer may be flushed
     }
 }
