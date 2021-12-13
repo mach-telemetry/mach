@@ -260,6 +260,7 @@ impl Drop for FileListWriter {
 struct InnerFileList {
     header: Header,
     version: Arc<AtomicU64>,
+    spin: Arc<AtomicBool>,
 }
 
 impl InnerFileList {
@@ -267,6 +268,7 @@ impl InnerFileList {
         Self {
             header: Header::new(),
             version: Arc::new(AtomicU64::new(0)),
+            spin: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -277,7 +279,6 @@ impl InnerFileList {
         maxt: u64,
         buf: &mut FileFrozenBuffer,
     ) -> Result<(), Error> {
-
         // Wher to access these bytes
         let last_offset = file.offset;
         let last_file_id = file.local_id;
@@ -293,6 +294,8 @@ impl InnerFileList {
         let len = bytes.len();
         file.write(bytes)?;
 
+        self.spin.store(true, SeqCst);
+
         // Then update the metadata
         self.header.last_offset = last_offset;
         self.header.last_file_id = last_file_id;
@@ -303,11 +306,14 @@ impl InnerFileList {
         // Update versioning for concurrent readers
         self.version.fetch_add(1, SeqCst);
 
+        self.spin.store(false, SeqCst);
+
         Ok(())
     }
 
     fn read(&self) -> Result<FileListIterator, Error> {
         let v = self.version.load(SeqCst);
+        while self.spin.load(SeqCst) {}
         let iterator = FileListIterator {
             next_offset: self.header.last_offset,
             next_file_id: self.header.last_file_id,
@@ -317,6 +323,7 @@ impl InnerFileList {
             file: None,
             buf: Vec::new(),
         };
+        while self.spin.load(SeqCst) {}
         if v == self.version.load(SeqCst) {
             Ok(iterator)
         } else {
