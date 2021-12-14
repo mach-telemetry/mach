@@ -141,6 +141,7 @@ pub struct KafkaListIterator {
 
 impl KafkaListIterator {
     pub fn next_item(&mut self) -> Result<Option<ByteEntry>, Error> {
+        self.buf.clear();
         if self.next_offset == i64::MAX {
             return Ok(None);
         }
@@ -315,3 +316,62 @@ impl InnerKafkaList {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::test_utils::*;
+    use rand::{thread_rng, Rng};
+
+    #[test]
+    fn run_test() {
+        let mut producer = KafkaWriter::new().unwrap();
+        let mut tags = Tags::new();
+        tags.insert(("A".to_string(), "B".to_string()));
+        tags.insert(("C".to_string(), "D".to_string()));
+
+        let data = (0..3)
+            .map(|i| {
+                let mut v = vec![i + 1 as u8; 10];
+                v
+            })
+            .collect::<Vec<Vec<u8>>>();
+
+        let mut kafka_list = KafkaList::new();
+        let mut writer = kafka_list.writer().unwrap();
+        let mut buf = KafkaBuffer::new();
+        buf.push_bytes(data[0].as_slice()).unwrap();
+        writer
+            .push(&mut producer, KafkaEntry::new(0, 5, buf.freeze()))
+            .unwrap();
+        buf.truncate(0);
+        buf.push_bytes(data[1].as_slice()).unwrap();
+        writer
+            .push(&mut producer, KafkaEntry::new(6, 11, buf.freeze()))
+            .unwrap();
+        buf.truncate(0);
+        buf.push_bytes(data[2].as_slice()).unwrap();
+        writer
+            .push(&mut producer, KafkaEntry::new(12, 13, buf.freeze()))
+            .unwrap();
+
+        let timeout = Timeout::After(Duration::from_secs(1));
+        let consumer = default_consumer().unwrap();
+        let mut reader = kafka_list.reader(consumer, timeout).unwrap();
+        let chunk = reader.next_item().unwrap().unwrap();
+        assert_eq!(chunk.bytes, data[2].as_slice());
+        assert_eq!(chunk.mint, 12);
+        assert_eq!(chunk.maxt, 13);
+
+        let chunk = reader.next_item().unwrap().unwrap();
+        assert_eq!(chunk.bytes, data[1].as_slice());
+        assert_eq!(chunk.mint, 6);
+        assert_eq!(chunk.maxt, 11);
+
+        let chunk = reader.next_item().unwrap().unwrap();
+        assert_eq!(chunk.bytes, data[0].as_slice());
+        assert_eq!(chunk.mint, 0);
+        assert_eq!(chunk.maxt, 5);
+    }
+}
+
