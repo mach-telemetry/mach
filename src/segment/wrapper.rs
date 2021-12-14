@@ -14,7 +14,9 @@ macro_rules! cast {
 
 macro_rules! new {
     ($b:expr, $v: expr) => {
-        Box::into_raw(Box::new(segment::Segment::<$b, $v>::new())) as *mut u8
+        // TODO: Note - using Box::new results in stack overflow because reasons
+        // https://github.com/rust-lang/rust/issues/53827
+        Box::into_raw(box segment::Segment::<$b, $v>::new()) as *mut u8
     };
 }
 

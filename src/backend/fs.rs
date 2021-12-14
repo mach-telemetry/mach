@@ -18,12 +18,12 @@ use std::{
 };
 
 const MAGICSTR: [u8; 11] = *b"filebackend";
-pub const TAILSZ: usize = 8;
-pub const HEADERSZ: usize = size_of::<Header>();
+pub const FILE_TAIL_SZ: usize = 8;
+pub const FILE_HEADER_SZ: usize = size_of::<Header>();
 
-pub type FileBuffer = FlushBuffer<HEADERSZ, TAILSZ>;
-pub type FileFrozenBuffer<'buffer> = FrozenBuffer<'buffer, HEADERSZ, TAILSZ>;
-pub type FileEntry<'buffer> = FlushEntry<'buffer, HEADERSZ, TAILSZ>;
+pub type FileBuffer = FlushBuffer<FILE_HEADER_SZ, FILE_TAIL_SZ>;
+pub type FileFrozenBuffer<'buffer> = FrozenBuffer<'buffer, FILE_HEADER_SZ, FILE_TAIL_SZ>;
+pub type FileEntry<'buffer> = FlushEntry<'buffer, FILE_HEADER_SZ, FILE_TAIL_SZ>;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Header {
@@ -173,14 +173,14 @@ impl FileListIterator {
         let mut off = 0;
 
         // Get header
-        let header: Header = bincode::deserialize(&self.buf[off..off + HEADERSZ])?;
+        let header: Header = bincode::deserialize(&self.buf[off..off + FILE_HEADER_SZ])?;
         if header.magic != MAGICSTR {
             return Err(Error::InvalidMagic);
         }
-        off += HEADERSZ;
+        off += FILE_HEADER_SZ;
 
         // Get the offsets for the chunk of bytes
-        let end = self.buf.len() - TAILSZ;
+        let end = self.buf.len() - FILE_TAIL_SZ;
 
         let f = ByteEntry {
             mint: header.mint,

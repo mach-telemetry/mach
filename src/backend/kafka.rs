@@ -6,15 +6,15 @@ use crate::{
 use lazy_static::*;
 use rdkafka::{
     config::ClientConfig,
-    consumer::base_consumer::BaseConsumer,
-    consumer::Consumer,
+    //consumer::base_consumer::BaseConsumer,
+    //consumer::Consumer,
     error::KafkaError,
     producer::{FutureProducer, FutureRecord},
     topic_partition_list::{Offset, TopicPartitionList},
-    util::Timeout,
     Message,
     //message::OwnedHeaders,
 };
+pub use rdkafka::{util::Timeout, consumer::{Consumer, base_consumer::BaseConsumer}};
 use serde::*;
 use std::{
     convert::TryInto,
@@ -33,8 +33,8 @@ use uuid::Uuid;
 const MAGICSTR: [u8; 12] = *b"kafkabackend";
 pub const KAFKA_TAIL_SZ: usize = 0;
 pub const KAFKA_HEADER_SZ: usize = size_of::<Header>();
-pub const TOPIC: &str = "MACHSTORAGE";
-pub const BOOTSTRAP: &str = "localhost:29092";
+pub const KAFKA_TOPIC: &str = "MACHSTORAGE";
+pub const KAFKA_BOOTSTRAP: &str = "localhost:29092";
 
 pub type KafkaBuffer = FlushBuffer<KAFKA_HEADER_SZ, KAFKA_TAIL_SZ>;
 pub type KafkaFrozenBuffer<'buffer> = FrozenBuffer<'buffer, KAFKA_HEADER_SZ, KAFKA_TAIL_SZ>;
@@ -46,7 +46,7 @@ fn random_id() -> String {
 
 pub fn default_consumer() -> Result<BaseConsumer, Error> {
     let consumer: BaseConsumer = ClientConfig::new()
-        .set("bootstrap.servers", BOOTSTRAP)
+        .set("bootstrap.servers", KAFKA_BOOTSTRAP)
         .set("group.id", random_id())
         .create()?;
     Ok(consumer)
@@ -113,13 +113,13 @@ pub struct KafkaWriter {
 impl KafkaWriter {
     pub fn new() -> Result<Self, Error> {
         let producer: FutureProducer = ClientConfig::new()
-            .set("bootstrap.servers", BOOTSTRAP)
+            .set("bootstrap.servers", KAFKA_BOOTSTRAP)
             .create()?;
         Ok(KafkaWriter { producer })
     }
 
     pub async fn write(&mut self, bytes: &[u8]) -> Result<(i32, i64), Error> {
-        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(TOPIC).payload(bytes);
+        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC).payload(bytes);
         let dur = Duration::from_secs(0);
         let stat = self.producer.send(to_send, dur).await;
         match stat {
@@ -148,7 +148,7 @@ impl KafkaListIterator {
 
         let mut tp_list = TopicPartitionList::new();
         tp_list.add_partition_offset(
-            TOPIC,
+            KAFKA_TOPIC,
             self.next_partition,
             Offset::Offset(self.next_offset),
         )?;
@@ -374,4 +374,3 @@ mod test {
         assert_eq!(chunk.maxt, 5);
     }
 }
-

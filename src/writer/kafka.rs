@@ -1,12 +1,12 @@
 use crate::{
-    backend::fs,
+    backend::kafka,
     chunk, segment,
     tags::Tags,
     writer::{Error, PushStatus},
-    Backend, FileBackend, SeriesMetadata,
+    SeriesMetadata,
+    KafkaBackend,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
-//use crossbeam::queue::SegQueue;
 use dashmap::DashMap;
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -14,57 +14,14 @@ use std::{
         atomic::{AtomicU64, Ordering::SeqCst},
         Arc, Barrier,
     },
+    time::Duration,
 };
-
-enum FlushMsg {
-    ToFlush(ToFlush),
-    ToWait(Arc<Barrier>),
-}
-
-struct ToFlush {
-    segment: segment::FlushSegment,
-    chunk: chunk::FileChunk,
-    list: fs::FileList,
-    full_flush: bool,
-}
-
-impl ToFlush {
-    fn flush(self, file: &mut fs::FileWriter) {
-        if let Some(x) = self.segment.to_flush() {
-            let full_segment = self.segment.to_flush().unwrap();
-            let mut write_chunk = self.chunk.writer().unwrap();
-            // Try to push segment to chunk
-            let res = write_chunk.push(&full_segment);
-            self.segment.flushed();
-            match res {
-                Some(buffer) => {
-                    self.list.writer().unwrap().push(file, buffer).unwrap();
-                    write_chunk.reset();
-                }
-                None => {
-                    if self.full_flush {
-                        if let Some(buff) = write_chunk.flush_buffer() {
-                            self.list.writer().unwrap().push(file, buff).unwrap();
-                            write_chunk.reset();
-                        }
-                    }
-                }
-            }
-        } else if self.full_flush {
-            let mut write_chunk = self.chunk.writer().unwrap();
-            if let Some(buff) = write_chunk.flush_buffer() {
-                self.list.writer().unwrap().push(file, buff).unwrap();
-                write_chunk.reset();
-            }
-        }
-    }
-}
 
 struct SeriesWriter {
     tags: Tags,
     segment: segment::WriteSegment,
-    chunk: chunk::FileChunk,
-    list: fs::FileList,
+    chunk: chunk::KafkaChunk,
+    list: kafka::KafkaList,
     flush_worker: Arc<FlushWorker>,
 }
 
@@ -72,8 +29,8 @@ impl SeriesWriter {
     fn new(
         tags: Tags,
         segment: segment::Segment,
-        chunk: chunk::FileChunk,
-        list: fs::FileList,
+        chunk: chunk::KafkaChunk,
+        list: kafka::KafkaList,
         flush_worker: Arc<FlushWorker>,
     ) -> Self {
         Self {
@@ -117,6 +74,51 @@ impl SeriesWriter {
     }
 }
 
+
+enum FlushMsg {
+    ToFlush(ToFlush),
+    ToWait(Arc<Barrier>),
+}
+
+struct ToFlush {
+    segment: segment::FlushSegment,
+    chunk: chunk::KafkaChunk,
+    list: kafka::KafkaList,
+    full_flush: bool,
+}
+
+impl ToFlush {
+    fn flush(self, kafka: &mut kafka::KafkaWriter) {
+        if let Some(x) = self.segment.to_flush() {
+            let full_segment = self.segment.to_flush().unwrap();
+            let mut write_chunk = self.chunk.writer().unwrap();
+            // Try to push segment to chunk
+            let res = write_chunk.push(&full_segment);
+            self.segment.flushed();
+            match res {
+                Some(buffer) => {
+                    self.list.writer().unwrap().push(kafka, buffer).unwrap();
+                    write_chunk.reset();
+                }
+                None => {
+                    if self.full_flush {
+                        if let Some(buff) = write_chunk.flush_buffer() {
+                            self.list.writer().unwrap().push(kafka, buff).unwrap();
+                            write_chunk.reset();
+                        }
+                    }
+                }
+            }
+        } else if self.full_flush {
+            let mut write_chunk = self.chunk.writer().unwrap();
+            if let Some(buff) = write_chunk.flush_buffer() {
+                self.list.writer().unwrap().push(kafka, buff).unwrap();
+                write_chunk.reset();
+            }
+        }
+    }
+}
+
 struct FlushWorker {
     sender: Sender<FlushMsg>,
 }
@@ -129,19 +131,20 @@ impl std::ops::Deref for FlushWorker {
 }
 
 impl FlushWorker {
-    fn new(file_allocator: Arc<AtomicU64>) -> Self {
+    fn new() -> Self {
         let (sender, receiver) = unbounded();
-        async_std::task::spawn(file_flush_worker(file_allocator, receiver));
+        async_std::task::spawn(kafka_flush_worker(receiver));
         FlushWorker { sender }
     }
 }
 
-async fn file_flush_worker(file_allocator: Arc<AtomicU64>, queue: Receiver<FlushMsg>) {
-    let mut file = fs::FileWriter::new(file_allocator).unwrap();
+async fn kafka_flush_worker(queue: Receiver<FlushMsg>) {
+    let mut kafka = kafka::KafkaWriter::new().unwrap();
+    //let mut file = fs::FileWriter::new(file_allocator).unwrap();
     while let Ok(item) = queue.recv().await {
         match item {
             FlushMsg::ToFlush(item) => {
-                item.flush(&mut file);
+                item.flush(&mut kafka);
             }
             FlushMsg::ToWait(barrier) => {
                 barrier.wait();
@@ -155,7 +158,7 @@ struct Metadata {
     meta: Arc<SeriesMetadata>,
 }
 
-pub struct FileWriter {
+pub struct KafkaWriter {
     reference: Arc<DashMap<Tags, Arc<SeriesMetadata>>>, // communicate with Global
     id_map: HashMap<Tags, u64>,
     thread_id: u64,
@@ -163,14 +166,13 @@ pub struct FileWriter {
     writers: Vec<Metadata>,
 }
 
-impl FileWriter {
+impl KafkaWriter {
     fn new(
         thread_id: u64,
         reference: Arc<DashMap<Tags, Arc<SeriesMetadata>>>,
-        shared_file: Arc<AtomicU64>,
     ) -> Self {
-        let flush_worker = Arc::new(FlushWorker::new(shared_file));
-        FileWriter {
+        let flush_worker = Arc::new(FlushWorker::new());
+        KafkaWriter {
             reference,
             flush_worker,
             id_map: HashMap::new(),
@@ -190,7 +192,7 @@ impl FileWriter {
                         let segment = item.segment.clone();
 
                         // TODO: This is messy...
-                        let FileBackend { chunk, list } = item.backend.file_backend();
+                        let KafkaBackend { chunk, list } = item.backend.kafka_backend();
                         let flush_worker = self.flush_worker.clone();
                         let writer =
                             SeriesWriter::new(tags.clone(), segment, chunk.clone(), list.clone(), flush_worker);
@@ -247,7 +249,7 @@ mod test {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
 
-        let meta = Arc::new(SeriesMetadata::with_file_backend(
+        let meta = Arc::new(SeriesMetadata::with_kafka_backend(
             5,
             nvars,
             3,
@@ -258,7 +260,7 @@ mod test {
         // Setup writer
         let reference = Arc::new(DashMap::new());
         reference.insert(tags.clone(), meta.clone());
-        let mut writer = FileWriter::new(5, reference.clone(), SHARED_FILE_ID.clone());
+        let mut writer = KafkaWriter::new(5, reference.clone());
         let ref_id = writer.init_series(&tags).unwrap();
 
         // Push data into the writer
@@ -292,16 +294,13 @@ mod test {
                 }
             }
         }
-
         writer.close();
 
-        let mut file_list_iterator = meta.backend.file_backend().list.reader().unwrap();
+        let consumer = kafka::default_consumer().unwrap();
+        let timeout = kafka::Timeout::After(Duration::from_secs(1));
+        let mut file_list_iterator = meta.backend.kafka_backend().list.reader(consumer, timeout).unwrap();
         let mut count = 0;
         let rev_exp_ts = exp_ts.iter().rev().copied().collect::<Vec<u64>>();
-        //println!("ORIGIN ORDER");
-        //println!("{:?}", exp_ts);
-        //println!("REVERSE ORDER");
-        //println!("{:?}", rev_exp_ts);
         let mut timestamps = Vec::new();
         while let Some(byte_entry) = file_list_iterator.next_item().unwrap() {
             count += 1;
@@ -319,3 +318,4 @@ mod test {
         assert_eq!(timestamps, rev_exp_ts);
     }
 }
+

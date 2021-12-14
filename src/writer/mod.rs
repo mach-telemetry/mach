@@ -1,4 +1,5 @@
 mod file;
+mod kafka;
 
 use crate::{segment, tags::Tags, SeriesMetadata};
 use dashmap::DashMap;
