@@ -28,6 +28,7 @@ use std::{
     },
     time::Duration,
 };
+use uuid::Uuid;
 
 const MAGICSTR: [u8; 12] = *b"kafkabackend";
 pub const KAFKA_TAIL_SZ: usize = 0;
@@ -38,6 +39,18 @@ pub const BOOTSTRAP: &str = "localhost:29092";
 pub type KafkaBuffer = FlushBuffer<KAFKA_HEADER_SZ, KAFKA_TAIL_SZ>;
 pub type KafkaFrozenBuffer<'buffer> = FrozenBuffer<'buffer, KAFKA_HEADER_SZ, KAFKA_TAIL_SZ>;
 pub type KafkaEntry<'buffer> = FlushEntry<'buffer, KAFKA_HEADER_SZ, KAFKA_TAIL_SZ>;
+
+fn random_id() -> String {
+    Uuid::new_v4().to_hyphenated().to_string()
+}
+
+pub fn default_consumer() -> Result<BaseConsumer, Error> {
+    let consumer: BaseConsumer = ClientConfig::new()
+        .set("bootstrap.servers", BOOTSTRAP)
+        .set("group.id", random_id())
+        .create()?;
+    Ok(consumer)
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Header {
@@ -116,7 +129,7 @@ impl KafkaWriter {
     }
 }
 
-pub struct KafkaIterator {
+pub struct KafkaListIterator {
     next_offset: i64,
     next_partition: i32,
     next_mint: u64,
@@ -126,7 +139,7 @@ pub struct KafkaIterator {
     buf: Vec<u8>,
 }
 
-impl KafkaIterator {
+impl KafkaListIterator {
     pub fn next_item(&mut self) -> Result<Option<ByteEntry>, Error> {
         if self.next_offset == i64::MAX {
             return Ok(None);
@@ -140,53 +153,98 @@ impl KafkaIterator {
         )?;
         self.consumer.assign(&tp_list).unwrap();
         let res = self.consumer.poll(self.timeout.clone());
-        let payload = match &res {
+        let payload: &[u8] = match &res {
             None => return Err(Error::KafkaPollTimeout),
             Some(Err(x)) => return Err(x.clone().into()),
             Some(Ok(msg)) => msg.payload().unwrap(), // we expect there to always be a payload
         };
+        self.buf.extend_from_slice(payload);
 
-        Ok(None)
+        // Get header
+        let mut off = 0;
+        let header: Header = bincode::deserialize(&self.buf[off..off + KAFKA_HEADER_SZ])?;
+        if header.magic != MAGICSTR {
+            return Err(Error::InvalidMagic);
+        }
+        off += KAFKA_HEADER_SZ;
 
-        //res.payload()
-        //println!("{}", std::str::from_utf8(res.payload().unwrap()).unwrap());
+        // Get the offsets for the chunk of bytes
+        let end = self.buf.len() - KAFKA_TAIL_SZ;
 
-        //let mut file = self.file.as_mut().unwrap();
-        //let meta = file.metadata().unwrap();
-        //file.seek(SeekFrom::Start(self.next_offset))?;
-        //let next_bytes = self.next_bytes as usize;
-        //self.buf.resize(next_bytes, 0u8);
-        //let bytes = file.read(&mut self.buf[..next_bytes])?;
-        //assert_eq!(bytes, next_bytes);
+        let f = ByteEntry {
+            mint: header.mint,
+            maxt: header.maxt,
+            bytes: &self.buf[off..end],
+        };
 
-        //let mut off = 0;
+        // Update iterator state
+        self.next_offset = header.last_offset;
+        self.next_partition = header.last_partition;
+        self.next_mint = header.last_mint;
+        self.next_maxt = header.last_maxt;
 
-        //// Get header
-        //let header: Header = bincode::deserialize(&self.buf[off..off + HEADERSZ])?;
-        //if header.magic != MAGICSTR {
-        //    return Err(Error::InvalidMagic);
-        //}
-        //off += HEADERSZ;
+        Ok(Some(f))
+    }
+}
 
-        //// Get the offsets for the chunk of bytes
-        //let end = self.buf.len() - TAILSZ;
+#[derive(Clone)]
+pub struct KafkaList {
+    inner: Arc<InnerKafkaList>,
+    has_writer: Arc<AtomicBool>,
+}
 
-        //let f = ByteEntry {
-        //    mint: header.mint,
-        //    maxt: header.maxt,
-        //    bytes: &self.buf[off..end],
-        //};
+impl KafkaList {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(InnerKafkaList::new()),
+            has_writer: Arc::new(AtomicBool::new(false)),
+        }
+    }
 
-        //// Update iterator state
-        //self.next_offset = header.last_offset;
-        //self.next_mint = header.last_mint;
-        //self.next_maxt = header.last_maxt;
-        //self.next_bytes = header.last_bytes;
-        //if self.next_file_id != header.last_file_id {
-        //    self.file = None;
-        //    self.next_file_id = header.last_file_id;
-        //}
-        //Ok(Some(f))
+    pub fn reader(
+        &self,
+        consumer: BaseConsumer,
+        timeout: Timeout,
+    ) -> Result<KafkaListIterator, Error> {
+        self.inner.read(consumer, timeout)
+    }
+
+    pub fn writer(&self) -> Result<KafkaListWriter, Error> {
+        if self.has_writer.swap(true, SeqCst) {
+            Err(Error::MultipleWriters)
+        } else {
+            Ok(KafkaListWriter {
+                inner: self.inner.clone(),
+                has_writer: self.has_writer.clone(),
+            })
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct KafkaListWriter {
+    inner: Arc<InnerKafkaList>,
+    has_writer: Arc<AtomicBool>,
+}
+
+impl KafkaListWriter {
+    pub fn push(&mut self, writer: &mut KafkaWriter, mut entry: KafkaEntry) -> Result<(), Error> {
+        // Safety: Safe because there's only one writer and concurrent readers check versions
+        // during each read.
+        unsafe {
+            Arc::get_mut_unchecked(&mut self.inner).push(
+                writer,
+                entry.mint,
+                entry.maxt,
+                &mut entry.buffer,
+            )
+        }
+    }
+}
+
+impl Drop for KafkaListWriter {
+    fn drop(&mut self) {
+        assert!(self.has_writer.swap(false, SeqCst));
     }
 }
 
@@ -237,21 +295,23 @@ impl InnerKafkaList {
         Ok(())
     }
 
-    //fn read(&self) -> Result<KafkaIterator, Error> {
-    //    let v = self.version.load(SeqCst);
-    //    while self.spin.load(SeqCst) {}
-    //    let iterator = KafkaIterator {
-    //        next_offset: self.header.last_offset,
-    //        next_partition: self.header.last_partition,
-    //        next_mint: self.header.last_mint,
-    //        next_maxt: self.header.last_maxt,
-    //        buf: Vec::new(),
-    //    };
-    //    while self.spin.load(SeqCst) {}
-    //    if v == self.version.load(SeqCst) {
-    //        Ok(iterator)
-    //    } else {
-    //        Err(Error::ReadVersion)
-    //    }
-    //}
+    fn read(&self, consumer: BaseConsumer, timeout: Timeout) -> Result<KafkaListIterator, Error> {
+        let v = self.version.load(SeqCst);
+        while self.spin.load(SeqCst) {}
+        let iterator = KafkaListIterator {
+            next_offset: self.header.last_offset,
+            next_partition: self.header.last_partition,
+            next_mint: self.header.last_mint,
+            next_maxt: self.header.last_maxt,
+            consumer,
+            timeout,
+            buf: Vec::new(),
+        };
+        while self.spin.load(SeqCst) {}
+        if v == self.version.load(SeqCst) {
+            Ok(iterator)
+        } else {
+            Err(Error::ReadVersion)
+        }
+    }
 }

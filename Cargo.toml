@@ -20,6 +20,7 @@ dashmap = "4.0.2"
 rdkafka = "0.28.0"
 async-std = { version = "1.9", features = ["unstable", "attributes", "tokio1"] }
 futures = "0.3.18"
+uuid = { version = "0.8", features = ["v4"] }
 #seq-macro = "0.2"
 #lz4_flex = "0.8.2"
 #libc = "0.2.96"
