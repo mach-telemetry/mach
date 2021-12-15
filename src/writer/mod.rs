@@ -1,7 +1,7 @@
-mod file;
-mod kafka;
+pub mod file;
+pub mod kafka;
 
-use crate::{segment, tags::Tags, SeriesMetadata};
+use crate::{segment, tags::Tags};
 use dashmap::DashMap;
 use std::{
     collections::{hash_map::Entry, HashMap},

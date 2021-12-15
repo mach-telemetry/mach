@@ -1,9 +1,9 @@
 use crate::{
-    backend::fs,
+    backend::{fs, Backend, FileBackend},
     chunk, segment,
+    series_metadata::SeriesMetadata,
     tags::Tags,
     writer::{Error, PushStatus},
-    Backend, FileBackend, SeriesMetadata,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 //use crossbeam::queue::SegQueue;
@@ -164,7 +164,7 @@ pub struct FileWriter {
 }
 
 impl FileWriter {
-    fn new(
+    pub fn new(
         thread_id: u64,
         reference: Arc<DashMap<Tags, Arc<SeriesMetadata>>>,
         shared_file: Arc<AtomicU64>,
@@ -179,7 +179,7 @@ impl FileWriter {
         }
     }
 
-    fn init_series(&mut self, tags: &Tags) -> Result<u64, Error> {
+    pub fn init_series(&mut self, tags: &Tags) -> Result<u64, Error> {
         let entry = self.id_map.entry(tags.clone());
         match entry {
             Entry::Occupied(_) => Err(Error::SeriesReinitialized),
@@ -192,8 +192,13 @@ impl FileWriter {
                         // TODO: This is messy...
                         let FileBackend { chunk, list } = item.backend.file_backend();
                         let flush_worker = self.flush_worker.clone();
-                        let writer =
-                            SeriesWriter::new(tags.clone(), segment, chunk.clone(), list.clone(), flush_worker);
+                        let writer = SeriesWriter::new(
+                            tags.clone(),
+                            segment,
+                            chunk.clone(),
+                            list.clone(),
+                            flush_worker,
+                        );
                         let meta = Metadata {
                             writer,
                             meta: item.clone(),
@@ -209,20 +214,20 @@ impl FileWriter {
         }
     }
 
-    fn get_reference_id(&mut self, tags: &Tags) -> Option<u64> {
+    pub fn get_reference_id(&mut self, tags: &Tags) -> Option<u64> {
         Some(*(self.id_map.get(&tags)?))
     }
 
-    fn push(&mut self, id: u64, ts: u64, values: &[[u8; 8]]) -> Result<(), Error> {
+    pub fn push(&mut self, id: u64, ts: u64, values: &[[u8; 8]]) -> Result<(), Error> {
         self.writers[id as usize].writer.push(ts, values)?;
         Ok(())
     }
 
-    fn flush(&mut self, id: u64) {
+    pub fn flush(&mut self, id: u64) {
         self.writers[id as usize].writer.flush()
     }
 
-    fn close(self) {
+    pub fn close(self) {
         for i in 0..self.writers.len() {
             self.writers[i].writer.flush();
         }

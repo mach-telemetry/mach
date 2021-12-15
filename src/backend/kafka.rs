@@ -14,7 +14,10 @@ use rdkafka::{
     Message,
     //message::OwnedHeaders,
 };
-pub use rdkafka::{util::Timeout, consumer::{Consumer, base_consumer::BaseConsumer}};
+pub use rdkafka::{
+    consumer::{base_consumer::BaseConsumer, Consumer},
+    util::Timeout,
+};
 use serde::*;
 use std::{
     convert::TryInto,
@@ -118,10 +121,12 @@ impl KafkaWriter {
         Ok(KafkaWriter { producer })
     }
 
-    pub async fn write(&mut self, bytes: &[u8]) -> Result<(i32, i64), Error> {
+    pub fn write(&mut self, bytes: &[u8]) -> Result<(i32, i64), Error> {
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC).payload(bytes);
         let dur = Duration::from_secs(0);
-        let stat = self.producer.send(to_send, dur).await;
+        let now = std::time::Instant::now();
+        let stat = async_std::task::block_on(self.producer.send(to_send, dur));
+        println!("bytes: {}, kafka write time: {:?}", bytes.len(), now.elapsed());
         match stat {
             Ok(x) => Ok(x),
             Err((err, _)) => Err(err.into()),
@@ -278,7 +283,7 @@ impl InnerKafkaList {
         bincode::serialize_into(buf.header_mut(), &self.header)?;
 
         let bytes = buf.bytes();
-        let (partition, offset) = async_std::task::block_on(producer.write(bytes))?;
+        let (partition, offset) = producer.write(bytes)?;
 
         self.spin.store(true, SeqCst);
 

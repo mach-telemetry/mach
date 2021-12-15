@@ -15,6 +15,11 @@ use std::{
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering::SeqCst},
         Arc,
     },
+    os::unix::io::{AsRawFd, FromRawFd},
+};
+use async_std::{
+    channel::{bounded, Sender, Receiver},
+    task::sleep,
 };
 
 const MAGICSTR: [u8; 11] = *b"filebackend";
@@ -61,12 +66,14 @@ lazy_static! {
 
 #[cfg(not(test))]
 lazy_static! {
-    pub static ref DATADIR: PathBuf = PathBuf::from("/nvme/fsolleza/output");
+    pub static ref DATADIR: PathBuf = PathBuf::from("/home/fsolleza/Projects/mach-bench-private/rust/mach/data/output");
+    //pub static ref DATADIR: PathBuf = PathBuf::from("/nvme/fsolleza/output");
 }
 
 #[derive(Debug)]
 pub enum Error {
     IO(io::Error),
+    FlusherError,
     Bincode(bincode::Error),
     ReadVersion,
     MultipleWriters,
@@ -92,11 +99,27 @@ impl From<bincode::Error> for Error {
     }
 }
 
+async fn flusher(raw_fd: i32, flush_queue: Receiver<()>) {
+    use std::time::Instant;
+    // FD is always valid because we call this from the writer
+    let df = unsafe { async_std::fs::File::from_raw_fd(raw_fd) };
+    while let Ok(()) = flush_queue.recv().await {
+        let now = Instant::now();
+        match df.sync_all().await {
+            Err(_) => break,
+            Ok(_) => {}
+        }
+        println!("FLUSHED {:?}", now.elapsed());
+        //sleep(Duration::from_secs(1).await);
+    }
+}
+
 pub struct FileWriter {
     offset: u64,
     local_id: u64,
     shared_id: Arc<AtomicU64>,
     file: File,
+    flush_queue: Sender<()>,
 }
 
 impl FileWriter {
@@ -110,11 +133,15 @@ impl FileWriter {
             .append(true)
             .open(DATADIR.join(file_name))?;
         let offset = 0;
+        let (flush_queue, flush_queue_rx) = bounded(10);
+        let fd = file.as_raw_fd();
+        //async_std::task::spawn(flusher(fd, flush_queue_rx));
         Ok(Self {
             offset,
             local_id,
             shared_id,
             file,
+            flush_queue
         })
     }
 
@@ -134,6 +161,13 @@ impl FileWriter {
 
     pub fn write(&mut self, bytes: &[u8]) -> Result<(), Error> {
         let w = self.file.write_all(bytes)?;
+        //match self.flush_queue.try_send(()) {
+        //    Err(_) => return Err(Error::FlusherError),
+        //    Ok(_) => {}
+        //};
+        let now = std::time::Instant::now();
+        self.file.sync_all()?;
+        println!("bytes: {}, flush time: {:?}", bytes.len(), now.elapsed());
         self.offset += bytes.len() as u64;
         Ok(())
     }
@@ -161,9 +195,8 @@ impl FileListIterator {
                     .open(DATADIR.join(file_name))?,
             );
         }
-
         let mut file = self.file.as_mut().unwrap();
-        let meta = file.metadata().unwrap();
+        //let meta = file.metadata().unwrap();
         file.seek(SeekFrom::Start(self.next_offset))?;
         let next_bytes = self.next_bytes as usize;
         self.buf.resize(next_bytes, 0u8);

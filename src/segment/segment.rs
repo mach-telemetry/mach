@@ -21,8 +21,27 @@ pub struct Segment<const B: usize, const V: usize> {
 
 impl<const B: usize, const V: usize> Segment<B, V> {
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
-        match self.current_buffer().push(ts, item) {
+        let res = self.current_buffer().push(ts, item);
+        match res {
             Ok(InnerPushStatus::Done) => Ok(InnerPushStatus::Done),
+            _ => self.not_done(ts, item, res)
+            //Ok(InnerPushStatus::Flush) => {
+            //    self.try_next_buffer();
+            //    Ok(InnerPushStatus::Flush)
+            //}
+            //Err(Error::PushIntoFull) => {
+            //    if self.try_next_buffer() {
+            //        self.current_buffer().push(ts, item)
+            //    } else {
+            //        Err(Error::PushIntoFull)
+            //    }
+            //}
+            //Err(_) => unimplemented!(),
+        }
+    }
+
+    fn not_done(&mut self, ts: u64, item: &[[u8; 8]], status: Result<InnerPushStatus, Error>) -> Result<InnerPushStatus, Error> {
+        match status {
             Ok(InnerPushStatus::Flush) => {
                 self.try_next_buffer();
                 Ok(InnerPushStatus::Flush)
@@ -34,7 +53,7 @@ impl<const B: usize, const V: usize> Segment<B, V> {
                     Err(Error::PushIntoFull)
                 }
             }
-            Err(_) => unimplemented!(),
+            _ => unimplemented!(),
         }
     }
 
