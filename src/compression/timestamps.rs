@@ -80,7 +80,6 @@ pub fn decompress(data: &[u8], buf: &mut Vec<u64>) -> (usize, usize) {
 
     // Get first and second timestamp
     let end = off + size_of::<u64>();
-    println!("data len: {}", data.len());
     buf.push(u64::from_be_bytes(<[u8; 8]>::try_from(&data[off..end]).unwrap()));
     off = end;
 
