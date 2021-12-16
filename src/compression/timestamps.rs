@@ -9,7 +9,7 @@ use std::{
 /// Compresses upto 256 timestamps into buf
 /// Returns the number of bytes written in buf.
 /// Panics if buf is too small or timestamps is longer than 256
-pub fn compress_timestamps(timestamps: &[u64], buf: &mut Vec<u8>) {
+pub fn compress(timestamps: &[u64], buf: &mut Vec<u8>) {
     let len = timestamps.len();
     assert!(len <= 256);
 
@@ -70,7 +70,7 @@ pub fn compress_timestamps(timestamps: &[u64], buf: &mut Vec<u8>) {
 /// Decompresses data into buf
 /// Returns the number of bytes read from data and number of items decompressed.
 /// Panics if buf is not long enough.
-pub fn decompress_timestamps(data: &[u8], buf: &mut [u64]) -> (usize, usize) {
+pub fn decompress(data: &[u8], buf: &mut Vec<u64>) -> (usize, usize) {
     let mut off = 0;
 
     // Get len
@@ -80,12 +80,13 @@ pub fn decompress_timestamps(data: &[u8], buf: &mut [u64]) -> (usize, usize) {
 
     // Get first and second timestamp
     let end = off + size_of::<u64>();
-    buf[0] = u64::from_be_bytes(<[u8; 8]>::try_from(&data[off..end]).unwrap());
+    println!("data len: {}", data.len());
+    buf.push(u64::from_be_bytes(<[u8; 8]>::try_from(&data[off..end]).unwrap()));
     off = end;
 
     // Get second timestamp
     let end = off + size_of::<u64>();
-    buf[1] = u64::from_be_bytes(<[u8; 8]>::try_from(&data[off..end]).unwrap());
+    buf.push(u64::from_be_bytes(<[u8; 8]>::try_from(&data[off..end]).unwrap()));
     off = end;
 
     // Read bitpacked data
@@ -116,7 +117,7 @@ pub fn decompress_timestamps(data: &[u8], buf: &mut [u64]) -> (usize, usize) {
     for i in 2..len {
         let diff2: i64 = from_zigzag(zigzagged[i]);
         let value = diff2 + buf[i - 1] as i64 + last_diff as i64;
-        buf[i] = value.try_into().unwrap();
+        buf.push(value.try_into().unwrap());
         last_diff = buf[i] - buf[i - 1];
     }
 
@@ -131,10 +132,10 @@ mod test {
     fn compress_decompress(data: &[u64]) {
         let mut buf = Vec::new();
         let len = data.len().min(256);
-        compress_timestamps(&data[..len], &mut buf);
+        compress(&data[..len], &mut buf);
 
-        let mut res = [0u64; 256];
-        let (b, l) = decompress_timestamps(&buf[..], &mut res[..]);
+        let mut res = Vec::new();
+        let (b, l) = decompress(&buf[..], &mut res);
 
         assert_eq!(b, buf.len());
         assert_eq!(l, len);
@@ -155,9 +156,9 @@ mod test {
     fn test_compress_decompress_simple() {
         let data = [1, 2, 3, 4, 6, 8, 10];
         let mut buf = Vec::new();
-        compress_timestamps(&data[..], &mut buf);
-        let mut res = [0; 10];
-        let (b, l) = decompress_timestamps(&buf[..], &mut res);
+        compress(&data[..], &mut buf);
+        let mut res = Vec::new();
+        let (b, l) = decompress(&buf[..], &mut res);
         assert_eq!(&res[..l], &data[..]);
     }
 }
