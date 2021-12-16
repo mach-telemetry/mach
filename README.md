@@ -1,3 +1,23 @@
+### Kafka Setup
+
+* Run a single broker kafka
+
+```
+docker-compose up # might need sudo
+```
+
+* Create a topic
+
+```
+docker-compose exec broker bash # enters bash in broker container
+
+# Create topic
+kafka-topics --create --topic MACHSTORAGE --config="max.message.bytes=10000000" --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1
+
+# Check if topic is created
+kafka-topics --list --zookeeper zookeeper:2181
+```
+
 ### Setup
 
 * install rust
@@ -11,16 +31,5 @@ cargo test
 ```
 
 ### Data
-
 `tar -xzf data.tar.gz` extracts test univariate and multivariate data into `mach-private/data`.
 This directory is ignored in `.gitignore`
-
-### TODOs
-- [x] Persist file store
-- [x] Persist keys
-- [ ] XOR Compression
-- [x] Row-based compression
-- [x] Load files from directory
-- [x] Load key metadata from tsdb directory
-- [ ] Persist time series options
-- [ ] Reload time series options into Db
