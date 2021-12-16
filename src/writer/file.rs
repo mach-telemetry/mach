@@ -32,6 +32,7 @@ impl ToFlush {
     fn flush(self, file: &mut fs::FileWriter) {
         if let Some(x) = self.segment.to_flush() {
             let full_segment = self.segment.to_flush().unwrap();
+            //println!("Full segment: {}", full_segment.len);
             let mut write_chunk = self.chunk.writer().unwrap();
             // Try to push segment to chunk
             let res = write_chunk.push(&full_segment);

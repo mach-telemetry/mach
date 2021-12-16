@@ -67,7 +67,6 @@ lazy_static! {
 #[cfg(not(test))]
 lazy_static! {
     pub static ref DATADIR: PathBuf = PathBuf::from("/home/fsolleza/Projects/mach-bench-private/rust/mach/data/output");
-    //pub static ref DATADIR: PathBuf = PathBuf::from("/nvme/fsolleza/output");
 }
 
 #[derive(Debug)]
@@ -104,12 +103,12 @@ async fn flusher(raw_fd: i32, flush_queue: Receiver<()>) {
     // FD is always valid because we call this from the writer
     let df = unsafe { async_std::fs::File::from_raw_fd(raw_fd) };
     while let Ok(()) = flush_queue.recv().await {
-        let now = Instant::now();
+        //let now = Instant::now();
         match df.sync_all().await {
             Err(_) => break,
             Ok(_) => {}
         }
-        println!("FLUSHED {:?}", now.elapsed());
+        //println!("FLUSHED {:?}", now.elapsed());
         //sleep(Duration::from_secs(1).await);
     }
 }
@@ -167,7 +166,9 @@ impl FileWriter {
         //};
         let now = std::time::Instant::now();
         self.file.sync_all()?;
-        println!("bytes: {}, flush time: {:?}", bytes.len(), now.elapsed());
+        //let elapsed = now.elapsed();
+        //let mbps = (bytes.len() as f64/ elapsed.as_secs_f64()) / 1_000_000.0;
+        //println!("bytes: {}, flush time: {:?}, Mbps: {}", bytes.len(), elapsed, mbps);
         self.offset += bytes.len() as u64;
         Ok(())
     }

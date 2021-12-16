@@ -23,7 +23,30 @@ lazy_static! {
     pub static ref TEST_DATA_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
     pub static ref UNIVARIATE_DATA: Arc<Vec<(String, Data)>> = Arc::new(load_univariate());
     pub static ref MULTIVARIATE_DATA: Arc<Vec<(String, Data)>> = Arc::new(load_multivariate());
+    pub static ref SYNTHETIC_DATA: Data = Arc::new(gen_synthetic());
     pub static ref SHARED_FILE_ID: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
+}
+
+fn gen_synthetic() -> Vec<Sample> {
+    use rand::{thread_rng, Rng};
+    let count = 30_000;
+    let vars = 5;
+    let mut timestamps = vec![0u64; count];
+    thread_rng().try_fill(&mut timestamps[..]).unwrap();
+    timestamps.sort();
+
+    let mut samples = Vec::new();
+    for ts in timestamps.iter() {
+        let mut v = vec![0f64; vars];
+        thread_rng().try_fill(&mut v[..]).unwrap();
+
+        let s = Sample {
+            ts: *ts,
+            values: v.into_boxed_slice(),
+        };
+        samples.push(s);
+    }
+    samples
 }
 
 pub type Data = Arc<Vec<Sample>>;

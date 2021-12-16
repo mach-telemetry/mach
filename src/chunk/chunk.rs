@@ -104,6 +104,7 @@ impl<const H: usize, const T: usize> Inner<H, T> {
         let metadata_offset = flush_buffer.len();
         flush_buffer.push_bytes(&[0u8; THRESH * 3 * 8]).unwrap();
         let data_offset = flush_buffer.len();
+        //println!("init flush buffer len: {}", data_offset);
 
         Inner {
             flush_buffer,
@@ -154,6 +155,8 @@ impl<const H: usize, const T: usize> Inner<H, T> {
             off += 8;
         }
         drop(data);
+
+        //println!("CHUNK FLUSH: {} SZ: {}", self.local_counter, self.flush_buffer.len());
 
         Some(FlushEntry {
             mint: self.mint,
@@ -212,6 +215,7 @@ impl<const H: usize, const T: usize> Inner<H, T> {
     }
 
     fn push(&mut self, segment: &FullSegment) -> Option<FlushEntry<H, T>> {
+        //let len = self.flush_buffer.len();
         let (mint, maxt) = {
             let ts = segment.timestamps();
             let mint = ts[0];
@@ -229,6 +233,8 @@ impl<const H: usize, const T: usize> Inner<H, T> {
         self.segment_meta[self.local_counter] = SegmentMeta { offset, mint, maxt };
         self.local_counter += 1;
         self.counter.swap(self.local_counter, SeqCst);
+        //let len2 = self.flush_buffer.len();
+        //println!("Flush buffer before and after {} {}", len, len2);
 
         if self.local_counter == THRESH {
             self.flush_buffer()
@@ -481,7 +487,7 @@ mod test {
         assert_eq!(chunk_writer.inner.counter.load(SeqCst), THRESH);
 
         let reader = chunk.read().unwrap();
-        println!("LEN: {}", reader.len());
+        //println!("LEN: {}", reader.len());
         let bytes = reader.get_segment_bytes(reader.len() - 1);
         let mut decompressed = DecompressBuffer::new();
         let bytes_read = Compression::decompress(bytes, &mut decompressed).unwrap();

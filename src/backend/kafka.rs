@@ -124,9 +124,11 @@ impl KafkaWriter {
     pub fn write(&mut self, bytes: &[u8]) -> Result<(i32, i64), Error> {
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC).payload(bytes);
         let dur = Duration::from_secs(0);
-        let now = std::time::Instant::now();
+        //let now = std::time::Instant::now();
         let stat = async_std::task::block_on(self.producer.send(to_send, dur));
-        println!("bytes: {}, kafka write time: {:?}", bytes.len(), now.elapsed());
+        //let elapsed = now.elapsed();
+        //let mbps = (bytes.len() as f64/ elapsed.as_secs_f64()) / 1_000_000.0;
+        //println!("bytes: {}, kafka time: {:?}, Mbps: {}", bytes.len(), elapsed, mbps);
         match stat {
             Ok(x) => Ok(x),
             Err((err, _)) => Err(err.into()),

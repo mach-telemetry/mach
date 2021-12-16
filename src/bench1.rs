@@ -35,10 +35,18 @@ use std::{
     sync::Arc,
     time::{Instant, Duration},
 };
+use rdkafka::{
+    producer::{FutureProducer, FutureRecord},
+    config::ClientConfig,
+};
 
 fn main() {
+    let len = &SYNTHETIC_DATA.len();
     run_file();
     run_kafka();
+    //async_std::task::block_on(run_kafka_naive());
+    //async_std::task::block_on(run_kafka_batched(100));
+    async_std::task::block_on(run_kafka_batched(1000));
 }
 
 fn file_wait_loop(ref_id: u64, writer: &mut FileWriter, ts: u64, values: &[[u8; 8]]) {
@@ -49,13 +57,20 @@ fn file_wait_loop(ref_id: u64, writer: &mut FileWriter, ts: u64, values: &[[u8; 
     }
 }
 
+fn gen_data() -> &'static [Sample] {
+    let data = &MULTIVARIATE_DATA[1].1;
+    //let data = &SYNTHETIC_DATA;
+    data.as_slice()
+}
 
 fn run_file() {
+    std::fs::remove_dir_all(&*backend::fs::DATADIR).unwrap();
+    std::fs::create_dir_all(&*backend::fs::DATADIR).unwrap();
     // Setup data
     let mut tags = Tags::new();
     tags.insert(("A".to_string(), "B".to_string()));
     tags.insert(("C".to_string(), "D".to_string()));
-    let data = &MULTIVARIATE_DATA[0].1;
+    let data = gen_data();
     let nvars = data[0].values.len();
 
     let meta = Arc::new(SeriesMetadata::with_file_backend(
@@ -114,10 +129,6 @@ fn run_file() {
     let mut file_list_iterator = meta.backend.file_backend().list.reader().unwrap();
     let mut count = 0;
     let rev_exp_ts = exp_ts.iter().rev().copied().collect::<Vec<u64>>();
-    //println!("ORIGIN ORDER");
-    //println!("{:?}", exp_ts);
-    //println!("REVERSE ORDER");
-    //println!("{:?}", rev_exp_ts);
     let mut timestamps = Vec::new();
     while let Some(byte_entry) = file_list_iterator.next_item().unwrap() {
         count += 1;
@@ -143,12 +154,104 @@ fn kafka_wait_loop(ref_id: u64, writer: &mut KafkaWriter, ts: u64, values: &[[u8
     }
 }
 
+async fn run_kafka_batched(sz: usize) {
+
+    let data = gen_data();
+    let sample_to_bytes = |ts: u64, val: &[f64]| -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(&ts.to_be_bytes()[..]);
+        for item in val.iter() {
+            v.extend_from_slice(&item.to_be_bytes()[..]);
+        }
+        v
+    };
+
+    let mut batches = Vec::new();
+    for chunk in data.chunks(sz) {
+        let mut v = Vec::new();
+        for item in chunk {
+            v.extend_from_slice(&item.ts.to_be_bytes()[..]);
+            for item in item.values.iter() {
+                v.extend_from_slice(&item.to_be_bytes()[..]);
+            }
+        }
+        batches.push(v);
+    }
+
+    // connect to kafka
+    let bootstrap = "localhost:29092";
+    let topic = "RawWrites";
+    let producer: &FutureProducer = &ClientConfig::new()
+        .set("bootstrap.servers", bootstrap)
+        .create()
+        .expect("Producer create error");
+    let dur = Duration::from_secs(0);
+
+    let mut len = 0;
+    let start = Instant::now();
+    for batch in batches.iter() {
+        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&*topic)
+            .payload(&batch[..]);
+        len += batch.len();
+        match producer.send(to_send, dur).await {
+            Ok(_) => {},
+            Err((e, _)) => {
+                println!("Error: {:?}", e);
+            }
+        }
+    }
+    let elapsed = start.elapsed();
+    println!("kafka batch size {} dur: {:?}", sz, elapsed);
+    println!("kafka batch written: {}", len);
+}
+
+
+async fn run_kafka_naive() {
+
+    let data = gen_data();
+    let sample_to_bytes = |ts: u64, val: &[f64]| -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(&ts.to_be_bytes()[..]);
+        for item in val.iter() {
+            v.extend_from_slice(&item.to_be_bytes()[..]);
+        }
+        v
+    };
+
+    let samples = data
+        .iter()
+        .map(|item| sample_to_bytes(item.ts, &*item.values))
+        .collect::<Vec<Vec<u8>>>();
+
+    // connect to kafka
+    let bootstrap = "localhost:29092";
+    let topic = "RawWrites";
+    let producer: &FutureProducer = &ClientConfig::new()
+        .set("bootstrap.servers", bootstrap)
+        .create()
+        .expect("Producer create error");
+    let dur = Duration::from_secs(0);
+
+    let start = Instant::now();
+    for sample in samples.iter() {
+        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&*topic)
+            .payload(&sample[..]);
+        match producer.send(to_send, dur).await {
+            Ok(_) => {},
+            Err((e, _)) => {
+                println!("Error: {:?}", e);
+            }
+        }
+    }
+    println!("kafka naive dur: {:?}", start.elapsed());
+}
+
 fn run_kafka() {
     // Setup data
     let mut tags = Tags::new();
     tags.insert(("A".to_string(), "B".to_string()));
     tags.insert(("C".to_string(), "D".to_string()));
-    let data = &MULTIVARIATE_DATA[0].1;
+    let data = gen_data();
     let nvars = data[0].values.len();
 
     let meta = Arc::new(SeriesMetadata::with_kafka_backend(
