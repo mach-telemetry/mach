@@ -10,15 +10,16 @@
 #![allow(clippy::len_without_is_empty)]
 #![allow(warnings)]
 
-mod backend;
-mod chunk;
-mod compression;
-mod flush_buffer;
-mod segment;
-mod series_metadata;
-mod tags;
+//mod backend;
+//mod chunk;
+//mod compression;
+//mod flush_buffer;
+//mod series_metadata;
+//mod tags;
+//mod writer;
+
 mod utils;
-mod writer;
+mod segment;
 
 #[cfg(test)]
 mod test_utils;
