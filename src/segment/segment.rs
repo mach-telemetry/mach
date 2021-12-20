@@ -24,24 +24,6 @@ impl<const B: usize, const V: usize> Segment<B, V> {
         let res = self.current_buffer().push(ts, item);
         match res {
             Ok(InnerPushStatus::Done) => Ok(InnerPushStatus::Done),
-            _ => self.not_done(ts, item, res)
-            //Ok(InnerPushStatus::Flush) => {
-            //    self.try_next_buffer();
-            //    Ok(InnerPushStatus::Flush)
-            //}
-            //Err(Error::PushIntoFull) => {
-            //    if self.try_next_buffer() {
-            //        self.current_buffer().push(ts, item)
-            //    } else {
-            //        Err(Error::PushIntoFull)
-            //    }
-            //}
-            //Err(_) => unimplemented!(),
-        }
-    }
-
-    fn not_done(&mut self, ts: u64, item: &[[u8; 8]], status: Result<InnerPushStatus, Error>) -> Result<InnerPushStatus, Error> {
-        match status {
             Ok(InnerPushStatus::Flush) => {
                 self.try_next_buffer();
                 Ok(InnerPushStatus::Flush)
@@ -63,15 +45,13 @@ impl<const B: usize, const V: usize> Segment<B, V> {
     }
 
     fn try_next_buffer(&mut self) -> bool {
-        //println!("{} {} {}", self.local_head, self.flushed.load(SeqCst), self.head.load(SeqCst));
         let flushed = self.flushed.load(SeqCst);
         if self.local_head as isize - flushed < B as isize {
             self.local_head = self.head.fetch_add(1, SeqCst) + 1;
             let buf = &mut self.buffers[self.local_head % B];
-            buf.reuse(self.local_head);
+            buf.reset();
             true
         } else {
-            //println!("local head: {} flushed: {}", self.local_head, flushed);
             false
         }
     }
@@ -79,7 +59,6 @@ impl<const B: usize, const V: usize> Segment<B, V> {
     pub fn to_flush(&self) -> Option<FullSegment> {
         let head = self.head.load(SeqCst);
         let to_flush = self.flushed.load(SeqCst) + 1;
-        //println!("CALLED TOFLUSH head: {}, to flush: {}", head, to_flush);
         if head as isize >= to_flush {
             let buf = &self.buffers[to_flush as usize % B];
             buf.to_flush()
@@ -89,7 +68,6 @@ impl<const B: usize, const V: usize> Segment<B, V> {
     }
 
     pub fn flushed(&self) {
-        //println!("CALLED FLUSHED");
         self.flushed.fetch_add(1, SeqCst);
     }
 
@@ -98,7 +76,7 @@ impl<const B: usize, const V: usize> Segment<B, V> {
         for buf in self.buffers.iter() {
             let mut try_counter = 0;
             loop {
-                if let Ok(x) = buf.read() {
+                if let Some(x) = buf.read() {
                     copies.push(x);
                     break;
                 } else {
@@ -112,7 +90,11 @@ impl<const B: usize, const V: usize> Segment<B, V> {
 
         // Make sure newest buffer is first
         use std::cmp::Reverse;
-        copies.sort_by_key(|x| Reverse(x.id));
+        copies.sort_by_key(|x| if x.len() > 0 {
+            Reverse(x.timestamps()[0])
+        } else {
+            Reverse(u64::MAX)
+        });
 
         Ok(copies)
     }

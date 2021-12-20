@@ -1,46 +1,48 @@
 use crate::segment::{full_segment::FullSegment, Error, InnerPushStatus};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst};
+use std::cell::UnsafeCell;
+use crate::utils::wp_lock::*;
 
 pub const SEGSZ: usize = 256;
 
 pub type Column = [[u8; 8]; SEGSZ];
 pub type ColumnSet = [Column];
 
-#[repr(C)]
-pub struct Buffer<const V: usize> {
-    pub id: AtomicUsize,
-    pub atomic_len: AtomicUsize,
-    pub len: usize,
-    pub ts: [u64; SEGSZ],
-    pub data: [Column; V],
-    pub reuse_flag: AtomicBool,
+struct Inner<const V: usize> {
+    len: usize,
+    ts: [u64; SEGSZ],
+    data: [Column; V],
 }
 
-impl<const V: usize> Buffer<V> {
-    pub fn new() -> Self {
-        Buffer {
-            id: AtomicUsize::new(0),
-            ts: [0u64; SEGSZ],
-            len: 0,
+struct InnerBuffer<const V: usize> {
+    atomic_len: AtomicUsize,
+    inner: UnsafeCell<Inner<V>>,
+}
+
+impl<const V: usize> InnerBuffer<V> {
+    fn new() -> Self {
+        InnerBuffer {
+            inner: UnsafeCell::new(Inner {
+                len: 0,
+                ts: [0u64; SEGSZ],
+                data: [[[0u8; 8]; 256]; V],
+            }),
             atomic_len: AtomicUsize::new(0),
-            reuse_flag: AtomicBool::new(false),
-            data: [[[0u8; 8]; 256]; V],
         }
     }
 
-    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
-        if self.len == SEGSZ {
+    fn push(&self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
+        let inner: &mut Inner<V> = unsafe { self.inner.get().as_mut().unwrap() };
+        if inner.len == SEGSZ {
             Err(Error::PushIntoFull)
         } else {
-            let nvars = self.data.len();
-
-            self.ts[self.len] = ts;
-            for (i, b) in (&item[..nvars]).iter().enumerate() {
-                self.data[i][self.len] = *b;
+            inner.ts[inner.len] = ts;
+            for (var, col) in inner.data.iter_mut().enumerate() {
+                col[inner.len] = item[var];
             }
-            self.len += 1;
-            self.atomic_len.store(self.len, SeqCst);
-            if self.len < SEGSZ {
+            inner.len += 1;
+            self.atomic_len.store(inner.len, SeqCst);
+            if inner.len < SEGSZ {
                 Ok(InnerPushStatus::Done)
             } else {
                 Ok(InnerPushStatus::Flush)
@@ -48,62 +50,83 @@ impl<const V: usize> Buffer<V> {
         }
     }
 
-    pub fn to_flush(&self) -> Option<FullSegment> {
+    fn reset(&mut self) {
+        let inner: &mut Inner<V> = unsafe { self.inner.get().as_mut().unwrap() };
+        inner.len = 0;
+        self.atomic_len.store(0, SeqCst);
+    }
+
+    fn read(&self) -> ReadBuffer {
         let len = self.atomic_len.load(SeqCst);
-        if self.len > 0 {
+        let mut data = Vec::new();
+        let mut ts = [0u64; 256];
+        let inner: &Inner<V> = unsafe { self.inner.get().as_ref().unwrap() };
+        ts[..len].copy_from_slice(&inner.ts[..len]);
+        for v in inner.data.iter() {
+            data.extend_from_slice(&v[..len]);
+        }
+        ReadBuffer { len, ts, data }
+    }
+
+    fn to_flush(&self) -> Option<FullSegment> {
+        let len = self.atomic_len.load(SeqCst);
+        let inner: &Inner<V> = unsafe { self.inner.get().as_ref().unwrap() };
+        if inner.len > 0 {
             Some(FullSegment {
                 len: self.atomic_len.load(SeqCst),
                 nvars: V,
-                ts: &self.ts,
-                data: &self.data[..],
+                ts: &inner.ts,
+                data: &inner.data[..],
             })
         } else {
             None
         }
     }
+}
 
-    fn len(&self) -> usize {
-        self.atomic_len.load(SeqCst)
+impl<const V: usize> ReadCopy for InnerBuffer<V> {
+    type Copied = ReadBuffer;
+    fn read_copy(&self) -> Self::Copied {
+        self.read()
+    }
+}
+
+#[repr(C)]
+pub struct Buffer<const V: usize> {
+    inner: WpLock<InnerBuffer<V>>
+}
+
+impl<const V: usize> Buffer<V> {
+    pub fn new() -> Self {
+        Self {
+            inner: WpLock::new(InnerBuffer::new())
+        }
     }
 
-    pub fn reuse(&mut self, id: usize) {
-        self.reuse_flag.store(true, SeqCst);
-        self.id.store(id, SeqCst);
-        self.atomic_len.store(0, SeqCst);
-        self.len = 0;
-        self.reuse_flag.store(false, SeqCst);
+    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
+        // Safe because the push method does not race with another method in buffer
+        unsafe { self.inner.as_ref().push(ts, item) }
     }
 
-    pub fn read(&self) -> Result<ReadBuffer, Error> {
-        let id = self.id.load(SeqCst);
+    pub fn reset(&mut self) {
+        self.inner.write().reset()
+    }
 
-        while self.reuse_flag.load(SeqCst) {}
+    pub fn read(&self) -> Option<ReadBuffer> {
+        self.inner.read()
+    }
 
-        let len = self.atomic_len.load(SeqCst);
-        let mut data = Vec::new();
-        let mut ts = [0u64; 256];
-
-        // Note: In case this buffer is being recycled, this would race. That's fine because we can
-        // just treat the data as junk and return an error
-        ts[..len].copy_from_slice(&self.ts[..len]);
-        for v in self.data.iter() {
-            data.extend_from_slice(&v[..len]);
-        }
-
-        while self.reuse_flag.load(SeqCst) {}
-        if self.id.load(SeqCst) == id {
-            Ok(ReadBuffer { len, id, ts, data })
-        } else {
-            Err(Error::InconsistentCopy)
-        }
+    pub fn to_flush(&self) -> Option<FullSegment> {
+        // Safe because the to_flush method does not race with another method requiring mutable
+        // access. Uses ref because we can't use the wp lock guard as the lifetime
+        unsafe { self.inner.as_ref().to_flush() }
     }
 }
 
 pub struct ReadBuffer {
-    pub id: usize,
-    pub len: usize,
-    pub ts: [u64; 256],
-    pub data: Vec<[u8; 8]>,
+    len: usize,
+    ts: [u64; 256],
+    data: Vec<[u8; 8]>,
 }
 
 impl ReadBuffer {
