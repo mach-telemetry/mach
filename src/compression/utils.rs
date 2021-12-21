@@ -1,6 +1,9 @@
 use bitpacking::{BitPacker, BitPacker8x};
 use num::NumCast;
-use std::convert::TryFrom;
+use std::{
+    convert::TryFrom,
+    io,
+};
 
 pub fn multiplier(p: u8) -> i64 {
     10i64.pow(p as u32 + 1)
@@ -240,6 +243,21 @@ impl<'a> ByteBuffer<'a> {
 
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
         self.buf
+    }
+}
+
+impl<'a> io::Write for ByteBuffer<'a> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        if buf.len() > self.buf.len() - self.len {
+            Err(io::Error::from(io::ErrorKind::UnexpectedEof))
+        } else {
+            self.extend_from_slice(buf);
+            Ok(buf.len())
+        }
+    }
+
+    fn flush(&mut self) -> Result<(), io::Error> {
+        Ok(())
     }
 }
 

@@ -1,12 +1,13 @@
 mod timestamps;
 mod fixed;
 mod utils;
-//mod xor;
+mod xor;
 
 use crate::segment::FullSegment;
-use utils::ByteBuffer;
 use lzzzz::lz4;
 use std::convert::TryInto;
+
+pub use utils::ByteBuffer;
 
 #[derive(Debug)]
 pub enum Error {

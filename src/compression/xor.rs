@@ -3,12 +3,13 @@ use std::{
     convert::TryFrom,
     mem::{size_of, transmute},
 };
+use crate::compression::utils::ByteBuffer;
 
-fn compress(data: &[f64], buf: &mut Vec<u8>) -> usize {
+fn compress(data: &[f64], buf: &mut ByteBuffer) -> usize {
     // Code below inspire heavily from
     // https://github.com/jeromefroe/tsz-rs
 
-    let mut buf: BitWriter<&mut Vec<u8>, BigEndian> = BitWriter::new(buf);
+    let mut buf: BitWriter<&mut ByteBuffer, BigEndian> = BitWriter::new(buf);
     let mut written = 0;
 
     // Store the length
@@ -162,17 +163,18 @@ mod test {
     #[test]
     fn compress_decompress_values() {
         let data = UNIVARIATE_DATA.clone();
-        let mut buf = Vec::new();
+        let mut buf = vec![0u8; 4096];
         for (_id, samples) in data[..].iter().enumerate() {
             let raw = samples.1.iter().map(|x| x.values[0]).collect::<Vec<f64>>();
             for lo in (0..raw.len()).step_by(256) {
+                let mut byte_buf = ByteBuffer::new(&mut buf[..]);
                 let hi = raw.len().min(lo + 256);
                 let exp = &raw[lo..hi];
                 let mut res = vec![0.; hi - lo];
-                let bytes = compress(exp, &mut buf);
-                decompress(&buf[..], &mut res[..]);
+                let bytes = compress(exp, &mut byte_buf);
+                let sz = byte_buf.len();
+                decompress(&buf[..sz], &mut res[..]);
                 assert_eq!(res, exp);
-                buf.clear();
             }
         }
     }
