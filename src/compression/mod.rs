@@ -1,9 +1,10 @@
 mod timestamps;
 mod fixed;
 mod utils;
-mod xor;
+//mod xor;
 
 use crate::segment::FullSegment;
+use utils::ByteBuffer;
 use lzzzz::lz4;
 use std::convert::TryInto;
 
@@ -93,7 +94,7 @@ impl Compression {
     // Compression type: [12..20]
     // N Variables: [20..28]
     // N Samples: [28..36]
-    fn set_header(&self, segment: &FullSegment, buf: &mut Vec<u8>) -> Header {
+    fn set_header(&self, segment: &FullSegment, buf: &mut ByteBuffer) -> Header {
         let compression_id: u64 = match self {
             Compression::LZ4(_) => 1,
             Compression::Fixed(_) => 2,
@@ -130,7 +131,7 @@ impl Compression {
         Ok((Header { code, nvars, len }, off))
     }
 
-    pub fn compress(&self, segment: &FullSegment, buf: &mut Vec<u8>) {
+    pub fn compress(&self, segment: &FullSegment, buf: &mut ByteBuffer) {
         self.set_header(segment, buf);
         match self {
             Compression::LZ4(acc) => lz4_compress(segment, buf, *acc),
@@ -163,7 +164,7 @@ impl Compression {
     }
 }
 
-fn lz4_compress(segment: &FullSegment, buf: &mut Vec<u8>, acc: i32) {
+fn lz4_compress(segment: &FullSegment, buf: &mut ByteBuffer, acc: i32) {
     let mut len: u64 = segment.len as u64;
     let mut nvars: u64 = segment.nvars as u64;
 
@@ -187,12 +188,13 @@ fn lz4_compress(segment: &FullSegment, buf: &mut Vec<u8>, acc: i32) {
     buf.extend_from_slice(&0u64.to_be_bytes()[..]); // compressed sz placeholder
 
     // Compress the raw data and record the compressed size
-    let csz = lz4::compress_to_vec(&bytes[..], buf, acc).unwrap() as u64;
+    let csz = lz4::compress(&bytes[..], buf.unused(), acc).unwrap();
+    buf.add_len(csz);
 
     //println!("LZ4 Compress: len {} nvars {} csz {} buflen {}", len, nvars, csz, buf.len());
 
     // Write the compressed size
-    buf[csz_off..csz_off + 8].copy_from_slice(&csz.to_be_bytes()[..]);
+    buf.as_mut_slice()[csz_off..csz_off + 8].copy_from_slice(&csz.to_be_bytes()[..]);
 }
 
 fn lz4_decompress(header: Header, data: &[u8], buf: &mut DecompressBuffer) -> Result<usize, Error> {
@@ -224,7 +226,7 @@ fn lz4_decompress(header: Header, data: &[u8], buf: &mut DecompressBuffer) -> Re
     Ok(off)
 }
 
-fn fixed_compress(segment: &FullSegment, buf: &mut Vec<u8>, frac: usize) {
+fn fixed_compress(segment: &FullSegment, buf: &mut ByteBuffer, frac: usize) {
 
     // write the frac
     buf.extend_from_slice(&(frac as u64).to_be_bytes()[..]);
@@ -236,7 +238,7 @@ fn fixed_compress(segment: &FullSegment, buf: &mut Vec<u8>, frac: usize) {
     timestamps::compress(segment.timestamps(), buf);
     let end_len = buf.len();
     let len = (end_len - start_len) as u64;
-    buf[len_offset..len_offset + 8].copy_from_slice(&len.to_be_bytes()[..]);
+    buf.as_mut_slice()[len_offset..len_offset + 8].copy_from_slice(&len.to_be_bytes()[..]);
 
     // compress the values
     let nvars = segment.nvars;
@@ -248,7 +250,7 @@ fn fixed_compress(segment: &FullSegment, buf: &mut Vec<u8>, frac: usize) {
         fixed::compress(segment.variable(i), buf, frac);
         let end_len = buf.len();
         let len = (end_len - start_len) as u64;
-        buf[len_offset..len_offset+8].copy_from_slice(&len.to_be_bytes()[..]);
+        buf.as_mut_slice()[len_offset..len_offset+8].copy_from_slice(&len.to_be_bytes()[..]);
     }
 
 }
@@ -308,7 +310,8 @@ mod test {
             data: v.as_slice(),
         };
 
-        let mut compressed = Vec::new();
+        let mut compressed = vec![0u8; 4096];
+        let mut byte_buf = ByteBuffer::new(&mut compressed[..]);
         let mut buf = DecompressBuffer::new();
         let header = Header {
             code: 1,
@@ -320,7 +323,7 @@ mod test {
         buf.set_nvars(nvars);
         buf.len = 256;
 
-        fixed_compress(&segment, &mut compressed, 10);
+        fixed_compress(&segment, &mut byte_buf, 10);
         fixed_decompress(header, &compressed[..], &mut buf).unwrap();
 
         assert_eq!(&buf.ts[..], &timestamps[..]);
@@ -362,7 +365,8 @@ mod test {
             data: v.as_slice(),
         };
 
-        let mut compressed = Vec::new();
+        let mut compressed = vec![0u8; 8094];
+        let mut byte_buf = ByteBuffer::new(&mut compressed[..]);
         let mut buf = DecompressBuffer::new();
         let header = Header {
             code: 1,
@@ -374,8 +378,9 @@ mod test {
         buf.set_nvars(nvars);
         buf.len = 256;
 
-        lz4_compress(&segment, &mut compressed, 1);
-        lz4_decompress(header, &compressed[..], &mut buf).unwrap();
+        lz4_compress(&segment, &mut byte_buf, 1);
+        let sz = byte_buf.len();
+        lz4_decompress(header, &compressed[..sz], &mut buf).unwrap();
 
         assert_eq!(&buf.ts[..], &timestamps[..]);
         for i in 0..nvars {

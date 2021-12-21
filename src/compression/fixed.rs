@@ -1,5 +1,5 @@
 use crate::compression::utils::{
-    bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag,
+    bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag, ByteBuffer,
 };
 use fixed::prelude::*;
 use fixed::types::extra::{LeEqU64, Unsigned};
@@ -8,7 +8,7 @@ use fixed::types::extra::*;
 use std::convert::{TryFrom, TryInto};
 use std::mem::size_of;
 
-pub fn compress(data: &[[u8; 8]], buf: &mut Vec<u8>, frac: usize) {
+pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer, frac: usize) {
     match frac {
         1 => inner_compress::<U1>(data, buf),
         2 => inner_compress::<U2>(data, buf),
@@ -150,7 +150,7 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>, frac: usize) -> (usize, u
 /// Returns the number of bytes written in buf.
 /// Panics if buf is too small or data is longer than 256, or the chosen FixedI64<Frac> is too
 /// small and overflows
-fn inner_compress<Frac: Unsigned + LeEqU64>(data: &[[u8; 8]], buf: &mut Vec<u8>) {
+fn inner_compress<Frac: Unsigned + LeEqU64>(data: &[[u8; 8]], buf: &mut ByteBuffer) {
     let mut to_compress: [u32; 256] = [0; 256];
     let mut big_values: [u64; 256] = [0; 256];
     let mut big_idx: [u8; 256] = [0; 256];
@@ -256,13 +256,15 @@ mod test {
     use fixed::types::extra::U10;
 
     fn compress_decompress(data: &[f64]) {
-        let mut buf = Vec::new();
+        let mut buf = vec![0u8; 4096];
+        let mut byte_buf = ByteBuffer::new(&mut buf[..]);
         let len = data.len().min(256);
         let v = data[..len].iter().map(|x| x.to_be_bytes()).collect::<Vec<[u8; 8]>>();
-        compress(&v, &mut buf, 10);
+        compress(&v, &mut byte_buf, 10);
+        let sz = byte_buf.len();
 
         let mut res = Vec::new();
-        let (b, l) = decompress(&buf[..], &mut res, 10);
+        let (b, l) = decompress(&buf[..sz], &mut res, 10);
 
         let diff = data[..len]
             .iter()
@@ -271,7 +273,7 @@ mod test {
             .fold(f64::NAN, f64::max);
 
         assert!(0.001 > diff);
-        assert_eq!(b, buf.len());
+        assert_eq!(b, sz);
         assert_eq!(l, len);
     }
 

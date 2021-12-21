@@ -168,15 +168,14 @@ impl I64Differ {
 /// 2       -> number of bits required (bitpack.num_bits())
 /// ..      -> compressed data of Size bytes
 /// returns how many bytes were written into buf
-pub fn bitpack_256_compress(v: &mut Vec<u8>, data: &[u32; 256]) -> usize {
+pub fn bitpack_256_compress(v: &mut ByteBuffer, data: &[u32; 256]) -> usize {
     let bitpacker = BitPacker8x::new();
 
     let len = v.len();
     let header = 3;
     let maxsz = 1024;
 
-    v.resize(len + header + maxsz, 0);
-    let buf = &mut v[len..]; // we'll be writing to the end of the vector
+    let buf = v.unused();
 
     // Compress the data, reserve first two bytes for size, one byte for the numbits
     let num_bits: u8 = bitpacker.num_bits(&data[..]);
@@ -189,7 +188,7 @@ pub fn bitpack_256_compress(v: &mut Vec<u8>, data: &[u32; 256]) -> usize {
     buf[2] = num_bits;
     drop(buf);
 
-    v.resize(len + header + size, 0);
+    v.add_len(header + size);
 
     size + 3
 }
@@ -203,6 +202,47 @@ pub fn bitpack_256_decompress(out: &mut [u32; 256], data: &[u8]) -> usize {
     bitpacker.decompress(&data[3..3 + bytes as usize], &mut out[..], num_bits);
     bytes as usize + 3
 }
+
+pub struct ByteBuffer<'a> {
+    buf: &'a mut [u8],
+    len: usize,
+}
+
+impl<'a> ByteBuffer<'a> {
+    pub fn new(buf: &'a mut [u8]) -> Self {
+        Self {
+            buf,
+            len: 0,
+        }
+    }
+
+    pub fn extend_from_slice(&mut self, slice: &[u8]) {
+        self.buf[self.len..self.len + slice.len()].copy_from_slice(slice);
+        self.len += slice.len();
+    }
+
+    pub fn push(&mut self, v: u8) {
+        self.buf[self.len] = v;
+        self.len += 1;
+    }
+
+    pub fn unused(&mut self) -> &mut [u8] {
+        &mut self.buf[self.len..]
+    }
+
+    pub fn add_len(&mut self, sz: usize) {
+        self.len += sz;
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        self.buf
+    }
+}
+
 
 #[cfg(test)]
 mod test {
@@ -317,14 +357,14 @@ mod test {
     #[test]
     fn bitpack_compress_decompress() {
         let mut rng = thread_rng();
-        let mut buf = Vec::new();
+        let mut buf = vec![0u8; 4096];
+        let mut byte_buf = ByteBuffer::new(&mut buf[..]);
         let data = &mut [0u32; 256];
         let res = &mut [0u32; 256];
         rng.fill(&mut data[..]);
-        rng.fill(&mut buf[..]);
         rng.fill(&mut res[..]);
-        let _sz = bitpack_256_compress(&mut buf, data);
-        bitpack_256_decompress(res, &buf[..]);
+        let sz = bitpack_256_compress(&mut byte_buf, data);
+        bitpack_256_decompress(res, &buf[..sz]);
         assert_eq!(res, data);
     }
 }

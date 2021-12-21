@@ -1,5 +1,5 @@
 use crate::compression::utils::{
-    bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag,
+    bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag, ByteBuffer
 };
 use std::{
     convert::{TryFrom, TryInto},
@@ -9,7 +9,7 @@ use std::{
 /// Compresses upto 256 timestamps into buf
 /// Returns the number of bytes written in buf.
 /// Panics if buf is too small or timestamps is longer than 256
-pub fn compress(timestamps: &[u64], buf: &mut Vec<u8>) {
+pub fn compress(timestamps: &[u64], buf: &mut ByteBuffer) {
     let len = timestamps.len();
     assert!(len <= 256);
 
@@ -129,14 +129,16 @@ mod test {
     use crate::test_utils::*;
 
     fn compress_decompress(data: &[u64]) {
-        let mut buf = Vec::new();
+        let mut buf = vec![0u8; 1024];
+        let mut byte_buf = ByteBuffer::new(&mut buf[..]);
         let len = data.len().min(256);
-        compress(&data[..len], &mut buf);
+        compress(&data[..len], &mut byte_buf);
+        let sz = byte_buf.len();
 
         let mut res = Vec::new();
-        let (b, l) = decompress(&buf[..], &mut res);
+        let (b, l) = decompress(&buf[..sz], &mut res);
 
-        assert_eq!(b, buf.len());
+        assert_eq!(b, sz);
         assert_eq!(l, len);
         assert_eq!(&res[..l], &data[..len]);
     }
@@ -154,10 +156,12 @@ mod test {
     #[test]
     fn test_compress_decompress_simple() {
         let data = [1, 2, 3, 4, 6, 8, 10];
-        let mut buf = Vec::new();
-        compress(&data[..], &mut buf);
+        let mut buf = vec![0u8; 1024];
+        let mut byte_buf = ByteBuffer::new(&mut buf[..]);
+        compress(&data[..], &mut byte_buf);
+        let sz = byte_buf.len();
         let mut res = Vec::new();
-        let (b, l) = decompress(&buf[..], &mut res);
+        let (b, l) = decompress(&buf[..sz], &mut res);
         assert_eq!(&res[..l], &data[..]);
     }
 }
