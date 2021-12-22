@@ -1,9 +1,9 @@
+use crate::compression::utils::ByteBuffer;
 use bitstream_io::{BigEndian, BitRead, BitReader, BitWrite, BitWriter};
 use std::{
     convert::TryFrom,
     mem::{size_of, transmute},
 };
-use crate::compression::utils::ByteBuffer;
 
 fn compress(data: &[f64], buf: &mut ByteBuffer) -> usize {
     // Code below inspire heavily from

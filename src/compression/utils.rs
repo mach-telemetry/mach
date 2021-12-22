@@ -1,9 +1,6 @@
 use bitpacking::{BitPacker, BitPacker8x};
 use num::NumCast;
-use std::{
-    convert::TryFrom,
-    io,
-};
+use std::{convert::TryFrom, io};
 
 pub fn multiplier(p: u8) -> i64 {
     10i64.pow(p as u32 + 1)
@@ -213,10 +210,7 @@ pub struct ByteBuffer<'a> {
 
 impl<'a> ByteBuffer<'a> {
     pub fn new(buf: &'a mut [u8]) -> Self {
-        Self {
-            buf,
-            len: 0,
-        }
+        Self { buf, len: 0 }
     }
 
     pub fn extend_from_slice(&mut self, slice: &[u8]) {
@@ -260,7 +254,6 @@ impl<'a> io::Write for ByteBuffer<'a> {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod test {

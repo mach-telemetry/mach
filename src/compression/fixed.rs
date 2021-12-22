@@ -2,9 +2,9 @@ use crate::compression::utils::{
     bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag, ByteBuffer,
 };
 use fixed::prelude::*;
+use fixed::types::extra::*;
 use fixed::types::extra::{LeEqU64, Unsigned};
 use fixed::FixedI64;
-use fixed::types::extra::*;
 use std::convert::{TryFrom, TryInto};
 use std::mem::size_of;
 
@@ -73,7 +73,7 @@ pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer, frac: usize) {
         61 => inner_compress::<U61>(data, buf),
         62 => inner_compress::<U62>(data, buf),
         63 => inner_compress::<U63>(data, buf),
-        _ => unimplemented!()
+        _ => unimplemented!(),
     };
 }
 
@@ -142,7 +142,7 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>, frac: usize) -> (usize, u
         61 => inner_decompress::<U61>(data, buf),
         62 => inner_decompress::<U62>(data, buf),
         63 => inner_decompress::<U63>(data, buf),
-        _ => unimplemented!()
+        _ => unimplemented!(),
     }
 }
 
@@ -200,7 +200,10 @@ fn inner_compress<Frac: Unsigned + LeEqU64>(data: &[[u8; 8]], buf: &mut ByteBuff
 /// Decompresses data into buf
 /// Returns the number of bytes read from data and number of items decompressed.
 /// Panics if buf is not long enough.
-fn inner_decompress<Frac: Unsigned + LeEqU64>(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usize) {
+fn inner_decompress<Frac: Unsigned + LeEqU64>(
+    data: &[u8],
+    buf: &mut Vec<[u8; 8]>,
+) -> (usize, usize) {
     let mut off = 0;
 
     // Get len
@@ -259,7 +262,10 @@ mod test {
         let mut buf = vec![0u8; 4096];
         let mut byte_buf = ByteBuffer::new(&mut buf[..]);
         let len = data.len().min(256);
-        let v = data[..len].iter().map(|x| x.to_be_bytes()).collect::<Vec<[u8; 8]>>();
+        let v = data[..len]
+            .iter()
+            .map(|x| x.to_be_bytes())
+            .collect::<Vec<[u8; 8]>>();
         compress(&v, &mut byte_buf, 10);
         let sz = byte_buf.len();
 

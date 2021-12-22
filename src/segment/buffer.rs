@@ -1,7 +1,7 @@
 use crate::segment::{full_segment::FullSegment, Error, InnerPushStatus};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst};
-use std::cell::UnsafeCell;
 use crate::utils::wp_lock::*;
+use std::cell::UnsafeCell;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst};
 
 pub const SEGSZ: usize = 256;
 
@@ -84,22 +84,15 @@ impl<const V: usize> InnerBuffer<V> {
     }
 }
 
-impl<const V: usize> ReadCopy for InnerBuffer<V> {
-    type Copied = ReadBuffer;
-    fn read_copy(&self) -> Self::Copied {
-        self.read()
-    }
-}
-
 #[repr(C)]
 pub struct Buffer<const V: usize> {
-    inner: WpLock<InnerBuffer<V>>
+    inner: WpLock<InnerBuffer<V>>,
 }
 
 impl<const V: usize> Buffer<V> {
     pub fn new() -> Self {
         Self {
-            inner: WpLock::new(InnerBuffer::new())
+            inner: WpLock::new(InnerBuffer::new()),
         }
     }
 
@@ -113,7 +106,13 @@ impl<const V: usize> Buffer<V> {
     }
 
     pub fn read(&self) -> Option<ReadBuffer> {
-        self.inner.read()
+        // Safety: Safe because the inner buffer's contents are not dropped by any write operation
+        let read_guard = unsafe { self.inner.read() };
+        let read_result = read_guard.read();
+        match read_guard.release() {
+            Ok(_) => Some(read_result),
+            Err(_) => None,
+        }
     }
 
     pub fn to_flush(&self) -> Option<FullSegment> {

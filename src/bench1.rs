@@ -10,16 +10,16 @@
 #![allow(clippy::len_without_is_empty)]
 #![allow(warnings)]
 
-mod super::backend;
-mod super::chunk;
-mod super::compression;
-mod super::flush_buffer;
-mod super::segment;
-mod super::series_metadata;
-mod super::tags;
-mod super::test_utils;
-mod super::utils;
-mod super::writer;
+mod backend;
+mod chunk;
+mod compression;
+mod flush_buffer;
+mod segment;
+mod series_metadata;
+mod tags;
+mod test_utils;
+mod utils;
+mod writer;
 
 use crate::{
     backend::{fs, kafka},

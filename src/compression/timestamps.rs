@@ -1,5 +1,5 @@
 use crate::compression::utils::{
-    bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag, ByteBuffer
+    bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag, ByteBuffer,
 };
 use std::{
     convert::{TryFrom, TryInto},
@@ -80,12 +80,16 @@ pub fn decompress(data: &[u8], buf: &mut Vec<u64>) -> (usize, usize) {
 
     // Get first and second timestamp
     let end = off + size_of::<u64>();
-    buf.push(u64::from_be_bytes(<[u8; 8]>::try_from(&data[off..end]).unwrap()));
+    buf.push(u64::from_be_bytes(
+        <[u8; 8]>::try_from(&data[off..end]).unwrap(),
+    ));
     off = end;
 
     // Get second timestamp
     let end = off + size_of::<u64>();
-    buf.push(u64::from_be_bytes(<[u8; 8]>::try_from(&data[off..end]).unwrap()));
+    buf.push(u64::from_be_bytes(
+        <[u8; 8]>::try_from(&data[off..end]).unwrap(),
+    ));
     off = end;
 
     // Read bitpacked data

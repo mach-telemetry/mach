@@ -33,6 +33,6 @@ opt-level = 3
 [profile.release]
 debug=true
 
-[[bin]]
-name = "bench-kafka-fs"
-path = "src/bench1.rs"
+#[[bin]]
+#name = "bench-kafka-fs"
+#path = "src/bench1.rs"

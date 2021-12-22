@@ -5,6 +5,7 @@ use crate::{
     flush_buffer::{FlushBuffer, FlushEntry, FrozenBuffer},
     segment::FullSegment,
     tags::Tags,
+    utils::wp_lock::*,
 };
 use bincode;
 use serde::*;
@@ -165,53 +166,22 @@ impl<const H: usize, const T: usize> Inner<H, T> {
         })
     }
 
-    fn read(&self) -> Result<ReadChunk, Error> {
-        let v = self.version.load(SeqCst);
-
-        // Prevent entry while there is a concurrent reset
-        while self.reset_flag.load(SeqCst) {}
-
+    fn read(&self) -> ReadChunk {
         // Make the copy
         let counter = self.counter.load(SeqCst);
-        let r = ReadChunk {
+        ReadChunk {
             data: self.flush_buffer.data().into(),
             segment_meta: self.segment_meta.clone(),
             counter,
-        };
-
-        // Prevent exit while there is a concurrent reset
-        while self.reset_flag.load(SeqCst) {}
-
-        // If there was a concurrent reset, the version would be incorrect
-        if v == self.version.load(SeqCst) {
-            Ok(r)
-        } else {
-            Err(Error::InconsistentRead)
         }
     }
 
     fn reset(&mut self) {
-        //let mut new = Self::new(&self.tags, self.compression.clone());
-        //self.reset_flag.store(true, SeqCst);
-        //self.version.fetch_add(1, SeqCst);
-        //std::mem::swap(&mut new, self);
-        //self.reset_flag.store(false, SeqCst);
-
-        // Prevent readers from entering or exiting
-        self.reset_flag.store(true, SeqCst);
-
-        // Readers already inside must have loaded this or prior version. They can't exit
-        // without seeing this version increment
-        self.version.fetch_add(1, SeqCst);
-
         self.flush_buffer.truncate(self.data_offset);
         self.local_counter = 0;
         self.mint = u64::MAX;
         self.maxt = u64::MAX;
         self.counter.store(0, SeqCst);
-
-        // Allow new readers to enter or concurrent readers to exit (and load the version)
-        self.reset_flag.store(false, SeqCst);
     }
 
     fn push(&mut self, segment: &FullSegment) -> Option<FlushEntry<H, T>> {
@@ -244,15 +214,22 @@ impl<const H: usize, const T: usize> Inner<H, T> {
     }
 }
 
+impl<H, T> ReadCopy for Inner {
+    type Copied = ReadChunk;
+    fn read_copy(&self) -> Self::Copied {
+        self.read()
+    }
+}
+
 #[derive(Clone)]
 pub struct Chunk<const H: usize, const T: usize> {
-    inner: Arc<Inner<H, T>>,
+    inner: Arc<WpLock<Inner<H, T>>>,
 }
 
 impl<const H: usize, const T: usize> Chunk<H, T> {
     pub fn new(tags: &Tags, compression: Compression) -> Self {
         Self {
-            inner: Arc::new(Inner::new(tags, compression)),
+            inner: Arc::new(WpLock::new(Inner::new(tags, compression))),
         }
     }
 
@@ -266,8 +243,8 @@ impl<const H: usize, const T: usize> Chunk<H, T> {
         }
     }
 
-    pub fn read(&self) -> Result<ReadChunk, Error> {
-        self.inner.read()
+    pub fn read(&self) -> ReadChunk {
+        self.inner.read_copy()
     }
 }
 
@@ -277,16 +254,13 @@ pub struct WriteChunk<const H: usize, const T: usize> {
 
 impl<const H: usize, const T: usize> WriteChunk<H, T> {
     pub fn push(&mut self, segment: &FullSegment) -> Option<FlushEntry<H, T>> {
-        // Safety: There can only be one writer. Concurrent readers on the Chunk struct and the
-        // writer push is coordianted using the atomic counter
-        unsafe { Arc::get_mut_unchecked(&mut self.inner).push(segment) }
+        let mut guard = self.inner.write();
+        guard.push(segment)
     }
 
     pub fn reset(&mut self) {
-        // Safety: There can only be one reseter. Concurrent readers on the Chunk struct and the
-        // writer push is coordianted by causing the reader to spin and versioning. See the read
-        // and reset functions
-        unsafe { Arc::get_mut_unchecked(&mut self.inner).reset() }
+        let mut guard = self.inner.write();
+        guard.reset()
     }
 
     pub fn flush_buffer(&mut self) -> Option<FlushEntry<H, T>> {

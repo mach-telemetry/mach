@@ -90,10 +90,12 @@ impl<const B: usize, const V: usize> Segment<B, V> {
 
         // Make sure newest buffer is first
         use std::cmp::Reverse;
-        copies.sort_by_key(|x| if x.len() > 0 {
-            Reverse(x.timestamps()[0])
-        } else {
-            Reverse(u64::MAX)
+        copies.sort_by_key(|x| {
+            if x.len() > 0 {
+                Reverse(x.timestamps()[0])
+            } else {
+                Reverse(u64::MAX)
+            }
         });
 
         Ok(copies)

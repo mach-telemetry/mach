@@ -12,14 +12,15 @@
 
 //mod backend;
 //mod chunk;
-//mod compression;
+mod compression;
 //mod flush_buffer;
 //mod series_metadata;
 //mod tags;
 //mod writer;
 
-mod utils;
+mod persistent_list;
 mod segment;
+mod utils;
 
 #[cfg(test)]
 mod test_utils;

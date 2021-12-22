@@ -1,5 +1,5 @@
-mod timestamps;
 mod fixed;
+mod timestamps;
 mod utils;
 mod xor;
 
@@ -83,7 +83,7 @@ struct Header {
     len: usize,
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub enum Compression {
     LZ4(i32),
     Fixed(usize),
@@ -228,7 +228,6 @@ fn lz4_decompress(header: Header, data: &[u8], buf: &mut DecompressBuffer) -> Re
 }
 
 fn fixed_compress(segment: &FullSegment, buf: &mut ByteBuffer, frac: usize) {
-
     // write the frac
     buf.extend_from_slice(&(frac as u64).to_be_bytes()[..]);
 
@@ -251,31 +250,33 @@ fn fixed_compress(segment: &FullSegment, buf: &mut ByteBuffer, frac: usize) {
         fixed::compress(segment.variable(i), buf, frac);
         let end_len = buf.len();
         let len = (end_len - start_len) as u64;
-        buf.as_mut_slice()[len_offset..len_offset+8].copy_from_slice(&len.to_be_bytes()[..]);
+        buf.as_mut_slice()[len_offset..len_offset + 8].copy_from_slice(&len.to_be_bytes()[..]);
     }
-
 }
 
-fn fixed_decompress(header: Header, data: &[u8], buf: &mut DecompressBuffer) -> Result<usize, Error> {
-
+fn fixed_decompress(
+    header: Header,
+    data: &[u8],
+    buf: &mut DecompressBuffer,
+) -> Result<usize, Error> {
     let mut off = 0;
 
     // read the frac
-    let frac = u64::from_be_bytes(data[off..off+8].try_into().unwrap()) as usize;
+    let frac = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
     off += 8;
 
     // decompress timestamps
-    let sz = u64::from_be_bytes(data[off..off+8].try_into().unwrap()) as usize;
+    let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
     off += 8;
 
-    timestamps::decompress(&data[off..off+sz], &mut buf.ts);
+    timestamps::decompress(&data[off..off + sz], &mut buf.ts);
     off += sz;
 
     // decompress values
     for i in 0..header.nvars {
-        let sz = u64::from_be_bytes(data[off..off+8].try_into().unwrap()) as usize;
+        let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
         off += 8;
-        fixed::decompress(&data[off..off+sz], &mut buf.values[i], frac);
+        fixed::decompress(&data[off..off + sz], &mut buf.values[i], frac);
         off += sz;
     }
     Ok(off)
@@ -387,6 +388,5 @@ mod test {
         for i in 0..nvars {
             assert_eq!(buf.variable(i), segment.variable(i));
         }
-
     }
 }
