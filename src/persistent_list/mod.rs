@@ -1,9 +1,9 @@
 mod inner;
-mod kafka_writer;
+//mod kafka_writer;
 mod vector_writer;
 
 use inner::*;
-use kafka_writer::*;
+//use kafka_writer::*;
 
 use crate::{
     compression::{ByteBuffer, Compression, DecompressBuffer},
@@ -28,7 +28,11 @@ impl From<KafkaError> for Error {
     }
 }
 
+#[cfg(not(test))]
 pub const FLUSH_THRESHOLD: usize = 1_000_000; // 1MB threshold
+
+#[cfg(test)]
+pub const FLUSH_THRESHOLD: usize = 100; // 1MB threshold
 
 pub struct ReadSegment {
     inner: InnerReadNode,
@@ -52,6 +56,18 @@ pub struct Head {
 }
 
 impl Head {
+    pub fn new(compression: Compression) -> Self {
+        Head {
+            inner: Arc::new(WpLock::new(InnerHead::new())),
+            compression,
+        }
+    }
+
+    fn push_bytes<W: ChunkWriter>(&self, bytes: &[u8], writer: &mut W) {
+        let mut write_guard = self.inner.write();
+        write_guard.push_bytes(bytes, writer);
+    }
+
     pub fn push_segment<W: ChunkWriter>(&self, segment: &FullSegment, writer: &mut W) {
         let mut write_guard = self.inner.write();
         write_guard.push_segment(segment, self.compression, writer);
@@ -80,5 +96,41 @@ trait ChunkWriter {
 }
 
 trait ChunkReader {
-    fn read(&self, partition: i32, offset: i64, buf: &mut [u8]) -> Result<(), Error>;
+    fn read(
+        &self,
+        partition: usize,
+        offset: usize,
+        chunk_offset: usize,
+        bytes: usize,
+        buf: &mut [u8],
+    ) -> Result<(), Error>;
+}
+
+#[cfg(test)]
+mod test {
+    use super::vector_writer::VectorWriter;
+    use super::*;
+
+    #[test]
+    fn test_push_read() {
+        let mut vec_writer = VectorWriter::new().unwrap();
+        let head = Head::new(Compression::LZ4(1));
+
+        let data: Vec<Vec<u8>> = (0..5).map(|x| vec![x; 15]).collect();
+        println!("data: {:?}", data);
+        data.iter()
+            .for_each(|x| head.push_bytes(x.as_slice(), &mut vec_writer));
+
+        let vec_reader = vec_writer.reader();
+        let read_segment = head.read(&vec_reader).unwrap().unwrap();
+        println!("read result: {:?}", read_segment.inner.bytes());
+        let read_segment = read_segment.next_segment(&vec_reader).unwrap().unwrap();
+        println!("{:?}", read_segment.inner.bytes());
+        let read_segment = read_segment.next_segment(&vec_reader).unwrap().unwrap();
+        println!("{:?}", read_segment.inner.bytes());
+        //let read_segment = read_segment.next_segment(&vec_reader).unwrap().unwrap();
+        //println!("{:?}", read_segment.inner.bytes());
+        //let read_segment = read_segment.next_segment(&vec_reader).unwrap().unwrap();
+        //println!("{:?}", read_segment.inner.bytes());
+    }
 }

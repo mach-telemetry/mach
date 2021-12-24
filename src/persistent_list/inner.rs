@@ -1,6 +1,6 @@
 use crate::{
     compression::{ByteBuffer, Compression, DecompressBuffer},
-    persistent_list::{ChunkReader, ChunkWriter, Error, KafkaReader, KafkaWriter, FLUSH_THRESHOLD},
+    persistent_list::{ChunkReader, ChunkWriter, Error, FLUSH_THRESHOLD},
     segment::FullSegment,
     utils::wp_lock::*,
 };
@@ -14,7 +14,9 @@ use std::{
     time::Duration,
 };
 
-#[derive(Copy, Clone)]
+const METASZ: usize = 32;
+
+#[derive(Debug, Copy, Clone)]
 struct SharedMeta {
     partition: usize,
     offset: usize,
@@ -29,7 +31,7 @@ impl SharedMeta {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 struct LocalMeta {
     offset: usize,
     bytes: usize,
@@ -49,23 +51,14 @@ enum NextMeta {
     Active(ActiveMeta),
 }
 
-impl NextMeta {
-    fn read(&self) -> InnerReadNode {
-        match self {
-            NextMeta::Active(ActiveMeta) => unimplemented!(),
-            NextMeta::Static(Meta) => unimplemented!(),
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 struct Meta {
     shared: SharedMeta,
     local: LocalMeta,
 }
 
 impl Meta {
-    fn from_bytes(data: [u8; 32]) -> Self {
+    fn from_bytes(data: [u8; METASZ]) -> Self {
         Meta {
             shared: SharedMeta {
                 partition: usize::from_be_bytes(data[0..8].try_into().unwrap()),
@@ -78,8 +71,19 @@ impl Meta {
         }
     }
 
-    fn read<R: ChunkReader>(&self, reader: &R) -> Result<Option<InnerReadNode>, Error> {
-        unimplemented!()
+    fn read<R: ChunkReader>(
+        &self,
+        buf: *mut [u8],
+        reader: &R,
+    ) -> Result<Option<InnerReadNode>, Error> {
+        let partition = self.shared.partition;
+        let offset = self.shared.offset;
+        let chunk_offset = self.local.offset;
+        let bytes = self.local.bytes;
+        unimplemented!();
+        //if partition != usize::MAX || offset != usize::MAX {
+        //    reader.read(partition, offset, chunk_offset, bytes, buf).unwrap();
+        //}
     }
 }
 
@@ -92,9 +96,9 @@ struct ActiveMeta {
 impl ActiveMeta {
     // Safety: Unsafe because this is meant to be called in the InnerBuffer push method which
     // itself is supposed to be called without concurrent pushes or flushes
-    unsafe fn to_bytes(&self) -> [u8; 32] {
+    unsafe fn to_bytes(&self) -> [u8; METASZ] {
         let shared = *(*self.shared).as_ref();
-        let mut ret = [0u8; 32];
+        let mut ret = [0u8; METASZ];
         ret[0..8].copy_from_slice(&shared.partition.to_be_bytes()[..]);
         ret[8..16].copy_from_slice(&shared.offset.to_be_bytes()[..]);
         ret[16..24].copy_from_slice(&self.local.offset.to_be_bytes()[..]);
@@ -113,6 +117,7 @@ impl ActiveMeta {
     }
 
     fn read<R: ChunkReader>(&self, reader: &R) -> Result<Option<InnerReadNode>, Error> {
+        println!("ActiveMeta reading at local: {:?}", self.local);
         // This local offset is the termination
         if self.local.offset == usize::MAX {
             return Ok(None);
@@ -133,12 +138,16 @@ impl ActiveMeta {
             let meta = unsafe { self.to_meta() };
             meta.read(reader)
         } else {
+            println!("HERE");
             // Grab the buffer and copy the data
             let start = self.local.offset;
             let end = start + self.local.bytes;
             let buf = &unsafe { &self.buffer.get().as_ref().unwrap().buffer[start..end] };
-            let next_meta = Meta::from_bytes(buf[..32].try_into().unwrap());
-            let bytes: Box<[u8]> = buf[32..].into();
+            println!("start: {:?} end: {:?}", start, end);
+            println!("buf: {:?}", buf);
+            //println!("inner buffer: {:?}", &unsafe { &self.buffer.get().as_ref().unwrap().buffer[188..235] });
+            let next_meta = Meta::from_bytes(buf[..METASZ].try_into().unwrap());
+            let bytes: Box<[u8]> = buf[METASZ..].into();
 
             // Setup the next meta
             let next = if next_meta.shared.partition == usize::MAX
@@ -169,7 +178,7 @@ pub struct InnerReadNode {
 }
 
 impl InnerReadNode {
-    pub fn next<R: ChunkReader>(self, reader: &R) -> Result<Option<InnerReadNode>, Error> {
+    pub fn next<R: ChunkReader>(&mut self, reader: &R) -> Result<Option<InnerReadNode>, Error> {
         match self.next {
             NextMeta::Active(meta) => meta.read(reader),
             NextMeta::Static(meta) => meta.read(reader),
@@ -194,17 +203,43 @@ impl InnerBuffer {
         }
     }
 
+    fn push_bytes(&mut self, bytes: &[u8], last_head: [u8; METASZ]) -> LocalMeta {
+        let start = self.len;
+        let mut offset = self.len;
+        println!(
+            "writing to offset {} n bytes {}",
+            offset,
+            bytes.len() + METASZ
+        );
+        // Serialize the head
+        self.buffer[offset..offset + METASZ].copy_from_slice(&last_head[..]);
+        offset += METASZ;
+        self.buffer[offset..offset + bytes.len()].copy_from_slice(bytes);
+        //println!("after writing: {:?}", self.buffer);
+        offset += bytes.len();
+        let bytes = offset - self.len;
+        self.len = offset;
+
+        println!("After writing Local meta offset: {} {}", offset, bytes);
+
+        LocalMeta {
+            offset: start,
+            bytes: self.len - start,
+        }
+    }
+
     fn push_segment(
         &mut self,
         segment: &FullSegment,
         compress: Compression,
-        last_head: [u8; 32],
+        last_head: [u8; METASZ],
     ) -> LocalMeta {
         // Remember where this section started
         let start = self.len;
 
         // Serialize the head
-        self.buffer[self.len..self.len + 32].copy_from_slice(&last_head[..]);
+        self.buffer[self.len..self.len + METASZ].copy_from_slice(&last_head[..]);
+        self.len += METASZ;
 
         // Compress the data into the buffer
         self.len += {
@@ -235,6 +270,18 @@ impl Buffer {
         }
     }
 
+    fn push_bytes(&mut self, bytes: &[u8], last_head: &ActiveMeta) -> ActiveMeta {
+        let inner = unsafe { self.inner.get().as_mut().unwrap() };
+        let local = inner.push_bytes(bytes, unsafe { last_head.to_bytes() });
+        println!("Local meta result: {:?}", local);
+        self.atomic_len.store(inner.len, SeqCst);
+        ActiveMeta {
+            shared: self.meta.clone(),
+            buffer: self.inner.clone(),
+            local,
+        }
+    }
+
     // Safety: It is unsafe to have multiple concurrent pushers / flushers but it is safe to have concurrent
     // readers and a single pusher / flusher
     fn push_segment(
@@ -256,10 +303,12 @@ impl Buffer {
     // Safety: It is unsafe to have multiple concurrent pushers / flushers but it is safe to have
     // concurrent readers and a single flusher / pusher
     fn flush<W: ChunkWriter>(&mut self, writer: &mut W) {
+        println!("FLUSHING");
         let inner = unsafe { self.inner.get().as_mut().unwrap() };
 
         // Flush to storage
         let (partition, offset) = writer.write(&inner.buffer[..inner.len]).unwrap();
+        println!("PARTITION: {}, OFFSET: {}", partition, offset);
 
         // Lock the meta from any other reader
         let meta = self.meta.clone();
@@ -285,6 +334,20 @@ pub struct InnerHead {
 }
 
 impl InnerHead {
+    pub fn new() -> Self {
+        let buffer = Arc::new(Buffer::new());
+        let active_meta = ActiveMeta {
+            shared: buffer.meta.clone(),
+            buffer: buffer.inner.clone(),
+            local: LocalMeta::new(),
+        };
+
+        InnerHead {
+            active_meta,
+            buffer,
+        }
+    }
+
     pub fn push_segment<W: ChunkWriter>(
         &mut self,
         segment: &FullSegment,
@@ -300,7 +363,20 @@ impl InnerHead {
         }
     }
 
-    pub fn read_segment<R: ChunkReader>(&self, kafka: &R) -> Result<Option<InnerReadNode>, Error> {
-        self.active_meta.read(kafka)
+    // generally only used in testing
+    pub fn push_bytes<W: ChunkWriter>(&mut self, bytes: &[u8], writer: &mut W) {
+        // Safe because &mut here enforces that this is the only pusher/flusher, and Arc<Buffer>
+        // will only be used in a single thread
+        let buffer = unsafe { Arc::get_mut_unchecked(&mut self.buffer) };
+        self.active_meta = buffer.push_bytes(bytes, &self.active_meta);
+        println!("Active meta results {:?}", self.active_meta.local);
+        if self.active_meta.local.offset + self.active_meta.local.bytes > FLUSH_THRESHOLD {
+            buffer.flush(writer);
+            println!("Shared post flush: {:?}", &*self.active_meta.shared.write());
+        }
+    }
+
+    pub fn read_segment<R: ChunkReader>(&self, reader: &R) -> Result<Option<InnerReadNode>, Error> {
+        self.active_meta.read(reader)
     }
 }
