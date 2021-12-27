@@ -264,7 +264,6 @@ mod test {
         let nvars = data[0].values.len();
         let segment = Segment::new(3, nvars);
         let mut writer = segment.writer().unwrap();
-        //let mut flusher = segment.flusher().unwrap();
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];
@@ -280,6 +279,7 @@ mod test {
             exp_values.push(Vec::new());
         }
 
+        // 767 = 256 * 3 buffers - 1;
         for item in &data[..767] {
             let v = to_values(&item.values[..]);
             assert!(writer.push(item.ts, &v[..]).is_ok());

@@ -29,7 +29,13 @@ pub use vector_backend::{VectorReader, VectorWriter};
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::persistent_list::{inner::*, vector_backend::*};
+    use crate::{
+        persistent_list::{inner::*, vector_backend::*},
+        segment::*,
+        test_utils::*,
+        tags::*,
+        compression::*,
+    };
     use std::sync::{Arc, Mutex};
 
     #[test]
@@ -37,7 +43,7 @@ mod test {
         let vec = Arc::new(Mutex::new(Vec::new()));
         let mut vec_writer = VectorWriter::new(vec.clone());
         let mut vec_reader = VectorReader::new(vec.clone());
-        let buffer = Buffer::new();
+        let buffer = Buffer::new(100);
         let list = List::new(buffer.clone());
         let data: Vec<Vec<u8>> = (0..5).map(|x| vec![x; 15]).collect();
         data.iter()
@@ -61,7 +67,7 @@ mod test {
         let vec = Arc::new(Mutex::new(Vec::new()));
         let mut vec_writer = VectorWriter::new(vec.clone());
         let mut vec_reader = VectorReader::new(vec.clone());
-        let buffer = Buffer::new();
+        let buffer = Buffer::new(100);
         let list1 = List::new(buffer.clone());
         let list2 = List::new(buffer.clone());
 
@@ -105,5 +111,105 @@ mod test {
         assert_eq!(data2[1], res);
         let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data2[0], res);
+    }
+
+    #[test]
+    fn test_segment() {
+        let data = &MULTIVARIATE_DATA[0].1;
+        let nvars = data[0].values.len();
+
+        let mut tags = Tags::new();
+        tags.insert((String::from("A"), String::from("1")));
+        tags.insert((String::from("B"), String::from("2")));
+
+        let compression = Compression::LZ4(1);
+
+        let vec = Arc::new(Mutex::new(Vec::new()));
+        let mut vec_writer = VectorWriter::new(vec.clone());
+        let mut vec_reader = VectorReader::new(vec.clone());
+        let buffer = Buffer::new(6000);
+        let list = List::new(buffer.clone());
+
+        let segment = Segment::new(1, nvars);
+        let mut writer = segment.writer().unwrap();
+
+        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+            let mut values = vec![[0u8; 8]; nvars];
+            for (i, v) in items.iter().enumerate() {
+                values[i] = v.to_be_bytes();
+            }
+            values
+        };
+
+        // This set of pushes stays in the buffer
+        for item in &data[..256] {
+            let v = to_values(&item.values[..]);
+            assert!(writer.push(item.ts, &v[..]).is_ok());
+        }
+        let flusher = writer.flush();
+        let seg: FullSegment = flusher.to_flush().unwrap();
+        list.push_segment(&seg, &tags, &compression, &mut vec_writer);
+        flusher.flushed();
+
+        // This next set of pushes **should** result in a flush
+        for item in &data[256..512] {
+            let v = to_values(&item.values[..]);
+            assert!(writer.push(item.ts, &v[..]).is_ok());
+        }
+        let flusher = writer.flush();
+        let seg: FullSegment = flusher.to_flush().unwrap();
+        list.push_segment(&seg, &tags, &compression, &mut vec_writer);
+        flusher.flushed();
+
+        // This next set of pushes won't result in a flush
+        for item in &data[512..768] {
+            let v = to_values(&item.values[..]);
+            assert!(writer.push(item.ts, &v[..]).is_ok());
+        }
+
+        let flusher = writer.flush();
+        let seg: FullSegment = flusher.to_flush().unwrap();
+        list.push_segment(&seg, &tags, &compression, &mut vec_writer);
+        flusher.flushed();
+
+        let mut exp_ts: Vec<u64> = Vec::new();
+        let mut exp_values: Vec<Vec<[u8; 8]>> = Vec::new();
+        for _ in 0..nvars {
+            exp_values.push(Vec::new());
+        }
+
+        let mut reader = list.reader().unwrap();
+        let res: &DecompressBuffer = reader.next_segment(&mut vec_reader).unwrap().unwrap();
+        for item in &data[512..768] {
+            let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            v.iter().zip(exp_values.iter_mut()).for_each(|(v, e)| e.push(*v));
+        }
+        assert_eq!(res.timestamps(), exp_ts.as_slice());
+        exp_values.iter().enumerate().for_each(|(i, v)| assert_eq!(res.variable(i), v));
+        exp_ts.clear();
+        exp_values.iter_mut().for_each(|e| e.clear());
+
+        let res: &DecompressBuffer = reader.next_segment(&mut vec_reader).unwrap().unwrap();
+        for item in &data[256..512] {
+            let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            v.iter().zip(exp_values.iter_mut()).for_each(|(v, e)| e.push(*v));
+        }
+        assert_eq!(res.timestamps(), exp_ts.as_slice());
+        exp_values.iter().enumerate().for_each(|(i, v)| assert_eq!(res.variable(i), v));
+        exp_ts.clear();
+        exp_values.iter_mut().for_each(|e| e.clear());
+
+        let res: &DecompressBuffer = reader.next_segment(&mut vec_reader).unwrap().unwrap();
+        for item in &data[0..256] {
+            let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            v.iter().zip(exp_values.iter_mut()).for_each(|(v, e)| e.push(*v));
+        }
+        assert_eq!(res.timestamps(), exp_ts.as_slice());
+        exp_values.iter().enumerate().for_each(|(i, v)| assert_eq!(res.variable(i), v));
+        exp_ts.clear();
+        exp_values.iter_mut().for_each(|e| e.clear());
     }
 }

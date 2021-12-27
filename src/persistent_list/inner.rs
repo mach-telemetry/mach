@@ -122,14 +122,16 @@ struct InnerBuffer {
     persistent_head: Arc<WpLock<PersistentHead>>,
     len: AtomicUsize,
     buffer: Box<[u8]>,
+    flush_sz: usize,
 }
 
 impl InnerBuffer {
-    fn new() -> Self {
+    fn new(flush_sz: usize) -> Self {
         Self {
             persistent_head: Arc::new(WpLock::new(PersistentHead::new())),
             len: AtomicUsize::new(0),
-            buffer: vec![0u8; FLUSH_THRESHOLD * 2].into_boxed_slice(),
+            buffer: vec![0u8; flush_sz * 2].into_boxed_slice(),
+            flush_sz,
         }
     }
 
@@ -160,7 +162,7 @@ impl InnerBuffer {
         &mut self,
         segment: &FullSegment,
         tags: &Tags,
-        compression: Compression,
+        compression: &Compression,
         last_head: &Head,
     ) -> Head {
         let len = self.len.load(SeqCst);
@@ -227,9 +229,9 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new() -> Self {
+    pub fn new(flush_sz: usize) -> Self {
         Buffer {
-            inner: Arc::new(WpLock::new(InnerBuffer::new())),
+            inner: Arc::new(WpLock::new(InnerBuffer::new(flush_sz))),
         }
     }
 
@@ -244,8 +246,9 @@ impl Buffer {
 
     fn push_bytes<W: ChunkWriter>(&mut self, bytes: &[u8], last_head: &Head, w: &mut W) -> Head {
         // Safety: The push_bytes function does not race with readers
-        let head = unsafe { self.inner.get_mut_ref().push_bytes(bytes, last_head) };
-        if head.buffer.offset + head.buffer.size > FLUSH_THRESHOLD {
+        let inner = unsafe { self.inner.get_mut_ref() };
+        let head = inner.push_bytes(bytes, last_head);
+        if head.buffer.offset + head.buffer.size > inner.flush_sz {
             //println!("FLUSHING");
             // Need to guard here because reset will conflict with concurrent readers
             let mut guard = self.inner.write();
@@ -259,17 +262,14 @@ impl Buffer {
         &mut self,
         segment: &FullSegment,
         tags: &Tags,
-        compression: Compression,
+        compression: &Compression,
         last_head: &Head,
         w: &mut W
     ) -> Head {
         // Safety: The push_bytes function does not race with readers
-        let head = unsafe {
-            self.inner
-                .get_mut_ref()
-                .push_segment(segment, tags, compression, last_head)
-        };
-        if head.buffer.offset + head.buffer.size > FLUSH_THRESHOLD {
+        let inner = unsafe {self.inner.get_mut_ref()};
+        let head = inner.push_segment(segment, tags, compression, last_head);
+        if head.buffer.offset + head.buffer.size > inner.flush_sz {
             // Need to guard here because reset will conflict with concurrent readers
             let mut guard = self.inner.write();
             guard.flush(w);
@@ -298,11 +298,10 @@ impl InnerList {
         &mut self,
         segment: &FullSegment,
         tags: &Tags,
-        compression: Compression,
-        last_head: &Head,
+        compression: &Compression,
         w: &mut W
     ) {
-        self.head = self.buffer.push_segment(segment, tags, compression, last_head, w);
+        self.head = self.buffer.push_segment(segment, tags, compression, &self.head, w);
     }
 }
 
@@ -321,8 +320,13 @@ impl List {
         self.inner.write().push_bytes(bytes, w);
     }
 
-    pub fn push_segment<W: ChunkWriter>(&self, bytes: &[u8], w: &mut W) {
-        self.inner.write().push_bytes(bytes, w);
+    pub fn push_segment<W: ChunkWriter>(
+        &self,
+        segment: &FullSegment,
+        tags: &Tags,
+        compression: &Compression,
+        w: &mut W) {
+        self.inner.write().push_segment(segment, tags, compression, w);
     }
 
     pub fn reader(&self) -> Result<ListReader, Error> {
