@@ -1,382 +1,321 @@
 use crate::{
-    compression::{ByteBuffer, Compression, DecompressBuffer},
-    persistent_list::{ChunkReader, ChunkWriter, Error, FLUSH_THRESHOLD},
-    segment::FullSegment,
-    utils::wp_lock::*,
+    persistent_list::{Error, FLUSH_THRESHOLD},
+    utils::wp_lock::WpLock,
 };
 use std::{
     cell::UnsafeCell,
     convert::TryInto,
+    marker::PhantomData,
+    mem,
     sync::{
-        atomic::{AtomicUsize, Ordering::SeqCst},
+        atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
         Arc, Mutex,
     },
-    time::Duration,
 };
 
-const METASZ: usize = 32;
-
-#[derive(Debug, Copy, Clone)]
-struct SharedMeta {
-    partition: usize,
-    offset: usize,
+pub trait ChunkWriter {
+    fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error>;
 }
 
-impl SharedMeta {
+pub trait ChunkReader {
+    fn read(&mut self, persistent: PersistentHead, local: BufferHead) -> Result<&[u8], Error>;
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(C)]
+pub struct PersistentHead {
+    pub partition: usize,
+    pub offset: usize,
+}
+
+impl PersistentHead {
     fn new() -> Self {
-        SharedMeta {
+        PersistentHead {
             partition: usize::MAX,
             offset: usize::MAX,
         }
     }
+
+    fn as_bytes(&self) -> &[u8] {
+        unsafe { mem::transmute::<&Self, &[u8; mem::size_of::<Self>()]>(self) }
+    }
+
+    fn from_bytes(bytes: [u8; Self::size()]) -> Self {
+        unsafe { mem::transmute::<[u8; Self::size()], Self>(bytes) }
+    }
+
+    const fn size() -> usize {
+        mem::size_of::<Self>()
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
-struct LocalMeta {
-    offset: usize,
-    bytes: usize,
+#[repr(C)]
+pub struct BufferHead {
+    pub offset: usize,
+    pub size: usize,
 }
 
-impl LocalMeta {
+impl BufferHead {
     fn new() -> Self {
-        LocalMeta {
+        BufferHead {
             offset: usize::MAX,
-            bytes: usize::MAX,
-        }
-    }
-}
-
-enum NextMeta {
-    Static(Meta),
-    Active(ActiveMeta),
-}
-
-#[derive(Debug, Copy, Clone)]
-struct Meta {
-    shared: SharedMeta,
-    local: LocalMeta,
-}
-
-impl Meta {
-    fn from_bytes(data: [u8; METASZ]) -> Self {
-        Meta {
-            shared: SharedMeta {
-                partition: usize::from_be_bytes(data[0..8].try_into().unwrap()),
-                offset: usize::from_be_bytes(data[8..16].try_into().unwrap()),
-            },
-            local: LocalMeta {
-                offset: usize::from_be_bytes(data[16..24].try_into().unwrap()),
-                bytes: usize::from_be_bytes(data[24..32].try_into().unwrap()),
-            },
+            size: usize::MAX,
         }
     }
 
-    fn read<R: ChunkReader>(
-        &self,
-        buf: &mut [u8],
-        reader: &R,
-    ) -> Result<Option<InnerReadNode>, Error> {
-        let partition = self.shared.partition;
-        let offset = self.shared.offset;
-        let chunk_offset = self.local.offset;
-        let bytes = self.local.bytes;
-        unimplemented!();
-        //if partition != usize::MAX || offset != usize::MAX {
-        //    reader.read(partition, offset, chunk_offset, bytes, buf).unwrap();
-        //}
+    fn as_bytes(&self) -> &[u8] {
+        unsafe { mem::transmute::<&Self, &[u8; mem::size_of::<Self>()]>(self) }
+    }
+
+    fn from_bytes(bytes: [u8; Self::size()]) -> Self {
+        unsafe { mem::transmute::<[u8; Self::size()], Self>(bytes) }
+    }
+
+    const fn size() -> usize {
+        mem::size_of::<Self>()
     }
 }
 
-struct ActiveMeta {
-    shared: Arc<WpLock<SharedMeta>>,
-    buffer: Arc<UnsafeCell<InnerBuffer>>,
-    local: LocalMeta,
+#[derive(Clone)]
+pub struct Head {
+    persistent: Arc<WpLock<PersistentHead>>,
+    buffer: BufferHead,
 }
 
-impl ActiveMeta {
-    // Safety: Unsafe because this is meant to be called in the InnerBuffer push method which
-    // itself is supposed to be called without concurrent pushes or flushes
-    unsafe fn to_bytes(&self) -> [u8; METASZ] {
-        let shared = *(*self.shared).as_ref();
-        let mut ret = [0u8; METASZ];
-        ret[0..8].copy_from_slice(&shared.partition.to_be_bytes()[..]);
-        ret[8..16].copy_from_slice(&shared.offset.to_be_bytes()[..]);
-        ret[16..24].copy_from_slice(&self.local.offset.to_be_bytes()[..]);
-        ret[24..32].copy_from_slice(&self.local.bytes.to_be_bytes()[..]);
-        ret
-    }
-
-    // Safety: Unsafe because this is meant to be called in the during a read when we know that the
-    // meta has already been flushed and updated
-    unsafe fn to_meta(&self) -> Meta {
-        let shared = *(*self.shared).as_ref();
-        Meta {
-            local: self.local,
-            shared,
+impl Head {
+    fn new() -> Self {
+        Self {
+            persistent: Arc::new(WpLock::new(PersistentHead::new())),
+            buffer: BufferHead::new(),
         }
     }
 
-    fn read<R: ChunkReader>(&self, reader: &R) -> Result<Option<InnerReadNode>, Error> {
-        println!("ActiveMeta reading at local: {:?}", self.local);
-        // This local offset is the termination
-        if self.local.offset == usize::MAX {
-            return Ok(None);
-        }
-
-        // This will be blocked if the buffer referenced by this shared meta is in the process of
-        // flushing
-        let read_guard = unsafe { self.shared.read() };
-
-        if read_guard.partition != usize::MAX || read_guard.offset != usize::MAX {
-            // The buffer was flushed prior or concurrent to obtaining the Read Guard. Releasing
-            // the read guard guarantees that the shared data has been completely updated during
-            // the return
-            let _ = read_guard.release();
-
-            // Safety: releasing the guard means that this meta was updated during the flush (that
-            // completed)
-            let meta = unsafe { self.to_meta() };
-            meta.read(reader)
-        } else {
-            println!("HERE");
-            // Grab the buffer and copy the data
-            let start = self.local.offset;
-            let end = start + self.local.bytes;
-            let buf = &unsafe { &self.buffer.get().as_ref().unwrap().buffer[start..end] };
-            println!("start: {:?} end: {:?}", start, end);
-            println!("buf: {:?}", buf);
-            //println!("inner buffer: {:?}", &unsafe { &self.buffer.get().as_ref().unwrap().buffer[188..235] });
-            let next_meta = Meta::from_bytes(buf[..METASZ].try_into().unwrap());
-            let bytes: Box<[u8]> = buf[METASZ..].into();
-
-            // Setup the next meta
-            let next = if next_meta.shared.partition == usize::MAX
-                && next_meta.shared.offset == usize::MAX
-            {
-                NextMeta::Active(ActiveMeta {
-                    shared: self.shared.clone(),
-                    buffer: self.buffer.clone(),
-                    local: next_meta.local,
-                })
-            } else {
-                NextMeta::Static(next_meta)
-            };
-
-            // Release the read guard. If the lock was taken concurrently, then these data are
-            // invalid and return None
-            match read_guard.release() {
-                Ok(_) => Ok(Some(InnerReadNode { next, bytes })),
-                Err(_) => Err(Error::InconsistentRead),
-            }
-        }
+    fn bytes(&self) -> [u8; Self::size()] {
+        let persistent = *self.persistent.write();
+        let mut bytes = [0u8; Self::size()];
+        bytes[..PersistentHead::size()].copy_from_slice(persistent.as_bytes());
+        bytes[BufferHead::size()..].copy_from_slice(self.buffer.as_bytes());
+        bytes
     }
-}
 
-pub struct InnerReadNode {
-    next: NextMeta,
-    bytes: Box<[u8]>,
-}
-
-impl InnerReadNode {
-    pub fn next<R: ChunkReader>(&mut self, reader: &R) -> Result<Option<InnerReadNode>, Error> {
-        match self.next {
-            NextMeta::Active(meta) => meta.read(reader),
-            NextMeta::Static(meta) => meta.read(reader),
+    fn from_bytes(bytes: &[u8; Self::size()]) -> Self {
+        let ps = PersistentHead::size();
+        let bs = BufferHead::size();
+        let persistent = PersistentHead::from_bytes(bytes[..ps].try_into().unwrap());
+        let buffer = BufferHead::from_bytes(bytes[ps..ps + bs].try_into().unwrap());
+        Self {
+            persistent: Arc::new(WpLock::new(persistent)),
+            buffer,
         }
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes[..]
+    const fn size() -> usize {
+        PersistentHead::size() + BufferHead::size()
     }
 }
 
 struct InnerBuffer {
-    len: usize,
+    persistent_head: Arc<WpLock<PersistentHead>>,
+    len: AtomicUsize,
     buffer: Box<[u8]>,
 }
 
 impl InnerBuffer {
     fn new() -> Self {
         Self {
-            len: 0,
+            persistent_head: Arc::new(WpLock::new(PersistentHead::new())),
+            len: AtomicUsize::new(0),
             buffer: vec![0u8; FLUSH_THRESHOLD * 2].into_boxed_slice(),
         }
     }
 
-    fn push_bytes(&mut self, bytes: &[u8], last_head: [u8; METASZ]) -> LocalMeta {
-        let start = self.len;
-        let mut offset = self.len;
-        println!(
-            "writing to offset {} n bytes {}",
-            offset,
-            bytes.len() + METASZ
-        );
-        // Serialize the head
-        self.buffer[offset..offset + METASZ].copy_from_slice(&last_head[..]);
-        offset += METASZ;
-        self.buffer[offset..offset + bytes.len()].copy_from_slice(bytes);
-        //println!("after writing: {:?}", self.buffer);
-        offset += bytes.len();
-        let bytes = offset - self.len;
-        self.len = offset;
+    fn push_bytes(&mut self, bytes: &[u8], last_head: &Head) -> Head {
+        //println!("\nLast Head written to this push");
+        //println!("{:?}", *unsafe {last_head.persistent.get_ref()});
+        //println!("{:?}\n", last_head.buffer);
+        let len = self.len.load(SeqCst);
+        let mut offset = len;
 
-        println!("After writing Local meta offset: {} {}", offset, bytes);
+        let end = offset + Head::size();
+        self.buffer[offset..end].copy_from_slice(&last_head.bytes());
+        offset = end;
 
-        LocalMeta {
-            offset: start,
-            bytes: self.len - start,
+        let end = offset + bytes.len();
+        self.buffer[offset..end].copy_from_slice(bytes);
+        offset = end;
+
+        self.len.store(offset, SeqCst);
+
+        Head {
+            persistent: self.persistent_head.clone(),
+            buffer: BufferHead {
+                offset: len,
+                size: offset - len,
+            },
         }
     }
 
-    fn push_segment(
-        &mut self,
-        segment: &FullSegment,
-        compress: Compression,
-        last_head: [u8; METASZ],
-    ) -> LocalMeta {
-        // Remember where this section started
-        let start = self.len;
+    fn flush<W: ChunkWriter>(&mut self, flusher: &mut W) {
+        let head = flusher
+            .write(&self.buffer[..self.len.load(SeqCst)])
+            .unwrap();
+        let mut guard = self.persistent_head.write();
+        *guard = head;
+        drop(guard);
+        self.persistent_head = Arc::new(WpLock::new(PersistentHead::new()));
+    }
 
-        // Serialize the head
-        self.buffer[self.len..self.len + METASZ].copy_from_slice(&last_head[..]);
-        self.len += METASZ;
+    fn reset(&self) {
+        self.len.store(0, SeqCst);
+    }
 
-        // Compress the data into the buffer
-        self.len += {
-            let mut byte_buffer = ByteBuffer::new(&mut self.buffer[self.len..]);
-            compress.compress(segment, &mut byte_buffer);
-            byte_buffer.len()
-        };
-
-        LocalMeta {
-            offset: start,
-            bytes: self.len - start,
-        }
+    fn read(&self, offset: usize, bytes: usize) -> Box<[u8]> {
+        self.buffer[offset..offset + bytes].into()
     }
 }
 
-struct Buffer {
-    meta: Arc<WpLock<SharedMeta>>,
-    inner: Arc<UnsafeCell<InnerBuffer>>,
-    atomic_len: AtomicUsize,
+#[derive(Clone)]
+pub struct Buffer {
+    inner: Arc<WpLock<InnerBuffer>>,
 }
 
 impl Buffer {
-    fn new() -> Self {
-        Self {
-            meta: Arc::new(WpLock::new(SharedMeta::new())),
-            inner: Arc::new(UnsafeCell::new(InnerBuffer::new())),
-            atomic_len: AtomicUsize::new(0),
-        }
-    }
-
-    fn push_bytes(&mut self, bytes: &[u8], last_head: &ActiveMeta) -> ActiveMeta {
-        let inner = unsafe { self.inner.get().as_mut().unwrap() };
-        let local = inner.push_bytes(bytes, unsafe { last_head.to_bytes() });
-        println!("Local meta result: {:?}", local);
-        self.atomic_len.store(inner.len, SeqCst);
-        ActiveMeta {
-            shared: self.meta.clone(),
-            buffer: self.inner.clone(),
-            local,
-        }
-    }
-
-    // Safety: It is unsafe to have multiple concurrent pushers / flushers but it is safe to have concurrent
-    // readers and a single pusher / flusher
-    fn push_segment(
-        &mut self,
-        segment: &FullSegment,
-        compress: Compression,
-        last_head: &ActiveMeta,
-    ) -> ActiveMeta {
-        let inner = unsafe { self.inner.get().as_mut().unwrap() };
-        let local = inner.push_segment(segment, compress, unsafe { last_head.to_bytes() });
-        self.atomic_len.store(inner.len, SeqCst);
-        ActiveMeta {
-            shared: self.meta.clone(),
-            buffer: self.inner.clone(),
-            local,
-        }
-    }
-
-    // Safety: It is unsafe to have multiple concurrent pushers / flushers but it is safe to have
-    // concurrent readers and a single flusher / pusher
-    fn flush<W: ChunkWriter>(&mut self, writer: &mut W) {
-        println!("FLUSHING");
-        let inner = unsafe { self.inner.get().as_mut().unwrap() };
-
-        // Flush to storage
-        let (partition, offset) = writer.write(&inner.buffer[..inner.len]).unwrap();
-        println!("PARTITION: {}, OFFSET: {}", partition, offset);
-
-        // Lock the meta from any other reader
-        let meta = self.meta.clone();
-        let mut write_guard = meta.write();
-
-        // Update meta
-        write_guard.partition = partition.try_into().unwrap();
-        write_guard.offset = offset.try_into().unwrap();
-
-        // Update the offsets in the buffer
-        inner.len = 0;
-        self.atomic_len.store(inner.len, SeqCst);
-
-        self.meta = Arc::new(WpLock::new(SharedMeta::new()));
-
-        // release the meta to concurrent readers of meta
-    }
-}
-
-pub struct InnerHead {
-    active_meta: ActiveMeta,
-    buffer: Arc<Buffer>,
-}
-
-impl InnerHead {
     pub fn new() -> Self {
-        let buffer = Arc::new(Buffer::new());
-        let active_meta = ActiveMeta {
-            shared: buffer.meta.clone(),
-            buffer: buffer.inner.clone(),
-            local: LocalMeta::new(),
-        };
-
-        InnerHead {
-            active_meta,
-            buffer,
+        Buffer {
+            inner: Arc::new(WpLock::new(InnerBuffer::new())),
         }
     }
 
-    pub fn push_segment<W: ChunkWriter>(
-        &mut self,
-        segment: &FullSegment,
-        compress: Compression,
-        writer: &mut W,
-    ) {
-        // Safe because &mut here enforces that this is the only pusher/flusher, and Arc<Buffer>
-        // will only be used in a single thread
-        let buffer = unsafe { Arc::get_mut_unchecked(&mut self.buffer) };
-        self.active_meta = buffer.push_segment(segment, compress, &self.active_meta);
-        if self.active_meta.local.offset + self.active_meta.local.bytes > FLUSH_THRESHOLD {
-            buffer.flush(writer);
+    fn read(&self, offset: usize, bytes: usize) -> Result<Box<[u8]>, Error> {
+        let guard = unsafe { self.inner.read() };
+        let res = guard.read(offset, bytes);
+        match guard.release() {
+            Ok(()) => Ok(res),
+            Err(_) => Err(Error::InconsistentRead),
         }
     }
 
-    // generally only used in testing
-    pub fn push_bytes<W: ChunkWriter>(&mut self, bytes: &[u8], writer: &mut W) {
-        // Safe because &mut here enforces that this is the only pusher/flusher, and Arc<Buffer>
-        // will only be used in a single thread
-        let buffer = unsafe { Arc::get_mut_unchecked(&mut self.buffer) };
-        self.active_meta = buffer.push_bytes(bytes, &self.active_meta);
-        println!("Active meta results {:?}", self.active_meta.local);
-        if self.active_meta.local.offset + self.active_meta.local.bytes > FLUSH_THRESHOLD {
-            buffer.flush(writer);
-            println!("Shared post flush: {:?}", &*self.active_meta.shared.write());
+    fn push_bytes<W: ChunkWriter>(&mut self, bytes: &[u8], last_head: &Head, w: &mut W) -> Head {
+        // Safety: The push_bytes function does not race with readers
+        let head = unsafe { self.inner.get_mut_ref().push_bytes(bytes, last_head) };
+        if head.buffer.offset + head.buffer.size > FLUSH_THRESHOLD {
+            //println!("FLUSHING");
+            // Need to guard here because reset will conflict with concurrent readers
+            let mut guard = self.inner.write();
+            guard.flush(w);
+            guard.reset();
+        }
+        head
+    }
+}
+
+struct InnerList {
+    head: Head,
+    buffer: Buffer,
+}
+
+impl InnerList {
+    fn new(buffer: Buffer) -> Self {
+        let head = Head::new();
+        Self { head, buffer }
+    }
+
+    fn push_bytes<W: ChunkWriter>(&mut self, bytes: &[u8], w: &mut W) {
+        self.head = self.buffer.push_bytes(bytes, &self.head, w);
+    }
+}
+
+pub struct List {
+    inner: Arc<WpLock<InnerList>>,
+}
+
+impl List {
+    pub fn new(buffer: Buffer) -> Self {
+        List {
+            inner: Arc::new(WpLock::new(InnerList::new(buffer))),
         }
     }
 
-    pub fn read_segment<R: ChunkReader>(&self, reader: &R) -> Result<Option<InnerReadNode>, Error> {
-        self.active_meta.read(reader)
+    pub fn push_bytes<W: ChunkWriter>(&self, bytes: &[u8], w: &mut W) {
+        self.inner.write().push_bytes(bytes, w);
+    }
+
+    pub fn reader(&self) -> Result<ListReader, Error> {
+        // Safety: safe because none of the write operations dealloc memory. Protect the list from
+        // concurrent writers
+        let guard = unsafe { self.inner.read() };
+        let head = guard.head.clone();
+        let buff = guard.buffer.clone();
+        match guard.release() {
+            Ok(()) => Ok(ListReader {
+                head,
+                buff,
+                local_buf: Vec::new(),
+                last_persistent: None,
+            }),
+            Err(_) => Err(Error::InconsistentRead),
+        }
+    }
+}
+
+pub struct ListReader {
+    head: Head,
+    buff: Buffer,
+    last_persistent: Option<PersistentHead>,
+    local_buf: Vec<u8>,
+}
+
+impl ListReader {
+    pub fn next<R: ChunkReader>(&mut self, reader: &mut R) -> Result<Option<&[u8]>, Error> {
+        if self.head.buffer.offset == usize::MAX {
+            return Ok(None);
+        }
+        self.local_buf.clear();
+
+        // Try to copy the persistent head
+        let persistent = unsafe {
+            let guard = self.head.persistent.read();
+            let persistent = *guard;
+            match guard.release() {
+                Ok(()) => Ok(persistent),
+                Err(_) => Err(Error::InconsistentRead),
+            }
+        }?;
+
+        //println!("\nReading the head:");
+        //println!("{:?}", persistent);
+        //println!("{:?}\n", self.head.buffer);
+
+        // last persistent is unset, try to copy from the local buffer
+        if self.last_persistent.is_none() && persistent.offset == usize::MAX {
+            let offset = self.head.buffer.offset;
+            let bytes = self.head.buffer.size;
+            self.local_buf
+                .extend_from_slice(&*self.buff.read(offset, bytes)?);
+        }
+        // last persistent is set and the persistent data is unset, then must be in the same
+        // partition as the last persistent
+        else if self.last_persistent.is_some() && persistent.offset == usize::MAX {
+            let persistent = *self.last_persistent.as_ref().unwrap();
+            self.local_buf
+                .extend_from_slice(reader.read(persistent, self.head.buffer)?)
+        }
+        // persistent offset has a value, means need to get the next persistent
+        else if persistent.offset != usize::MAX {
+            self.last_persistent = Some(persistent);
+            self.local_buf
+                .extend_from_slice(reader.read(persistent, self.head.buffer)?)
+        }
+
+        // get the next head
+        self.head = Head::from_bytes(self.local_buf[..Head::size()].try_into().unwrap());
+
+        //println!("\nNext head to read:");
+        //println!("{:?}", *unsafe { self.head.persistent.get_ref() } );
+        //println!("{:?}\n", self.head.buffer);
+
+        // return item
+        Ok(Some(&self.local_buf[Head::size()..]))
     }
 }
