@@ -1,3 +1,4 @@
+pub mod byte_buffer;
 mod list;
 mod q_allocator;
 pub mod wp_lock;

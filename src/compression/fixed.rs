@@ -1,6 +1,8 @@
 use crate::compression::utils::{
-    bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag, ByteBuffer,
+    bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag,
 };
+use crate::utils::byte_buffer::ByteBuffer;
+use crate::utils::byte_buffer::*;
 use fixed::prelude::*;
 use fixed::types::extra::*;
 use fixed::types::extra::{LeEqU64, Unsigned};

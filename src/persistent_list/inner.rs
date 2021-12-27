@@ -1,6 +1,9 @@
 use crate::{
+    compression::{Compression, DecompressBuffer},
     persistent_list::{Error, FLUSH_THRESHOLD},
-    utils::wp_lock::WpLock,
+    segment::FullSegment,
+    tags::Tags,
+    utils::{byte_buffer::ByteBuffer, wp_lock::WpLock},
 };
 use std::{
     cell::UnsafeCell,
@@ -131,9 +134,6 @@ impl InnerBuffer {
     }
 
     fn push_bytes(&mut self, bytes: &[u8], last_head: &Head) -> Head {
-        //println!("\nLast Head written to this push");
-        //println!("{:?}", *unsafe {last_head.persistent.get_ref()});
-        //println!("{:?}\n", last_head.buffer);
         let len = self.len.load(SeqCst);
         let mut offset = len;
 
@@ -144,6 +144,52 @@ impl InnerBuffer {
         let end = offset + bytes.len();
         self.buffer[offset..end].copy_from_slice(bytes);
         offset = end;
+
+        self.len.store(offset, SeqCst);
+
+        Head {
+            persistent: self.persistent_head.clone(),
+            buffer: BufferHead {
+                offset: len,
+                size: offset - len,
+            },
+        }
+    }
+
+    fn push_segment(
+        &mut self,
+        segment: &FullSegment,
+        tags: &Tags,
+        compression: Compression,
+        last_head: &Head,
+    ) -> Head {
+        let len = self.len.load(SeqCst);
+        let mut offset = len;
+
+        // Write head
+        let end = offset + Head::size();
+        self.buffer[offset..end].copy_from_slice(&last_head.bytes());
+        offset = end;
+
+        // Write tags
+        offset += {
+            let sz_offset = offset;
+            let tags_offset = sz_offset + mem::size_of::<u64>();
+            let tags_sz = {
+                let mut byte_buffer = ByteBuffer::new(&mut self.buffer[tags_offset..]);
+                tags.serialize_into(&mut byte_buffer);
+                byte_buffer.len()
+            };
+            self.buffer[sz_offset..tags_offset].copy_from_slice(&tags_sz.to_be_bytes()[..]);
+            tags_sz + mem::size_of::<u64>()
+        };
+
+        // Compress the data into the buffer
+        offset += {
+            let mut byte_buffer = ByteBuffer::new(&mut self.buffer[offset..]);
+            compression.compress(segment, &mut byte_buffer);
+            byte_buffer.len()
+        };
 
         self.len.store(offset, SeqCst);
 
@@ -208,6 +254,29 @@ impl Buffer {
         }
         head
     }
+
+    fn push_segment<W: ChunkWriter>(
+        &mut self,
+        segment: &FullSegment,
+        tags: &Tags,
+        compression: Compression,
+        last_head: &Head,
+        w: &mut W
+    ) -> Head {
+        // Safety: The push_bytes function does not race with readers
+        let head = unsafe {
+            self.inner
+                .get_mut_ref()
+                .push_segment(segment, tags, compression, last_head)
+        };
+        if head.buffer.offset + head.buffer.size > FLUSH_THRESHOLD {
+            // Need to guard here because reset will conflict with concurrent readers
+            let mut guard = self.inner.write();
+            guard.flush(w);
+            guard.reset();
+        }
+        head
+    }
 }
 
 struct InnerList {
@@ -223,6 +292,17 @@ impl InnerList {
 
     fn push_bytes<W: ChunkWriter>(&mut self, bytes: &[u8], w: &mut W) {
         self.head = self.buffer.push_bytes(bytes, &self.head, w);
+    }
+
+    fn push_segment<W: ChunkWriter>(
+        &mut self,
+        segment: &FullSegment,
+        tags: &Tags,
+        compression: Compression,
+        last_head: &Head,
+        w: &mut W
+    ) {
+        self.head = self.buffer.push_segment(segment, tags, compression, last_head, w);
     }
 }
 
@@ -241,6 +321,10 @@ impl List {
         self.inner.write().push_bytes(bytes, w);
     }
 
+    pub fn push_segment<W: ChunkWriter>(&self, bytes: &[u8], w: &mut W) {
+        self.inner.write().push_bytes(bytes, w);
+    }
+
     pub fn reader(&self) -> Result<ListReader, Error> {
         // Safety: safe because none of the write operations dealloc memory. Protect the list from
         // concurrent writers
@@ -253,6 +337,7 @@ impl List {
                 buff,
                 local_buf: Vec::new(),
                 last_persistent: None,
+                decompress_buf: DecompressBuffer::new(),
             }),
             Err(_) => Err(Error::InconsistentRead),
         }
@@ -264,10 +349,36 @@ pub struct ListReader {
     buff: Buffer,
     last_persistent: Option<PersistentHead>,
     local_buf: Vec<u8>,
+    decompress_buf: DecompressBuffer,
 }
 
 impl ListReader {
-    pub fn next<R: ChunkReader>(&mut self, reader: &mut R) -> Result<Option<&[u8]>, Error> {
+    pub fn next_segment<R: ChunkReader>(
+        &mut self,
+        reader: &mut R,
+    ) -> Result<Option<&DecompressBuffer>, Error> {
+        let bytes = self.next_bytes(reader)?;
+        match bytes {
+            None => Ok(None),
+            Some(_) => {
+                let mut offset = Head::size();
+
+                // get the tag size and skip the tags
+                let end = offset + mem::size_of::<u64>();
+                let tag_sz =
+                    u64::from_be_bytes(self.local_buf[offset..end].try_into().unwrap()) as usize;
+                offset = end + tag_sz;
+
+                // get the compressed size and move to compressed data offset
+                Compression::decompress(&self.local_buf[offset..], &mut self.decompress_buf)
+                    .unwrap();
+
+                Ok(Some(&self.decompress_buf))
+            }
+        }
+    }
+
+    pub fn next_bytes<R: ChunkReader>(&mut self, reader: &mut R) -> Result<Option<&[u8]>, Error> {
         if self.head.buffer.offset == usize::MAX {
             return Ok(None);
         }
@@ -283,10 +394,6 @@ impl ListReader {
             }
         }?;
 
-        //println!("\nReading the head:");
-        //println!("{:?}", persistent);
-        //println!("{:?}\n", self.head.buffer);
-
         // last persistent is unset, try to copy from the local buffer
         if self.last_persistent.is_none() && persistent.offset == usize::MAX {
             let offset = self.head.buffer.offset;
@@ -301,6 +408,7 @@ impl ListReader {
             self.local_buf
                 .extend_from_slice(reader.read(persistent, self.head.buffer)?)
         }
+
         // persistent offset has a value, means need to get the next persistent
         else if persistent.offset != usize::MAX {
             self.last_persistent = Some(persistent);
@@ -310,10 +418,6 @@ impl ListReader {
 
         // get the next head
         self.head = Head::from_bytes(self.local_buf[..Head::size()].try_into().unwrap());
-
-        //println!("\nNext head to read:");
-        //println!("{:?}", *unsafe { self.head.persistent.get_ref() } );
-        //println!("{:?}\n", self.head.buffer);
 
         // return item
         Ok(Some(&self.local_buf[Head::size()..]))

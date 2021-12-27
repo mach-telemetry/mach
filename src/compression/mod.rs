@@ -4,10 +4,11 @@ mod utils;
 mod xor;
 
 use crate::segment::FullSegment;
+use crate::utils::byte_buffer::ByteBuffer;
 use lzzzz::lz4;
 use std::convert::TryInto;
 
-pub use utils::ByteBuffer;
+//pub use utils::ByteBuffer;
 
 #[derive(Debug)]
 pub enum Error {

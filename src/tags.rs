@@ -1,3 +1,4 @@
+use crate::utils::byte_buffer::ByteBuffer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
@@ -16,8 +17,8 @@ impl Tags {
         bincode::serialize(self).unwrap()
     }
 
-    pub fn serialize_into(&self, data: &mut Vec<u8>) {
-        bincode::serialize_into(data, self).unwrap()
+    pub fn serialize_into(&self, data: &mut ByteBuffer) {
+        bincode::serialize_into(data, self).unwrap();
     }
 
     pub fn from_bytes(data: &[u8]) -> Result<Self, Error> {

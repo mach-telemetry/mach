@@ -44,15 +44,15 @@ mod test {
             .for_each(|x| list.push_bytes(x.as_slice(), &mut vec_writer));
 
         let mut reader = list.reader().unwrap();
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data[4], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data[3], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data[2], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data[1], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data[0], res);
     }
 
@@ -83,27 +83,27 @@ mod test {
         list2.push_bytes(data2[4].as_slice(), &mut vec_writer);
 
         let mut reader = list1.reader().unwrap();
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data1[4], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data1[3], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data1[2], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data1[1], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data1[0], res);
 
         let mut reader = list2.reader().unwrap();
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data2[4], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data2[3], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data2[2], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data2[1], res);
-        let res = reader.next(&mut vec_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut vec_reader).unwrap().unwrap();
         assert_eq!(data2[0], res);
     }
 }

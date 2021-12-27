@@ -1,4 +1,4 @@
-use crate::compression::utils::ByteBuffer;
+use crate::utils::byte_buffer::*;
 use bitstream_io::{BigEndian, BitRead, BitReader, BitWrite, BitWriter};
 use std::{
     convert::TryFrom,

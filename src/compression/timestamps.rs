@@ -1,6 +1,7 @@
 use crate::compression::utils::{
-    bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag, ByteBuffer,
+    bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag,
 };
+use crate::utils::byte_buffer::*;
 use std::{
     convert::{TryFrom, TryInto},
     mem::size_of,
