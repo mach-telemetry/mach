@@ -73,7 +73,7 @@ impl Meta {
 
     fn read<R: ChunkReader>(
         &self,
-        buf: *mut [u8],
+        buf: &mut [u8],
         reader: &R,
     ) -> Result<Option<InnerReadNode>, Error> {
         let partition = self.shared.partition;

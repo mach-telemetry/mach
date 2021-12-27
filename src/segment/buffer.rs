@@ -98,7 +98,7 @@ impl<const V: usize> Buffer<V> {
 
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         // Safe because the push method does not race with another method in buffer
-        unsafe { self.inner.as_ref().push(ts, item) }
+        unsafe { self.inner.get_ref().push(ts, item) }
     }
 
     pub fn reset(&mut self) {
@@ -118,7 +118,7 @@ impl<const V: usize> Buffer<V> {
     pub fn to_flush(&self) -> Option<FullSegment> {
         // Safe because the to_flush method does not race with another method requiring mutable
         // access. Uses ref because we can't use the wp lock guard as the lifetime
-        unsafe { self.inner.as_ref().to_flush() }
+        unsafe { self.inner.get_ref().to_flush() }
     }
 }
 

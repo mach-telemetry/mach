@@ -48,8 +48,12 @@ impl<T> WpLock<T> {
         }
     }
 
-    pub unsafe fn as_ref(&self) -> &T {
+    pub unsafe fn get_ref(&self) -> &T {
         self.item.get().as_ref().unwrap()
+    }
+
+    pub unsafe fn get_mut_ref(&self) -> &mut T {
+        self.item.get().as_mut().unwrap()
     }
 
     pub fn write(&self) -> WriteGuard<T> {
