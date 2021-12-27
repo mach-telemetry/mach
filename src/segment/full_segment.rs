@@ -1,4 +1,5 @@
 use crate::segment::buffer::*;
+use crate::constants::*;
 
 pub struct FullSegment<'a> {
     pub len: usize,

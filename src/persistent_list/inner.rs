@@ -1,6 +1,6 @@
 use crate::{
     compression::{Compression, DecompressBuffer},
-    persistent_list::{Error, FLUSH_THRESHOLD},
+    persistent_list::Error,
     segment::FullSegment,
     tags::Tags,
     utils::{byte_buffer::ByteBuffer, wp_lock::WpLock},

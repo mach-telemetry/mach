@@ -3,7 +3,7 @@
 * Run a single broker kafka
 
 ```
-docker-compose up # might need sudo
+docker-compose up -d # might need sudo
 ```
 
 * Create a topic
@@ -16,6 +16,9 @@ kafka-topics --create --topic MACHSTORAGE --config="max.message.bytes=10000000" 
 
 # Check if topic is created
 kafka-topics --list --zookeeper zookeeper:2181
+
+# run tests with kafka
+KAFKA=1 cargo test -- --nocapture
 ```
 
 ### Setup

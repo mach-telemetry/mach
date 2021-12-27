@@ -1,4 +1,7 @@
-use crate::persistent_list::{inner::*, Error};
+use crate::{
+    persistent_list::{inner::*, Error},
+    constants::*,
+};
 pub use rdkafka::consumer::{base_consumer::BaseConsumer, Consumer};
 use rdkafka::{
     config::ClientConfig,
@@ -8,10 +11,12 @@ use rdkafka::{
     util::Timeout,
     Message,
 };
-use std::{convert::TryInto, time::Duration};
+use std::{convert::TryInto, time::{Instant, Duration}};
+use uuid::Uuid;
 
-const KAFKA_TOPIC: &str = "MACHSTORAGE";
-const KAFKA_BOOTSTRAP: &str = "localhost:29092";
+fn random_id() -> String {
+    Uuid::new_v4().to_hyphenated().to_string()
+}
 
 pub struct KafkaWriter {
     producer: FutureProducer,
@@ -49,13 +54,17 @@ pub struct KafkaReader {
 }
 
 impl KafkaReader {
-    pub fn new(consumer: BaseConsumer) -> Self {
-        KafkaReader {
+    pub fn new() -> Result<Self, Error> {
+        let consumer: BaseConsumer = ClientConfig::new()
+            .set("bootstrap.servers", KAFKA_BOOTSTRAP)
+            .set("group.id", random_id())
+            .create()?;
+        Ok(KafkaReader {
             consumer,
             timeout: Timeout::After(Duration::from_secs(0)),
             local_copy: Vec::new(),
             current_head: None,
-        }
+        })
     }
 }
 
@@ -72,7 +81,15 @@ impl ChunkReader for KafkaReader {
                     .add_partition_offset(KAFKA_TOPIC, partition, Offset::Offset(offset))
                     .unwrap();
                 self.consumer.assign(&tp_list)?;
-                let msg = self.consumer.poll(self.timeout).unwrap()?;
+                let start = Instant::now();
+                let msg = loop {
+                    match self.consumer.poll(self.timeout) {
+                        Some(Ok(x)) => break x,
+                        Some(Err(x)) => return Err(x.into()),
+                        None => {}
+                    };
+                };
+                println!("Kafka duration: {:?}", start.elapsed());
                 let payload = msg.payload().unwrap();
                 self.local_copy.clear();
                 self.local_copy.extend_from_slice(payload);

@@ -1,9 +1,8 @@
 use crate::segment::{full_segment::FullSegment, Error, InnerPushStatus};
 use crate::utils::wp_lock::*;
+use crate::constants::*;
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst};
-
-pub const SEGSZ: usize = 256;
 
 pub type Column = [[u8; 8]; SEGSZ];
 pub type ColumnSet = [Column];
