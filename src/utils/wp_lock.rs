@@ -106,3 +106,6 @@ impl<'lock, T> Deref for ReadGuard<'lock, T> {
         unsafe { ptr.as_ref().unwrap() }
     }
 }
+
+unsafe impl<T> Sync for WpLock<T> {}
+unsafe impl<T> Send for WpLock<T> {}

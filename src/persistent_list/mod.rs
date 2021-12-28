@@ -109,42 +109,10 @@ mod test {
         assert_eq!(data[0], res);
     }
 
-    #[test]
-    fn test_kafka_bytes() {
-        if env::var("KAFKA").is_ok() {
-            let kafka_writer = KafkaWriter::new().unwrap();
-            let kafka_reader = KafkaReader::new().unwrap();
-            test_multiple(kafka_reader, kafka_writer);
-        }
-    }
-
-    #[test]
-    fn test_vec_simple() {
-        let vec = Arc::new(Mutex::new(Vec::new()));
-        let mut persistent_writer = VectorWriter::new(vec.clone());
-        let mut persistent_reader = VectorReader::new(vec.clone());
-        test_single(persistent_reader, persistent_writer);
-    }
-
-    #[test]
-    fn test_vec_multiple() {
-        let vec = Arc::new(Mutex::new(Vec::new()));
-        let mut persistent_writer = VectorWriter::new(vec.clone());
-        let mut persistent_reader = VectorReader::new(vec.clone());
-        test_multiple(persistent_reader, persistent_writer);
-    }
-
-    #[test]
-    fn test_file_multiple() {
-        let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test_path");
-        let mut persistent_writer = FileWriter::new(&file_path).unwrap();
-        let mut persistent_reader = FileReader::new(&file_path).unwrap();
-        test_multiple(persistent_reader, persistent_writer);
-    }
-
-    #[test]
-    fn test_segment() {
+    fn test_sample_data<R: ChunkReader, W: ChunkWriter>(
+        mut persistent_reader: R,
+        mut persistent_writer: W,
+    ) {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
 
@@ -154,9 +122,6 @@ mod test {
 
         let compression = Compression::LZ4(1);
 
-        let vec = Arc::new(Mutex::new(Vec::new()));
-        let mut persistent_writer = VectorWriter::new(vec.clone());
-        let mut persistent_reader = VectorReader::new(vec.clone());
         let buffer = Buffer::new(6000);
         let list = List::new(buffer.clone());
 
@@ -268,127 +233,62 @@ mod test {
     }
 
     #[test]
-    fn test_kafka_segment() {
+    fn test_kafka_bytes() {
+        if env::var("KAFKA").is_ok() {
+            let kafka_writer = KafkaWriter::new().unwrap();
+            let kafka_reader = KafkaReader::new().unwrap();
+            test_multiple(kafka_reader, kafka_writer);
+        }
+    }
+
+    #[test]
+    fn test_vec_simple() {
+        let vec = Arc::new(Mutex::new(Vec::new()));
+        let mut persistent_writer = VectorWriter::new(vec.clone());
+        let mut persistent_reader = VectorReader::new(vec.clone());
+        test_single(persistent_reader, persistent_writer);
+    }
+
+    #[test]
+    fn test_vec_multiple() {
+        let vec = Arc::new(Mutex::new(Vec::new()));
+        let mut persistent_writer = VectorWriter::new(vec.clone());
+        let mut persistent_reader = VectorReader::new(vec.clone());
+        test_multiple(persistent_reader, persistent_writer);
+    }
+
+    #[test]
+    fn test_file_multiple() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test_path");
+        let mut persistent_writer = FileWriter::new(&file_path).unwrap();
+        let mut persistent_reader = FileReader::new(&file_path).unwrap();
+        test_multiple(persistent_reader, persistent_writer);
+    }
+
+    #[test]
+    fn test_vec_data() {
+        let vec = Arc::new(Mutex::new(Vec::new()));
+        let mut persistent_writer = VectorWriter::new(vec.clone());
+        let mut persistent_reader = VectorReader::new(vec.clone());
+        test_sample_data(persistent_reader, persistent_writer);
+    }
+
+    #[test]
+    fn test_file_data() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test_path");
+        let mut persistent_writer = FileWriter::new(&file_path).unwrap();
+        let mut persistent_reader = FileReader::new(&file_path).unwrap();
+        test_sample_data(persistent_reader, persistent_writer);
+    }
+
+    #[test]
+    fn test_kafka_data() {
         if env::var("KAFKA").is_ok() {
             let mut persistent_writer = KafkaWriter::new().unwrap();
             let mut persistent_reader = KafkaReader::new().unwrap();
-            let data = &MULTIVARIATE_DATA[0].1;
-            let nvars = data[0].values.len();
-
-            let mut tags = Tags::new();
-            tags.insert((String::from("A"), String::from("1")));
-            tags.insert((String::from("B"), String::from("2")));
-
-            let compression = Compression::LZ4(1);
-
-            let buffer = Buffer::new(6000);
-            let list = List::new(buffer.clone());
-
-            let segment = Segment::new(1, nvars);
-            let mut writer = segment.writer().unwrap();
-
-            let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
-                let mut values = vec![[0u8; 8]; nvars];
-                for (i, v) in items.iter().enumerate() {
-                    values[i] = v.to_be_bytes();
-                }
-                values
-            };
-
-            // This set of pushes stays in the buffer
-            for item in &data[..256] {
-                let v = to_values(&item.values[..]);
-                assert!(writer.push(item.ts, &v[..]).is_ok());
-            }
-            let flusher = writer.flush();
-            let seg: FullSegment = flusher.to_flush().unwrap();
-            list.push_segment(&seg, &tags, &compression, &mut persistent_writer);
-            flusher.flushed();
-
-            // This next set of pushes **should** result in a flush
-            for item in &data[256..512] {
-                let v = to_values(&item.values[..]);
-                assert!(writer.push(item.ts, &v[..]).is_ok());
-            }
-            let flusher = writer.flush();
-            let seg: FullSegment = flusher.to_flush().unwrap();
-            list.push_segment(&seg, &tags, &compression, &mut persistent_writer);
-            flusher.flushed();
-
-            // This next set of pushes won't result in a flush
-            for item in &data[512..768] {
-                let v = to_values(&item.values[..]);
-                assert!(writer.push(item.ts, &v[..]).is_ok());
-            }
-
-            let flusher = writer.flush();
-            let seg: FullSegment = flusher.to_flush().unwrap();
-            list.push_segment(&seg, &tags, &compression, &mut persistent_writer);
-            flusher.flushed();
-
-            let mut exp_ts: Vec<u64> = Vec::new();
-            let mut exp_values: Vec<Vec<[u8; 8]>> = Vec::new();
-            for _ in 0..nvars {
-                exp_values.push(Vec::new());
-            }
-
-            let mut reader = list.reader().unwrap();
-            let res: &DecompressBuffer = reader
-                .next_segment(&mut persistent_reader)
-                .unwrap()
-                .unwrap();
-            for item in &data[512..768] {
-                let v = to_values(&item.values[..]);
-                exp_ts.push(item.ts);
-                v.iter()
-                    .zip(exp_values.iter_mut())
-                    .for_each(|(v, e)| e.push(*v));
-            }
-            assert_eq!(res.timestamps(), exp_ts.as_slice());
-            exp_values
-                .iter()
-                .enumerate()
-                .for_each(|(i, v)| assert_eq!(res.variable(i), v));
-            exp_ts.clear();
-            exp_values.iter_mut().for_each(|e| e.clear());
-
-            let res: &DecompressBuffer = reader
-                .next_segment(&mut persistent_reader)
-                .unwrap()
-                .unwrap();
-            for item in &data[256..512] {
-                let v = to_values(&item.values[..]);
-                exp_ts.push(item.ts);
-                v.iter()
-                    .zip(exp_values.iter_mut())
-                    .for_each(|(v, e)| e.push(*v));
-            }
-            assert_eq!(res.timestamps(), exp_ts.as_slice());
-            exp_values
-                .iter()
-                .enumerate()
-                .for_each(|(i, v)| assert_eq!(res.variable(i), v));
-            exp_ts.clear();
-            exp_values.iter_mut().for_each(|e| e.clear());
-
-            let res: &DecompressBuffer = reader
-                .next_segment(&mut persistent_reader)
-                .unwrap()
-                .unwrap();
-            for item in &data[0..256] {
-                let v = to_values(&item.values[..]);
-                exp_ts.push(item.ts);
-                v.iter()
-                    .zip(exp_values.iter_mut())
-                    .for_each(|(v, e)| e.push(*v));
-            }
-            assert_eq!(res.timestamps(), exp_ts.as_slice());
-            exp_values
-                .iter()
-                .enumerate()
-                .for_each(|(i, v)| assert_eq!(res.variable(i), v));
-            exp_ts.clear();
-            exp_values.iter_mut().for_each(|e| e.clear());
+            test_sample_data(persistent_reader, persistent_writer);
         }
     }
 }

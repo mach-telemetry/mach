@@ -33,6 +33,23 @@ struct SeriesMetadata {
     compression: Compression,
 }
 
+impl SeriesMetadata {
+    fn new(
+        tags: Tags,
+        seg_count: usize,
+        nvars: usize,
+        compression: Compression,
+        buffer: Buffer,
+    ) -> Self {
+        SeriesMetadata {
+            segment: segment::Segment::new(seg_count, nvars),
+            tags,
+            compression,
+            list: List::new(buffer),
+        }
+    }
+}
+
 struct WriteThread {
     local_meta: HashMap<u64, SeriesMetadata>,
     references: HashMap<u64, usize>,
@@ -43,7 +60,7 @@ struct WriteThread {
 }
 
 impl WriteThread {
-    fn new<W: ChunkWriter>(w: W) -> Self {
+    fn new<W: ChunkWriter + 'static>(w: W) -> Self {
         let flush_worker = FlushWorker::new(w);
         Self {
             local_meta: HashMap::new(),
@@ -55,7 +72,7 @@ impl WriteThread {
         }
     }
 
-    fn add_series(&mut self, id: u64, meta: SeriesMetadata) -> usize {
+    fn register(&mut self, id: u64, meta: SeriesMetadata) -> usize {
         let writer = meta.segment.writer().unwrap();
         let list = meta.list.clone();
 
@@ -77,10 +94,8 @@ impl WriteThread {
 
     fn push(&mut self, reference: usize, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
         match self.writers[reference].push(ts, data)? {
-            segment::PushStatus::Done => {},
-            segment::PushStatus::Flush(_) => {
-                self.flush_worker.flush(self.flush_id[reference])
-            }
+            segment::PushStatus::Done => {}
+            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
         }
         Ok(())
     }
@@ -113,9 +128,9 @@ struct FlushWorker {
 }
 
 impl FlushWorker {
-    fn new<W: ChunkWriter>(w: W) -> Self {
+    fn new<W: ChunkWriter + 'static>(w: W) -> Self {
         let (sender, receiver) = unbounded();
-        //async_std::task::spawn(worker(w, receiver));
+        async_std::task::spawn(worker(w, receiver));
         FlushWorker {
             sender,
             register_counter: 0,
@@ -123,9 +138,10 @@ impl FlushWorker {
     }
 
     fn register(&mut self, meta: FlushMeta) -> usize {
+        let id = self.register_counter;
         self.register_counter += 1;
         self.sender.try_send(FlushRequest::Register(meta)).unwrap();
-        self.register_counter
+        id
     }
 
     fn flush(&self, id: usize) {
@@ -133,12 +149,167 @@ impl FlushWorker {
     }
 }
 
-async fn worker<W: ChunkWriter>(mut w: W, queue: Receiver<FlushRequest>) {
+async fn worker<W: ChunkWriter + 'static>(mut w: W, queue: Receiver<FlushRequest>) {
     let mut metadata: Vec<FlushMeta> = Vec::new();
     while let Ok(item) = queue.recv().await {
         match item {
             FlushRequest::Register(meta) => metadata.push(meta),
             FlushRequest::Flush(id) => metadata[id].flush(&mut w),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::test_utils::*;
+    use crate::compression::DecompressBuffer;
+    use std::{
+        sync::{Arc, Mutex},
+        env,
+    };
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_vec_writer() {
+        let vec = Arc::new(Mutex::new(Vec::new()));
+        let mut persistent_writer = VectorWriter::new(vec.clone());
+        let mut persistent_reader = VectorReader::new(vec.clone());
+        sample_data(persistent_reader, persistent_writer);
+    }
+
+    #[test]
+    fn test_file_writer() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test_path");
+        let mut persistent_writer = FileWriter::new(&file_path).unwrap();
+        let mut persistent_reader = FileReader::new(&file_path).unwrap();
+        sample_data(persistent_reader, persistent_writer);
+    }
+
+    #[test]
+    fn test_kafka_writer() {
+        if env::var("KAFKA").is_ok() {
+            let mut persistent_writer = KafkaWriter::new().unwrap();
+            let mut persistent_reader = KafkaReader::new().unwrap();
+            sample_data(persistent_reader, persistent_writer);
+        }
+    }
+
+    fn sample_data<R: ChunkReader, W: ChunkWriter + 'static>(
+        mut persistent_reader: R,
+        mut persistent_writer: W,
+    ) {
+        let data = &MULTIVARIATE_DATA[0].1;
+        let nvars = data[0].values.len();
+        let mut tags = Tags::new();
+        tags.insert((String::from("A"), String::from("1")));
+        tags.insert((String::from("B"), String::from("2")));
+        let compression = Compression::LZ4(1);
+        let buffer = Buffer::new(6000);
+
+        let series_meta = SeriesMetadata::new(tags, 1, nvars, compression, buffer.clone());
+        let mut write_thread = WriteThread::new(persistent_writer);
+        let series_ref: usize = write_thread.register(0, series_meta.clone());
+
+        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+            let mut values = vec![[0u8; 8]; nvars];
+            for (i, v) in items.iter().enumerate() {
+                values[i] = v.to_be_bytes();
+            }
+            values
+        };
+
+        // Enough for three flushes to list
+        for item in &data[..782] {
+            let v = to_values(&item.values[..]);
+            loop {
+                match write_thread.push(series_ref, item.ts, &v[..]) {
+                    Ok(_) => break,
+                    Err(_) => {}
+                }
+            }
+        }
+
+
+        let mut exp_ts: Vec<u64> = Vec::new();
+        let mut exp_values: Vec<Vec<[u8; 8]>> = Vec::new();
+        for _ in 0..nvars {
+            exp_values.push(Vec::new());
+        }
+
+        let ss = series_meta.segment.snapshot().unwrap();
+        for item in &data[768..782] {
+            let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            v.iter()
+                .zip(exp_values.iter_mut())
+                .for_each(|(v, e)| e.push(*v));
+        }
+        assert_eq!(ss[0].timestamps(), exp_ts.as_slice());
+        exp_values
+            .iter()
+            .enumerate()
+            .for_each(|(i, v)| assert_eq!(ss[0].variable(i), v));
+        exp_ts.clear();
+        exp_values.iter_mut().for_each(|e| e.clear());
+
+        let mut reader = series_meta.list.reader().unwrap();
+        let res: &DecompressBuffer = reader
+            .next_segment(&mut persistent_reader)
+            .unwrap()
+            .unwrap();
+        for item in &data[512..768] {
+            let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            v.iter()
+                .zip(exp_values.iter_mut())
+                .for_each(|(v, e)| e.push(*v));
+        }
+        assert_eq!(res.timestamps(), exp_ts.as_slice());
+        exp_values
+            .iter()
+            .enumerate()
+            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
+        exp_ts.clear();
+        exp_values.iter_mut().for_each(|e| e.clear());
+
+        let res: &DecompressBuffer = reader
+            .next_segment(&mut persistent_reader)
+            .unwrap()
+            .unwrap();
+        for item in &data[256..512] {
+            let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            v.iter()
+                .zip(exp_values.iter_mut())
+                .for_each(|(v, e)| e.push(*v));
+        }
+        assert_eq!(res.timestamps(), exp_ts.as_slice());
+        exp_values
+            .iter()
+            .enumerate()
+            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
+        exp_ts.clear();
+        exp_values.iter_mut().for_each(|e| e.clear());
+
+        let res: &DecompressBuffer = reader
+            .next_segment(&mut persistent_reader)
+            .unwrap()
+            .unwrap();
+        for item in &data[0..256] {
+            let v = to_values(&item.values[..]);
+            exp_ts.push(item.ts);
+            v.iter()
+                .zip(exp_values.iter_mut())
+                .for_each(|(v, e)| e.push(*v));
+        }
+        assert_eq!(res.timestamps(), exp_ts.as_slice());
+        exp_values
+            .iter()
+            .enumerate()
+            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
+        exp_ts.clear();
+        exp_values.iter_mut().for_each(|e| e.clear());
     }
 }

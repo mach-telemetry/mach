@@ -16,7 +16,7 @@ use std::{
     },
 };
 
-pub trait ChunkWriter {
+pub trait ChunkWriter: Sync + Send {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error>;
 }
 
@@ -251,7 +251,6 @@ impl Buffer {
         let inner = unsafe { self.inner.get_mut_ref() };
         let head = inner.push_bytes(bytes, last_head);
         if head.buffer.offset + head.buffer.size > inner.flush_sz {
-            //println!("FLUSHING");
             // Need to guard here because reset will conflict with concurrent readers
             let mut guard = self.inner.write();
             guard.flush(w);
@@ -272,6 +271,7 @@ impl Buffer {
         let inner = unsafe { self.inner.get_mut_ref() };
         let head = inner.push_segment(segment, tags, compression, last_head);
         if head.buffer.offset + head.buffer.size > inner.flush_sz {
+            println!("FLUSHING");
             // Need to guard here because reset will conflict with concurrent readers
             let mut guard = self.inner.write();
             guard.flush(w);
