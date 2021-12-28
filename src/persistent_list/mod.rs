@@ -24,17 +24,17 @@ impl From<std::io::Error> for Error {
     }
 }
 
-pub use inner::{Buffer, List, ListReader};
+pub use file_backend::{FileReader, FileWriter};
+pub use inner::{Buffer, ChunkReader, ChunkWriter, List, ListReader};
 pub use kafka_backend::{KafkaReader, KafkaWriter};
 pub use vector_backend::{VectorReader, VectorWriter};
-pub use file_backend::{FileReader, FileWriter};
 
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::{
         compression::*,
-        persistent_list::{inner::*, vector_backend::*, },
+        persistent_list::{inner::*, vector_backend::*},
         segment::*,
         tags::*,
         test_utils::*,

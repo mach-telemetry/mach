@@ -22,6 +22,7 @@ mod persistent_list;
 mod segment;
 mod tags;
 mod utils;
+mod write_thread;
 
 #[cfg(test)]
 mod test_utils;

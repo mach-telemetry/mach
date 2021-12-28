@@ -309,6 +309,7 @@ impl InnerList {
     }
 }
 
+#[derive(Clone)]
 pub struct List {
     inner: Arc<WpLock<InnerList>>,
 }

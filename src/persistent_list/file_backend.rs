@@ -47,7 +47,8 @@ impl FileWriter {
             .create(true)
             .write(true)
             .append(true)
-            .open(filename).unwrap();
+            .open(filename)
+            .unwrap();
         Ok(Self {
             file,
             current_offset: 0,

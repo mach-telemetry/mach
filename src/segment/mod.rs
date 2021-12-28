@@ -162,7 +162,7 @@ impl FlushSegment {
         unsafe { self.inner.to_flush() }
     }
 
-    pub fn flushed(self) {
+    pub fn flushed(&self) {
         self.inner.flushed()
     }
 }
