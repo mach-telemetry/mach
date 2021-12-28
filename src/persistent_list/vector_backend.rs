@@ -44,11 +44,13 @@ impl VectorWriter {
 impl ChunkWriter for VectorWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
         let mut guard = self.inner.lock().unwrap();
+        let sz = bytes.len();
         let offset = guard.len();
         guard.push(bytes.into());
         let head = PersistentHead {
             partition: usize::MAX,
             offset,
+            sz,
         };
         Ok(head)
     }

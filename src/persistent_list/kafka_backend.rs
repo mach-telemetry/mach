@@ -1,6 +1,6 @@
 use crate::{
-    persistent_list::{inner::*, Error},
     constants::*,
+    persistent_list::{inner::*, Error},
 };
 pub use rdkafka::consumer::{base_consumer::BaseConsumer, Consumer};
 use rdkafka::{
@@ -11,7 +11,10 @@ use rdkafka::{
     util::Timeout,
     Message,
 };
-use std::{convert::TryInto, time::{Instant, Duration}};
+use std::{
+    convert::TryInto,
+    time::{Duration, Instant},
+};
 use uuid::Uuid;
 
 fn random_id() -> String {
@@ -34,12 +37,14 @@ impl KafkaWriter {
 impl ChunkWriter for KafkaWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC).payload(bytes);
+        let sz = bytes.len();
         let dur = Duration::from_secs(0);
         let stat = async_std::task::block_on(self.producer.send(to_send, dur));
         match stat {
             Ok(x) => Ok(PersistentHead {
                 partition: x.0.try_into().unwrap(),
                 offset: x.1.try_into().unwrap(),
+                sz,
             }),
             Err((err, _)) => Err(err.into()),
         }

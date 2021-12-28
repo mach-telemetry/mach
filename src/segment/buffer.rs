@@ -1,6 +1,6 @@
+use crate::constants::*;
 use crate::segment::{full_segment::FullSegment, Error, InnerPushStatus};
 use crate::utils::wp_lock::*;
-use crate::constants::*;
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst};
 

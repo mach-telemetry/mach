@@ -29,6 +29,7 @@ pub trait ChunkReader {
 pub struct PersistentHead {
     pub partition: usize,
     pub offset: usize,
+    pub sz: usize,
 }
 
 impl PersistentHead {
@@ -36,6 +37,7 @@ impl PersistentHead {
         PersistentHead {
             partition: usize::MAX,
             offset: usize::MAX,
+            sz: usize::MAX,
         }
     }
 
@@ -98,7 +100,7 @@ impl Head {
         let persistent = *self.persistent.write();
         let mut bytes = [0u8; Self::size()];
         bytes[..PersistentHead::size()].copy_from_slice(persistent.as_bytes());
-        bytes[BufferHead::size()..].copy_from_slice(self.buffer.as_bytes());
+        bytes[PersistentHead::size()..].copy_from_slice(self.buffer.as_bytes());
         bytes
     }
 
@@ -264,10 +266,10 @@ impl Buffer {
         tags: &Tags,
         compression: &Compression,
         last_head: &Head,
-        w: &mut W
+        w: &mut W,
     ) -> Head {
         // Safety: The push_bytes function does not race with readers
-        let inner = unsafe {self.inner.get_mut_ref()};
+        let inner = unsafe { self.inner.get_mut_ref() };
         let head = inner.push_segment(segment, tags, compression, last_head);
         if head.buffer.offset + head.buffer.size > inner.flush_sz {
             // Need to guard here because reset will conflict with concurrent readers
@@ -299,9 +301,11 @@ impl InnerList {
         segment: &FullSegment,
         tags: &Tags,
         compression: &Compression,
-        w: &mut W
+        w: &mut W,
     ) {
-        self.head = self.buffer.push_segment(segment, tags, compression, &self.head, w);
+        self.head = self
+            .buffer
+            .push_segment(segment, tags, compression, &self.head, w);
     }
 }
 
@@ -325,8 +329,11 @@ impl List {
         segment: &FullSegment,
         tags: &Tags,
         compression: &Compression,
-        w: &mut W) {
-        self.inner.write().push_segment(segment, tags, compression, w);
+        w: &mut W,
+    ) {
+        self.inner
+            .write()
+            .push_segment(segment, tags, compression, w);
     }
 
     pub fn reader(&self) -> Result<ListReader, Error> {
@@ -412,7 +419,6 @@ impl ListReader {
             self.local_buf
                 .extend_from_slice(reader.read(persistent, self.head.buffer)?)
         }
-
         // persistent offset has a value, means need to get the next persistent
         else if persistent.offset != usize::MAX {
             self.last_persistent = Some(persistent);

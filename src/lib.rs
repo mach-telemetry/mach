@@ -16,8 +16,8 @@
 //mod series_metadata;
 //mod writer;
 
-mod constants;
 mod compression;
+mod constants;
 mod persistent_list;
 mod segment;
 mod tags;

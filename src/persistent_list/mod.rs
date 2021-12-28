@@ -1,3 +1,4 @@
+mod file_backend;
 mod inner;
 mod kafka_backend;
 mod vector_backend;
@@ -8,6 +9,7 @@ use rdkafka::error::KafkaError;
 pub enum Error {
     InconsistentRead,
     Kafka(KafkaError),
+    IO(std::io::Error),
 }
 
 impl From<KafkaError> for Error {
@@ -16,104 +18,32 @@ impl From<KafkaError> for Error {
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(item: std::io::Error) -> Self {
+        Error::IO(item)
+    }
+}
+
 pub use inner::{Buffer, List, ListReader};
 pub use kafka_backend::{KafkaReader, KafkaWriter};
 pub use vector_backend::{VectorReader, VectorWriter};
+pub use file_backend::{FileReader, FileWriter};
 
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::{
-        persistent_list::{inner::*, vector_backend::*},
-        segment::*,
-        test_utils::*,
-        tags::*,
         compression::*,
+        persistent_list::{inner::*, vector_backend::*, },
+        segment::*,
+        tags::*,
+        test_utils::*,
     };
-    use std::sync::{Arc, Mutex};
     use std::env;
+    use std::sync::{Arc, Mutex};
+    use tempfile::tempdir;
 
-    #[test]
-    fn test_kafka_bytes() {
-        if env::var("KAFKA").is_ok() {
-            let mut kafka_writer = KafkaWriter::new().unwrap();
-            let mut kafka_reader = KafkaReader::new().unwrap();
-            let buffer = Buffer::new(100);
-            let list1 = List::new(buffer.clone());
-            let list2 = List::new(buffer.clone());
-
-            let data1: Vec<Vec<u8>> = (0..5).map(|x| vec![x; 15]).collect();
-            let data2: Vec<Vec<u8>> = (5..10).map(|x| vec![x; 15]).collect();
-
-            list1.push_bytes(data1[0].as_slice(), &mut kafka_writer);
-            list1.push_bytes(data1[1].as_slice(), &mut kafka_writer);
-            list2.push_bytes(data2[0].as_slice(), &mut kafka_writer);
-            // Should have flushed in the last push
-            list1.push_bytes(data1[2].as_slice(), &mut kafka_writer);
-            list2.push_bytes(data2[1].as_slice(), &mut kafka_writer);
-            list2.push_bytes(data2[2].as_slice(), &mut kafka_writer);
-            // Should have flushed in the last push
-            list1.push_bytes(data1[3].as_slice(), &mut kafka_writer);
-            list1.push_bytes(data1[4].as_slice(), &mut kafka_writer);
-            list2.push_bytes(data2[3].as_slice(), &mut kafka_writer);
-            // Should have flushed in the last push
-            list2.push_bytes(data2[4].as_slice(), &mut kafka_writer);
-
-            let mut reader = list1.reader().unwrap();
-            let res = reader.next_bytes(&mut kafka_reader).unwrap().unwrap();
-            assert_eq!(data1[4], res);
-            let res = reader.next_bytes(&mut kafka_reader).unwrap().unwrap();
-            assert_eq!(data1[3], res);
-            let res = reader.next_bytes(&mut kafka_reader).unwrap().unwrap();
-            assert_eq!(data1[2], res);
-            let res = reader.next_bytes(&mut kafka_reader).unwrap().unwrap();
-            assert_eq!(data1[1], res);
-            let res = reader.next_bytes(&mut kafka_reader).unwrap().unwrap();
-            assert_eq!(data1[0], res);
-
-            let mut reader = list2.reader().unwrap();
-            let res = reader.next_bytes(&mut kafka_reader).unwrap().unwrap();
-            assert_eq!(data2[4], res);
-            let res = reader.next_bytes(&mut kafka_reader).unwrap().unwrap();
-            assert_eq!(data2[3], res);
-            let res = reader.next_bytes(&mut kafka_reader).unwrap().unwrap();
-            assert_eq!(data2[2], res);
-            let res = reader.next_bytes(&mut kafka_reader).unwrap().unwrap();
-            assert_eq!(data2[1], res);
-            let res = reader.next_bytes(&mut kafka_reader).unwrap().unwrap();
-            assert_eq!(data2[0], res);
-        }
-    }
-
-    #[test]
-    fn test_single() {
-        let vec = Arc::new(Mutex::new(Vec::new()));
-        let mut persistent_writer = VectorWriter::new(vec.clone());
-        let mut persistent_reader = VectorReader::new(vec.clone());
-        let buffer = Buffer::new(100);
-        let list = List::new(buffer.clone());
-        let data: Vec<Vec<u8>> = (0..5).map(|x| vec![x; 15]).collect();
-        data.iter()
-            .for_each(|x| list.push_bytes(x.as_slice(), &mut persistent_writer));
-
-        let mut reader = list.reader().unwrap();
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
-        assert_eq!(data[4], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
-        assert_eq!(data[3], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
-        assert_eq!(data[2], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
-        assert_eq!(data[1], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
-        assert_eq!(data[0], res);
-    }
-
-    #[test]
-    fn test_many() {
-        let vec = Arc::new(Mutex::new(Vec::new()));
-        let mut persistent_writer = VectorWriter::new(vec.clone());
-        let mut persistent_reader = VectorReader::new(vec.clone());
+    fn test_multiple<R: ChunkReader, W: ChunkWriter>(mut chunk_reader: R, mut chunk_writer: W) {
         let buffer = Buffer::new(100);
         let list1 = List::new(buffer.clone());
         let list2 = List::new(buffer.clone());
@@ -121,43 +51,96 @@ mod test {
         let data1: Vec<Vec<u8>> = (0..5).map(|x| vec![x; 15]).collect();
         let data2: Vec<Vec<u8>> = (5..10).map(|x| vec![x; 15]).collect();
 
-        list1.push_bytes(data1[0].as_slice(), &mut persistent_writer);
-        list1.push_bytes(data1[1].as_slice(), &mut persistent_writer);
-        list2.push_bytes(data2[0].as_slice(), &mut persistent_writer);
+        list1.push_bytes(data1[0].as_slice(), &mut chunk_writer);
+        list1.push_bytes(data1[1].as_slice(), &mut chunk_writer);
+        list2.push_bytes(data2[0].as_slice(), &mut chunk_writer);
         // Should have flushed in the last push
-        list1.push_bytes(data1[2].as_slice(), &mut persistent_writer);
-        list2.push_bytes(data2[1].as_slice(), &mut persistent_writer);
-        list2.push_bytes(data2[2].as_slice(), &mut persistent_writer);
+        list1.push_bytes(data1[2].as_slice(), &mut chunk_writer);
+        list2.push_bytes(data2[1].as_slice(), &mut chunk_writer);
+        list2.push_bytes(data2[2].as_slice(), &mut chunk_writer);
         // Should have flushed in the last push
-        list1.push_bytes(data1[3].as_slice(), &mut persistent_writer);
-        list1.push_bytes(data1[4].as_slice(), &mut persistent_writer);
-        list2.push_bytes(data2[3].as_slice(), &mut persistent_writer);
-        // Should have flushed in the last push
-        list2.push_bytes(data2[4].as_slice(), &mut persistent_writer);
+        list1.push_bytes(data1[3].as_slice(), &mut chunk_writer);
+        list1.push_bytes(data1[4].as_slice(), &mut chunk_writer);
+        list2.push_bytes(data2[3].as_slice(), &mut chunk_writer);
+        list2.push_bytes(data2[4].as_slice(), &mut chunk_writer);
 
         let mut reader = list1.reader().unwrap();
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data1[4], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data1[3], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data1[2], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data1[1], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data1[0], res);
 
         let mut reader = list2.reader().unwrap();
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data2[4], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data2[3], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data2[2], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data2[1], res);
-        let res = reader.next_bytes(&mut persistent_reader).unwrap().unwrap();
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data2[0], res);
+    }
+
+    fn test_single<R: ChunkReader, W: ChunkWriter>(mut chunk_reader: R, mut chunk_writer: W) {
+        let buffer = Buffer::new(100);
+        let list = List::new(buffer.clone());
+        let data: Vec<Vec<u8>> = (0..5).map(|x| vec![x; 15]).collect();
+        data.iter()
+            .for_each(|x| list.push_bytes(x.as_slice(), &mut chunk_writer));
+
+        let mut reader = list.reader().unwrap();
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
+        assert_eq!(data[4], res);
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
+        assert_eq!(data[3], res);
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
+        assert_eq!(data[2], res);
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
+        assert_eq!(data[1], res);
+        let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
+        assert_eq!(data[0], res);
+    }
+
+    #[test]
+    fn test_kafka_bytes() {
+        if env::var("KAFKA").is_ok() {
+            let kafka_writer = KafkaWriter::new().unwrap();
+            let kafka_reader = KafkaReader::new().unwrap();
+            test_multiple(kafka_reader, kafka_writer);
+        }
+    }
+
+    #[test]
+    fn test_vec_simple() {
+        let vec = Arc::new(Mutex::new(Vec::new()));
+        let mut persistent_writer = VectorWriter::new(vec.clone());
+        let mut persistent_reader = VectorReader::new(vec.clone());
+        test_single(persistent_reader, persistent_writer);
+    }
+
+    #[test]
+    fn test_vec_multiple() {
+        let vec = Arc::new(Mutex::new(Vec::new()));
+        let mut persistent_writer = VectorWriter::new(vec.clone());
+        let mut persistent_reader = VectorReader::new(vec.clone());
+        test_multiple(persistent_reader, persistent_writer);
+    }
+
+    #[test]
+    fn test_file_multiple() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test_path");
+        let mut persistent_writer = FileWriter::new(&file_path).unwrap();
+        let mut persistent_reader = FileReader::new(&file_path).unwrap();
+        test_multiple(persistent_reader, persistent_writer);
     }
 
     #[test]
@@ -226,36 +209,60 @@ mod test {
         }
 
         let mut reader = list.reader().unwrap();
-        let res: &DecompressBuffer = reader.next_segment(&mut persistent_reader).unwrap().unwrap();
+        let res: &DecompressBuffer = reader
+            .next_segment(&mut persistent_reader)
+            .unwrap()
+            .unwrap();
         for item in &data[512..768] {
             let v = to_values(&item.values[..]);
             exp_ts.push(item.ts);
-            v.iter().zip(exp_values.iter_mut()).for_each(|(v, e)| e.push(*v));
+            v.iter()
+                .zip(exp_values.iter_mut())
+                .for_each(|(v, e)| e.push(*v));
         }
         assert_eq!(res.timestamps(), exp_ts.as_slice());
-        exp_values.iter().enumerate().for_each(|(i, v)| assert_eq!(res.variable(i), v));
+        exp_values
+            .iter()
+            .enumerate()
+            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
 
-        let res: &DecompressBuffer = reader.next_segment(&mut persistent_reader).unwrap().unwrap();
+        let res: &DecompressBuffer = reader
+            .next_segment(&mut persistent_reader)
+            .unwrap()
+            .unwrap();
         for item in &data[256..512] {
             let v = to_values(&item.values[..]);
             exp_ts.push(item.ts);
-            v.iter().zip(exp_values.iter_mut()).for_each(|(v, e)| e.push(*v));
+            v.iter()
+                .zip(exp_values.iter_mut())
+                .for_each(|(v, e)| e.push(*v));
         }
         assert_eq!(res.timestamps(), exp_ts.as_slice());
-        exp_values.iter().enumerate().for_each(|(i, v)| assert_eq!(res.variable(i), v));
+        exp_values
+            .iter()
+            .enumerate()
+            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
 
-        let res: &DecompressBuffer = reader.next_segment(&mut persistent_reader).unwrap().unwrap();
+        let res: &DecompressBuffer = reader
+            .next_segment(&mut persistent_reader)
+            .unwrap()
+            .unwrap();
         for item in &data[0..256] {
             let v = to_values(&item.values[..]);
             exp_ts.push(item.ts);
-            v.iter().zip(exp_values.iter_mut()).for_each(|(v, e)| e.push(*v));
+            v.iter()
+                .zip(exp_values.iter_mut())
+                .for_each(|(v, e)| e.push(*v));
         }
         assert_eq!(res.timestamps(), exp_ts.as_slice());
-        exp_values.iter().enumerate().for_each(|(i, v)| assert_eq!(res.variable(i), v));
+        exp_values
+            .iter()
+            .enumerate()
+            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
     }
@@ -326,36 +333,60 @@ mod test {
             }
 
             let mut reader = list.reader().unwrap();
-            let res: &DecompressBuffer = reader.next_segment(&mut persistent_reader).unwrap().unwrap();
+            let res: &DecompressBuffer = reader
+                .next_segment(&mut persistent_reader)
+                .unwrap()
+                .unwrap();
             for item in &data[512..768] {
                 let v = to_values(&item.values[..]);
                 exp_ts.push(item.ts);
-                v.iter().zip(exp_values.iter_mut()).for_each(|(v, e)| e.push(*v));
+                v.iter()
+                    .zip(exp_values.iter_mut())
+                    .for_each(|(v, e)| e.push(*v));
             }
             assert_eq!(res.timestamps(), exp_ts.as_slice());
-            exp_values.iter().enumerate().for_each(|(i, v)| assert_eq!(res.variable(i), v));
+            exp_values
+                .iter()
+                .enumerate()
+                .for_each(|(i, v)| assert_eq!(res.variable(i), v));
             exp_ts.clear();
             exp_values.iter_mut().for_each(|e| e.clear());
 
-            let res: &DecompressBuffer = reader.next_segment(&mut persistent_reader).unwrap().unwrap();
+            let res: &DecompressBuffer = reader
+                .next_segment(&mut persistent_reader)
+                .unwrap()
+                .unwrap();
             for item in &data[256..512] {
                 let v = to_values(&item.values[..]);
                 exp_ts.push(item.ts);
-                v.iter().zip(exp_values.iter_mut()).for_each(|(v, e)| e.push(*v));
+                v.iter()
+                    .zip(exp_values.iter_mut())
+                    .for_each(|(v, e)| e.push(*v));
             }
             assert_eq!(res.timestamps(), exp_ts.as_slice());
-            exp_values.iter().enumerate().for_each(|(i, v)| assert_eq!(res.variable(i), v));
+            exp_values
+                .iter()
+                .enumerate()
+                .for_each(|(i, v)| assert_eq!(res.variable(i), v));
             exp_ts.clear();
             exp_values.iter_mut().for_each(|e| e.clear());
 
-            let res: &DecompressBuffer = reader.next_segment(&mut persistent_reader).unwrap().unwrap();
+            let res: &DecompressBuffer = reader
+                .next_segment(&mut persistent_reader)
+                .unwrap()
+                .unwrap();
             for item in &data[0..256] {
                 let v = to_values(&item.values[..]);
                 exp_ts.push(item.ts);
-                v.iter().zip(exp_values.iter_mut()).for_each(|(v, e)| e.push(*v));
+                v.iter()
+                    .zip(exp_values.iter_mut())
+                    .for_each(|(v, e)| e.push(*v));
             }
             assert_eq!(res.timestamps(), exp_ts.as_slice());
-            exp_values.iter().enumerate().for_each(|(i, v)| assert_eq!(res.variable(i), v));
+            exp_values
+                .iter()
+                .enumerate()
+                .for_each(|(i, v)| assert_eq!(res.variable(i), v));
             exp_ts.clear();
             exp_values.iter_mut().for_each(|e| e.clear());
         }
