@@ -28,6 +28,7 @@ use std::{
     io::prelude::*,
     time::{Duration, Instant},
 };
+use rand::Rng;
 
 use compression::*;
 use persistent_list::*;
@@ -41,7 +42,8 @@ use zipf::*;
 const DATAPATH: &str = "/home/fsolleza/temp/data_json/bench1_multivariate.json";
 const OUTPATH: &str = "/home/fsolleza/temp/out/temp_data";
 const BLOCKING_RETRY: bool = false;
-const ZIPF: f64 = 0.5;
+const ZIPF: f64 = 0.99;
+const NSERIES: usize = 100_000;
 
 #[derive(Serialize, Deserialize)]
 struct DataEntry {
@@ -96,8 +98,10 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
 
     // Generate series specific information, register, then collect the information into the vecs
     // each series uses 3 active segments
-    println!("TOTAL BASE_DATA {}", base_data.len());
-    for (i, d) in base_data[..105].iter().enumerate() {
+    // println!("TOTAL BASE_DATA {}", base_data.len());
+    for i in 0..NSERIES {
+        let idx = rand::thread_rng().gen_range(0..base_data.len());
+        let d = &base_data[idx];
         let nvars = d[0].1.len();
         let mut tags = Tags::new();
         tags.insert((String::from("id"), format!("{}", i)));
@@ -108,13 +112,15 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
     }
 
     // Change zipfian when avaiable data become less than the zipfian possible values
+    let mut z1000 = Zipfian::new(1000, ZIPF);
     let mut z100 = Zipfian::new(100, ZIPF);
     let mut z10 = Zipfian::new(10, ZIPF);
+    let mut selection1000: Vec<usize> = (0..1000).map(|_| z1000.next_item() as usize).collect();
     let mut selection100: Vec<usize> = (0..1000).map(|_| z100.next_item() as usize).collect();
     let mut selection10: Vec<usize> = (0..1000).map(|_| z10.next_item() as usize).collect();
     let mut selection1: Vec<usize> = (0..1000).map(|_| 0).collect();
 
-    let mut selection = &selection100;
+    let mut selection = &selection1000;
     let mut loop_counter = 0;
     let mut floats = 0;
     let mut retries = 0;
@@ -136,6 +142,8 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
                         selection = &selection1;
                     } else if data.len() < 100 {
                         selection = &selection10;
+                    } else if data.len() < 1000 {
+                        selection = &selection100;
                     }
                     if data.len() == 0 {
                         break 'outer;
