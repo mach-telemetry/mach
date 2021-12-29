@@ -27,6 +27,9 @@ use std::{
     fs::OpenOptions,
     io::prelude::*,
     time::{Duration, Instant},
+    sync::{Arc, Mutex, Barrier},
+    thread,
+    path::{Path, PathBuf},
 };
 use rand::Rng;
 
@@ -35,15 +38,27 @@ use persistent_list::*;
 use tags::*;
 use write_thread::*;
 use zipf::*;
+use lazy_static::lazy_static;
 
 //const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
 //const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
 
-const DATAPATH: &str = "/home/fsolleza/temp/data_json/bench1_multivariate.json";
-const OUTPATH: &str = "/home/fsolleza/temp/out/temp_data";
+//const DATAPATH: &str = "/home/fsolleza/temp/data_json/bench1_multivariate.json";
+//const OUTPATH: &str = "/home/fsolleza/temp/out/temp_data";
+
+const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
+const OUTDIR: &str = "/data/out/";
+
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
-const NSERIES: usize = 100_000;
+const NSERIES: usize = 10_000;
+const NTHREADS: usize = 1;
+
+lazy_static! {
+    static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
+    static ref TOTAL_RATE: Arc<Mutex<f64>> = Arc::new(Mutex::new(0.0f64));
+    static ref BARRIERS: Arc<Barrier> = Arc::new(Barrier::new(NTHREADS));
+}
 
 #[derive(Serialize, Deserialize)]
 struct DataEntry {
@@ -83,7 +98,7 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
     let mut write_thread = WriteThread::new(persistent_writer);
 
     // Load data
-    let mut base_data = read_data();
+    let mut base_data = &DATA;
 
     // Series will share a 1mb list buffer
     let buffer = Buffer::new(1_000_000); // 1MB buffer
@@ -124,6 +139,8 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
     let mut loop_counter = 0;
     let mut floats = 0;
     let mut retries = 0;
+    BARRIERS.wait();
+    println!("RUNNING");
     let now = Instant::now();
     'outer: loop {
         let idx = selection[loop_counter % selection.len()];
@@ -165,12 +182,24 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
     println!("floats: {}", floats);
     println!("dur: {:?}", dur);
     let mut secs = dur.as_secs_f64();
-    println!("Rate mfps: {}", (floats as f64 / secs) / 1_000_000.);
+    let rate = (floats as f64 / secs)/1_000_000.;
+    println!("Rate mfps: {}", rate);
     println!("Retries: {}", retries);
+    *TOTAL_RATE.lock().unwrap() += rate;
 }
 
 fn main() {
-    std::fs::remove_file(OUTPATH).unwrap();
-    let mut persistent_writer = FileWriter::new(OUTPATH).unwrap();
-    consume(persistent_writer);
+    match std::fs::remove_dir_all(OUTDIR) { _ => {} };
+    std::fs::create_dir_all(OUTDIR).unwrap();
+    let mut handles = Vec::new();
+    for i in 0..NTHREADS {
+        //let p = PathBuf::from(OUTDIR).join(format!("file_{}", i));
+        //let mut persistent_writer = FileWriter::new(p).unwrap();
+        let mut persistent_writer = KafkaWriter::new().unwrap();
+        handles.push(thread::spawn(move || {
+            consume(persistent_writer);
+        }));
+    }
+    handles.drain(..).for_each(|h| h.join().unwrap());
+    println!("TOTAL RATE: {}", TOTAL_RATE.lock().unwrap());
 }

@@ -29,6 +29,15 @@ impl KafkaWriter {
     pub fn new() -> Result<Self, Error> {
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", KAFKA_BOOTSTRAP)
+            .set("message.max.bytes", "5000000")
+            .set("linger.ms", "0")
+            .set("batch.num.messages", "1")
+            .set("queue.buffering.max.ms", "0")
+            .set("queue.buffering.max.messages", "1")
+            .set("message.copy.max.bytes", "0")
+            //.set("queue.buffering.max.kbytes", "1000000")
+            //.set("max.in.flight.requests.per.connection", "1")
+            .set("acks", "1")
             .create()?;
         Ok(KafkaWriter { producer })
     }
@@ -36,10 +45,14 @@ impl KafkaWriter {
 
 impl ChunkWriter for KafkaWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
+        //println!("KAFKA FLUSHING");
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC).payload(bytes);
         let sz = bytes.len();
         let dur = Duration::from_secs(0);
+        let now = std::time::Instant::now();
         let stat = async_std::task::block_on(self.producer.send(to_send, dur));
+        println!("Duration: {:?}", now.elapsed());
+        //println!("KAFKA FLUSHED");
         match stat {
             Ok(x) => Ok(PersistentHead {
                 partition: x.0.try_into().unwrap(),
