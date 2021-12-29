@@ -162,6 +162,7 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
 }
 
 fn main() {
+    std::fs::remove_file(OUTPATH).unwrap();
     let mut persistent_writer = FileWriter::new(OUTPATH).unwrap();
     consume(persistent_writer);
 }
