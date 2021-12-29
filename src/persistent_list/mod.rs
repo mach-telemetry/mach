@@ -2,6 +2,7 @@ mod file_backend;
 mod inner;
 mod kafka_backend;
 mod vector_backend;
+//mod kafka_hybrid_backend;
 
 use rdkafka::error::KafkaError;
 

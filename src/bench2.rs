@@ -43,16 +43,17 @@ use lazy_static::lazy_static;
 //const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
 //const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
 
-//const DATAPATH: &str = "/home/fsolleza/temp/data_json/bench1_multivariate.json";
-//const OUTPATH: &str = "/home/fsolleza/temp/out/temp_data";
+const DATAPATH: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/bench1_multivariate.json";
+const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
 
-const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
-const OUTDIR: &str = "/data/out/";
+//const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
+//const OUTDIR: &str = "/data/out/";
 
 const BLOCKING_RETRY: bool = false;
-const ZIPF: f64 = 0.99;
+const ZIPF: f64 = 0.5;
 const NSERIES: usize = 10_000;
-const NTHREADS: usize = 1;
+const NTHREADS: usize = 2;
+const BUFSZ: usize = 1_000_000;
 
 lazy_static! {
     static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
@@ -97,14 +98,16 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
     // Setup write thread
     let mut write_thread = WriteThread::new(persistent_writer);
 
+    // The buffer used by all time series in this writer
+    let buffer = Buffer::new(BUFSZ);
+
     // Load data
     let mut base_data = &DATA;
 
-    // Series will share a 1mb list buffer
-    let buffer = Buffer::new(1_000_000); // 1MB buffer
 
     // Series will use fixed compression with precision of 10 bits
     let compression = Compression::Fixed(10);
+    //let compression = Compression::LZ4(1);
 
     // Vectors to hold series-specific information
     let mut data: Vec<&[(u64, Box<[[u8; 8]]>)]> = Vec::new();
