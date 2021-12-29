@@ -35,8 +35,13 @@ use tags::*;
 use write_thread::*;
 use zipf::*;
 
-const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
-const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
+//const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
+//const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
+
+const DATAPATH: &str = "/home/fsolleza/temp/data_json/bench1_multivariate.json";
+const OUTPATH: &str = "/home/fsolleza/temp/out/temp_data";
+const BLOCKING_RETRY: bool = false;
+const ZIPF: f64 = 0.5;
 
 #[derive(Serialize, Deserialize)]
 struct DataEntry {
@@ -96,15 +101,15 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
         let nvars = d[0].1.len();
         let mut tags = Tags::new();
         tags.insert((String::from("id"), format!("{}", i)));
-        let series_meta = SeriesMetadata::new(tags, 3, nvars, compression, buffer.clone());
+        let series_meta = SeriesMetadata::new(tags, 1, nvars, compression, buffer.clone());
         refs.push(write_thread.register(i as u64, series_meta.clone()));
         data.push(d.as_slice());
         meta.push(series_meta);
     }
 
     // Change zipfian when avaiable data become less than the zipfian possible values
-    let mut z100 = Zipfian::new(100, 0.99);
-    let mut z10 = Zipfian::new(10, 0.99);
+    let mut z100 = Zipfian::new(100, ZIPF);
+    let mut z10 = Zipfian::new(10, ZIPF);
     let mut selection100: Vec<usize> = (0..1000).map(|_| z100.next_item() as usize).collect();
     let mut selection10: Vec<usize> = (0..1000).map(|_| z10.next_item() as usize).collect();
     let mut selection1: Vec<usize> = (0..1000).map(|_| 0).collect();
@@ -112,29 +117,39 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
     let mut selection = &selection100;
     let mut loop_counter = 0;
     let mut floats = 0;
+    let mut retries = 0;
     let now = Instant::now();
-    loop {
+    'outer: loop {
         let idx = selection[loop_counter % selection.len()];
         let sample = &data[idx][0];
         let ref_id = refs[idx];
-        match write_thread.push(ref_id, sample.0, &sample.1[..]) {
-            Ok(_) => {
-                floats += sample.1.len();
-                data[idx] = &data[idx][1..];
-                if data[idx].len() == 0 {
-                    refs.remove(idx);
-                    data.remove(idx);
+        'inner: loop {
+            match write_thread.push(ref_id, sample.0, &sample.1[..]) {
+                Ok(_) => {
+                    floats += sample.1.len();
+                    data[idx] = &data[idx][1..];
+                    if data[idx].len() == 0 {
+                        refs.remove(idx);
+                        data.remove(idx);
+                    }
+                    if data.len() < 10 {
+                        selection = &selection1;
+                    } else if data.len() < 100 {
+                        selection = &selection10;
+                    }
+                    if data.len() == 0 {
+                        break 'outer;
+                    }
+                    break 'inner;
                 }
-                if data.len() < 10 {
-                    selection = &selection1;
-                } else if data.len() < 100 {
-                    selection = &selection10;
-                }
-                if data.len() == 0 {
-                    break;
+                Err(_) => {
+                    retries += 1;
+                    if !BLOCKING_RETRY {
+                        // If error, we'll try again next time 
+                        break 'inner;
+                    }
                 }
             }
-            Err(_) => { /* If error, we'll try again next time */ }
         }
         loop_counter += 1;
     }
@@ -143,6 +158,7 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
     println!("dur: {:?}", dur);
     let mut secs = dur.as_secs_f64();
     println!("Rate mfps: {}", (floats as f64 / secs) / 1_000_000.);
+    println!("Retries: {}", retries);
 }
 
 fn main() {
