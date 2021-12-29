@@ -26,7 +26,7 @@ impl From<segment::Error> for Error {
 }
 
 #[derive(Clone)]
-struct SeriesMetadata {
+pub struct SeriesMetadata {
     segment: Segment,
     tags: Tags,
     list: List,
@@ -34,7 +34,7 @@ struct SeriesMetadata {
 }
 
 impl SeriesMetadata {
-    fn new(
+    pub fn new(
         tags: Tags,
         seg_count: usize,
         nvars: usize,
@@ -50,7 +50,7 @@ impl SeriesMetadata {
     }
 }
 
-struct WriteThread {
+pub struct WriteThread {
     local_meta: HashMap<u64, SeriesMetadata>,
     references: HashMap<u64, usize>,
     writers: Vec<WriteSegment>,
@@ -60,7 +60,7 @@ struct WriteThread {
 }
 
 impl WriteThread {
-    fn new<W: ChunkWriter + 'static>(w: W) -> Self {
+    pub fn new<W: ChunkWriter + 'static>(w: W) -> Self {
         let flush_worker = FlushWorker::new(w);
         Self {
             local_meta: HashMap::new(),
@@ -72,7 +72,7 @@ impl WriteThread {
         }
     }
 
-    fn register(&mut self, id: u64, meta: SeriesMetadata) -> usize {
+    pub fn register(&mut self, id: u64, meta: SeriesMetadata) -> usize {
         let writer = meta.segment.writer().unwrap();
         let list = meta.list.clone();
 
@@ -92,7 +92,7 @@ impl WriteThread {
         len
     }
 
-    fn push(&mut self, reference: usize, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
+    pub fn push(&mut self, reference: usize, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
         match self.writers[reference].push(ts, data)? {
             segment::PushStatus::Done => {}
             segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
@@ -162,11 +162,11 @@ async fn worker<W: ChunkWriter + 'static>(mut w: W, queue: Receiver<FlushRequest
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test_utils::*;
     use crate::compression::DecompressBuffer;
+    use crate::test_utils::*;
     use std::{
-        sync::{Arc, Mutex},
         env,
+        sync::{Arc, Mutex},
     };
     use tempfile::tempdir;
 
@@ -230,7 +230,6 @@ mod test {
                 }
             }
         }
-
 
         let mut exp_ts: Vec<u64> = Vec::new();
         let mut exp_values: Vec<Vec<[u8; 8]>> = Vec::new();

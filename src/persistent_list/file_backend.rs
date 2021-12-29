@@ -42,7 +42,7 @@ pub struct FileWriter {
 }
 
 impl FileWriter {
-    pub fn new<F: AsRef<Path>>(filename: &F) -> Result<Self, Error> {
+    pub fn new<F: AsRef<Path>>(filename: F) -> Result<Self, Error> {
         let file = OpenOptions::new()
             .create(true)
             .write(true)

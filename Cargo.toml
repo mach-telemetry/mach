@@ -36,3 +36,8 @@ debug=true
 #[[bin]]
 #name = "bench-kafka-fs"
 #path = "src/bench1.rs"
+
+[[bin]]
+name = "bench2"
+path = "src/bench2.rs"
+

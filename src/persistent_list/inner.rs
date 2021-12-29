@@ -271,7 +271,7 @@ impl Buffer {
         let inner = unsafe { self.inner.get_mut_ref() };
         let head = inner.push_segment(segment, tags, compression, last_head);
         if head.buffer.offset + head.buffer.size > inner.flush_sz {
-            println!("FLUSHING");
+            //println!("FLUSHING");
             // Need to guard here because reset will conflict with concurrent readers
             let mut guard = self.inner.write();
             guard.flush(w);
