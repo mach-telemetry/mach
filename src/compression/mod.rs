@@ -311,11 +311,7 @@ fn xor_compress(segment: &FullSegment, buf: &mut ByteBuffer) {
     }
 }
 
-fn xor_decompress(
-    header: Header,
-    data: &[u8],
-    buf: &mut DecompressBuffer,
-) -> Result<usize, Error> {
+fn xor_decompress(header: Header, data: &[u8], buf: &mut DecompressBuffer) -> Result<usize, Error> {
     let mut off = 0;
 
     // decompress timestamps
@@ -394,7 +390,6 @@ mod test {
             assert!(diff < 0.001);
         }
     }
-
 
     #[test]
     fn test_fixed() {

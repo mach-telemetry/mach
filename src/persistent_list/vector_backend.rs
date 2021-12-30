@@ -1,6 +1,6 @@
 use crate::persistent_list::{inner::*, Error};
 use std::sync::{Arc, Mutex};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 pub struct VectorReader {
     inner: Arc<Mutex<Vec<Box<[u8]>>>>,
@@ -39,7 +39,10 @@ pub struct VectorWriter {
 
 impl VectorWriter {
     pub fn new(inner: Arc<Mutex<Vec<Box<[u8]>>>>) -> Self {
-        VectorWriter { inner, last_flush: Instant::now()}
+        VectorWriter {
+            inner,
+            last_flush: Instant::now(),
+        }
     }
 }
 

@@ -20,34 +20,35 @@ mod utils;
 mod write_thread;
 mod zipf;
 
+use rand::Rng;
 use serde::*;
 use std::{
     cmp::Reverse,
     collections::HashMap,
     fs::OpenOptions,
     io::prelude::*,
-    time::{Duration, Instant},
-    sync::{Arc, Mutex, Barrier},
-    thread,
     path::{Path, PathBuf},
+    sync::{Arc, Barrier, Mutex},
+    thread,
+    time::{Duration, Instant},
 };
-use rand::Rng;
 
 use compression::*;
+use lazy_static::lazy_static;
 use persistent_list::*;
 use tags::*;
 use write_thread::*;
 use zipf::*;
-use lazy_static::lazy_static;
 
 //const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
 //const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
 
-//const DATAPATH: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/bench1_multivariate.json";
-//const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
+const DATAPATH: &str =
+    "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/bench1_multivariate.json";
+const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
 
-const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
-const OUTDIR: &str = "/data/out/";
+//const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
+//const OUTDIR: &str = "/data/out/";
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
@@ -104,7 +105,6 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
 
     // Load data
     let mut base_data = &DATA;
-
 
     // Series will use fixed compression with precision of 10 bits
     let compression = Compression::Fixed(10);
@@ -174,7 +174,7 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
                 Err(_) => {
                     retries += 1;
                     if !BLOCKING_RETRY {
-                        // If error, we'll try again next time 
+                        // If error, we'll try again next time
                         break 'inner;
                     }
                 }
@@ -186,21 +186,23 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
     println!("floats: {}", floats);
     println!("dur: {:?}", dur);
     let mut secs = dur.as_secs_f64();
-    let rate = (floats as f64 / secs)/1_000_000.;
+    let rate = (floats as f64 / secs) / 1_000_000.;
     println!("Rate mfps: {}", rate);
     println!("Retries: {}", retries);
     *TOTAL_RATE.lock().unwrap() += rate;
 }
 
 fn main() {
-    match std::fs::remove_dir_all(OUTDIR) { _ => {} };
+    match std::fs::remove_dir_all(OUTDIR) {
+        _ => {}
+    };
     std::fs::create_dir_all(OUTDIR).unwrap();
     let mut handles = Vec::new();
     let v: Arc<Mutex<Vec<Box<[u8]>>>> = Arc::new(Mutex::new(Vec::new()));
     for i in 0..NTHREADS {
-        //let p = PathBuf::from(OUTDIR).join(format!("file_{}", i));
-        //let mut persistent_writer = FileWriter::new(p).unwrap();
-        let mut persistent_writer = KafkaWriter::new().unwrap();
+        let p = PathBuf::from(OUTDIR).join(format!("file_{}", i));
+        let mut persistent_writer = FileWriter::new(p).unwrap();
+        //let mut persistent_writer = KafkaWriter::new(0).unwrap();
         //let mut persistent_writer = VectorWriter::new(v.clone());
         handles.push(thread::spawn(move || {
             consume(persistent_writer);

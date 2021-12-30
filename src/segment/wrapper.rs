@@ -612,7 +612,6 @@ impl Segment {
             (20, 49) => drop_box!(ptr, 20, 49),
             (20, 50) => drop_box!(ptr, 20, 50),
 
-
             (_, _) => unimplemented!(),
         }
     }
@@ -1169,7 +1168,6 @@ impl Segment {
             (20, 48) => new!(20, 48),
             (20, 49) => new!(20, 49),
             (20, 50) => new!(20, 50),
-
 
             (_, _) => unimplemented!(),
         };
@@ -2295,7 +2293,6 @@ impl Segment {
             (20, 48) => cast!(self, 20, 48).to_flush(),
             (20, 49) => cast!(self, 20, 49).to_flush(),
             (20, 50) => cast!(self, 20, 50).to_flush(),
-
 
             (_, _) => unimplemented!(),
         }
