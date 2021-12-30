@@ -43,19 +43,19 @@ use zipf::*;
 //const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
 //const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
 
-const DATAPATH: &str =
-    "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/bench1_multivariate.json";
-const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
+//const DATAPATH: &str =
+//    "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/bench1_multivariate.json";
+//const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
 
-//const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
-//const OUTDIR: &str = "/data/out/";
+const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
+const OUTDIR: &str = "/data/out/";
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
 const NSERIES: usize = 10_000;
 const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
-const NSEGMENTS: usize = 1;
+const NSEGMENTS: usize = 3;
 
 lazy_static! {
     static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
@@ -192,6 +192,11 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
     *TOTAL_RATE.lock().unwrap() += rate;
 }
 
+fn file_writer(id: usize) -> FileWriter {
+    let p = PathBuf::from(OUTDIR).join(format!("file_{}", id));
+    FileWriter::new(p).unwrap()
+}
+
 fn main() {
     match std::fs::remove_dir_all(OUTDIR) {
         _ => {}
@@ -200,9 +205,8 @@ fn main() {
     let mut handles = Vec::new();
     let v: Arc<Mutex<Vec<Box<[u8]>>>> = Arc::new(Mutex::new(Vec::new()));
     for i in 0..NTHREADS {
-        let p = PathBuf::from(OUTDIR).join(format!("file_{}", i));
-        let mut persistent_writer = FileWriter::new(p).unwrap();
-        //let mut persistent_writer = KafkaWriter::new(0).unwrap();
+        //let mut persistent_writer = file_writer(i);
+        let mut persistent_writer = KafkaWriter::new(i).unwrap();
         //let mut persistent_writer = VectorWriter::new(v.clone());
         handles.push(thread::spawn(move || {
             consume(persistent_writer);

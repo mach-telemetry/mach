@@ -66,9 +66,9 @@ impl KafkaWriter {
         let map = Arc::new(DashMap::new());
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", KAFKA_BOOTSTRAP)
-            .set("queue.buffering.max.messages", "1")
-            .set("queue.buffering.max.kbytes", "2000")
-            .set("queue.buffering.max.ms", "0")
+            //.set("queue.buffering.max.messages", "1")
+            //.set("queue.buffering.max.kbytes", "2000")
+            //.set("queue.buffering.max.ms", "0")
             .set("message.max.bytes", "2000000")
             .set("linger.ms", "0")
             .set("message.copy.max.bytes", "5000000")
@@ -76,6 +76,14 @@ impl KafkaWriter {
             .set("compression.type", "none")
             .set("acks", "1")
             .create()?;
+
+        println!("Warming up producer");
+        for _ in 0..10 {
+            let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC)
+                .payload(&[0][..])
+                .partition(partition.try_into().unwrap());
+            let res = async_std::task::block_on(producer.send(to_send, Duration::from_secs(0)));
+        }
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC)
             .payload(&[0][..])
             .partition(partition.try_into().unwrap());
@@ -105,7 +113,7 @@ impl KafkaWriter {
 impl ChunkWriter for KafkaWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
         //let partition = self.partition as i32 % 10;
-        println!("Since last flush: {:?}", self.last_flush.elapsed());
+        //println!("Since last flush: {:?}", self.last_flush.elapsed());
         let now = std::time::Instant::now();
         let offset = self.offset;
         self.offset += 1;
@@ -113,10 +121,10 @@ impl ChunkWriter for KafkaWriter {
         let data: Arc<[u8]> = bytes.into();
         map.insert(offset, data.clone());
         self.sender.try_send(offset).unwrap();
-        println!("Queue length: {}", self.sender.len());
+        //println!("Queue length: {}", self.sender.len());
         let sz = bytes.len();
         self.last_flush = Instant::now();
-        println!("Duration: {:?}", now.elapsed());
+        //println!("Duration: {:?}", now.elapsed());
         Ok(PersistentHead {
             partition: self.partition,
             offset,
