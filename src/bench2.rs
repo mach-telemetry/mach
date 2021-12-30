@@ -50,10 +50,11 @@ const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/
 //const OUTDIR: &str = "/data/out/";
 
 const BLOCKING_RETRY: bool = false;
-const ZIPF: f64 = 0.5;
+const ZIPF: f64 = 0.99;
 const NSERIES: usize = 10_000;
-const NTHREADS: usize = 2;
+const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
+const NSEGMENTS: usize = 10;
 
 lazy_static! {
     static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
@@ -123,7 +124,7 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
         let nvars = d[0].1.len();
         let mut tags = Tags::new();
         tags.insert((String::from("id"), format!("{}", i)));
-        let series_meta = SeriesMetadata::new(tags, 1, nvars, compression, buffer.clone());
+        let series_meta = SeriesMetadata::new(tags, NSEGMENTS, nvars, compression, buffer.clone());
         refs.push(write_thread.register(i as u64, series_meta.clone()));
         data.push(d.as_slice());
         meta.push(series_meta);
@@ -195,10 +196,12 @@ fn main() {
     match std::fs::remove_dir_all(OUTDIR) { _ => {} };
     std::fs::create_dir_all(OUTDIR).unwrap();
     let mut handles = Vec::new();
+    let v = Arc::new(Mutex::new(Vec::new()));
     for i in 0..NTHREADS {
         //let p = PathBuf::from(OUTDIR).join(format!("file_{}", i));
         //let mut persistent_writer = FileWriter::new(p).unwrap();
-        let mut persistent_writer = KafkaWriter::new().unwrap();
+        //let mut persistent_writer = KafkaWriter::new().unwrap();
+        let mut persistent_writer = VectorWriter::new(v.clone());
         handles.push(thread::spawn(move || {
             consume(persistent_writer);
         }));
