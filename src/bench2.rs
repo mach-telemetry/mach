@@ -43,18 +43,18 @@ use lazy_static::lazy_static;
 //const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
 //const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
 
-const DATAPATH: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/bench1_multivariate.json";
-const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
+//const DATAPATH: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/bench1_multivariate.json";
+//const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
 
-//const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
-//const OUTDIR: &str = "/data/out/";
+const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
+const OUTDIR: &str = "/data/out/";
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
 const NSERIES: usize = 10_000;
 const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
-const NSEGMENTS: usize = 10;
+const NSEGMENTS: usize = 1;
 
 lazy_static! {
     static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
@@ -196,12 +196,12 @@ fn main() {
     match std::fs::remove_dir_all(OUTDIR) { _ => {} };
     std::fs::create_dir_all(OUTDIR).unwrap();
     let mut handles = Vec::new();
-    let v = Arc::new(Mutex::new(Vec::new()));
+    let v: Arc<Mutex<Vec<Box<[u8]>>>> = Arc::new(Mutex::new(Vec::new()));
     for i in 0..NTHREADS {
         //let p = PathBuf::from(OUTDIR).join(format!("file_{}", i));
         //let mut persistent_writer = FileWriter::new(p).unwrap();
-        //let mut persistent_writer = KafkaWriter::new().unwrap();
-        let mut persistent_writer = VectorWriter::new(v.clone());
+        let mut persistent_writer = KafkaWriter::new().unwrap();
+        //let mut persistent_writer = VectorWriter::new(v.clone());
         handles.push(thread::spawn(move || {
             consume(persistent_writer);
         }));

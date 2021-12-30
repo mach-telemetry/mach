@@ -60,7 +60,7 @@ impl ChunkWriter for FileWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
         let offset = self.current_offset;
         let sz = bytes.len();
-        //let now = std::time::Instant::now();
+        let now = std::time::Instant::now();
         self.current_offset += self.file.write(bytes)?;
         self.file.sync_all()?;
         //println!("Duration: {:?}", now.elapsed());

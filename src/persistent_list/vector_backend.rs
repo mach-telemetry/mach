@@ -45,20 +45,20 @@ impl VectorWriter {
 
 impl ChunkWriter for VectorWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
-        println!("Since last flush: {:?}", self.last_flush.elapsed());
+        //println!("Since last flush: {:?}", self.last_flush.elapsed());
         let now = std::time::Instant::now();
         let mut guard = self.inner.lock().unwrap();
         let sz = bytes.len();
         let offset = guard.len();
         guard.push(bytes.into());
-        let spin = Instant::now();
-        loop {
-            if spin.elapsed() > Duration::from_millis(8) {
-                break;
-            }
-        }
-        println!("Duration: {:?}", now.elapsed());
-        self.last_flush = Instant::now();
+        //let spin = Instant::now();
+        //loop {
+        //    if spin.elapsed() > Duration::from_millis(8) {
+        //        break;
+        //    }
+        //}
+        //println!("Duration: {:?}", now.elapsed());
+        //self.last_flush = Instant::now();
         let head = PersistentHead {
             partition: usize::MAX,
             offset,

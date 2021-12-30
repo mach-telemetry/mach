@@ -14,61 +14,103 @@ use rdkafka::{
 use std::{
     convert::TryInto,
     time::{Duration, Instant},
+    sync::Arc,
 };
 use uuid::Uuid;
+use dashmap::DashMap;
 
 fn random_id() -> String {
     Uuid::new_v4().to_hyphenated().to_string()
 }
 
+//fn kafka_partition_writer() {
+//    let producer: FutureProducer = ClientConfig::new()
+//        .set("bootstrap.servers", KAFKA_BOOTSTRAP)
+//        .set("queue.buffering.max.ms", "0")
+//        .set("message.max.bytes", "2000000")
+//        .set("message.copy.max.bytes", "5000000")
+//        .set("batch.num.messages", "1")
+//        .set("compression.type", "none")
+//        .set("acks", "1")
+//        .create()?;
+//}
+
 pub struct KafkaWriter {
+    map: Arc<DashMap<(usize, usize), Arc<[u8]>>>,
     producer: FutureProducer,
-    partition: usize,
+    offset: usize,
     last_flush: Instant,
 }
 
 impl KafkaWriter {
     pub fn new() -> Result<Self, Error> {
+        let map = Arc::new(DashMap::new());
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", KAFKA_BOOTSTRAP)
-            .set("queue.buffering.max.messages", "1")
-            .set("queue.buffering.max.kbytes", "2000")
+            //.set("queue.buffering.max.messages", "1")
+            //.set("queue.buffering.max.kbytes", "2000")
             .set("queue.buffering.max.ms", "0")
             .set("message.max.bytes", "2000000")
             //.set("linger.ms", "0")
             .set("message.copy.max.bytes", "5000000")
             .set("batch.num.messages", "1")
             .set("compression.type", "none")
-            .set("acks", "0")
+            .set("acks", "1")
             .create()?;
-        Ok(KafkaWriter { producer, partition: 0 , last_flush: Instant::now()})
+        Ok(KafkaWriter { map, producer, offset: 0 , last_flush: Instant::now()})
     }
 }
 
 impl ChunkWriter for KafkaWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
-        println!("Since last flush: {:?}", self.last_flush.elapsed());
+        //let partition = self.partition as i32 % 10;
+        let now = std::time::Instant::now();
+        let offset = self.offset;
+        self.offset += 1;
+        let map = self.map.clone();
+        let data: Arc<[u8]> = bytes.into();
+        map.insert((0, offset), data.clone());
+        //println!("map size: {}", map.len());
+        //println!("Since last flush: {:?}", self.last_flush.elapsed());
         //println!("KAFKA FLUSHING");
-        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC).payload(bytes).partition(0);
 
         let sz = bytes.len();
-        let dur = Duration::from_secs(0);
-        let now = std::time::Instant::now();
-        let stat = async_std::task::block_on(self.producer.send(to_send, dur));
-        println!("Duration: {:?}", now.elapsed());
-        println!("result: {:?}", stat);
-        self.last_flush = Instant::now();
+        let producer = self.producer.clone();
+        async_std::task::spawn(async move {
+            let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC).payload(&data[..]).partition(0);
+            let dur = Duration::from_secs(0);
+            let stat = producer.send(to_send, dur).await;
+            match stat {
+                Err(err) => {
+                    println!("{:?}", err.0);
+                    panic!("HERE");
+                }
+                Ok(_) => {},
+            }
+            //assert_eq!(stat.0, 0);
+            //let res_offset: usize = stat.1.try_into().unwrap();
+            //assert_eq!(res_offset, offset);
+            map.remove(&(0, offset));
+        });
+        //println!("Duration: {:?}", now.elapsed());
+        //println!("result: {:?}", stat);
+        //self.last_flush = Instant::now();
         //println!("KAFKA FLUSHED");
-        match stat {
-            Ok(x) => Ok(PersistentHead {
-                //partition: x.0.try_into().unwrap(),
-                //offset: x.1.try_into().unwrap(),
-                partition: 0,
-                offset: 1,
-                sz,
-            }),
-            Err((err, _)) => Err(err.into()),
-        }
+        Ok(PersistentHead {
+            partition: 0,
+            offset,
+            sz,
+        })
+        //match stat {
+        //    Ok(x) => Ok(PersistentHead {
+        //        //partition: x.0.try_into().unwrap(),
+        //        //offset: x.1.try_into().unwrap(),
+        //        partition: 0,
+        //        offset: 1,
+        //        sz,
+        //    }),
+        //    Err((err, _)) => Err(err.into()),
+        //}
     }
 }
 
