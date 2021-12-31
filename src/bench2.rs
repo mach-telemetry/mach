@@ -55,7 +55,7 @@ const ZIPF: f64 = 0.99;
 const NSERIES: usize = 10_000;
 const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
-const NSEGMENTS: usize = 3;
+const NSEGMENTS: usize = 1;
 
 lazy_static! {
     static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();

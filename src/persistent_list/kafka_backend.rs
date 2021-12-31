@@ -31,7 +31,10 @@ async fn kafka_partition_writer(
     queue: Receiver<usize>,
 ) {
     let dur = Duration::from_secs(0);
+    let mut now = Instant::now();
     while let Ok(offset) = queue.recv().await {
+        println!("since last flush request {:?}, queue length {}", now.elapsed(), queue.len());
+        now = Instant::now();
         let data = transfer_map.get(&offset).unwrap().clone();
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC)
             .payload(&data[..])
@@ -50,6 +53,7 @@ async fn kafka_partition_writer(
             }
         }
         transfer_map.remove(&offset);
+        println!("flush duration {:?}", now.elapsed());
     }
 }
 
