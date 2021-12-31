@@ -43,18 +43,18 @@ use zipf::*;
 //const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
 //const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
 
-//const DATAPATH: &str =
-//    "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/bench1_multivariate.json";
-//const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
+const DATAPATH: &str =
+    "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/bench1_multivariate.json";
+const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
 
-const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
-const OUTDIR: &str = "/data/out/";
+//const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
+//const OUTDIR: &str = "/data/out/";
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
 const NSERIES: usize = 10_000;
 const NTHREADS: usize = 1;
-const BUFSZ: usize = 1_000_000;
+const BUFSZ: usize = 50_000;
 const NSEGMENTS: usize = 1;
 
 lazy_static! {
