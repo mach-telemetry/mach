@@ -7,13 +7,13 @@ use crate::{
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
 use std::{
-    thread,
     collections::HashMap,
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc,
         //mpsc::{sync_channel, SyncSender as Sender, Receiver},
     },
+    thread,
 };
 
 #[derive(Debug)]
@@ -96,6 +96,14 @@ impl WriteThread {
 
     pub fn push(&mut self, reference: usize, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
         match self.writers[reference].push(ts, data)? {
+            segment::PushStatus::Done => {}
+            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
+        }
+        Ok(())
+    }
+
+    pub fn push_univariate(&mut self, reference: usize, ts: u64, data: [u8; 8]) -> Result<(), Error> {
+        match self.writers[reference].push_univariate(ts, data)? {
             segment::PushStatus::Done => {}
             segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
         }

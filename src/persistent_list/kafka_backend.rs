@@ -34,13 +34,13 @@ async fn kafka_partition_writer(
     let mut flush_queue_length: Vec<usize> = Vec::with_capacity(10_000);
     let mut flush_duration: Vec<f64> = Vec::with_capacity(10_000);
 
-    println!("interval, length, duration");
+    //println!("interval, length, duration");
     let dur = Duration::from_secs(0);
-    let mut now = Instant::now();
+    //let mut now = Instant::now();
     while let Ok(offset) = queue.recv().await {
-        let interval = now.elapsed().as_secs_f64();
-        let q_len = queue.len();
-        now = Instant::now();
+        //let interval = now.elapsed().as_secs_f64();
+        //let q_len = queue.len();
+        //now = Instant::now();
         let data = transfer_map.get(&offset).unwrap().clone();
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC)
             .payload(&data[..])
@@ -59,8 +59,8 @@ async fn kafka_partition_writer(
             }
         }
         transfer_map.remove(&offset);
-        let dur = now.elapsed().as_secs_f64();
-        println!("{}, {}, {}", interval, q_len, dur);
+        //let dur = now.elapsed().as_secs_f64();
+        //println!("{}, {}, {}", interval, q_len, dur);
     }
 }
 
@@ -102,15 +102,23 @@ impl KafkaWriter {
         let res = async_std::task::block_on(producer.send(to_send, Duration::from_secs(0)));
         let (rp, offset) = match res {
             Ok(x) => x,
-            Err((e, m)) => return Err(e.into())
+            Err((e, m)) => return Err(e.into()),
         };
         let rp: usize = rp.try_into().unwrap();
         assert_eq!(rp, partition);
         let offset: usize = (offset + 1).try_into().unwrap();
 
-        println!("Kafka writer for partition {} starting at offset {}", partition, offset);
+        println!(
+            "Kafka writer for partition {} starting at offset {}",
+            partition, offset
+        );
         let (sender, receiver) = unbounded();
-        async_std::task::spawn(kafka_partition_writer(partition, producer, map.clone(), receiver));
+        async_std::task::spawn(kafka_partition_writer(
+            partition,
+            producer,
+            map.clone(),
+            receiver,
+        ));
         Ok(KafkaWriter {
             map,
             partition,

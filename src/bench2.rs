@@ -9,6 +9,7 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
 #![allow(warnings)]
+#![feature(llvm_asm)]
 
 mod compression;
 mod constants;
@@ -19,6 +20,9 @@ mod test_utils;
 mod utils;
 mod write_thread;
 mod zipf;
+
+#[macro_use]
+mod rdtsc;
 
 use rand::Rng;
 use serde::*;
@@ -43,19 +47,19 @@ use zipf::*;
 //const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
 //const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
 
-const DATAPATH: &str =
-    "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/bench1_multivariate.json";
+const DATAPATH: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/";
 const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
 
 //const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
 //const OUTDIR: &str = "/data/out/";
 
 const BLOCKING_RETRY: bool = false;
-const ZIPF: f64 = 0.99;
-const NSERIES: usize = 10_000;
-const NTHREADS: usize = 1;
-const BUFSZ: usize = 50_000;
+const ZIPF: f64 = 0.5;
+const NSERIES: usize = 138;
+const NTHREADS: usize = 72;
+const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
+const UNIVARIATE: bool = false;
 
 lazy_static! {
     static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
@@ -86,7 +90,12 @@ impl DataEntry {
 
 fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
     println!("LOADING DATA");
-    let mut file = OpenOptions::new().read(true).open(DATAPATH).unwrap();
+    let file_path = if UNIVARIATE {
+        PathBuf::from(DATAPATH).join("bench1_univariate.json")
+    } else {
+        PathBuf::from(DATAPATH).join("bench1_multivariate.json")
+    };
+    let mut file = OpenOptions::new().read(true).open(file_path).unwrap();
     let mut json = String::new();
     file.read_to_string(&mut json).unwrap();
     let mut dict: HashMap<String, DataEntry> = serde_json::from_str(json.as_str()).unwrap();
@@ -144,27 +153,32 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
     let mut floats = 0;
     let mut retries = 0;
     BARRIERS.wait();
-    println!("RUNNING");
-    let now = Instant::now();
+    let mut cycles: u64 = 0;
     'outer: loop {
+        if data.len() < 10 {
+            selection = &selection1;
+        } else if data.len() < 100 {
+            selection = &selection10;
+        } else if data.len() < 1000 {
+            selection = &selection100;
+        }
         let idx = selection[loop_counter % selection.len()];
         let sample = &data[idx][0];
         let ref_id = refs[idx];
         'inner: loop {
-            match write_thread.push(ref_id, sample.0, &sample.1[..]) {
+
+            let start = rdtsc!();
+            let res = write_thread.push(ref_id, sample.0, &sample.1[..]);
+
+            match res {
                 Ok(_) => {
+                    let end = rdtsc!();
+                    cycles += end - start;
                     floats += sample.1.len();
                     data[idx] = &data[idx][1..];
                     if data[idx].len() == 0 {
                         refs.remove(idx);
                         data.remove(idx);
-                    }
-                    if data.len() < 10 {
-                        selection = &selection1;
-                    } else if data.len() < 100 {
-                        selection = &selection10;
-                    } else if data.len() < 1000 {
-                        selection = &selection100;
                     }
                     if data.len() == 0 {
                         break 'outer;
@@ -173,6 +187,8 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
                 }
                 Err(_) => {
                     retries += 1;
+                    let end = rdtsc!();
+                    cycles += end - start;
                     if !BLOCKING_RETRY {
                         // If error, we'll try again next time
                         break 'inner;
@@ -182,13 +198,12 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
         }
         loop_counter += 1;
     }
-    let dur = now.elapsed();
-    println!("floats: {}", floats);
-    println!("dur: {:?}", dur);
-    let mut secs = dur.as_secs_f64();
-    let rate = (floats as f64 / secs) / 1_000_000.;
-    println!("Rate mfps: {}", rate);
-    println!("Retries: {}", retries);
+    let dur = rdtsc::cycles_to_seconds(cycles);
+    //println!("floats: {}", floats);
+    //println!("dur: {:?} seconds", dur);
+    let rate = (floats as f64 / dur) / 1_000_000.;
+    //println!("Rate mfps: {}", rate);
+    //println!("Retries: {}", retries);
     *TOTAL_RATE.lock().unwrap() += rate;
 }
 
@@ -205,13 +220,14 @@ fn main() {
     let mut handles = Vec::new();
     let v: Arc<Mutex<Vec<Box<[u8]>>>> = Arc::new(Mutex::new(Vec::new()));
     for i in 0..NTHREADS {
-        //let mut persistent_writer = file_writer(i);
-        let mut persistent_writer = KafkaWriter::new(i).unwrap();
+        let mut persistent_writer = file_writer(i);
+        //let mut persistent_writer = KafkaWriter::new(i).unwrap();
         //let mut persistent_writer = VectorWriter::new(v.clone());
         handles.push(thread::spawn(move || {
             consume(persistent_writer);
         }));
     }
+    println!("Waiting for ingestion to finish");
     handles.drain(..).for_each(|h| h.join().unwrap());
     println!("TOTAL RATE: {}", TOTAL_RATE.lock().unwrap());
 }

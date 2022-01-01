@@ -49,6 +49,23 @@ impl<const V: usize> InnerBuffer<V> {
         }
     }
 
+    fn push_univariate(&self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
+        let inner: &mut Inner<V> = unsafe { self.inner.get().as_mut().unwrap() };
+        if inner.len == SEGSZ {
+            Err(Error::PushIntoFull)
+        } else {
+            inner.ts[inner.len] = ts;
+            inner.data[0][inner.len] = item;
+            inner.len += 1;
+            self.atomic_len.store(inner.len, SeqCst);
+            if inner.len < SEGSZ {
+                Ok(InnerPushStatus::Done)
+            } else {
+                Ok(InnerPushStatus::Flush)
+            }
+        }
+    }
+
     fn reset(&mut self) {
         let inner: &mut Inner<V> = unsafe { self.inner.get().as_mut().unwrap() };
         inner.len = 0;
@@ -98,6 +115,11 @@ impl<const V: usize> Buffer<V> {
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         // Safe because the push method does not race with another method in buffer
         unsafe { self.inner.get_ref().push(ts, item) }
+    }
+
+    pub fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
+        // Safe because the push method does not race with another method in buffer
+        unsafe { self.inner.get_ref().push_univariate(ts, item) }
     }
 
     pub fn reset(&mut self) {

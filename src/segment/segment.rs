@@ -20,6 +20,25 @@ pub struct Segment<const B: usize, const V: usize> {
 }
 
 impl<const B: usize, const V: usize> Segment<B, V> {
+    pub fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
+        let res = self.current_buffer().push_univariate(ts, item);
+        match res {
+            Ok(InnerPushStatus::Done) => Ok(InnerPushStatus::Done),
+            Ok(InnerPushStatus::Flush) => {
+                self.try_next_buffer();
+                Ok(InnerPushStatus::Flush)
+            }
+            Err(Error::PushIntoFull) => {
+                if self.try_next_buffer() {
+                    self.current_buffer().push_univariate(ts, item)
+                } else {
+                    Err(Error::PushIntoFull)
+                }
+            }
+            _ => unimplemented!(),
+        }
+    }
+
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         let res = self.current_buffer().push(ts, item);
         match res {
