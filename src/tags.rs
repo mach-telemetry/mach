@@ -29,15 +29,15 @@ impl Tags {
     }
 }
 
-impl Hash for Tags {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        let mut data: Vec<&(String, String)> = self.0.iter().collect();
-        data.sort();
-        for i in data {
-            i.hash(state)
-        }
-    }
-}
+//impl Hash for Tags {
+//    fn hash<H: Hasher>(&self, state: &mut H) {
+//        let mut data: Vec<&(String, String)> = self.0.iter().collect();
+//        data.sort();
+//        for i in data {
+//            i.hash(state)
+//        }
+//    }
+//}
 
 impl std::ops::Deref for Tags {
     type Target = HashSet<(String, String)>;

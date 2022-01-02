@@ -2,8 +2,6 @@ use crate::compression::utils::{
     bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag,
 };
 use crate::utils::byte_buffer::ByteBuffer;
-use crate::utils::byte_buffer::*;
-use fixed::prelude::*;
 use fixed::types::extra::*;
 use fixed::types::extra::{LeEqU64, Unsigned};
 use fixed::FixedI64;
@@ -185,7 +183,7 @@ fn inner_compress<Frac: Unsigned + LeEqU64>(data: &[[u8; 8]], buf: &mut ByteBuff
     buf.extend_from_slice(&data[0]);
 
     // Compress the u32 array
-    let sz = bitpack_256_compress(buf, &to_compress);
+    bitpack_256_compress(buf, &to_compress);
 
     // Write the zigzag values too big for u32
 

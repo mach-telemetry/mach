@@ -8,7 +8,8 @@
 #![feature(thread_id_value)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
-#![allow(warnings)]
+#![allow(unused)]
+#![allow(private_in_public)]
 #![feature(llvm_asm)]
 
 mod compression;
@@ -27,14 +28,12 @@ mod rdtsc;
 use rand::Rng;
 use serde::*;
 use std::{
-    cmp::Reverse,
     collections::HashMap,
     fs::OpenOptions,
     io::prelude::*,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Barrier, Mutex},
     thread,
-    time::{Duration, Instant},
 };
 
 use compression::*;
@@ -166,7 +165,6 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
         let sample = &data[idx][0];
         let ref_id = refs[idx];
         'inner: loop {
-
             let start = rdtsc!();
             let res = write_thread.push(ref_id, sample.0, &sample.1[..]);
 
@@ -203,7 +201,7 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
     //println!("dur: {:?} seconds", dur);
     let rate = (floats as f64 / dur) / 1_000_000.;
     //println!("Rate mfps: {}", rate);
-    //println!("Retries: {}", retries);
+    println!("Retries: {}", retries);
     *TOTAL_RATE.lock().unwrap() += rate;
 }
 
@@ -218,7 +216,7 @@ fn main() {
     };
     std::fs::create_dir_all(OUTDIR).unwrap();
     let mut handles = Vec::new();
-    let v: Arc<Mutex<Vec<Box<[u8]>>>> = Arc::new(Mutex::new(Vec::new()));
+    //let v: Arc<Mutex<Vec<Box<[u8]>>>> = Arc::new(Mutex::new(Vec::new()));
     for i in 0..NTHREADS {
         let mut persistent_writer = file_writer(i);
         //let mut persistent_writer = KafkaWriter::new(i).unwrap();

@@ -29,7 +29,7 @@ impl ChunkReader for FileReader {
             self.current_head = Some(persistent);
             self.local_copy.resize(persistent.sz, 0);
             self.file.seek(SeekFrom::Start(persistent.offset as u64))?;
-            self.file.read(self.local_copy.as_mut_slice())?;
+            self.file.read_exact(self.local_copy.as_mut_slice())?;
         }
         Ok(&self.local_copy[local.offset..local.offset + local.size])
     }
@@ -60,7 +60,7 @@ impl ChunkWriter for FileWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
         let offset = self.current_offset;
         let sz = bytes.len();
-        let now = std::time::Instant::now();
+        //let now = std::time::Instant::now();
         self.current_offset += self.file.write(bytes)?;
         self.file.sync_all()?;
         //println!("Duration: {:?}", now.elapsed());

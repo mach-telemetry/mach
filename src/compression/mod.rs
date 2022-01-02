@@ -171,7 +171,7 @@ impl Compression {
 }
 
 fn lz4_compress(segment: &FullSegment, buf: &mut ByteBuffer, acc: i32) {
-    let mut len: u64 = segment.len as u64;
+    //let mut len: u64 = segment.len as u64;
     let mut nvars: u64 = segment.nvars as u64;
 
     let mut bytes = Vec::new();
@@ -216,14 +216,14 @@ fn lz4_decompress(header: Header, data: &[u8], buf: &mut DecompressBuffer) -> Re
     lz4::decompress(&data[off..off + cmp_sz as usize], &mut bytes[..]).unwrap();
 
     let mut off = 0;
-    for i in 0..header.len {
+    for _ in 0..header.len {
         buf.ts
             .push(u64::from_be_bytes(bytes[off..off + 8].try_into().unwrap()));
         off += 8;
     }
 
     for var in 0..header.nvars {
-        for i in 0..header.len {
+        for _ in 0..header.len {
             buf.values[var].push(bytes[off..off + 8].try_into().unwrap());
             off += 8;
         }
@@ -300,7 +300,7 @@ fn xor_compress(segment: &FullSegment, buf: &mut ByteBuffer) {
     // compress the values
     let nvars = segment.nvars;
     for i in 0..nvars {
-        let p = buf.len();
+        //let p = buf.len();
         let len_offset = buf.len();
         buf.extend_from_slice(&0u64.to_be_bytes()[..]); // compressed sz placeholder
         let start_len = len_offset + 8;

@@ -7,7 +7,6 @@ use dashmap::DashMap;
 pub use rdkafka::consumer::{base_consumer::BaseConsumer, Consumer};
 use rdkafka::{
     config::ClientConfig,
-    error::KafkaError,
     producer::{FutureProducer, FutureRecord},
     topic_partition_list::{Offset, TopicPartitionList},
     util::Timeout,
@@ -30,10 +29,6 @@ async fn kafka_partition_writer(
     transfer_map: Arc<DashMap<usize, Arc<[u8]>>>,
     queue: Receiver<usize>,
 ) {
-    let mut flush_interval: Vec<f64> = Vec::with_capacity(10_000);
-    let mut flush_queue_length: Vec<usize> = Vec::with_capacity(10_000);
-    let mut flush_duration: Vec<f64> = Vec::with_capacity(10_000);
-
     //println!("interval, length, duration");
     let dur = Duration::from_secs(0);
     //let mut now = Instant::now();
@@ -93,7 +88,7 @@ impl KafkaWriter {
             let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC)
                 .payload(&[0][..])
                 .partition(partition.try_into().unwrap());
-            let res = async_std::task::block_on(producer.send(to_send, Duration::from_secs(0)));
+            async_std::task::block_on(producer.send(to_send, Duration::from_secs(0))).unwrap();
         }
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC)
             .payload(&[0][..])
@@ -102,7 +97,7 @@ impl KafkaWriter {
         let res = async_std::task::block_on(producer.send(to_send, Duration::from_secs(0)));
         let (rp, offset) = match res {
             Ok(x) => x,
-            Err((e, m)) => return Err(e.into()),
+            Err((e, _)) => return Err(e.into()),
         };
         let rp: usize = rp.try_into().unwrap();
         assert_eq!(rp, partition);
@@ -133,7 +128,7 @@ impl ChunkWriter for KafkaWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
         //let partition = self.partition as i32 % 10;
         //println!("Since last flush: {:?}", self.last_flush.elapsed());
-        let now = std::time::Instant::now();
+        //let now = std::time::Instant::now();
         let offset = self.offset;
         self.offset += 1;
         let map = self.map.clone();

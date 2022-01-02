@@ -172,9 +172,9 @@ impl I64Differ {
 pub fn bitpack_256_compress(v: &mut ByteBuffer, data: &[u32; 256]) -> usize {
     let bitpacker = BitPacker8x::new();
 
-    let len = v.len();
+    //let len = v.len();
     let header = 3;
-    let maxsz = 1024;
+    //let maxsz = 1024;
 
     let buf = v.unused();
 
@@ -187,7 +187,7 @@ pub fn bitpack_256_compress(v: &mut ByteBuffer, data: &[u32; 256]) -> usize {
 
     // store the num bits
     buf[2] = num_bits;
-    drop(buf);
+    //drop(buf);
 
     v.add_len(header + size);
 

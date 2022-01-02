@@ -5,16 +5,7 @@ use crate::{
     tags::Tags,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
-use dashmap::DashMap;
-use std::{
-    collections::HashMap,
-    sync::{
-        atomic::{AtomicUsize, Ordering::SeqCst},
-        Arc,
-        //mpsc::{sync_channel, SyncSender as Sender, Receiver},
-    },
-    thread,
-};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum Error {
@@ -102,7 +93,12 @@ impl WriteThread {
         Ok(())
     }
 
-    pub fn push_univariate(&mut self, reference: usize, ts: u64, data: [u8; 8]) -> Result<(), Error> {
+    pub fn _push_univariate(
+        &mut self,
+        reference: usize,
+        ts: u64,
+        data: [u8; 8],
+    ) -> Result<(), Error> {
         match self.writers[reference].push_univariate(ts, data)? {
             segment::PushStatus::Done => {}
             segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
@@ -162,7 +158,6 @@ impl FlushWorker {
 async fn worker<W: ChunkWriter + 'static>(mut w: W, queue: Receiver<FlushRequest>) {
     use std::time::Instant;
     let mut metadata: Vec<FlushMeta> = Vec::new();
-    let mut now = Instant::now();
     while let Ok(item) = queue.recv().await {
         match item {
             FlushRequest::Register(meta) => metadata.push(meta),

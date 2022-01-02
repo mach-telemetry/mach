@@ -1,5 +1,3 @@
-use std::time::Duration;
-use std::convert::TryInto;
 use num::NumCast;
 
 // Taken from: journalctl --boot | grep 'kernel: tsc:' -i | cut -d' ' -f5-
@@ -10,7 +8,6 @@ macro_rules! rdtsc {
     unsafe {
             let hi: u32;
             let lo: u32;
-            #[allow(deprecated)]
             llvm_asm!("
                 lfence;
                 rdtscp;

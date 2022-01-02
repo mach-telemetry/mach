@@ -52,6 +52,7 @@ impl<T> WpLock<T> {
         self.item.get().as_ref().unwrap()
     }
 
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn get_mut_ref(&self) -> &mut T {
         self.item.get().as_mut().unwrap()
     }

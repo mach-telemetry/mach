@@ -1,6 +1,6 @@
 use crate::persistent_list::{inner::*, Error};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub struct VectorReader {
     inner: Arc<Mutex<Vec<Box<[u8]>>>>,
@@ -49,7 +49,7 @@ impl VectorWriter {
 impl ChunkWriter for VectorWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
         //println!("Since last flush: {:?}", self.last_flush.elapsed());
-        let now = std::time::Instant::now();
+        //let now = std::time::Instant::now();
         let mut guard = self.inner.lock().unwrap();
         let sz = bytes.len();
         let offset = guard.len();

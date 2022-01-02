@@ -54,7 +54,7 @@ pub fn compress(timestamps: &[u64], buf: &mut ByteBuffer) {
     buf.extend_from_slice(&timestamps[1].to_be_bytes());
 
     // Compress the u32 array
-    let sz = bitpack_256_compress(buf, &to_compress);
+    bitpack_256_compress(buf, &to_compress);
 
     // Write the zigzag values too big for u32
 

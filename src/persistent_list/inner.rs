@@ -6,13 +6,11 @@ use crate::{
     utils::{byte_buffer::ByteBuffer, wp_lock::WpLock},
 };
 use std::{
-    cell::UnsafeCell,
     convert::TryInto,
-    marker::PhantomData,
     mem,
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
-        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Arc,
     },
 };
 

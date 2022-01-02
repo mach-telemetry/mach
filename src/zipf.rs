@@ -1,6 +1,5 @@
 use num::NumCast;
 use rand::{prelude::*, rngs::ThreadRng};
-use std::{collections::HashMap, convert::TryInto};
 
 pub struct Zipfian {
     items: f64,
@@ -29,7 +28,7 @@ impl Zipfian {
         }
     }
 
-    pub fn items(&self) -> u64 {
+    pub fn _items(&self) -> u64 {
         NumCast::from(self.items).unwrap()
     }
 
@@ -46,7 +45,7 @@ impl Zipfian {
         }
     }
 
-    pub fn reset(&mut self, items: u64) {
+    pub fn _reset(&mut self, items: u64) {
         let zeta2theta = zeta(2, self.theta);
         let items_float: f64 = NumCast::from(items).unwrap();
 

@@ -2,7 +2,7 @@ use crate::constants::*;
 use crate::segment::{full_segment::FullSegment, Error, InnerPushStatus};
 use crate::utils::wp_lock::*;
 use std::cell::UnsafeCell;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst};
+use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 pub type Column = [[u8; 8]; SEGSZ];
 pub type ColumnSet = [Column];
@@ -87,9 +87,9 @@ impl<const V: usize> InnerBuffer<V> {
     fn to_flush(&self) -> Option<FullSegment> {
         let len = self.atomic_len.load(SeqCst);
         let inner: &Inner<V> = unsafe { self.inner.get().as_ref().unwrap() };
-        if inner.len > 0 {
+        if len > 0 {
             Some(FullSegment {
-                len: self.atomic_len.load(SeqCst),
+                len,
                 nvars: V,
                 ts: &inner.ts,
                 data: &inner.data[..],

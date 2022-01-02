@@ -1,9 +1,6 @@
 use crate::utils::byte_buffer::*;
 use bitstream_io::{BigEndian, BitRead, BitReader, BitWrite, BitWriter};
-use std::{
-    convert::TryFrom,
-    mem::{size_of, transmute},
-};
+use std::mem::transmute;
 
 pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) -> usize {
     // Code below inspire heavily from
@@ -93,7 +90,7 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usize) {
     // https://github.com/jeromefroe/tsz-rs
 
     let mut data: BitReader<&[u8], BigEndian> = BitReader::new(data);
-    let mut idx = 0;
+    //let mut idx = 0;
     let mut read = 0;
 
     // Read the length
@@ -103,7 +100,7 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usize) {
     // Read first value
     let mut bits = data.read::<u64>(64).unwrap();
     buf.push(unsafe { transmute::<u64, f64>(bits).to_be_bytes() });
-    idx += 1;
+    //idx += 1;
     read += 64;
 
     let mut leading = 0;
