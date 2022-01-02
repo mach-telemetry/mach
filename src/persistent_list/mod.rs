@@ -236,7 +236,7 @@ mod test {
     #[test]
     fn test_kafka_bytes() {
         if env::var("KAFKA").is_ok() {
-            let kafka_writer = KafkaWriter::new().unwrap();
+            let kafka_writer = KafkaWriter::new(0).unwrap();
             let kafka_reader = KafkaReader::new().unwrap();
             test_multiple(kafka_reader, kafka_writer);
         }
@@ -287,7 +287,7 @@ mod test {
     #[test]
     fn test_kafka_data() {
         if env::var("KAFKA").is_ok() {
-            let mut persistent_writer = KafkaWriter::new().unwrap();
+            let mut persistent_writer = KafkaWriter::new(0).unwrap();
             let mut persistent_reader = KafkaReader::new().unwrap();
             test_sample_data(persistent_reader, persistent_writer);
         }

@@ -199,7 +199,7 @@ mod test {
     #[test]
     fn test_kafka_writer() {
         if env::var("KAFKA").is_ok() {
-            let mut persistent_writer = KafkaWriter::new().unwrap();
+            let mut persistent_writer = KafkaWriter::new(0).unwrap();
             let mut persistent_reader = KafkaReader::new().unwrap();
             sample_data(persistent_reader, persistent_writer);
         }
