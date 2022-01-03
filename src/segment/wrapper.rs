@@ -1,4 +1,4 @@
-use crate::segment::{buffer::*, segment, Error, FullSegment, InnerPushStatus};
+use crate::segment::{buffer::*, segment, Error, FullSegment};
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,

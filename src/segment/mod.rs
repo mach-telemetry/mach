@@ -12,6 +12,8 @@ use std::sync::{
 pub use buffer::ReadBuffer;
 pub use full_segment::FullSegment;
 
+use buffer::InnerPushStatus;
+
 //pub use wrapper::Segment;
 
 #[derive(Eq, PartialEq, Debug)]
@@ -24,12 +26,6 @@ pub enum Error {
     FlushFailed,
     FlushingHead,
     MultipleFlushers,
-}
-
-#[derive(Eq, PartialEq, Debug)]
-enum InnerPushStatus {
-    Done,
-    Flush,
 }
 
 //#[derive(Debug)]

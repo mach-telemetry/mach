@@ -8,8 +8,6 @@
 #![feature(thread_id_value)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
-//#![allow(unused)]
-#![allow(private_in_public)]
 
 //mod backend;
 //mod chunk;

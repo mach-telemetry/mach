@@ -1,11 +1,17 @@
 use crate::constants::*;
-use crate::segment::{full_segment::FullSegment, Error, InnerPushStatus};
+use crate::segment::{full_segment::FullSegment, Error};
 use crate::utils::wp_lock::*;
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 pub type Column = [[u8; 8]; SEGSZ];
 //pub type ColumnSet = [Column];
+
+#[derive(Eq, PartialEq, Debug)]
+pub enum InnerPushStatus {
+    Done,
+    Flush,
+}
 
 struct Inner<const V: usize> {
     len: usize,
