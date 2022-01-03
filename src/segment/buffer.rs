@@ -5,7 +5,7 @@ use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 pub type Column = [[u8; 8]; SEGSZ];
-pub type ColumnSet = [Column];
+//pub type ColumnSet = [Column];
 
 struct Inner<const V: usize> {
     len: usize,

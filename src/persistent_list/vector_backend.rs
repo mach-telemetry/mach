@@ -23,7 +23,7 @@ impl ChunkReader for VectorReader {
         if self.current_head.is_none() || *self.current_head.as_ref().unwrap() != persistent {
             self.current_head = Some(persistent);
             self.local_copy.clear();
-            let mut guard = self.inner.lock().unwrap();
+            let guard = self.inner.lock().unwrap();
             self.local_copy
                 .extend_from_slice(&*guard[persistent.offset]);
         }
@@ -34,14 +34,14 @@ impl ChunkReader for VectorReader {
 #[derive(Clone)]
 pub struct VectorWriter {
     inner: Arc<Mutex<Vec<Box<[u8]>>>>,
-    last_flush: Instant,
+    _last_flush: Instant,
 }
 
 impl VectorWriter {
     pub fn new(inner: Arc<Mutex<Vec<Box<[u8]>>>>) -> Self {
         VectorWriter {
             inner,
-            last_flush: Instant::now(),
+            _last_flush: Instant::now(),
         }
     }
 }

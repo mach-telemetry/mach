@@ -172,7 +172,7 @@ impl Compression {
 
 fn lz4_compress(segment: &FullSegment, buf: &mut ByteBuffer, acc: i32) {
     //let mut len: u64 = segment.len as u64;
-    let mut nvars: u64 = segment.nvars as u64;
+    let nvars: u64 = segment.nvars as u64;
 
     let mut bytes = Vec::new();
     for ts in segment.timestamps().iter() {
@@ -248,7 +248,7 @@ fn fixed_compress(segment: &FullSegment, buf: &mut ByteBuffer, frac: usize) {
     // compress the values
     let nvars = segment.nvars;
     for i in 0..nvars {
-        let p = buf.len();
+        //let p = buf.len();
         let len_offset = buf.len();
         buf.extend_from_slice(&0u64.to_be_bytes()[..]); // compressed sz placeholder
         let start_len = len_offset + 8;

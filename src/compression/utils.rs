@@ -3,7 +3,7 @@ use bitpacking::{BitPacker, BitPacker8x};
 use num::NumCast;
 use std::convert::TryFrom;
 
-pub fn multiplier(p: u8) -> i64 {
+pub fn _multiplier(p: u8) -> i64 {
     10i64.pow(p as u32 + 1)
 }
 
@@ -16,153 +16,153 @@ pub fn from_zigzag(v: u64) -> i64 {
 }
 
 // p is the number of decimals to round to
-pub fn float_to_parts(v: f64, p: u8) -> (i64, u64) {
-    let integral = v.abs().trunc();
-    let part = ((v - integral) * 10f64.powi(p as i32 + 1)).trunc();
-    (integral as i64, part as u64)
-}
-
-pub fn float_from_parts(i: i64, d: u64, p: u8) -> f64 {
-    let i = i as f64;
-    let d = d as f64;
-    i + (d / 10f64.powi(p as i32 + 1))
-}
-
-#[allow(clippy::many_single_char_names)]
-pub fn float_to_int(p: u8, a: f64) -> Result<i64, ()> {
-    let v: f64 = a as f64;
-    let sign = v.signum();
-    let v = v.abs();
-
-    let m: i64 = multiplier(p);
-
-    let n = v.floor();
-    let f = (v - n) * m as f64;
-
-    let nm = n as i64 * m;
-    let fm = f as i64;
-    let r = (nm + fm) * sign as i64;
-
-    NumCast::from(r).ok_or(())
-}
-
-pub fn float_from_int(p: u8, v: i64) -> f64 {
-    let mult = multiplier(p);
-    (v as f64 / mult as f64) as f64
-}
-
-#[derive(Copy, Clone)]
-pub struct U64Differ {
-    prev: i64,
-    prev_diff: i64,
-    len: usize,
-}
-
-impl U64Differ {
-    pub fn new() -> Self {
-        Self {
-            prev: -1,
-            prev_diff: 0,
-            len: 0,
-        }
-    }
-
-    pub fn roll(&mut self, ts: u64) -> u64 {
-        let ts: i64 = NumCast::from(ts).unwrap();
-        let r = if self.len == 0 {
-            self.prev = ts;
-            NumCast::from(ts).unwrap()
-            //to_zigzag(self.prev)
-        } else if self.len == 1 {
-            self.prev_diff = ts - self.prev;
-            self.prev = ts;
-            to_zigzag(self.prev_diff)
-        } else {
-            let diff = ts - self.prev;
-            let diff2 = diff - self.prev_diff;
-            self.prev_diff = diff;
-            self.prev = ts;
-            to_zigzag(diff2)
-        };
-        self.len += 1;
-        r
-    }
-
-    pub fn unroll(&mut self, v: u64) -> u64 {
-        let r = if self.len == 0 {
-            self.prev = NumCast::from(v).unwrap();
-            NumCast::from(v).unwrap()
-        } else if self.len == 1 {
-            let v: i64 = from_zigzag(v);
-            self.prev_diff = v;
-            self.prev += self.prev_diff;
-            NumCast::from(self.prev).unwrap()
-        } else {
-            let v: i64 = from_zigzag(v);
-            let value = v + self.prev + self.prev_diff;
-            self.prev_diff = value - self.prev;
-            self.prev = value;
-            NumCast::from(self.prev).unwrap()
-        };
-        self.len += 1;
-        r
-    }
-}
-
-#[derive(Copy, Clone)]
-pub struct I64Differ {
-    prev: i64,
-    prev_diff: i64,
-    len: usize,
-}
-
-impl I64Differ {
-    pub fn new() -> Self {
-        Self {
-            prev: -1,
-            prev_diff: 0,
-            len: 0,
-        }
-    }
-
-    pub fn roll(&mut self, ts: i64) -> u64 {
-        let r = if self.len == 0 {
-            self.prev = ts;
-            to_zigzag(self.prev)
-        } else if self.len == 1 {
-            self.prev_diff = ts - self.prev;
-            self.prev = ts;
-            to_zigzag(self.prev_diff)
-        } else {
-            let diff = ts - self.prev;
-            let diff2 = diff - self.prev_diff;
-            self.prev_diff = diff;
-            self.prev = ts;
-            to_zigzag(diff2)
-        };
-        self.len += 1;
-        r
-    }
-
-    pub fn unroll(&mut self, v: u64) -> i64 {
-        let v: i64 = from_zigzag(v);
-        let r = if self.len == 0 {
-            self.prev = v;
-            NumCast::from(v).unwrap()
-        } else if self.len == 1 {
-            self.prev_diff = v;
-            self.prev += self.prev_diff;
-            NumCast::from(self.prev).unwrap()
-        } else {
-            let value = v + self.prev + self.prev_diff;
-            self.prev_diff = value - self.prev;
-            self.prev = value;
-            NumCast::from(self.prev).unwrap()
-        };
-        self.len += 1;
-        r
-    }
-}
+//pub fn float_to_parts(v: f64, p: u8) -> (i64, u64) {
+//    let integral = v.abs().trunc();
+//    let part = ((v - integral) * 10f64.powi(p as i32 + 1)).trunc();
+//    (integral as i64, part as u64)
+//}
+//
+//pub fn float_from_parts(i: i64, d: u64, p: u8) -> f64 {
+//    let i = i as f64;
+//    let d = d as f64;
+//    i + (d / 10f64.powi(p as i32 + 1))
+//}
+//
+//#[allow(clippy::many_single_char_names)]
+//pub fn float_to_int(p: u8, a: f64) -> Result<i64, ()> {
+//    let v: f64 = a as f64;
+//    let sign = v.signum();
+//    let v = v.abs();
+//
+//    let m: i64 = multiplier(p);
+//
+//    let n = v.floor();
+//    let f = (v - n) * m as f64;
+//
+//    let nm = n as i64 * m;
+//    let fm = f as i64;
+//    let r = (nm + fm) * sign as i64;
+//
+//    NumCast::from(r).ok_or(())
+//}
+//
+//pub fn float_from_int(p: u8, v: i64) -> f64 {
+//    let mult = multiplier(p);
+//    (v as f64 / mult as f64) as f64
+//}
+//
+//#[derive(Copy, Clone)]
+//pub struct U64Differ {
+//    prev: i64,
+//    prev_diff: i64,
+//    len: usize,
+//}
+//
+//impl U64Differ {
+//    pub fn new() -> Self {
+//        Self {
+//            prev: -1,
+//            prev_diff: 0,
+//            len: 0,
+//        }
+//    }
+//
+//    pub fn roll(&mut self, ts: u64) -> u64 {
+//        let ts: i64 = NumCast::from(ts).unwrap();
+//        let r = if self.len == 0 {
+//            self.prev = ts;
+//            NumCast::from(ts).unwrap()
+//            //to_zigzag(self.prev)
+//        } else if self.len == 1 {
+//            self.prev_diff = ts - self.prev;
+//            self.prev = ts;
+//            to_zigzag(self.prev_diff)
+//        } else {
+//            let diff = ts - self.prev;
+//            let diff2 = diff - self.prev_diff;
+//            self.prev_diff = diff;
+//            self.prev = ts;
+//            to_zigzag(diff2)
+//        };
+//        self.len += 1;
+//        r
+//    }
+//
+//    pub fn unroll(&mut self, v: u64) -> u64 {
+//        let r = if self.len == 0 {
+//            self.prev = NumCast::from(v).unwrap();
+//            NumCast::from(v).unwrap()
+//        } else if self.len == 1 {
+//            let v: i64 = from_zigzag(v);
+//            self.prev_diff = v;
+//            self.prev += self.prev_diff;
+//            NumCast::from(self.prev).unwrap()
+//        } else {
+//            let v: i64 = from_zigzag(v);
+//            let value = v + self.prev + self.prev_diff;
+//            self.prev_diff = value - self.prev;
+//            self.prev = value;
+//            NumCast::from(self.prev).unwrap()
+//        };
+//        self.len += 1;
+//        r
+//    }
+//}
+//
+//#[derive(Copy, Clone)]
+//pub struct I64Differ {
+//    prev: i64,
+//    prev_diff: i64,
+//    len: usize,
+//}
+//
+//impl I64Differ {
+//    pub fn new() -> Self {
+//        Self {
+//            prev: -1,
+//            prev_diff: 0,
+//            len: 0,
+//        }
+//    }
+//
+//    pub fn roll(&mut self, ts: i64) -> u64 {
+//        let r = if self.len == 0 {
+//            self.prev = ts;
+//            to_zigzag(self.prev)
+//        } else if self.len == 1 {
+//            self.prev_diff = ts - self.prev;
+//            self.prev = ts;
+//            to_zigzag(self.prev_diff)
+//        } else {
+//            let diff = ts - self.prev;
+//            let diff2 = diff - self.prev_diff;
+//            self.prev_diff = diff;
+//            self.prev = ts;
+//            to_zigzag(diff2)
+//        };
+//        self.len += 1;
+//        r
+//    }
+//
+//    pub fn unroll(&mut self, v: u64) -> i64 {
+//        let v: i64 = from_zigzag(v);
+//        let r = if self.len == 0 {
+//            self.prev = v;
+//            NumCast::from(v).unwrap()
+//        } else if self.len == 1 {
+//            self.prev_diff = v;
+//            self.prev += self.prev_diff;
+//            NumCast::from(self.prev).unwrap()
+//        } else {
+//            let value = v + self.prev + self.prev_diff;
+//            self.prev_diff = value - self.prev;
+//            self.prev = value;
+//            NumCast::from(self.prev).unwrap()
+//        };
+//        self.len += 1;
+//        r
+//    }
+//}
 
 ///
 /// 0..2    -> Size = length of compressed section in bytes

@@ -8,7 +8,7 @@
 #![feature(thread_id_value)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
-#![allow(unused)]
+//#![allow(unused)]
 #![allow(private_in_public)]
 
 //mod backend;
@@ -17,13 +17,13 @@
 //mod series_metadata;
 //mod writer;
 
-mod compression;
-mod constants;
-mod persistent_list;
-mod segment;
-mod tags;
-mod utils;
-mod write_thread;
+pub mod compression;
+pub mod constants;
+pub mod persistent_list;
+pub mod segment;
+pub mod tags;
+pub mod utils;
+pub mod write_thread;
 
 #[cfg(test)]
 mod test_utils;

@@ -66,6 +66,12 @@ pub struct WriteSegment {
     has_writer: Arc<AtomicBool>,
 }
 
+impl Drop for WriteSegment {
+    fn drop(&mut self) {
+        assert!(self.has_writer.swap(false, SeqCst))
+    }
+}
+
 pub struct FlushSegment {
     inner: wrapper::Segment,
     //has_flusher: Arc<AtomicBool>,
