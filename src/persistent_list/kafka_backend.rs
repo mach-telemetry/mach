@@ -34,7 +34,7 @@ async fn kafka_partition_writer(
     //let mut now = Instant::now();
     while let Ok(offset) = queue.recv().await {
         //let interval = now.elapsed().as_secs_f64();
-        //let q_len = queue.len();
+        println!("Flush Queue len: {}", queue.len());
         //now = Instant::now();
         let data = transfer_map.get(&offset).unwrap().clone();
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC)
@@ -63,7 +63,6 @@ pub struct KafkaWriter {
     map: Arc<DashMap<usize, Arc<[u8]>>>,
     partition: usize,
     offset: usize,
-    last_flush: Instant,
     sender: Sender<usize>,
 }
 
@@ -110,7 +109,6 @@ impl KafkaWriter {
             partition,
             offset,
             sender,
-            last_flush: Instant::now(),
         })
     }
 
@@ -123,6 +121,7 @@ impl KafkaWriter {
             .set("batch.num.messages", "1")
             .set("compression.type", "none")
             .set("acks", "1")
+            //.set("max.in.flight", "1")
             .create()?;
         Ok(producer)
     }
@@ -135,19 +134,16 @@ impl KafkaWriter {
 
 impl ChunkWriter for KafkaWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
-        //let partition = self.partition as i32 % 10;
-        //println!("Since last flush: {:?}", self.last_flush.elapsed());
-        //let now = std::time::Instant::now();
         let offset = self.offset;
         self.offset += 1;
         let map = self.map.clone();
         let data: Arc<[u8]> = bytes.into();
+        while self.sender.len() > 100 {
+            std::thread::sleep(std::time::Duration::from_millis(1))
+        }
         map.insert(offset, data.clone());
         self.sender.try_send(offset).unwrap();
-        //println!("Queue length: {}", self.sender.len());
         let sz = bytes.len();
-        self.last_flush = Instant::now();
-        //println!("Duration: {:?}", now.elapsed());
         Ok(PersistentHead {
             partition: self.partition,
             offset,
@@ -199,7 +195,6 @@ impl ChunkReader for KafkaReader {
                         None => {}
                     };
                 };
-                println!("Kafka duration: {:?}", start.elapsed());
                 let payload = msg.payload().unwrap();
                 self.local_copy.clear();
                 self.local_copy.extend_from_slice(payload);

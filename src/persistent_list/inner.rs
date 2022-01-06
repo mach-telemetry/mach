@@ -12,6 +12,7 @@ use std::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc,
     },
+    time::{Instant, Duration},
 };
 
 pub trait ChunkWriter: Sync + Send {
@@ -205,6 +206,7 @@ impl InnerBuffer {
     }
 
     fn flush<W: ChunkWriter>(&mut self, flusher: &mut W) {
+        let now = Instant::now();
         let head = flusher
             .write(&self.buffer[..self.len.load(SeqCst)])
             .unwrap();
@@ -226,12 +228,14 @@ impl InnerBuffer {
 #[derive(Clone)]
 pub struct Buffer {
     inner: Arc<WpLock<InnerBuffer>>,
+    flush_count: usize,
 }
 
 impl Buffer {
     pub fn new(flush_sz: usize) -> Self {
         Buffer {
             inner: Arc::new(WpLock::new(InnerBuffer::new(flush_sz))),
+            flush_count: 0,
         }
     }
 
@@ -269,8 +273,6 @@ impl Buffer {
         let inner = unsafe { self.inner.get_mut_ref() };
         let head = inner.push_segment(segment, tags, compression, last_head);
         if head.buffer.offset + head.buffer.size > inner.flush_sz {
-            //println!("FLUSHING");
-            // Need to guard here because reset will conflict with concurrent readers
             let mut guard = self.inner.write();
             guard.flush(w);
             guard.reset();

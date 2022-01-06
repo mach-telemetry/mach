@@ -49,22 +49,24 @@ use tsdb::SeriesId;
 //const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
 //const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
 
-const DATAPATH: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/";
-const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
+//const DATAPATH: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/";
+//const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
 
-//const DATAPATH: &str = "/data/data_json/bench1_multivariate.json";
-//const OUTDIR: &str = "/data/out/";
+const DATAPATH: &str = "/data/data_json/";
+const OUTDIR: &str = "/data/out/";
 
 const BLOCKING_RETRY: bool = false;
-const ZIPF: f64 = 0.5;
+const ZIPF: f64 = 0.99;
 const NSERIES: usize = 10_000;
 const NTHREADS: usize = 1;
-const BUFSZ: usize = 8_000;
+const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
 const UNIVARIATE: bool = false;
 const KAFKA_TOPIC: &str = "MACHSTORAGE";
-const KAFKA_BOOTSTRAP: &str = "localhost:29092";
+//const KAFKA_BOOTSTRAP: &str = "localhost:29092";
+const KAFKA_BOOTSTRAP: &str = "b-3.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092,b-1.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092,b-2.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092";
 const PARTITIONS: usize = 10;
+const BITS_COMPRESS: usize = 5;
 
 lazy_static! {
     static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
@@ -104,6 +106,7 @@ fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
     let mut json = String::new();
     file.read_to_string(&mut json).unwrap();
     let mut dict: HashMap<String, DataEntry> = serde_json::from_str(json.as_str()).unwrap();
+    drop(json);
     dict.drain()
         .filter(|(_, d)| d.timestamps.len() >= 30_000)
         .map(|(_, d)| d.to_series())
@@ -120,8 +123,7 @@ fn consume<W: ChunkWriter + 'static>(id_counter: Arc<AtomicUsize>, global: Arc<D
     // Load data
     let mut base_data = &DATA;
 
-    // Series will use fixed compression with precision of 10 bits
-    let compression = Compression::Fixed(10);
+    let compression = Compression::Fixed(BITS_COMPRESS);
     //let compression = Compression::LZ4(1);
 
     // Vectors to hold series-specific information
@@ -223,6 +225,7 @@ fn main() {
         _ => {}
     };
     std::fs::create_dir_all(OUTDIR).unwrap();
+    let _data = DATA.len();
     let mut handles = Vec::new();
     let mut backend = FileBackend::new(OUTDIR.into());
     //let mut backend = KafkaBackend::new()

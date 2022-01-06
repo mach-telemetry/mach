@@ -158,6 +158,7 @@ fn inner_compress<Frac: Unsigned + LeEqU64>(data: &[[u8; 8]], buf: &mut ByteBuff
 
     let first_float = f64::from_be_bytes(data[0]);
     let first = FixedI64::<Frac>::from_num(first_float);
+
     let mut last = first;
     for i in 1..data.len() {
         let cur = FixedI64::<Frac>::from_num(f64::from_be_bytes(data[i]));

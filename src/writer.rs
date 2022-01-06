@@ -165,14 +165,11 @@ impl FlushWorker {
 }
 
 async fn worker<W: ChunkWriter + 'static>(mut w: W, queue: Receiver<FlushRequest>) {
-    //use std::time::Instant;
     let mut metadata: Vec<FlushMeta> = Vec::new();
     while let Ok(item) = queue.recv().await {
         match item {
             FlushRequest::Register(meta) => metadata.push(meta),
-            FlushRequest::Flush(id) => {
-                metadata[id].flush(&mut w);
-            }
+            FlushRequest::Flush(id) => metadata[id].flush(&mut w),
         }
     }
 }
