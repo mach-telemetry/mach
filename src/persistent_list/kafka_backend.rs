@@ -1,6 +1,6 @@
 use crate::{
     constants::*,
-    persistent_list::{inner::*, Error},
+    persistent_list::{inner::*, Backend, Error},
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
@@ -68,29 +68,20 @@ pub struct KafkaWriter {
 }
 
 impl KafkaWriter {
-    pub fn new(partition: usize) -> Result<Self, Error> {
+    fn with_producer(
+        producer: FutureProducer,
+        partition: usize,
+        topic: &'static str,
+    ) -> Result<Self, Error> {
         let map = Arc::new(DashMap::new());
-        let producer: FutureProducer = ClientConfig::new()
-            .set("bootstrap.servers", KAFKA_BOOTSTRAP)
-            //.set("queue.buffering.max.messages", "1")
-            //.set("queue.buffering.max.kbytes", "2000")
-            //.set("queue.buffering.max.ms", "0")
-            .set("message.max.bytes", "2000000")
-            .set("linger.ms", "0")
-            .set("message.copy.max.bytes", "5000000")
-            .set("batch.num.messages", "1")
-            .set("compression.type", "none")
-            .set("acks", "1")
-            .create()?;
-
         println!("Warming up producer");
         for _ in 0..10 {
-            let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC)
+            let to_send: FutureRecord<str, [u8]> = FutureRecord::to(topic)
                 .payload(&[0][..])
                 .partition(partition.try_into().unwrap());
             async_std::task::block_on(producer.send(to_send, Duration::from_secs(0))).unwrap();
         }
-        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(KAFKA_TOPIC)
+        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(topic)
             .payload(&[0][..])
             .partition(partition.try_into().unwrap());
         println!("Getting offset");
@@ -121,6 +112,24 @@ impl KafkaWriter {
             sender,
             last_flush: Instant::now(),
         })
+    }
+
+    pub fn default_producer(bootstraps: &'static str) -> Result<FutureProducer, Error> {
+        let producer: FutureProducer = ClientConfig::new()
+            .set("bootstrap.servers", bootstraps)
+            .set("message.max.bytes", "2000000")
+            .set("linger.ms", "0")
+            .set("message.copy.max.bytes", "5000000")
+            .set("batch.num.messages", "1")
+            .set("compression.type", "none")
+            .set("acks", "1")
+            .create()?;
+        Ok(producer)
+    }
+
+    pub fn new(partition: usize) -> Result<Self, Error> {
+        let producer = Self::default_producer(KAFKA_BOOTSTRAP)?;
+        Self::with_producer(producer, partition, KAFKA_TOPIC)
     }
 }
 
@@ -198,5 +207,63 @@ impl ChunkReader for KafkaReader {
             }
         }
         Ok(&self.local_copy[local.offset..local.offset + local.size])
+    }
+}
+
+pub struct KafkaBackend {
+    bootstrap_servers: &'static str,
+    topic: &'static str,
+    partitions: usize,
+    count: usize,
+}
+
+impl KafkaBackend {
+    pub fn new() -> Self {
+        Self {
+            bootstrap_servers: "",
+            topic: "",
+            partitions: 0,
+            count: 0,
+        }
+    }
+
+    pub fn bootstrap_servers(mut self, servers: &'static str) -> Self {
+        self.bootstrap_servers = servers;
+        self
+    }
+
+    pub fn topic(mut self, topic: &'static str) -> Self {
+        self.topic = topic;
+        self
+    }
+
+    pub fn partitions(mut self, parts: usize) -> Self {
+        self.partitions = parts;
+        self
+    }
+
+    pub fn make_kafka_writer(&mut self) -> Result<KafkaWriter, Error> {
+        if self.count >= self.partitions {
+            Err(Error::FactoryError)
+        } else {
+            let partition = self.count;
+            self.count += 1;
+            let producer = KafkaWriter::default_producer(self.bootstrap_servers)?;
+            KafkaWriter::with_producer(producer, partition, self.topic)
+        }
+    }
+
+    pub fn make_reader(&mut self) -> Result<KafkaReader, Error> {
+        KafkaReader::new()
+    }
+}
+
+impl Backend for KafkaBackend {
+    type Writer = KafkaWriter;
+    type Reader = KafkaReader;
+    fn make_backend(&mut self) -> Result<(KafkaWriter, KafkaReader), Error> {
+        let writer = self.make_kafka_writer()?;
+        let reader = self.make_reader()?;
+        Ok((writer, reader))
     }
 }

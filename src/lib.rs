@@ -15,13 +15,15 @@
 //mod series_metadata;
 //mod writer;
 
+//pub mod tsdb;
 pub mod compression;
 pub mod constants;
 pub mod persistent_list;
 pub mod segment;
 pub mod tags;
 pub mod utils;
-pub mod write_thread;
+pub mod writer;
+pub mod tsdb;
 
 #[cfg(test)]
 mod test_utils;

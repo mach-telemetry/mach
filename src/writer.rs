@@ -3,9 +3,14 @@ use crate::{
     persistent_list::*,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
     tags::Tags,
+    tsdb::SeriesId,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
-use std::collections::HashMap;
+use dashmap::DashMap;
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 #[derive(Debug)]
 pub enum Error {
@@ -43,19 +48,22 @@ impl SeriesMetadata {
     }
 }
 
-pub struct WriteThread {
-    local_meta: HashMap<u64, SeriesMetadata>,
-    references: HashMap<u64, usize>,
+pub struct Writer {
+    global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
+    local_meta: HashMap<SeriesId, SeriesMetadata>,
+    references: HashMap<SeriesId, usize>,
     writers: Vec<WriteSegment>,
     lists: Vec<List>,
     flush_id: Vec<usize>,
     flush_worker: FlushWorker,
 }
 
-impl WriteThread {
-    pub fn new<W: ChunkWriter + 'static>(w: W) -> Self {
+impl Writer {
+
+    pub fn new<W: ChunkWriter + 'static>(global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>, w: W) -> Self {
         let flush_worker = FlushWorker::new(w);
         Self {
+            global_meta,
             local_meta: HashMap::new(),
             references: HashMap::new(),
             flush_id: Vec::new(),
@@ -65,7 +73,8 @@ impl WriteThread {
         }
     }
 
-    pub fn register(&mut self, id: u64, meta: SeriesMetadata) -> usize {
+    pub fn register(&mut self, id: SeriesId) -> usize {
+        let meta = self.global_meta.get(&id).unwrap().clone();
         let writer = meta.segment.writer().unwrap();
         let list = meta.list.clone();
 
@@ -218,7 +227,7 @@ mod test {
         let buffer = Buffer::new(6000);
 
         let series_meta = SeriesMetadata::new(tags, 1, nvars, compression, buffer.clone());
-        let mut write_thread = WriteThread::new(persistent_writer);
+        let mut write_thread = Writer::new(persistent_writer);
         let series_ref: usize = write_thread.register(0, series_meta.clone());
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {

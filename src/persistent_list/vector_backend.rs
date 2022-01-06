@@ -1,4 +1,4 @@
-use crate::persistent_list::{inner::*, Error};
+use crate::persistent_list::{inner::*, Backend, Error};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -68,5 +68,31 @@ impl ChunkWriter for VectorWriter {
             sz,
         };
         Ok(head)
+    }
+}
+
+pub struct VectorBackend {
+    data: Vec<Arc<Mutex<Vec<Box<[u8]>>>>>,
+}
+
+impl VectorBackend {
+    pub fn new() -> Self {
+        Self { data: Vec::new() }
+    }
+
+    pub fn make_read_write(&mut self) -> (VectorWriter, VectorReader) {
+        let v = Arc::new(Mutex::new(Vec::new()));
+        self.data.push(v.clone());
+        let writer = VectorWriter::new(v.clone());
+        let reader = VectorReader::new(v.clone());
+        (writer, reader)
+    }
+}
+
+impl Backend for VectorBackend {
+    type Writer = VectorWriter;
+    type Reader = VectorReader;
+    fn make_backend(&mut self) -> Result<(VectorWriter, VectorReader), Error> {
+        Ok(self.make_read_write())
     }
 }

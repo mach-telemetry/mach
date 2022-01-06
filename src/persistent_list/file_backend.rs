@@ -1,9 +1,9 @@
-use crate::persistent_list::{inner::*, Error};
+use crate::persistent_list::{inner::*, Backend, Error};
 use std::{
     convert::AsRef,
     fs::{File, OpenOptions},
     io::{prelude::*, SeekFrom},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 pub struct FileReader {
@@ -70,5 +70,33 @@ impl ChunkWriter for FileWriter {
             sz,
         };
         Ok(head)
+    }
+}
+
+pub struct FileBackend {
+    dir: PathBuf,
+    counter: usize,
+}
+
+impl FileBackend {
+    pub fn new(dir: PathBuf) -> Self {
+        FileBackend { dir, counter: 0 }
+    }
+
+    pub fn make_read_write(&mut self) -> Result<(FileWriter, FileReader), Error> {
+        let counter = self.counter;
+        let file = self.dir.join(format!("data_{}", counter));
+        self.counter += 1;
+        let writer = FileWriter::new(&file)?;
+        let reader = FileReader::new(&file)?;
+        Ok((writer, reader))
+    }
+}
+
+impl Backend for FileBackend {
+    type Writer = FileWriter;
+    type Reader = FileReader;
+    fn make_backend(&mut self) -> Result<(FileWriter, FileReader), Error> {
+        self.make_read_write()
     }
 }

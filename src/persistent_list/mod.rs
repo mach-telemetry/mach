@@ -11,6 +11,7 @@ pub enum Error {
     InconsistentRead,
     Kafka(KafkaError),
     IO(std::io::Error),
+    FactoryError,
 }
 
 impl From<KafkaError> for Error {
@@ -25,10 +26,16 @@ impl From<std::io::Error> for Error {
     }
 }
 
-pub use file_backend::{FileReader, FileWriter};
+pub use file_backend::{FileBackend, FileReader, FileWriter};
 pub use inner::{Buffer, ChunkReader, ChunkWriter, List, ListReader};
-pub use kafka_backend::{KafkaReader, KafkaWriter};
-pub use vector_backend::{VectorReader, VectorWriter};
+pub use kafka_backend::{KafkaBackend, KafkaReader, KafkaWriter};
+pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
+
+pub trait Backend {
+    type Writer: ChunkWriter + 'static;
+    type Reader: ChunkReader + 'static;
+    fn make_backend(&mut self) -> Result<(Self::Writer, Self::Reader), Error>;
+}
 
 #[cfg(test)]
 mod test {

@@ -19,8 +19,9 @@ mod segment;
 mod tags;
 mod test_utils;
 mod utils;
-mod write_thread;
+mod writer;
 mod zipf;
+mod tsdb;
 
 #[macro_use]
 mod rdtsc;
@@ -32,7 +33,7 @@ use std::{
     fs::OpenOptions,
     io::prelude::*,
     path::PathBuf,
-    sync::{Arc, Barrier, Mutex},
+    sync::{Arc, Barrier, Mutex, atomic::{AtomicUsize, Ordering::SeqCst}},
     thread,
 };
 
@@ -40,8 +41,10 @@ use compression::*;
 use lazy_static::lazy_static;
 use persistent_list::*;
 use tags::*;
-use write_thread::*;
+use writer::*;
 use zipf::*;
+use dashmap::DashMap;
+use tsdb::SeriesId;
 
 //const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
 //const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
@@ -54,11 +57,14 @@ const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.5;
-const NSERIES: usize = 138;
-const NTHREADS: usize = 72;
-const BUFSZ: usize = 1_000_000;
+const NSERIES: usize = 10_000;
+const NTHREADS: usize = 1;
+const BUFSZ: usize = 8_000;
 const NSEGMENTS: usize = 1;
 const UNIVARIATE: bool = false;
+const KAFKA_TOPIC: &str = "MACHSTORAGE";
+const KAFKA_BOOTSTRAP: &str = "localhost:29092";
+const PARTITIONS: usize = 10;
 
 lazy_static! {
     static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
@@ -104,9 +110,9 @@ fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
         .collect()
 }
 
-fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
+fn consume<W: ChunkWriter + 'static>(id_counter: Arc<AtomicUsize>, global: Arc<DashMap<SeriesId, SeriesMetadata>>, persistent_writer: W) {
     // Setup write thread
-    let mut write_thread = WriteThread::new(persistent_writer);
+    let mut write_thread = Writer::new(global.clone(), persistent_writer);
 
     // The buffer used by all time series in this writer
     let buffer = Buffer::new(BUFSZ);
@@ -120,22 +126,24 @@ fn consume<W: ChunkWriter + 'static>(persistent_writer: W) {
 
     // Vectors to hold series-specific information
     let mut data: Vec<&[(u64, Box<[[u8; 8]]>)]> = Vec::new();
-    let mut meta: Vec<SeriesMetadata> = Vec::new();
+    //let mut meta: Vec<SeriesMetadata> = Vec::new();
     let mut refs: Vec<usize> = Vec::new();
 
     // Generate series specific information, register, then collect the information into the vecs
     // each series uses 3 active segments
     // println!("TOTAL BASE_DATA {}", base_data.len());
-    for i in 0..NSERIES {
+    for _ in 0..NSERIES {
+        let i = SeriesId(id_counter.fetch_add(1, SeqCst));
         let idx = rand::thread_rng().gen_range(0..base_data.len());
         let d = &base_data[idx];
         let nvars = d[0].1.len();
         let mut tags = Tags::new();
-        tags.insert((String::from("id"), format!("{}", i)));
+        tags.insert((String::from("id"), format!("{}", i.inner())));
         let series_meta = SeriesMetadata::new(tags, NSEGMENTS, nvars, compression, buffer.clone());
-        refs.push(write_thread.register(i as u64, series_meta.clone()));
+        global.insert(i, series_meta.clone());
+        refs.push(write_thread.register(i));
         data.push(d.as_slice());
-        meta.push(series_meta);
+        //meta.push(series_meta);
     }
 
     // Change zipfian when avaiable data become less than the zipfian possible values
@@ -216,13 +224,20 @@ fn main() {
     };
     std::fs::create_dir_all(OUTDIR).unwrap();
     let mut handles = Vec::new();
-    //let v: Arc<Mutex<Vec<Box<[u8]>>>> = Arc::new(Mutex::new(Vec::new()));
+    let mut backend = FileBackend::new(OUTDIR.into());
+    //let mut backend = KafkaBackend::new()
+    //    .bootstrap_servers(KAFKA_BOOTSTRAP)
+    //    .topic(KAFKA_TOPIC)
+    //    .partitions(PARTITIONS);
+    //let mut backend = VectorBackend::new();
+    let global = Arc::new(DashMap::new());
+    let id_counter = Arc::new(AtomicUsize::new(0));
     for i in 0..NTHREADS {
-        let mut persistent_writer = file_writer(i);
-        //let mut persistent_writer = KafkaWriter::new(i).unwrap();
-        //let mut persistent_writer = VectorWriter::new(v.clone());
+        let (mut persistent_writer, _) = backend.make_backend().unwrap();
+        let id_counter = id_counter.clone();
+        let global = global.clone();
         handles.push(thread::spawn(move || {
-            consume(persistent_writer);
+            consume(id_counter, global, persistent_writer);
         }));
     }
     println!("Waiting for ingestion to finish");
