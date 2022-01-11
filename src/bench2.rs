@@ -46,14 +46,14 @@ use zipf::*;
 use dashmap::DashMap;
 use tsdb::SeriesId;
 
-//const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
-//const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
+const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json";
+const OUTDIR: &str = "/Users/fsolleza/Downloads/temp_data";
 
 //const DATAPATH: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/";
 //const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
 
-const DATAPATH: &str = "/data/data_json/";
-const OUTDIR: &str = "/data/out/";
+//const DATAPATH: &str = "/data/data_json/";
+//const OUTDIR: &str = "/data/out/";
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
@@ -63,8 +63,8 @@ const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
 const UNIVARIATE: bool = false;
 const KAFKA_TOPIC: &str = "MACHSTORAGE";
-//const KAFKA_BOOTSTRAP: &str = "localhost:29092";
-const KAFKA_BOOTSTRAP: &str = "b-3.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092,b-1.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092,b-2.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092";
+const KAFKA_BOOTSTRAP: &str = "localhost:29092";
+//const KAFKA_BOOTSTRAP: &str = "b-3.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092,b-1.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092,b-2.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092";
 const PARTITIONS: usize = 10;
 const BITS_COMPRESS: usize = 5;
 
@@ -95,7 +95,7 @@ impl DataEntry {
     }
 }
 
-fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
+fn load_data() -> HashMap<String, DataEntry> {
     println!("LOADING DATA");
     let file_path = if UNIVARIATE {
         PathBuf::from(DATAPATH).join("bench1_univariate.json")
@@ -105,8 +105,13 @@ fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
     let mut file = OpenOptions::new().read(true).open(file_path).unwrap();
     let mut json = String::new();
     file.read_to_string(&mut json).unwrap();
-    let mut dict: HashMap<String, DataEntry> = serde_json::from_str(json.as_str()).unwrap();
-    drop(json);
+    let dict: HashMap<String, DataEntry> = serde_json::from_str(json.as_str()).unwrap();
+    dict
+}
+
+fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
+    let mut dict = load_data();
+    println!("MAKING DATA");
     dict.drain()
         .filter(|(_, d)| d.timestamps.len() >= 30_000)
         .map(|(_, d)| d.to_series())
