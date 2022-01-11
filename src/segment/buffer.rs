@@ -36,6 +36,30 @@ impl<const V: usize> InnerBuffer<V> {
         }
     }
 
+    fn push_item<const B: usize>(&mut self, ts: u64, item: [[u8; 8]; B]) -> Result<InnerPushStatus, Error> {
+        let len = self.len;
+        //let len = self.atomic_len.load(SeqCst);
+        if len < SEGSZ - 1 {
+            self.inner.ts[len] = ts;
+            for i in 0..B {
+                self.inner.data[i][len] = item[i];
+            }
+            self.len += 1;
+            //self.atomic_len.fetch_add(1, SeqCst);
+            Ok(InnerPushStatus::Done)
+        } else if len == SEGSZ - 1 {
+            self.inner.ts[len] = ts;
+            for i in 0..V {
+                self.inner.data[i][len] = item[i];
+            }
+            //self.atomic_len.fetch_add(1, SeqCst);
+            self.len += 1;
+            Ok(InnerPushStatus::Flush)
+        } else {
+            Err(Error::PushIntoFull)
+        }
+    }
+
     fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         let len = self.len;
         //let len = self.atomic_len.load(SeqCst);
@@ -125,6 +149,11 @@ impl<const V: usize> Buffer<V> {
         Self {
             inner: WpLock::new(InnerBuffer::new()),
         }
+    }
+
+    pub fn push_item<const B: usize>(&mut self, ts: u64, item: [[u8; 8]; B]) -> Result<InnerPushStatus, Error> {
+        // Safe because the push method does not race with another method in buffer
+        unsafe { self.inner.get_mut_ref().push_item(ts, item) }
     }
 
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {

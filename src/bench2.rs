@@ -11,6 +11,7 @@
 #![allow(unused)]
 #![allow(private_in_public)]
 #![feature(llvm_asm)]
+#![feature(proc_macro_hygiene)]
 
 mod compression;
 mod constants;
@@ -35,6 +36,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, Barrier, Mutex, atomic::{AtomicUsize, Ordering::SeqCst}},
     thread,
+    convert::TryInto,
 };
 
 use compression::*;
@@ -45,15 +47,16 @@ use writer::*;
 use zipf::*;
 use dashmap::DashMap;
 use tsdb::SeriesId;
+use seq_macro::seq;
 
-const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json";
-const OUTDIR: &str = "/Users/fsolleza/Downloads/temp_data";
+//const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json";
+//const OUTDIR: &str = "/Users/fsolleza/Downloads/temp_data";
 
 //const DATAPATH: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/";
 //const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
 
-//const DATAPATH: &str = "/data/data_json/";
-//const OUTDIR: &str = "/data/out/";
+const DATAPATH: &str = "/data/data_json/";
+const OUTDIR: &str = "/data/out/";
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
@@ -180,8 +183,23 @@ fn consume<W: ChunkWriter + 'static>(id_counter: Arc<AtomicUsize>, global: Arc<D
         let sample = &data[idx][0];
         let ref_id = refs[idx];
         'inner: loop {
-            let start = rdtsc!();
-            let res = write_thread.push(ref_id, sample.0, &sample.1[..]);
+            seq!(N in 1..10 {
+                let (start, res) = match sample.1.len() {
+                    #(
+                    N => {
+                        let item: [[u8; 8]; N] = (&sample.1[..]).try_into().unwrap();
+                        let start = rdtsc!();
+                        let res = write_thread.push_item::<N>(ref_id, sample.0, item);
+                        (start, res)
+                    },
+                    )*
+                    _ => unimplemented!()
+                };
+            });
+            //let item = [sample.1[0]];
+            //let res = write_thread.push_item::<1>(ref_id, sample.0, item);
+            //let item = sample.1[0];
+            //let res = write_thread.push_univariate(ref_id, sample.0, item);
 
             match res {
                 Ok(_) => {

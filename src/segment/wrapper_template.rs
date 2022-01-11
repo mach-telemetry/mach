@@ -82,6 +82,13 @@ impl Segment {
         segment
     }
 
+    pub unsafe fn push_item<const I: usize>(&mut self, ts: u64, item: [[u8; 8]; I]) -> Result<InnerPushStatus, Error> {
+        match (self.buffers, self.vars) {
+            [[push_item]]
+            (_, _) => unimplemented!(),
+        }
+    }
+
     pub unsafe fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
         match (self.buffers, self.vars) {
             [[push_univariate]]

@@ -102,7 +102,15 @@ impl Writer {
         Ok(())
     }
 
-    pub fn _push_univariate(
+    pub fn push_item<const I: usize>(&mut self, reference: usize, ts: u64, data: [[u8; 8]; I]) -> Result<(), Error> {
+        match self.writers[reference].push_item(ts, data)? {
+            segment::PushStatus::Done => {}
+            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
+        }
+        Ok(())
+    }
+
+    pub fn push_univariate(
         &mut self,
         reference: usize,
         ts: u64,

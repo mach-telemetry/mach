@@ -1,3 +1,4 @@
+use crate::constants::*;
 use crate::segment::{buffer::*, Error, FullSegment, InnerPushStatus};
 use std::{
     mem,
@@ -13,6 +14,7 @@ fn init_buffer_array<const B: usize, const V: usize>() -> [Buffer<V>; B] {
 }
 
 pub struct Segment<const B: usize, const V: usize> {
+    local_count: usize,
     local_head: usize, // always tracks the atomic head
     head: AtomicUsize,
     flushed: AtomicIsize,
@@ -21,41 +23,28 @@ pub struct Segment<const B: usize, const V: usize> {
 
 impl<const B: usize, const V: usize> Segment<B, V> {
     pub fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
-        let res = self.current_buffer().push_univariate(ts, item);
-        match res {
-            Ok(InnerPushStatus::Done) => Ok(InnerPushStatus::Done),
-            Ok(InnerPushStatus::Flush) => {
-                self.try_next_buffer();
-                Ok(InnerPushStatus::Flush)
-            }
-            Err(Error::PushIntoFull) => {
-                if self.try_next_buffer() {
-                    self.current_buffer().push_univariate(ts, item)
-                } else {
-                    Err(Error::PushIntoFull)
-                }
-            }
-            _ => unimplemented!(),
+        self.local_count += 1;
+        if self.local_count > SEGSZ {
+            self.try_next_buffer();
         }
+        self.current_buffer().push_univariate(ts, item)
     }
 
-    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
-        let res = self.current_buffer().push(ts, item);
-        match res {
-            Ok(InnerPushStatus::Done) => Ok(InnerPushStatus::Done),
-            Ok(InnerPushStatus::Flush) => {
-                self.try_next_buffer();
-                Ok(InnerPushStatus::Flush)
-            }
-            Err(Error::PushIntoFull) => {
-                if self.try_next_buffer() {
-                    self.current_buffer().push(ts, item)
-                } else {
-                    Err(Error::PushIntoFull)
-                }
-            }
-            _ => unimplemented!(),
+    pub fn push_item<const I: usize>(&mut self, ts: u64, item: [[u8; 8]; I]) -> Result<InnerPushStatus, Error> {
+        self.local_count += 1;
+        if self.local_count > SEGSZ {
+            self.try_next_buffer();
         }
+        self.current_buffer().push_item(ts, item)
+    }
+
+
+    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
+        self.local_count += 1;
+        if self.local_count > SEGSZ {
+            self.try_next_buffer();
+        }
+        self.current_buffer().push(ts, item)
     }
 
     #[inline]
@@ -69,6 +58,7 @@ impl<const B: usize, const V: usize> Segment<B, V> {
             self.local_head = self.head.fetch_add(1, SeqCst) + 1;
             let buf = &mut self.buffers[self.local_head % B];
             buf.reset();
+            self.local_count = 0;
             true
         } else {
             false
@@ -123,6 +113,7 @@ impl<const B: usize, const V: usize> Segment<B, V> {
     pub fn new() -> Self {
         let buffers = init_buffer_array();
         Segment {
+            local_count: 0,
             local_head: 0,
             head: AtomicUsize::new(0),
             flushed: AtomicIsize::new(-1),
