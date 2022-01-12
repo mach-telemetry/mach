@@ -58,9 +58,6 @@ use zipf::*;
 //const DATAPATH: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/";
 //const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
 
-const DATAPATH: &str = "/data/data_json/";
-const OUTDIR: &str = "/data/out/";
-
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
 const NSERIES: usize = 10_000;
@@ -69,12 +66,14 @@ const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
 const UNIVARIATE: bool = false;
 const KAFKA_TOPIC: &str = "MACHSTORAGE";
-const KAFKA_BOOTSTRAP: &str = "localhost:29092";
-//const KAFKA_BOOTSTRAP: &str = "b-3.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092,b-1.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092,b-2.mach-test.90vech.c20.kafka.us-east-1.amazonaws.com:9092";
+//const KAFKA_BOOTSTRAP: &str = "localhost:29092";
+const KAFKA_BOOTSTRAP: &str = "b-1.mach-test-2.yxr90w.c20.kafka.us-east-1.amazonaws.com:9092,b-3.mach-test-2.yxr90w.c20.kafka.us-east-1.amazonaws.com:9092,b-2.mach-test-2.yxr90w.c20.kafka.us-east-1.amazonaws.com:9092";
 const PARTITIONS: usize = 10;
 const BITS_COMPRESS: usize = 5;
 
 lazy_static! {
+    static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data").join("data_json");
+    static ref OUTDIR: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data").join("out");
     static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
     static ref TOTAL_RATE: Arc<Mutex<f64>> = Arc::new(Mutex::new(0.0f64));
     static ref BARRIERS: Arc<Barrier> = Arc::new(Barrier::new(NTHREADS));
@@ -104,9 +103,9 @@ impl DataEntry {
 fn load_data() -> HashMap<String, DataEntry> {
     println!("LOADING DATA");
     let file_path = if UNIVARIATE {
-        PathBuf::from(DATAPATH).join("bench1_univariate.json")
+        (&*DATAPATH).join("bench1_univariate.json")
     } else {
-        PathBuf::from(DATAPATH).join("bench1_multivariate.json")
+        (&*DATAPATH).join("bench1_multivariate.json")
     };
     let mut file = OpenOptions::new().read(true).open(file_path).unwrap();
     let mut json = String::new();
@@ -249,22 +248,23 @@ fn consume<W: ChunkWriter + 'static>(
 }
 
 fn file_writer(id: usize) -> FileWriter {
-    let p = PathBuf::from(OUTDIR).join(format!("file_{}", id));
+    let p = &*OUTDIR.join(format!("file_{}", id));
     FileWriter::new(p).unwrap()
 }
 
 fn main() {
-    match std::fs::remove_dir_all(OUTDIR) {
+    let outdir = &*OUTDIR;
+    match std::fs::remove_dir_all(outdir) {
         _ => {}
     };
-    std::fs::create_dir_all(OUTDIR).unwrap();
+    std::fs::create_dir_all(outdir).unwrap();
     let _data = DATA.len();
     let mut handles = Vec::new();
-    let mut backend = FileBackend::new(OUTDIR.into());
-    //let mut backend = KafkaBackend::new()
-    //    .bootstrap_servers(KAFKA_BOOTSTRAP)
-    //    .topic(KAFKA_TOPIC)
-    //    .partitions(PARTITIONS);
+    //let mut backend = FileBackend::new(outdir.into());
+    let mut backend = KafkaBackend::new()
+        .bootstrap_servers(KAFKA_BOOTSTRAP)
+        .topic(KAFKA_TOPIC)
+        .partitions(PARTITIONS);
     //let mut backend = VectorBackend::new();
     let global = Arc::new(DashMap::new());
     let id_counter = Arc::new(AtomicUsize::new(0));
