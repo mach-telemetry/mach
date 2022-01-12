@@ -12,7 +12,7 @@ use std::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc,
     },
-    time::{Instant, Duration},
+    time::{Duration, Instant},
 };
 
 pub trait ChunkWriter: Sync + Send {

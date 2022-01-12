@@ -19,10 +19,10 @@ mod persistent_list;
 mod segment;
 mod tags;
 mod test_utils;
+mod tsdb;
 mod utils;
 mod writer;
 mod zipf;
-mod tsdb;
 
 #[macro_use]
 mod rdtsc;
@@ -31,23 +31,26 @@ use rand::Rng;
 use serde::*;
 use std::{
     collections::HashMap,
+    convert::TryInto,
     fs::OpenOptions,
     io::prelude::*,
     path::PathBuf,
-    sync::{Arc, Barrier, Mutex, atomic::{AtomicUsize, Ordering::SeqCst}},
+    sync::{
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Arc, Barrier, Mutex,
+    },
     thread,
-    convert::TryInto,
 };
 
 use compression::*;
+use dashmap::DashMap;
 use lazy_static::lazy_static;
 use persistent_list::*;
+use seq_macro::seq;
 use tags::*;
+use tsdb::SeriesId;
 use writer::*;
 use zipf::*;
-use dashmap::DashMap;
-use tsdb::SeriesId;
-use seq_macro::seq;
 
 //const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json";
 //const OUTDIR: &str = "/Users/fsolleza/Downloads/temp_data";
@@ -121,7 +124,11 @@ fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
         .collect()
 }
 
-fn consume<W: ChunkWriter + 'static>(id_counter: Arc<AtomicUsize>, global: Arc<DashMap<SeriesId, SeriesMetadata>>, persistent_writer: W) {
+fn consume<W: ChunkWriter + 'static>(
+    id_counter: Arc<AtomicUsize>,
+    global: Arc<DashMap<SeriesId, SeriesMetadata>>,
+    persistent_writer: W,
+) {
     // Setup write thread
     let mut write_thread = Writer::new(global.clone(), persistent_writer);
 
@@ -187,9 +194,12 @@ fn consume<W: ChunkWriter + 'static>(id_counter: Arc<AtomicUsize>, global: Arc<D
                 let (start, res) = match sample.1.len() {
                     #(
                     N => {
-                        let item: [[u8; 8]; N] = (&sample.1[..]).try_into().unwrap();
+                        let sample: Sample<N> = Sample {
+                            timestamp: sample.0,
+                            values: (*sample.1).try_into().unwrap()
+                        };
                         let start = rdtsc!();
-                        let res = write_thread.push_item::<N>(ref_id, sample.0, item);
+                        let res = write_thread.push_sample(ref_id, sample);
                         (start, res)
                     },
                     )*

@@ -148,7 +148,11 @@ impl WriteSegment {
         })
     }
 
-    pub fn push_item<const I: usize>(&mut self, ts: u64, val: [[u8; 8]; I]) -> Result<PushStatus, Error> {
+    pub fn push_item<const I: usize>(
+        &mut self,
+        ts: u64,
+        val: [[u8; 8]; I],
+    ) -> Result<PushStatus, Error> {
         // Safety: Safe because there is only one writer, one flusher, and many concurrent readers.
         // Readers don't race with the writer because of the atomic counter. Writer and flusher do
         // not race because the writer is bounded by the flush_counter which can only be
@@ -159,7 +163,6 @@ impl WriteSegment {
             InnerPushStatus::Flush => PushStatus::Flush(self.flush()),
         })
     }
-
 
     pub fn push(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<PushStatus, Error> {
         // Safety: Safe because there is only one writer, one flusher, and many concurrent readers.

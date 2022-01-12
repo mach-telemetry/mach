@@ -36,7 +36,11 @@ impl<const V: usize> InnerBuffer<V> {
         }
     }
 
-    fn push_item<const B: usize>(&mut self, ts: u64, item: [[u8; 8]; B]) -> Result<InnerPushStatus, Error> {
+    fn push_item<const B: usize>(
+        &mut self,
+        ts: u64,
+        item: [[u8; 8]; B],
+    ) -> Result<InnerPushStatus, Error> {
         let len = self.len;
         //let len = self.atomic_len.load(SeqCst);
         if len < SEGSZ - 1 {
@@ -151,7 +155,11 @@ impl<const V: usize> Buffer<V> {
         }
     }
 
-    pub fn push_item<const B: usize>(&mut self, ts: u64, item: [[u8; 8]; B]) -> Result<InnerPushStatus, Error> {
+    pub fn push_item<const B: usize>(
+        &mut self,
+        ts: u64,
+        item: [[u8; 8]; B],
+    ) -> Result<InnerPushStatus, Error> {
         // Safe because the push method does not race with another method in buffer
         unsafe { self.inner.get_mut_ref().push_item(ts, item) }
     }

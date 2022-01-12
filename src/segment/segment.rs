@@ -30,14 +30,17 @@ impl<const B: usize, const V: usize> Segment<B, V> {
         self.current_buffer().push_univariate(ts, item)
     }
 
-    pub fn push_item<const I: usize>(&mut self, ts: u64, item: [[u8; 8]; I]) -> Result<InnerPushStatus, Error> {
+    pub fn push_item<const I: usize>(
+        &mut self,
+        ts: u64,
+        item: [[u8; 8]; I],
+    ) -> Result<InnerPushStatus, Error> {
         self.local_count += 1;
         if self.local_count > SEGSZ {
             self.try_next_buffer();
         }
         self.current_buffer().push_item(ts, item)
     }
-
 
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         self.local_count += 1;
