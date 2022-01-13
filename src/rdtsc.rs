@@ -1,5 +1,5 @@
-use num::NumCast;
 use lazy_static::*;
+use num::NumCast;
 use raw_cpuid::CpuId;
 
 // Taken from: journalctl --boot | grep 'kernel: tsc:' -i | cut -d' ' -f5-

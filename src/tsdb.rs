@@ -1,16 +1,12 @@
 use crate::{
+    compression::Compression,
     constants::*,
     persistent_list::{self, Backend, Buffer},
     tags::Tags,
     writer::{SeriesMetadata, Writer},
-    compression::Compression,
 };
 use dashmap::DashMap;
-use std::{
-    collections::HashMap,
-    ops::Deref,
-    sync::Arc,
-};
+use std::{collections::HashMap, ops::Deref, sync::Arc};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct WriterId(pub usize);

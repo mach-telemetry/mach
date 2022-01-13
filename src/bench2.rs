@@ -11,6 +11,7 @@
 #![allow(unused)]
 #![allow(private_in_public)]
 #![feature(llvm_asm)]
+#![feature(proc_macro_hygiene)]
 
 mod compression;
 mod constants;
@@ -18,10 +19,10 @@ mod persistent_list;
 mod segment;
 mod tags;
 mod test_utils;
+mod tsdb;
 mod utils;
 mod writer;
 mod zipf;
-mod tsdb;
 
 #[macro_use]
 mod rdtsc;
@@ -30,45 +31,43 @@ use rand::Rng;
 use serde::*;
 use std::{
     collections::HashMap,
+    convert::TryInto,
     fs::OpenOptions,
     io::prelude::*,
     path::PathBuf,
-    sync::{Arc, Barrier, Mutex, atomic::{AtomicUsize, Ordering::SeqCst}},
+    sync::{
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Arc, Barrier, Mutex,
+    },
     thread,
     time::{Instant, Duration},
 };
 
 use compression::*;
+use dashmap::DashMap;
 use lazy_static::lazy_static;
 use persistent_list::*;
+use seq_macro::seq;
 use tags::*;
+use tsdb::SeriesId;
 use writer::*;
 use zipf::*;
-use dashmap::DashMap;
-use tsdb::SeriesId;
-
-//const DATAPATH: &str = "/Users/fsolleza/Downloads/data_json/bench1_multivariate.json";
-//const OUTPATH: &str = "/Users/fsolleza/Downloads/temp_data";
-
-const DATAPATH: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/data_json/";
-const OUTDIR: &str = "/home/fsolleza/Projects/mach-bench-private/rust/mach/data/out/";
-//const OUTDIR: &str = "/home/fsolleza/nvme/out/";
-
-//const DATAPATH: &str = "/data/data_json/";
-//const OUTDIR: &str = "/data/out/";
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
 const NSERIES: usize = 10_000;
 const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
-const NSEGMENTS: usize = 3;
+const NSEGMENTS: usize = 1;
 const UNIVARIATE: bool = true;
 const KAFKA_TOPIC: &str = "MACHSTORAGE";
 const KAFKA_BOOTSTRAP: &str = "localhost:29092";
 const COMPRESSION: Compression = Compression::Fixed(10);
+const PARTITIONS: usize = 10;
 
 lazy_static! {
+    static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data").join("data_json");
+    static ref OUTDIR: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data").join("out");
     static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
     static ref TOTAL_RATE: Arc<Mutex<f64>> = Arc::new(Mutex::new(0.0f64));
     static ref BARRIERS: Arc<Barrier> = Arc::new(Barrier::new(NTHREADS));
@@ -98,14 +97,15 @@ impl DataEntry {
 fn load_data() -> HashMap<String, DataEntry> {
     println!("LOADING DATA");
     let file_path = if UNIVARIATE {
-        PathBuf::from(DATAPATH).join("bench1_univariate.json")
+        (&*DATAPATH).join("bench1_univariate.json")
     } else {
-        PathBuf::from(DATAPATH).join("bench1_multivariate.json")
+        (&*DATAPATH).join("bench1_multivariate.json")
     };
     let mut file = OpenOptions::new().read(true).open(file_path).unwrap();
     let mut json = String::new();
     file.read_to_string(&mut json).unwrap();
-    serde_json::from_str(json.as_str()).unwrap()
+    let dict: HashMap<String, DataEntry> = serde_json::from_str(json.as_str()).unwrap();
+    dict
 }
 
 fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
@@ -117,7 +117,11 @@ fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
         .collect()
 }
 
-fn consume<W: ChunkWriter + 'static>(id_counter: Arc<AtomicUsize>, global: Arc<DashMap<SeriesId, SeriesMetadata>>, persistent_writer: W) {
+fn consume<W: ChunkWriter + 'static>(
+    id_counter: Arc<AtomicUsize>,
+    global: Arc<DashMap<SeriesId, SeriesMetadata>>,
+    persistent_writer: W,
+) {
     // Setup write thread
     let mut write_thread = Writer::new(global.clone(), persistent_writer);
 
@@ -181,25 +185,27 @@ fn consume<W: ChunkWriter + 'static>(id_counter: Arc<AtomicUsize>, global: Arc<D
         let sample = &data[idx][0];
         let ref_id = refs[idx];
         'inner: loop {
-            //let item = sample.1[0];
-                    let start = rdtsc!();
-                    let res = write_thread.push(ref_id, sample.0, &sample.1[..]);
-                    let end = rdtsc!();
-                    cycles += end - start;
-            //let res = match sample.1.len() {
-            //    1 => {
-            //        let item = [sample.1[0]];
-            //        let start = rdtsc!();
-            //        let res = write_thread.push(ref_id, sample.0, &item);
-            //        let end = rdtsc!();
-            //        cycles += end - start;
-            //        res
-            //    },
-            //    _ => unimplemented!(),
-            //};
+            seq!(N in 1..10 {
+                let (start, res) = match sample.1.len() {
+                    #(
+                    N => {
+                        let sample: Sample<N> = Sample {
+                            timestamp: sample.0,
+                            values: (*sample.1).try_into().unwrap()
+                        };
+                        let start = rdtsc!();
+                        let res = write_thread.push_sample(ref_id, sample);
+                        (start, res)
+                    },
+                    )*
+                    _ => unimplemented!()
+                };
+            });
 
             match res {
                 Ok(_) => {
+                    let end = rdtsc!();
+                    cycles += end - start;
                     //let s = Instant::now();
                     floats += sample.1.len();
                     data[idx] = &data[idx][1..];
@@ -216,8 +222,8 @@ fn consume<W: ChunkWriter + 'static>(id_counter: Arc<AtomicUsize>, global: Arc<D
                 }
                 Err(_) => {
                     retries += 1;
-                    //let end = rdtsc!();
-                    //cycles += end - start;
+                    let end = rdtsc!();
+                    cycles += end - start;
                     if !BLOCKING_RETRY {
                         // If error, we'll try again next time
                         break 'inner;
@@ -239,19 +245,19 @@ fn consume<W: ChunkWriter + 'static>(id_counter: Arc<AtomicUsize>, global: Arc<D
 }
 
 fn file_writer(id: usize) -> FileWriter {
-    let p = PathBuf::from(OUTDIR).join(format!("file_{}", id));
+    let p = &*OUTDIR.join(format!("file_{}", id));
     FileWriter::new(p).unwrap()
 }
 
 fn main() {
-    match std::fs::remove_dir_all(OUTDIR) {
+    let outdir = &*OUTDIR;
+    match std::fs::remove_dir_all(outdir) {
         _ => {}
     };
-    std::fs::create_dir_all(OUTDIR).unwrap();
-    let _len = DATA.len();
-    println!("DONE LOADING");
+    std::fs::create_dir_all(outdir).unwrap();
+    let _data = DATA.len();
     let mut handles = Vec::new();
-    let mut backend = FileBackend::new(OUTDIR.into());
+    let mut backend = FileBackend::new(outdir.into());
     //let mut backend = KafkaBackend::new()
     //    .bootstrap_servers(KAFKA_BOOTSTRAP)
     //    .topic(KAFKA_TOPIC)

@@ -14,75 +14,111 @@ pub enum InnerPushStatus {
 }
 
 struct Inner<const V: usize> {
-    len: usize,
     ts: [u64; SEGSZ],
     data: [Column; V],
 }
 
 struct InnerBuffer<const V: usize> {
     atomic_len: AtomicUsize,
-    inner: UnsafeCell<Inner<V>>,
+    len: usize,
+    inner: Inner<V>,
 }
 
 impl<const V: usize> InnerBuffer<V> {
     fn new() -> Self {
         InnerBuffer {
-            inner: UnsafeCell::new(Inner {
-                len: 0,
+            len: 0,
+            inner: Inner {
                 ts: [0u64; SEGSZ],
                 data: [[[0u8; 8]; 256]; V],
-            }),
+            },
             atomic_len: AtomicUsize::new(0),
         }
     }
 
-    fn push(&self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
-        let inner: &mut Inner<V> = unsafe { self.inner.get().as_mut().unwrap() };
-        if inner.len == SEGSZ {
-            Err(Error::PushIntoFull)
+    fn push_item<const B: usize>(
+        &mut self,
+        ts: u64,
+        item: [[u8; 8]; B],
+    ) -> Result<InnerPushStatus, Error> {
+        let len = self.len;
+        //let len = self.atomic_len.load(SeqCst);
+        if len < SEGSZ - 1 {
+            self.inner.ts[len] = ts;
+            for i in 0..B {
+                self.inner.data[i][len] = item[i];
+            }
+            self.len += 1;
+            //self.atomic_len.fetch_add(1, SeqCst);
+            Ok(InnerPushStatus::Done)
+        } else if len == SEGSZ - 1 {
+            self.inner.ts[len] = ts;
+            for i in 0..V {
+                self.inner.data[i][len] = item[i];
+            }
+            //self.atomic_len.fetch_add(1, SeqCst);
+            self.len += 1;
+            Ok(InnerPushStatus::Flush)
         } else {
-            inner.ts[inner.len] = ts;
-            for (var, col) in inner.data.iter_mut().enumerate() {
-                col[inner.len] = item[var];
-            }
-            inner.len += 1;
-            self.atomic_len.store(inner.len, SeqCst);
-            if inner.len < SEGSZ {
-                Ok(InnerPushStatus::Done)
-            } else {
-                Ok(InnerPushStatus::Flush)
-            }
+            Err(Error::PushIntoFull)
         }
     }
 
-    fn push_univariate(&self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
-        let inner: &mut Inner<V> = unsafe { self.inner.get().as_mut().unwrap() };
-        if inner.len == SEGSZ {
-            Err(Error::PushIntoFull)
-        } else {
-            inner.ts[inner.len] = ts;
-            inner.data[0][inner.len] = item;
-            inner.len += 1;
-            self.atomic_len.store(inner.len, SeqCst);
-            if inner.len < SEGSZ {
-                Ok(InnerPushStatus::Done)
-            } else {
-                Ok(InnerPushStatus::Flush)
+    fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
+        let len = self.len;
+        //let len = self.atomic_len.load(SeqCst);
+        if len < SEGSZ - 1 {
+            self.inner.ts[len] = ts;
+            for i in 0..V {
+                self.inner.data[i][len] = item[i];
             }
+            self.len += 1;
+            //self.atomic_len.fetch_add(1, SeqCst);
+            Ok(InnerPushStatus::Done)
+        } else if len == SEGSZ - 1 {
+            self.inner.ts[len] = ts;
+            for i in 0..V {
+                self.inner.data[i][len] = item[i];
+            }
+            //self.atomic_len.fetch_add(1, SeqCst);
+            self.len += 1;
+            Ok(InnerPushStatus::Flush)
+        } else {
+            Err(Error::PushIntoFull)
+        }
+    }
+
+    fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
+        let len = self.len;
+        //let len = self.atomic_len.load(SeqCst);
+        if len < SEGSZ - 1 {
+            self.inner.ts[len] = ts;
+            self.inner.data[0][len] = item;
+            //self.atomic_len.fetch_add(1, SeqCst);
+            self.len += 1;
+            Ok(InnerPushStatus::Done)
+        } else if len == SEGSZ - 1 {
+            self.inner.ts[len] = ts;
+            self.inner.data[0][len] = item;
+            self.len += 1;
+            //self.atomic_len.fetch_add(1, SeqCst);
+            Ok(InnerPushStatus::Flush)
+        } else {
+            Err(Error::PushIntoFull)
         }
     }
 
     fn reset(&mut self) {
-        let inner: &mut Inner<V> = unsafe { self.inner.get().as_mut().unwrap() };
-        inner.len = 0;
-        self.atomic_len.store(0, SeqCst);
+        self.len = 0;
+        //self.atomic_len.store(0, SeqCst);
     }
 
     fn read(&self) -> ReadBuffer {
-        let len = self.atomic_len.load(SeqCst);
+        let len = self.len;
+        //self.atomic_len.load(SeqCst);
         let mut data = Vec::new();
         let mut ts = [0u64; 256];
-        let inner: &Inner<V> = unsafe { self.inner.get().as_ref().unwrap() };
+        let inner: &Inner<V> = &self.inner;
         ts[..len].copy_from_slice(&inner.ts[..len]);
         for v in inner.data.iter() {
             data.extend_from_slice(&v[..len]);
@@ -91,8 +127,9 @@ impl<const V: usize> InnerBuffer<V> {
     }
 
     fn to_flush(&self) -> Option<FullSegment> {
-        let len = self.atomic_len.load(SeqCst);
-        let inner: &Inner<V> = unsafe { self.inner.get().as_ref().unwrap() };
+        //let len = self.atomic_len.load(SeqCst);
+        let len = self.len;
+        let inner: &Inner<V> = &self.inner;
         if len > 0 {
             Some(FullSegment {
                 len,
@@ -118,14 +155,23 @@ impl<const V: usize> Buffer<V> {
         }
     }
 
+    pub fn push_item<const B: usize>(
+        &mut self,
+        ts: u64,
+        item: [[u8; 8]; B],
+    ) -> Result<InnerPushStatus, Error> {
+        // Safe because the push method does not race with another method in buffer
+        unsafe { self.inner.get_mut_ref().push_item(ts, item) }
+    }
+
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         // Safe because the push method does not race with another method in buffer
-        unsafe { self.inner.get_ref().push(ts, item) }
+        unsafe { self.inner.get_mut_ref().push(ts, item) }
     }
 
     pub fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
         // Safe because the push method does not race with another method in buffer
-        unsafe { self.inner.get_ref().push_univariate(ts, item) }
+        unsafe { self.inner.get_mut_ref().push_univariate(ts, item) }
     }
 
     pub fn reset(&mut self) {

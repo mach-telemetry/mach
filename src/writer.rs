@@ -7,10 +7,7 @@ use crate::{
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug)]
 pub enum Error {
@@ -48,6 +45,11 @@ impl SeriesMetadata {
     }
 }
 
+pub struct Sample<const V: usize> {
+    pub timestamp: u64,
+    pub values: [[u8; 8]; V],
+}
+
 pub struct Writer {
     global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
     local_meta: HashMap<SeriesId, SeriesMetadata>,
@@ -59,8 +61,10 @@ pub struct Writer {
 }
 
 impl Writer {
-
-    pub fn new<W: ChunkWriter + 'static>(global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>, w: W) -> Self {
+    pub fn new<W: ChunkWriter + 'static>(
+        global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
+        w: W,
+    ) -> Self {
         let flush_worker = FlushWorker::new(w);
         Self {
             global_meta,
@@ -102,7 +106,19 @@ impl Writer {
         Ok(())
     }
 
-    pub fn _push_univariate(
+    pub fn push_sample<const V: usize>(
+        &mut self,
+        reference: usize,
+        sample: Sample<V>,
+    ) -> Result<(), Error> {
+        match self.writers[reference].push_item(sample.timestamp, sample.values)? {
+            segment::PushStatus::Done => {}
+            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
+        }
+        Ok(())
+    }
+
+    pub fn push_univariate(
         &mut self,
         reference: usize,
         ts: u64,
