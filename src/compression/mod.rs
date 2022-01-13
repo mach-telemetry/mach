@@ -3,7 +3,7 @@ mod timestamps;
 mod utils;
 mod xor;
 mod decimal;
-//mod lz4_string;
+mod bytes_lz4;
 
 use crate::segment::FullSegment;
 use crate::utils::byte_buffer::ByteBuffer;

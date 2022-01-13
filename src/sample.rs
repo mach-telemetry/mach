@@ -37,6 +37,14 @@ impl Bytes {
         }
     }
 
+    pub fn as_raw_bytes(&self) -> &[u8] {
+        let len = self.len();
+        unsafe {
+            std::slice::from_raw_parts(self.0, len + size_of::<usize>())
+        }
+    }
+
+
     pub fn from_slice(data: &[u8]) -> Self {
         let usz = size_of::<usize>();
         let len = data.len();
@@ -67,8 +75,14 @@ impl Bytes {
         self.0
     }
 
-    unsafe fn from_raw(p: *const u8) -> Self {
+    pub unsafe fn from_raw(p: *const u8) -> Self {
         Self(p)
+    }
+
+    pub fn from_raw_bytes(bytes: &[u8]) -> (Self, usize) {
+        let usz = size_of::<usize>();
+        let len = usize::from_be_bytes(bytes[..usz].try_into().unwrap());
+        (Self::from_slice(&bytes[..len + usz]), usz + len)
     }
 }
 
@@ -89,6 +103,17 @@ pub struct Sample<const V: usize> {
 
 impl<const V: usize> Sample<V> {
     pub fn from_f64(timestamp: u64, data: [f64; V]) -> Self {
+        let mut values = [[0; 8]; V];
+        for i in 0..V {
+            values[i] = data[i].to_be_bytes();
+        }
+        Sample {
+            timestamp,
+            values,
+        }
+    }
+
+    pub fn from_u64(timestamp: u64, data: [u64; V]) -> Self {
         let mut values = [[0; 8]; V];
         for i in 0..V {
             values[i] = data[i].to_be_bytes();
