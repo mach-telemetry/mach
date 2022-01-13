@@ -23,6 +23,7 @@ mod tsdb;
 mod utils;
 mod writer;
 mod zipf;
+mod sample;
 
 #[macro_use]
 mod rdtsc;
@@ -52,14 +53,15 @@ use tags::*;
 use tsdb::SeriesId;
 use writer::*;
 use zipf::*;
+use sample::*;
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
-const NSERIES: usize = 10_000;
+const NSERIES: usize = 100_000;
 const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
-const UNIVARIATE: bool = true;
+const UNIVARIATE: bool = false;
 const KAFKA_TOPIC: &str = "MACHSTORAGE";
 const KAFKA_BOOTSTRAP: &str = "localhost:29092";
 const COMPRESSION: Compression = Compression::Fixed(10);

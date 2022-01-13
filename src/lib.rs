@@ -24,6 +24,8 @@ pub mod tags;
 pub mod tsdb;
 pub mod utils;
 pub mod writer;
+pub mod sample;
+//pub mod into;
 
 #[cfg(test)]
 mod test_utils;

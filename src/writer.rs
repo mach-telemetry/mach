@@ -4,6 +4,7 @@ use crate::{
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
     tags::Tags,
     tsdb::SeriesId,
+    sample::Sample,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
@@ -43,11 +44,6 @@ impl SeriesMetadata {
             list: List::new(buffer),
         }
     }
-}
-
-pub struct Sample<const V: usize> {
-    pub timestamp: u64,
-    pub values: [[u8; 8]; V],
 }
 
 pub struct Writer {

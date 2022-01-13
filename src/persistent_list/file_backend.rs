@@ -62,7 +62,7 @@ impl ChunkWriter for FileWriter {
         let sz = bytes.len();
         //let now = std::time::Instant::now();
         self.current_offset += self.file.write(bytes)?;
-        self.file.sync_all()?;
+        //self.file.sync_all()?;
         //println!("Duration: {:?}", now.elapsed());
         let head = PersistentHead {
             partition: usize::MAX,
