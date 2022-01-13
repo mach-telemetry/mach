@@ -3,7 +3,7 @@ use bitpacking::{BitPacker, BitPacker8x};
 use num::NumCast;
 use std::convert::TryFrom;
 
-pub fn _multiplier(p: u8) -> i64 {
+pub fn multiplier(p: u8) -> i64 {
     10i64.pow(p as u32 + 1)
 }
 
@@ -16,41 +16,41 @@ pub fn from_zigzag(v: u64) -> i64 {
 }
 
 // p is the number of decimals to round to
-//pub fn float_to_parts(v: f64, p: u8) -> (i64, u64) {
-//    let integral = v.abs().trunc();
-//    let part = ((v - integral) * 10f64.powi(p as i32 + 1)).trunc();
-//    (integral as i64, part as u64)
-//}
-//
-//pub fn float_from_parts(i: i64, d: u64, p: u8) -> f64 {
-//    let i = i as f64;
-//    let d = d as f64;
-//    i + (d / 10f64.powi(p as i32 + 1))
-//}
-//
-//#[allow(clippy::many_single_char_names)]
-//pub fn float_to_int(p: u8, a: f64) -> Result<i64, ()> {
-//    let v: f64 = a as f64;
-//    let sign = v.signum();
-//    let v = v.abs();
-//
-//    let m: i64 = multiplier(p);
-//
-//    let n = v.floor();
-//    let f = (v - n) * m as f64;
-//
-//    let nm = n as i64 * m;
-//    let fm = f as i64;
-//    let r = (nm + fm) * sign as i64;
-//
-//    NumCast::from(r).ok_or(())
-//}
-//
-//pub fn float_from_int(p: u8, v: i64) -> f64 {
-//    let mult = multiplier(p);
-//    (v as f64 / mult as f64) as f64
-//}
-//
+pub fn float_to_parts(v: f64, p: u8) -> (i64, u64) {
+    let integral = v.abs().trunc();
+    let part = ((v - integral) * 10f64.powi(p as i32 + 1)).trunc();
+    (integral as i64, part as u64)
+}
+
+pub fn float_from_parts(i: i64, d: u64, p: u8) -> f64 {
+    let i = i as f64;
+    let d = d as f64;
+    i + (d / 10f64.powi(p as i32 + 1))
+}
+
+#[allow(clippy::many_single_char_names)]
+pub fn float_to_int(p: u8, a: f64) -> Result<i64, ()> {
+    let v: f64 = a as f64;
+    let sign = v.signum();
+    let v = v.abs();
+
+    let m: i64 = multiplier(p);
+
+    let n = v.floor();
+    let f = (v - n) * m as f64;
+
+    let nm = n as i64 * m;
+    let fm = f as i64;
+    let r = (nm + fm) * sign as i64;
+
+    NumCast::from(r).ok_or(())
+}
+
+pub fn float_from_int(p: u8, v: i64) -> f64 {
+    let mult = multiplier(p);
+    (v as f64 / mult as f64) as f64
+}
+
 //#[derive(Copy, Clone)]
 //pub struct U64Differ {
 //    prev: i64,
@@ -213,20 +213,20 @@ mod test {
     use fixed::{types::extra::*, FixedI16, FixedI64};
     use rand::prelude::*;
 
-    #[test]
-    fn test_float_parts() {
-        for (_, data) in UNIVARIATE_DATA.iter() {
-            let mut values = data.iter().map(|x| x.values[0]).collect::<Vec<f64>>();
-            for v in values {
-                let (integral, decimal) = float_to_parts(v, 3);
-                let recons = float_from_parts(integral, decimal, 3);
-                if (v - recons).abs() >= 0.001 {
-                    println!("{} {} {}", v, recons, (v - recons).abs());
-                    assert!(false);
-                }
-            }
-        }
-    }
+    //#[test]
+    //fn test_float_parts() {
+    //    for (_, data) in UNIVARIATE_DATA.iter() {
+    //        let mut values = data.iter().map(|x| x.values[0]).collect::<Vec<f64>>();
+    //        for v in values {
+    //            let (integral, decimal) = float_to_parts(v, 3);
+    //            let recons = float_from_parts(integral, decimal, 3);
+    //            if (v - recons).abs() >= 0.001 {
+    //                println!("{} {} {}", v, recons, (v - recons).abs());
+    //                assert!(false);
+    //            }
+    //        }
+    //    }
+    //}
 
     #[test]
     fn test_float_fixed() {
@@ -259,26 +259,26 @@ mod test {
         //}
     }
 
-    #[test]
-    fn u64_differences_roll() {
-        let mut state = U64Differ::new();
-        assert_eq!(state.roll(11), 11); // first is not zigged
-        assert_eq!(state.roll(15), to_zigzag(4));
-        assert_eq!(state.roll(16), to_zigzag(-3));
-        assert_eq!(state.roll(20), to_zigzag(3));
-        assert_eq!(state.roll(21), to_zigzag(-3));
-    }
+    //#[test]
+    //fn u64_differences_roll() {
+    //    let mut state = U64Differ::new();
+    //    assert_eq!(state.roll(11), 11); // first is not zigged
+    //    assert_eq!(state.roll(15), to_zigzag(4));
+    //    assert_eq!(state.roll(16), to_zigzag(-3));
+    //    assert_eq!(state.roll(20), to_zigzag(3));
+    //    assert_eq!(state.roll(21), to_zigzag(-3));
+    //}
 
-    #[test]
-    fn u64_differences_unroll() {
-        let data = &[11, 15, 16, 20, 21];
-        let mut state = U64Differ::new();
-        let rolled: Vec<u64> = data.iter().map(|x| state.roll(*x)).collect();
+    //#[test]
+    //fn u64_differences_unroll() {
+    //    let data = &[11, 15, 16, 20, 21];
+    //    let mut state = U64Differ::new();
+    //    let rolled: Vec<u64> = data.iter().map(|x| state.roll(*x)).collect();
 
-        let mut state = U64Differ::new();
-        let unrolled: Vec<u64> = rolled.iter().map(|x| state.unroll(*x)).collect();
-        assert_eq!(&data[..], &unrolled);
-    }
+    //    let mut state = U64Differ::new();
+    //    let unrolled: Vec<u64> = rolled.iter().map(|x| state.unroll(*x)).collect();
+    //    assert_eq!(&data[..], &unrolled);
+    //}
 
     //#[test]
     //fn fl_differences_roll() {

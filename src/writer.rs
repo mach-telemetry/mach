@@ -224,8 +224,11 @@ mod test {
         let buffer = Buffer::new(6000);
 
         let series_meta = SeriesMetadata::new(tags, 1, nvars, compression, buffer.clone());
-        let mut write_thread = Writer::new(persistent_writer);
-        let series_ref: usize = write_thread.register(0, series_meta.clone());
+        let serid = SeriesId(0);
+        let dict = Arc::new(DashMap::new());
+        dict.insert(serid, series_meta.clone());
+        let mut write_thread = Writer::new(dict.clone(), persistent_writer);
+        let series_ref: usize = write_thread.register(serid);
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];

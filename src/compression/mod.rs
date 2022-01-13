@@ -2,6 +2,7 @@ mod fixed;
 mod timestamps;
 mod utils;
 mod xor;
+mod decimal;
 
 use crate::segment::FullSegment;
 use crate::utils::byte_buffer::ByteBuffer;
@@ -89,6 +90,7 @@ pub enum Compression {
     LZ4(i32),
     Fixed(usize),
     XOR,
+    Decimal(u8),
 }
 
 impl Compression {
@@ -102,6 +104,7 @@ impl Compression {
             Compression::LZ4(_) => 1,
             Compression::Fixed(_) => 2,
             Compression::XOR => 3,
+            Compression::Decimal(_) => 4,
         };
         buf.extend_from_slice(&MAGIC[..]);
         buf.extend_from_slice(&compression_id.to_be_bytes()[..]);
@@ -141,6 +144,7 @@ impl Compression {
             Compression::LZ4(acc) => lz4_compress(segment, buf, *acc),
             Compression::Fixed(bits) => fixed_compress(segment, buf, *bits),
             Compression::XOR => xor_compress(segment, buf),
+            Compression::Decimal(precision) => decimal_compress(segment, buf, *precision),
         }
     }
 
@@ -163,6 +167,7 @@ impl Compression {
             1 => lz4_decompress(header, &data[off..], buf)?,
             2 => fixed_decompress(header, &data[off..], buf)?,
             3 => xor_decompress(header, &data[off..], buf)?,
+            4 => decimal_decompress(header, &data[off..], buf)?,
             _ => return Err(Error::UnrecognizedCompressionType),
         };
 
@@ -331,6 +336,54 @@ fn xor_decompress(header: Header, data: &[u8], buf: &mut DecompressBuffer) -> Re
     Ok(off)
 }
 
+fn decimal_compress(segment: &FullSegment, buf: &mut ByteBuffer, precision: u8) {
+    // compress the timesetamps
+    let len_offset = buf.len();
+    buf.extend_from_slice(&0u64.to_be_bytes()[..]); // compressed sz placeholder
+    let start_len = buf.len();
+    timestamps::compress(segment.timestamps(), buf);
+    let end_len = buf.len();
+    let len = (end_len - start_len) as u64;
+    buf.as_mut_slice()[len_offset..len_offset + 8].copy_from_slice(&len.to_be_bytes()[..]);
+
+    // compress the values
+    let nvars = segment.nvars;
+    for i in 0..nvars {
+        //let p = buf.len();
+        let len_offset = buf.len();
+        buf.extend_from_slice(&0u64.to_be_bytes()[..]); // compressed sz placeholder
+        let start_len = len_offset + 8;
+        decimal::compress(segment.variable(i), buf, precision);
+        let end_len = buf.len();
+        let len = (end_len - start_len) as u64;
+        buf.as_mut_slice()[len_offset..len_offset + 8].copy_from_slice(&len.to_be_bytes()[..]);
+    }
+}
+
+fn decimal_decompress(
+    header: Header,
+    data: &[u8],
+    buf: &mut DecompressBuffer,
+) -> Result<usize, Error> {
+    let mut off = 0;
+    // decompress timestamps
+    let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
+    off += 8;
+
+    timestamps::decompress(&data[off..off + sz], &mut buf.ts);
+    off += sz;
+
+    // decompress values
+    for i in 0..header.nvars {
+        let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
+        off += 8;
+        decimal::decompress(&data[off..off + sz], &mut buf.values[i]);
+        off += sz;
+    }
+    Ok(off)
+}
+
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -493,4 +546,60 @@ mod test {
             assert_eq!(buf.variable(i), segment.variable(i));
         }
     }
+
+    #[test]
+    fn test_decimal() {
+        let data = &MULTIVARIATE_DATA[0].1;
+        let nvars = data[0].values.len();
+
+        let mut timestamps = [0; 256];
+        let mut v = Vec::new();
+        for _ in 0..nvars {
+            v.push([[0u8; 8]; 256]);
+        }
+
+        for (idx, sample) in data[0..256].iter().enumerate() {
+            timestamps[idx] = sample.ts;
+            for (var, val) in sample.values.iter().enumerate() {
+                v[var][idx] = val.to_be_bytes();
+            }
+        }
+
+        let segment = FullSegment {
+            len: 256,
+            nvars,
+            ts: &timestamps,
+            data: v.as_slice(),
+        };
+
+        let mut compressed = vec![0u8; 4096];
+        let mut byte_buf = ByteBuffer::new(&mut compressed[..]);
+        let mut buf = DecompressBuffer::new();
+        let header = Header {
+            code: 1,
+            nvars,
+            len: 256,
+        };
+
+        // Need to set this manually because the header is generated separately
+        buf.set_nvars(nvars);
+        buf.len = 256;
+
+        decimal_compress(&segment, &mut byte_buf, 3);
+        decimal_decompress(header, &compressed[..], &mut buf).unwrap();
+
+        assert_eq!(&buf.ts[..], &timestamps[..]);
+        for i in 0..nvars {
+            let exp = segment.variable(i);
+            let res = buf.variable(i);
+            let diff = exp
+                .iter()
+                .zip(res.iter())
+                .map(|(x, y)| (f64::from_be_bytes(*x) - f64::from_be_bytes(*y)).abs())
+                .fold(f64::NAN, f64::max);
+
+            assert!(diff < 0.001);
+        }
+    }
+
 }
