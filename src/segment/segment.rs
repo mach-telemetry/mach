@@ -23,11 +23,14 @@ pub struct Segment<const B: usize, const V: usize> {
 
 impl<const B: usize, const V: usize> Segment<B, V> {
     pub fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
-        self.local_count += 1;
-        if self.local_count > SEGSZ {
+        if self.local_count == SEGSZ {
             self.try_next_buffer();
         }
-        self.current_buffer().push_univariate(ts, item)
+        let res = self.current_buffer().push_univariate(ts, item);
+        if res.is_ok() {
+            self.local_count += 1;
+        }
+        res
     }
 
     pub fn push_item<const I: usize>(
@@ -35,19 +38,25 @@ impl<const B: usize, const V: usize> Segment<B, V> {
         ts: u64,
         item: [[u8; 8]; I],
     ) -> Result<InnerPushStatus, Error> {
-        self.local_count += 1;
-        if self.local_count > SEGSZ {
+        if self.local_count == SEGSZ {
             self.try_next_buffer();
         }
-        self.current_buffer().push_item(ts, item)
+        let res = self.current_buffer().push_item(ts, item);
+        if res.is_ok() {
+            self.local_count += 1;
+        }
+        res
     }
 
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
-        self.local_count += 1;
-        if self.local_count > SEGSZ {
+        if self.local_count == SEGSZ {
             self.try_next_buffer();
         }
-        self.current_buffer().push(ts, item)
+        let res = self.current_buffer().push(ts, item);
+        if res.is_ok() {
+            self.local_count += 1;
+        }
+        res
     }
 
     #[inline]
@@ -57,7 +66,9 @@ impl<const B: usize, const V: usize> Segment<B, V> {
 
     fn try_next_buffer(&mut self) -> bool {
         let flushed = self.flushed.load(SeqCst);
+        println!("local: {}, flushed: {}, B: {}", self.local_head, flushed, B);
         if self.local_head as isize - flushed < B as isize {
+            println!("HERE");
             self.local_head = self.head.fetch_add(1, SeqCst) + 1;
             let buf = &mut self.buffers[self.local_head % B];
             buf.reset();

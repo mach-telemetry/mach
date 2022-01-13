@@ -52,3 +52,14 @@ pub fn bytes_lz4_decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usiz
 
     (off, len)
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    fn test_compress_decompress(data: &[String; 256]) {
+        let mut v = Vec::new();
+        for s in data.iter() {
+            v.push(Bytes::from_slice(s.as_bytes()).into_raw());
+        }
+    }
+}

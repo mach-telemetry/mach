@@ -229,7 +229,7 @@ mod test {
             assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
         }
 
-        for item in &data[256..512 - 1] {
+        for item in &data[256..511] {
             let v = to_values(&item.values[..]);
             assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
         }
@@ -251,6 +251,7 @@ mod test {
             assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
         }
 
+        println!("PUSH HERE");
         {
             let item = &data[768];
             let v = to_values(&item.values[..]);
@@ -258,12 +259,15 @@ mod test {
             assert_eq!(res.err(), Some(Error::PushIntoFull));
         }
 
+        println!("FLUSHING");
         writer.flush().flushed();
+        println!("FLUSHED");
 
         for item in &data[768..1023] {
             let v = to_values(&item.values[..]);
             assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
         }
+        println!("PUSH DOESNT REACH HERE");
 
         {
             let item = &data[1023];
@@ -310,9 +314,16 @@ mod test {
         }
 
         // 767 = 256 * 3 buffers - 1;
-        for item in &data[..767] {
+        for (id, item) in data[..767].iter().enumerate() {
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).is_ok());
+            let res = writer.push(item.ts, &v[..]);
+            match res {
+                Ok(_) => {},
+                Err(x) => {
+                    println!("Result: {:?} id: {}", x, id);
+                    assert!(false);
+                },
+            }
             exp_ts.push(item.ts);
             for (e, i) in exp_values.iter_mut().zip(v.iter()) {
                 e.push(*i)

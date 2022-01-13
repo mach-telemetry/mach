@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs::OpenOptions,
-    io::Read,
+    io::{
+        prelude::*,
+        BufReader,
+    },
     path::{Path, PathBuf},
     sync::{atomic::AtomicU64, Arc},
 };
@@ -17,6 +20,7 @@ pub struct Sample {
 
 pub const UNIVARIATE: &str = "bench1_univariate_small.json";
 pub const MULTIVARIATE: &str = "bench1_multivariate_small.json";
+pub const LOGS: &str = "SSH.log";
 pub const MIN_SAMPLES: usize = 30_000;
 
 lazy_static! {
@@ -25,6 +29,7 @@ lazy_static! {
     pub static ref MULTIVARIATE_DATA: Arc<Vec<(String, Data)>> = Arc::new(load_multivariate());
     pub static ref SYNTHETIC_DATA: Data = Arc::new(gen_synthetic());
     pub static ref SHARED_FILE_ID: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
+    pub static ref LOG_DATA: Arc<Vec<String>> = Arc::new(load_logs());
 }
 
 fn gen_synthetic() -> Vec<Sample> {
@@ -47,6 +52,16 @@ fn gen_synthetic() -> Vec<Sample> {
         samples.push(s);
     }
     samples
+}
+
+pub fn load_logs() -> Vec<String> {
+    println!("Loading log data");
+    let mut file = OpenOptions::new()
+        .read(true)
+        .open(Path::new(TEST_DATA_PATH.as_path()).join(LOGS))
+        .unwrap();
+    let mut reader = BufReader::new(file);
+    reader.lines().map(|x| x.unwrap()).collect()
 }
 
 pub type Data = Arc<Vec<Sample>>;
