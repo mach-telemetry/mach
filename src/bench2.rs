@@ -205,10 +205,6 @@ fn consume<W: ChunkWriter + 'static>(
                     _ => unimplemented!()
                 };
             });
-            //let item = [sample.1[0]];
-            //let res = write_thread.push_item::<1>(ref_id, sample.0, item);
-            //let item = sample.1[0];
-            //let res = write_thread.push_univariate(ref_id, sample.0, item);
 
             match res {
                 Ok(_) => {
