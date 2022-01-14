@@ -1,6 +1,6 @@
 use std::convert::{TryInto, AsRef};
 use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
-use std::mem::{align_of, size_of};
+use std::mem::{align_of, size_of, ManuallyDrop};
 
 /// This is a workaround to Box<[u8]> that stores the size of the slice in the heap.
 /// The layout of Box<[u8]> stores the slice of data in the heap and a pointer and the size of the
@@ -72,7 +72,8 @@ impl Bytes {
     }
 
     pub fn into_raw(self) -> *const u8 {
-        self.0
+        let me = ManuallyDrop::new(self);
+        me.0
     }
 
     pub unsafe fn from_raw(p: *const u8) -> Self {
@@ -82,7 +83,7 @@ impl Bytes {
     pub fn from_raw_bytes(bytes: &[u8]) -> (Self, usize) {
         let usz = size_of::<usize>();
         let len = usize::from_be_bytes(bytes[..usz].try_into().unwrap());
-        (Self::from_slice(&bytes[..len + usz]), usz + len)
+        (Self::from_slice(&bytes[usz..len + usz]), usz + len)
     }
 }
 

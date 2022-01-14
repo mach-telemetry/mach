@@ -8,6 +8,7 @@
 #![feature(thread_id_value)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
+#![allow(warnings)]
 
 //mod backend;
 //mod chunk;
