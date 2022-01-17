@@ -61,15 +61,20 @@ const NSERIES: usize = 100_000;
 const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
-const UNIVARIATE: bool = false;
+const UNIVARIATE: bool = true;
 const KAFKA_TOPIC: &str = "MACHSTORAGE";
 const KAFKA_BOOTSTRAP: &str = "localhost:29092";
+//const COMPRESSION: Compression = Compression::XOR;
 const COMPRESSION: Compression = Compression::Fixed(10);
+//const COMPRESSION: Compression = Compression::Decimal(3);
 const PARTITIONS: usize = 10;
 
 lazy_static! {
-    static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data").join("data_json");
-    static ref OUTDIR: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data").join("out");
+    static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
+    static ref BENCHPATH: PathBuf = DATAPATH.join("bench_data");
+    static ref METRICSPATH: PathBuf = BENCHPATH.join("metrics");
+    static ref LOGSPATH: PathBuf = BENCHPATH.join("logs");
+    static ref OUTDIR: PathBuf = DATAPATH.join("out");
     static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
     static ref TOTAL_RATE: Arc<Mutex<f64>> = Arc::new(Mutex::new(0.0f64));
     static ref BARRIERS: Arc<Barrier> = Arc::new(Barrier::new(NTHREADS));
@@ -99,9 +104,9 @@ impl DataEntry {
 fn load_data() -> HashMap<String, DataEntry> {
     println!("LOADING DATA");
     let file_path = if UNIVARIATE {
-        (&*DATAPATH).join("bench1_univariate.json")
+        METRICSPATH.join("univariate.json")
     } else {
-        (&*DATAPATH).join("bench1_multivariate.json")
+        METRICSPATH.join("multivariate.json")
     };
     let mut file = OpenOptions::new().read(true).open(file_path).unwrap();
     let mut json = String::new();

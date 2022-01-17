@@ -66,9 +66,9 @@ impl<const B: usize, const V: usize> Segment<B, V> {
 
     fn try_next_buffer(&mut self) -> bool {
         let flushed = self.flushed.load(SeqCst);
-        println!("local: {}, flushed: {}, B: {}", self.local_head, flushed, B);
+        //println!("local: {}, flushed: {}, B: {}", self.local_head, flushed, B);
         if self.local_head as isize - flushed < B as isize {
-            println!("HERE");
+            //println!("HERE");
             self.local_head = self.head.fetch_add(1, SeqCst) + 1;
             let buf = &mut self.buffers[self.local_head % B];
             buf.reset();
