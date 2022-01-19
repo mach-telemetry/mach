@@ -6,7 +6,7 @@ templates["[[push]]"] = "({seg}, {var}) => cast!(self, {seg}, {var}).push(ts, it
 templates["[[to_flush]]"] = "({seg}, {var}) => cast!(self, {seg}, {var}).to_flush(),\n"
 templates["[[flushed]]"] = "({seg}, {var}) => cast!(self, {seg}, {var}).flushed(),\n"
 templates["[[read]]"] = "({seg}, {var}) => cast!(self, {seg}, {var}).read(),\n"
-templates["[[push_item]]"] = "({seg}, {var}) => cast!(self, {seg}, {var}).push_item(ts, item),\n"
+templates["[[push_item]]"] = "({seg}, {var}) => cast!(self, {seg}, I).push_item(ts, item),\n"
 
 segment_max = 10;
 variable_max = 50;

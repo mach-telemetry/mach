@@ -61,15 +61,15 @@ impl Segment {
         let ptr = self.inner;
 
         match (self.buffers, self.vars) {
-            [[drop]]
-            (_, _) => unimplemented!(),
+[[drop]]
+(_, _) => unimplemented!(),
         }
     }
 
     pub fn new(buffers: usize, vars: usize) -> Self {
         let boxed = match (buffers, vars) {
-            [[new]]
-            (_, _) => unimplemented!(),
+[[new]]
+(_, _) => unimplemented!(),
         };
 
         let inner = boxed;
@@ -84,37 +84,37 @@ impl Segment {
 
     pub unsafe fn push_item<const I: usize>(&mut self, ts: u64, item: [[u8; 8]; I]) -> Result<InnerPushStatus, Error> {
         match (self.buffers, self.vars) {
-            [[push_item]]
-            (_, _) => unimplemented!(),
+[[push_item]]
+(_, _) => unimplemented!(),
         }
     }
 
     pub unsafe fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
         match (self.buffers, self.vars) {
-            [[push_univariate]]
-            (_, _) => unimplemented!(),
+[[push_univariate]]
+(_, _) => unimplemented!(),
         }
     }
 
     pub unsafe fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         match (self.buffers, self.vars) {
-            [[push]]
-            (_, _) => unimplemented!(),
+[[push]]
+(_, _) => unimplemented!(),
         }
     }
 
     pub unsafe fn to_flush(&self) -> Option<FullSegment> {
         match (self.buffers, self.vars) {
-            [[to_flush]]
-            (_, _) => unimplemented!(),
+[[to_flush]]
+(_, _) => unimplemented!(),
         }
     }
 
     pub fn flushed(&self) {
         unsafe {
             match (self.buffers, self.vars) {
-                [[flushed]]
-                (_, _) => unimplemented!(),
+[[flushed]]
+(_, _) => unimplemented!(),
             }
         }
     }

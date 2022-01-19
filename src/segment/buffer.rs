@@ -36,27 +36,26 @@ impl<const V: usize> InnerBuffer<V> {
         }
     }
 
-    fn push_item<const B: usize>(
+    fn push_item(
         &mut self,
         ts: u64,
-        item: [[u8; 8]; B],
+        item: [[u8; 8]; V],
     ) -> Result<InnerPushStatus, Error> {
         let len = self.len;
-        //let len = self.atomic_len.load(SeqCst);
         if len < SEGSZ - 1 {
             self.inner.ts[len] = ts;
-            for i in 0..B {
+            for i in 0..V {
                 self.inner.data[i][len] = item[i];
             }
+            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
             self.len += 1;
-            //self.atomic_len.fetch_add(1, SeqCst);
             Ok(InnerPushStatus::Done)
         } else if len == SEGSZ - 1 {
             self.inner.ts[len] = ts;
             for i in 0..V {
                 self.inner.data[i][len] = item[i];
             }
-            //self.atomic_len.fetch_add(1, SeqCst);
+            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
             self.len += 1;
             Ok(InnerPushStatus::Flush)
         } else {
@@ -66,21 +65,20 @@ impl<const V: usize> InnerBuffer<V> {
 
     fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         let len = self.len;
-        //let len = self.atomic_len.load(SeqCst);
         if len < SEGSZ - 1 {
             self.inner.ts[len] = ts;
             for i in 0..V {
                 self.inner.data[i][len] = item[i];
             }
+            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
             self.len += 1;
-            //self.atomic_len.fetch_add(1, SeqCst);
             Ok(InnerPushStatus::Done)
         } else if len == SEGSZ - 1 {
             self.inner.ts[len] = ts;
             for i in 0..V {
                 self.inner.data[i][len] = item[i];
             }
-            //self.atomic_len.fetch_add(1, SeqCst);
+            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
             self.len += 1;
             Ok(InnerPushStatus::Flush)
         } else {
@@ -90,18 +88,17 @@ impl<const V: usize> InnerBuffer<V> {
 
     fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
         let len = self.len;
-        //let len = self.atomic_len.load(SeqCst);
         if len < SEGSZ - 1 {
             self.inner.ts[len] = ts;
             self.inner.data[0][len] = item;
-            //self.atomic_len.fetch_add(1, SeqCst);
+            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
             self.len += 1;
             Ok(InnerPushStatus::Done)
         } else if len == SEGSZ - 1 {
             self.inner.ts[len] = ts;
             self.inner.data[0][len] = item;
+            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
             self.len += 1;
-            //self.atomic_len.fetch_add(1, SeqCst);
             Ok(InnerPushStatus::Flush)
         } else {
             Err(Error::PushIntoFull)
@@ -114,8 +111,8 @@ impl<const V: usize> InnerBuffer<V> {
     }
 
     fn read(&self) -> ReadBuffer {
+        //let len = self.atomic_len.load(SeqCst);
         let len = self.len;
-        //self.atomic_len.load(SeqCst);
         let mut data = Vec::new();
         let mut ts = [0u64; 256];
         let inner: &Inner<V> = &self.inner;
@@ -155,10 +152,10 @@ impl<const V: usize> Buffer<V> {
         }
     }
 
-    pub fn push_item<const B: usize>(
+    pub fn push_item(
         &mut self,
         ts: u64,
-        item: [[u8; 8]; B],
+        item: [[u8; 8]; V],
     ) -> Result<InnerPushStatus, Error> {
         // Safe because the push method does not race with another method in buffer
         unsafe { self.inner.get_mut_ref().push_item(ts, item) }
