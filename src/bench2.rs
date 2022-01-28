@@ -123,12 +123,12 @@ fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
 }
 
 fn consume<W: ChunkWriter + 'static>(
-    id_counter: Arc<AtomicUsize>,
+    serid_counter: Arc<AtomicUsize>,
     series_table: Arc<DashMap<SeriesId, SeriesMetadata>>,
     persistent_writer: W,
 ) {
     // Setup write thread
-    let mut write_thread = Writer::new(series_table.clone(), persistent_writer);
+    let mut writer = Writer::new(series_table.clone(), persistent_writer);
 
     // The buffer used by all time series in this writer
     let buffer = Buffer::new(BUFSZ);
@@ -141,22 +141,24 @@ fn consume<W: ChunkWriter + 'static>(
 
     // Vectors to hold series-specific information
     let mut data: Vec<&[(u64, Box<[[u8; 8]]>)]> = Vec::new();
-    //let mut meta: Vec<SeriesMetadata> = Vec::new();
     let mut refs: Vec<usize> = Vec::new();
 
     // Generate series specific information, register, then collect the information into the vecs
     // each series uses 3 active segments
-    // println!("TOTAL BASE_DATA {}", base_data.len());
     for _ in 0..NSERIES {
-        let i = SeriesId(id_counter.fetch_add(1, SeqCst));
+        let serid = SeriesId(serid_counter.fetch_add(1, SeqCst));
         let idx = rand::thread_rng().gen_range(0..base_data.len());
         let d = &base_data[idx];
+
         let nvars = d[0].1.len();
+
         let mut tags = Tags::new();
-        tags.insert((String::from("id"), format!("{}", i.inner())));
+        tags.insert((String::from("id"), format!("{}", serid.inner())));
+
         let series_meta = SeriesMetadata::new(tags, NSEGMENTS, nvars, compression, buffer.clone());
-        series_table.insert(i, series_meta.clone());
-        refs.push(write_thread.register(i));
+        series_table.insert(serid, series_meta.clone());
+
+        refs.push(writer.register(serid));
         data.push(d.as_slice());
     }
 
@@ -173,7 +175,9 @@ fn consume<W: ChunkWriter + 'static>(
     let mut loop_counter = 0;
     let mut floats = 0;
     let mut retries = 0;
+
     BARRIERS.wait();
+
     let mut cycles: u64 = 0;
     let now = Instant::now();
     let mut remove = Duration::from_secs(0);
@@ -186,6 +190,7 @@ fn consume<W: ChunkWriter + 'static>(
         } else if nseries < 1000 {
             selection = &selection100;
         }
+
         let idx = selection[loop_counter % selection.len()];
         let sample = &data[idx][0];
         let ref_id = refs[idx];
@@ -211,15 +216,12 @@ fn consume<W: ChunkWriter + 'static>(
                 Ok(_) => {
                     let end = rdtsc!();
                     cycles += end - start;
-                    //let s = Instant::now();
                     floats += sample.1.len();
                     data[idx] = &data[idx][1..];
                     if data[idx].len() == 0 {
                         refs.remove(idx);
                         data.remove(idx);
                     }
-                    //let e = s.elapsed();
-                    //remove = remove + e;
                     if data.len() == 0 {
                         break 'outer;
                     }
@@ -239,10 +241,7 @@ fn consume<W: ChunkWriter + 'static>(
         loop_counter += 1;
     }
     println!("Gross duration (including other crap) {:?}", now.elapsed());
-    //let dur = (now.elapsed() - remove).as_secs_f64();
     let dur = rdtsc::cycles_to_seconds(cycles);
-    //println!("floats: {}", floats);
-    //println!("dur: {:?} seconds", dur);
     let rate = (floats as f64 / dur) / 1_000_000.;
     //println!("Rate mfps: {}", rate);
     println!("Retries: {}", retries);
@@ -265,14 +264,14 @@ fn main() {
     let mut handles = Vec::new();
     let mut backend = FileBackend::new(outdir.into());
 
-    let series_table = Arc::new(DashMap::new());
-    let id_counter = Arc::new(AtomicUsize::new(0));
+    let snries_table = Arc::new(DashMap::new());
+    let serid_counter = Arc::new(AtomicUsize::new(0));
     for i in 0..NTHREADS {
         let (mut persistent_writer, _) = backend.make_backend().unwrap();
-        let id_counter = id_counter.clone();
+        let serid_counter = serid_counter.clone();
         let series_table = series_table.clone();
         handles.push(thread::spawn(move || {
-            consume(id_counter, series_table, persistent_writer);
+            consume(serid_counter, series_table, persistent_writer);
         }));
     }
     

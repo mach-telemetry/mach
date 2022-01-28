@@ -82,7 +82,8 @@ impl<T: Backend> Mach<T> {
             next_id: AtomicUsize::new(),
         })
     }
-
+    
+    /// Register a writer to Mach.
     pub fn add_writer(&mut self) -> Result<WriterId, Error> {
         let id = WriterId(self.writers);
         self.writers += 1;
@@ -118,6 +119,6 @@ impl<T: Backend> Mach<T> {
         );
         let id = SeriesId(id);
         self.series_table.insert(id, series);
-        id
+       id
     }
 }
