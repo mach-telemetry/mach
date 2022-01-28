@@ -124,11 +124,11 @@ fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
 
 fn consume<W: ChunkWriter + 'static>(
     id_counter: Arc<AtomicUsize>,
-    global: Arc<DashMap<SeriesId, SeriesMetadata>>,
+    series_table: Arc<DashMap<SeriesId, SeriesMetadata>>,
     persistent_writer: W,
 ) {
     // Setup write thread
-    let mut write_thread = Writer::new(global.clone(), persistent_writer);
+    let mut write_thread = Writer::new(series_table.clone(), persistent_writer);
 
     // The buffer used by all time series in this writer
     let buffer = Buffer::new(BUFSZ);
@@ -155,7 +155,7 @@ fn consume<W: ChunkWriter + 'static>(
         let mut tags = Tags::new();
         tags.insert((String::from("id"), format!("{}", i.inner())));
         let series_meta = SeriesMetadata::new(tags, NSEGMENTS, nvars, compression, buffer.clone());
-        global.insert(i, series_meta.clone());
+        series_table.insert(i, series_meta.clone());
         refs.push(write_thread.register(i));
         data.push(d.as_slice());
     }
@@ -259,20 +259,23 @@ fn main() {
     match std::fs::remove_dir_all(outdir) {
         _ => {}
     };
+
     std::fs::create_dir_all(outdir).unwrap();
     let _data = DATA.len();
     let mut handles = Vec::new();
     let mut backend = FileBackend::new(outdir.into());
-    let global = Arc::new(DashMap::new());
+
+    let series_table = Arc::new(DashMap::new());
     let id_counter = Arc::new(AtomicUsize::new(0));
     for i in 0..NTHREADS {
         let (mut persistent_writer, _) = backend.make_backend().unwrap();
         let id_counter = id_counter.clone();
-        let global = global.clone();
+        let series_table = series_table.clone();
         handles.push(thread::spawn(move || {
-            consume(id_counter, global, persistent_writer);
+            consume(id_counter, series_table, persistent_writer);
         }));
     }
+    
     println!("Waiting for ingestion to finish");
     handles.drain(..).for_each(|h| h.join().unwrap());
     println!("TOTAL RATE: {}", TOTAL_RATE.lock().unwrap());
