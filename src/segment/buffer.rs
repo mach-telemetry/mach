@@ -111,7 +111,6 @@ impl<const V: usize> InnerBuffer<V> {
     }
 
     fn read(&self) -> ReadBuffer {
-        //let len = self.atomic_len.load(SeqCst);
         let len = self.len;
         let mut data = Vec::new();
         let mut ts = [0u64; 256];

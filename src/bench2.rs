@@ -1,5 +1,3 @@
-#![deny(unused_must_use)]
-#![feature(get_mut_unchecked)]
 #![feature(is_sorted)]
 #![feature(maybe_uninit_uninit_array)]
 #![feature(maybe_uninit_array_assume_init)]
@@ -160,7 +158,6 @@ fn consume<W: ChunkWriter + 'static>(
         global.insert(i, series_meta.clone());
         refs.push(write_thread.register(i));
         data.push(d.as_slice());
-        //meta.push(series_meta);
     }
 
     // Change zipfian when avaiable data become less than the zipfian possible values
@@ -180,12 +177,13 @@ fn consume<W: ChunkWriter + 'static>(
     let mut cycles: u64 = 0;
     let now = Instant::now();
     let mut remove = Duration::from_secs(0);
+    let nseries = data.len();
     'outer: loop {
-        if data.len() < 10 {
+        if nseries < 10 {
             selection = &selection1;
-        } else if data.len() < 100 {
+        } else if nseries < 100 {
             selection = &selection10;
-        } else if data.len() < 1000 {
+        } else if nseries < 1000 {
             selection = &selection100;
         }
         let idx = selection[loop_counter % selection.len()];
@@ -265,11 +263,6 @@ fn main() {
     let _data = DATA.len();
     let mut handles = Vec::new();
     let mut backend = FileBackend::new(outdir.into());
-    //let mut backend = KafkaBackend::new()
-    //    .bootstrap_servers(KAFKA_BOOTSTRAP)
-    //    .topic(KAFKA_TOPIC)
-    //    .partitions(PARTITIONS);
-    //let mut backend = VectorBackend::new();
     let global = Arc::new(DashMap::new());
     let id_counter = Arc::new(AtomicUsize::new(0));
     for i in 0..NTHREADS {
