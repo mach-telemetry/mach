@@ -58,7 +58,7 @@ pub struct Mach<T: Backend> {
     buffer_table: HashMap<WriterId, Buffer>,
     reader_table: HashMap<WriterId, T::Reader>,
     series_table: Arc<DashMap<SeriesId, SeriesMetadata>>,
-    next_id: usize,
+    next_id: AtomicUsize,
 }
 
 impl<T: Backend> Mach<T> {
@@ -79,7 +79,7 @@ impl<T: Backend> Mach<T> {
             reader_table,
             buffer_table,
             series_table: Arc::new(DashMap::new()),
-            next_id: 0,
+            next_id: AtomicUsize::new(),
         })
     }
 
@@ -99,6 +99,7 @@ impl<T: Backend> Mach<T> {
         }
     }
 
+    /// Register a new time series.
     pub fn register(
         &mut self,
         tags: Tags,
@@ -106,8 +107,7 @@ impl<T: Backend> Mach<T> {
         seg_count: usize,
         nvars: usize,
     ) -> SeriesId {
-        let id = self.next_id;
-        self.next_id += 1;
+        let id = self.next_id.fetch_add();
         let writer = WriterId(id % self.writers);
         let series = SeriesMetadata::new(
             tags,
