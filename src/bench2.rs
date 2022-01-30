@@ -14,6 +14,7 @@
 mod compression;
 mod constants;
 mod persistent_list;
+mod sample;
 mod segment;
 mod tags;
 mod test_utils;
@@ -21,7 +22,6 @@ mod tsdb;
 mod utils;
 mod writer;
 mod zipf;
-mod sample;
 
 #[macro_use]
 mod rdtsc;
@@ -39,19 +39,19 @@ use std::{
         Arc, Barrier, Mutex,
     },
     thread,
-    time::{Instant, Duration},
+    time::{Duration, Instant},
 };
 
 use compression::*;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use persistent_list::*;
+use sample::*;
 use seq_macro::seq;
 use tags::*;
 use tsdb::SeriesId;
 use writer::*;
 use zipf::*;
-use sample::*;
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
@@ -131,8 +131,7 @@ fn make_zipfian_select(nseries: usize) -> Vec<usize> {
     let mut selection100: Vec<usize> = (0..1000).map(|_| z100.next_item() as usize);
     let mut selection10 = (0..1000).map(|_| z10.next_item() as usize);
     let mut selection1 = (0..1000).map(|_| 0);
- 
-    
+
     if nseries < 10 {
         selection1.collect()
     } else if nseries < 100 {
@@ -145,11 +144,15 @@ fn make_zipfian_select(nseries: usize) -> Vec<usize> {
 }
 
 struct IngestData {
-   data: Vec<&[(u64, Box<[[u8; 8]]>)]>,
-   refs: Vec<usize>
+    data: Vec<&[(u64, Box<[[u8; 8]]>)]>,
+    refs: Vec<usize>,
 }
 
-fn make_series(nseries: usize, serid_counter: Arc<AtomicUsize>, series_table: Arc<DashMap<SeriesId, SeriesMetadata>>) -> IngestData {
+fn make_series(
+    nseries: usize,
+    serid_counter: Arc<AtomicUsize>,
+    series_table: Arc<DashMap<SeriesId, SeriesMetadata>>,
+) -> IngestData {
     // Vectors to hold series-specific information
     let mut data: Vec<&[(u64, Box<[[u8; 8]]>)]> = Vec::new();
     let mut refs: Vec<usize> = Vec::new();
@@ -173,15 +176,10 @@ fn make_series(nseries: usize, serid_counter: Arc<AtomicUsize>, series_table: Ar
         data.push(d.as_slice());
     }
 
-    IngestData {
-        data, refs
-    }
+    IngestData { data, refs }
 }
 
-fn consume<W: ChunkWriter + 'static>(
-    mut writer: Writer,
-    ingest_data: IngestData
-) {
+fn consume<W: ChunkWriter + 'static>(mut writer: Writer, ingest_data: IngestData) {
     // The buffer used by all time series in this writer
     let buffer = Buffer::new(BUFSZ);
 
@@ -277,7 +275,7 @@ fn main() {
     };
 
     std::fs::create_dir_all(outdir).unwrap();
-    
+
     let mut handles = Vec::new();
     let mut backend = FileBackend::new(outdir.into());
 
@@ -287,14 +285,14 @@ fn main() {
         let (mut persistent_writer, _) = backend.make_backend().unwrap();
         let serid_counter = serid_counter.clone();
         let series_table = series_table.clone();
-        
+
         let mut writer = Writer::new(series_table.clone(), persistent_writer);
         let ingest_data = make_series(NSERIES, serid_counter, series_table);
         handles.push(thread::spawn(move || {
             consume(writer, ingest_data);
         }));
     }
-    
+
     println!("Waiting for ingestion to finish");
     handles.drain(..).for_each(|h| h.join().unwrap());
     println!("TOTAL RATE: {}", TOTAL_RATE.lock().unwrap());
