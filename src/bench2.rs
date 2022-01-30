@@ -144,20 +144,12 @@ fn make_zipfian_select(nseries: usize) -> Vec<usize> {
     }
 }
 
-fn consume<W: ChunkWriter + 'static>(
-    serid_counter: Arc<AtomicUsize>,
-    series_table: Arc<DashMap<SeriesId, SeriesMetadata>>,
-    mut writer: Writer
-) {
-    // The buffer used by all time series in this writer
-    let buffer = Buffer::new(BUFSZ);
+struct IngestData {
+   data: Vec<&[(u64, Box<[[u8; 8]]>)]>,
+   refs: Vec<usize>
+}
 
-    // Load data
-    let mut base_data = &DATA;
-
-    // Series will use fixed compression with precision of 10 bits
-    let compression = COMPRESSION;
-
+fn make_series(nseries: usize, serid_counter: Arc<AtomicUsize>, series_table: Arc<DashMap<SeriesId, SeriesMetadata>>) -> IngestData {
     // Vectors to hold series-specific information
     let mut data: Vec<&[(u64, Box<[[u8; 8]]>)]> = Vec::new();
     let mut refs: Vec<usize> = Vec::new();
@@ -180,6 +172,27 @@ fn consume<W: ChunkWriter + 'static>(
         refs.push(writer.register(serid));
         data.push(d.as_slice());
     }
+
+    IngestData {
+        data, refs
+    }
+}
+
+fn consume<W: ChunkWriter + 'static>(
+    mut writer: Writer,
+    ingest_data: IngestData
+) {
+    // The buffer used by all time series in this writer
+    let buffer = Buffer::new(BUFSZ);
+
+    // Load data
+    let mut base_data = &DATA;
+
+    // Series will use fixed compression with precision of 10 bits
+    let compression = COMPRESSION;
+
+    let refs = ingest_data.refs;
+    let data = ingest_data.data;
 
     let nseries = data.len();
     let mut selection = make_zipfian_select(nseries);
@@ -268,7 +281,7 @@ fn main() {
     let mut handles = Vec::new();
     let mut backend = FileBackend::new(outdir.into());
 
-    let snries_table = Arc::new(DashMap::new());
+    let series_table = Arc::new(DashMap::new());
     let serid_counter = Arc::new(AtomicUsize::new(0));
     for i in 0..NTHREADS {
         let (mut persistent_writer, _) = backend.make_backend().unwrap();
@@ -276,8 +289,9 @@ fn main() {
         let series_table = series_table.clone();
         
         let mut writer = Writer::new(series_table.clone(), persistent_writer);
+        let ingest_data = make_series(NSERIES, serid_counter, series_table);
         handles.push(thread::spawn(move || {
-            consume(serid_counter, series_table, writer);
+            consume(writer, ingest_data);
         }));
     }
     
