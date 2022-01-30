@@ -134,21 +134,24 @@ fn make_zipfian_select(nseries: usize) -> Vec<usize> {
  
     
     if nseries < 10 {
-        selection1.collect()
-    } else if nseries < 100 {
-        selection10.collect()
-    } else if nseries < 1000 {
-        selection100.collect()
-    } else {
-        selection1000.collect()
-    }
+            selection1.collect()
+        } else if nseries < 100 {
+            selection10.collect()
+        } else if nseries < 1000 {
+            selection100.collect()
+        } else {
+            selection1000.collect()
+        }
 }
 
 fn consume<W: ChunkWriter + 'static>(
     serid_counter: Arc<AtomicUsize>,
     series_table: Arc<DashMap<SeriesId, SeriesMetadata>>,
-    mut writer: Writer
+    persistent_writer: W,
 ) {
+    // Setup write thread
+    let mut writer = Writer::new(series_table.clone(), persistent_writer);
+
     // The buffer used by all time series in this writer
     let buffer = Buffer::new(BUFSZ);
 
@@ -181,8 +184,8 @@ fn consume<W: ChunkWriter + 'static>(
         data.push(d.as_slice());
     }
 
-    let nseries = data.len();
-    let mut selection = make_zipfian_select(nseries);
+
+    let mut selection = &selection1000;
     let mut loop_counter = 0;
     let mut floats = 0;
     let mut retries = 0;
@@ -192,8 +195,9 @@ fn consume<W: ChunkWriter + 'static>(
     let mut cycles: u64 = 0;
     let now = Instant::now();
     let mut remove = Duration::from_secs(0);
-
+    let nseries = data.len();
     'outer: loop {
+
         let idx = selection[loop_counter % selection.len()];
         let sample = &data[idx][0];
         let ref_id = refs[idx];
@@ -241,7 +245,6 @@ fn consume<W: ChunkWriter + 'static>(
                 }
             }
         }
-
         loop_counter += 1;
     }
     println!("Gross duration (including other crap) {:?}", now.elapsed());
@@ -264,7 +267,7 @@ fn main() {
     };
 
     std::fs::create_dir_all(outdir).unwrap();
-    
+    let _data = DATA.len();
     let mut handles = Vec::new();
     let mut backend = FileBackend::new(outdir.into());
 
@@ -274,10 +277,8 @@ fn main() {
         let (mut persistent_writer, _) = backend.make_backend().unwrap();
         let serid_counter = serid_counter.clone();
         let series_table = series_table.clone();
-        
-        let mut writer = Writer::new(series_table.clone(), persistent_writer);
         handles.push(thread::spawn(move || {
-            consume(serid_counter, series_table, writer);
+            consume(serid_counter, series_table, persistent_writer);
         }));
     }
     
