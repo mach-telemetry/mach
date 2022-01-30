@@ -127,8 +127,8 @@ fn make_zipfian_select(nseries: usize) -> Vec<usize> {
     let mut z1000 = Zipfian::new(1000, ZIPF);
     let mut z100 = Zipfian::new(100, ZIPF);
     let mut z10 = Zipfian::new(10, ZIPF);
-    let mut selection1000: Vec<usize> = (0..1000).map(|_| z1000.next_item() as usize);
-    let mut selection100: Vec<usize> = (0..1000).map(|_| z100.next_item() as usize);
+    let mut selection1000 = (0..1000).map(|_| z1000.next_item() as usize);
+    let mut selection100 = (0..1000).map(|_| z100.next_item() as usize);
     let mut selection10 = (0..1000).map(|_| z10.next_item() as usize);
     let mut selection1 = (0..1000).map(|_| 0);
 
@@ -143,8 +143,8 @@ fn make_zipfian_select(nseries: usize) -> Vec<usize> {
     }
 }
 
-struct IngestData {
-    data: Vec<&[(u64, Box<[[u8; 8]]>)]>,
+struct IngestData<'a> {
+    data: Vec<&'a [(u64, Box<[[u8; 8]]>)]>,
     refs: Vec<usize>,
 }
 
@@ -152,16 +152,26 @@ fn make_series(
     nseries: usize,
     serid_counter: Arc<AtomicUsize>,
     series_table: Arc<DashMap<SeriesId, SeriesMetadata>>,
-) -> IngestData {
+    writer: &mut Writer,
+) -> IngestData<'static> {
     // Vectors to hold series-specific information
     let mut data: Vec<&[(u64, Box<[[u8; 8]]>)]> = Vec::new();
     let mut refs: Vec<usize> = Vec::new();
+
+    // The buffer used by all time series in this writer
+    let buffer = Buffer::new(BUFSZ);
+
+    // Load data
+    let mut base_data = &DATA;
+
+    // Series will use fixed compression with precision of 10 bits
+    let compression = COMPRESSION;
 
     // Generate series specific information, register, then collect the information into the vecs
     // each series uses 3 active segments
     for _ in 0..NSERIES {
         let serid = SeriesId(serid_counter.fetch_add(1, SeqCst));
-        let idx = rand::thread_rng().gen_range(0..base_data.len());
+        let idx: usize = rand::thread_rng().gen_range(0..base_data.len());
         let d = &base_data[idx];
 
         let nvars = d[0].1.len();
@@ -179,18 +189,9 @@ fn make_series(
     IngestData { data, refs }
 }
 
-fn consume<W: ChunkWriter + 'static>(mut writer: Writer, ingest_data: IngestData) {
-    // The buffer used by all time series in this writer
-    let buffer = Buffer::new(BUFSZ);
-
-    // Load data
-    let mut base_data = &DATA;
-
-    // Series will use fixed compression with precision of 10 bits
-    let compression = COMPRESSION;
-
-    let refs = ingest_data.refs;
-    let data = ingest_data.data;
+fn consume(mut writer: Writer, ingest_data: IngestData) {
+    let mut refs = ingest_data.refs;
+    let mut data = ingest_data.data;
 
     let nseries = data.len();
     let mut selection = make_zipfian_select(nseries);
@@ -218,7 +219,7 @@ fn consume<W: ChunkWriter + 'static>(mut writer: Writer, ingest_data: IngestData
                             values: (*sample.1).try_into().unwrap()
                         };
                         let start = rdtsc!();
-                        let res = write_thread.push_sample(ref_id, sample);
+                        let res = writer.push_sample(ref_id, sample);
                         (start, res)
                     },
                     )*
@@ -286,9 +287,9 @@ fn main() {
         let serid_counter = serid_counter.clone();
         let series_table = series_table.clone();
 
-        let mut writer = Writer::new(series_table.clone(), persistent_writer);
-        let ingest_data = make_series(NSERIES, serid_counter, series_table);
         handles.push(thread::spawn(move || {
+            let mut writer = Writer::new(series_table.clone(), persistent_writer);
+            let ingest_data = make_series(NSERIES, serid_counter, series_table, &mut writer);
             consume(writer, ingest_data);
         }));
     }

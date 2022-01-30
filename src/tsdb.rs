@@ -6,7 +6,12 @@ use crate::{
     writer::{SeriesMetadata, Writer},
 };
 use dashmap::DashMap;
-use std::{collections::HashMap, ops::Deref, sync::Arc};
+use std::{
+    collections::HashMap,
+    ops::Deref,
+    sync::atomic::{AtomicUsize, Ordering},
+    sync::Arc,
+};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct WriterId(pub usize);
@@ -79,10 +84,10 @@ impl<T: Backend> Mach<T> {
             reader_table,
             buffer_table,
             series_table: Arc::new(DashMap::new()),
-            next_id: AtomicUsize::new(),
+            next_id: AtomicUsize::new(0),
         })
     }
-    
+
     /// Register a writer to Mach.
     pub fn add_writer(&mut self) -> Result<WriterId, Error> {
         let id = WriterId(self.writers);
@@ -108,7 +113,7 @@ impl<T: Backend> Mach<T> {
         seg_count: usize,
         nvars: usize,
     ) -> SeriesId {
-        let id = self.next_id.fetch_add();
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let writer = WriterId(id % self.writers);
         let series = SeriesMetadata::new(
             tags,
@@ -119,6 +124,6 @@ impl<T: Backend> Mach<T> {
         );
         let id = SeriesId(id);
         self.series_table.insert(id, series);
-       id
+        id
     }
 }
