@@ -48,6 +48,7 @@ impl SeriesId {
 #[derive(Debug)]
 pub enum Error {
     List(persistent_list::Error),
+    /// This API can only be called with a writer_id returned from `add_writer`.
     WriterInit,
 }
 
@@ -104,22 +105,25 @@ impl<T: Backend> Mach<T> {
     /// Register a new time series.
     pub fn register(
         &mut self,
+        writer_id: WriterId,
         tags: Tags,
         compression: Compression,
         seg_count: usize,
         nvars: usize,
-    ) -> SeriesId {
-        let id = self.next_series_id.fetch_add(1, Ordering::SeqCst);
-        let writer = WriterId(id % self.next_writer_id.load(Ordering::SeqCst));
-        let series = SeriesMetadata::new(
-            tags,
-            seg_count,
-            nvars,
-            compression,
-            self.buffer_table.get(&writer).unwrap().clone(),
-        );
-        let id = SeriesId(id);
-        self.series_table.insert(id, series);
-        id
+    ) -> Result<SeriesId, Error> {
+        match self.buffer_table.get(&writer_id) {
+            None => Err(Error::WriterInit),
+            Some(buffer) => {
+                let series =
+                    SeriesMetadata::new(tags, seg_count, nvars, compression, buffer.clone());
+
+                let id = self.next_series_id.fetch_add(1, Ordering::SeqCst);
+                let id = SeriesId(id);
+
+                self.series_table.insert(id, series);
+
+                Ok(id)
+            }
+        }
     }
 }
