@@ -90,6 +90,7 @@ impl<T: Backend> Mach<T> {
         let (w, r) = self.backend.make_backend()?;
         self.writer_table.insert(id, w);
         self.reader_table.insert(id, r);
+        self.buffer_table.insert(id, Buffer::new(BUFSZ));
         Ok(id)
     }
 
