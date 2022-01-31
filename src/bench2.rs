@@ -297,7 +297,28 @@ fn main() {
             .init_writer(writer_id)
             .expect("writer_id should be valid");
 
+        let mut refs = Vec::new();
+        let mut data = Vec::new();
+
+        for _ in 0..NSERIES {
+            let idx: usize = rand::thread_rng().gen_range(0..DATA.len());
+            let d = &DATA[idx];
+            let nvars = d[0].1.len();
+
+            // TODO: tags do not contain series id yet
+            let tags = Tags::new();
+
+            let serid = mach
+                .register(writer_id, tags, COMPRESSION, NSEGMENTS, nvars)
+                .expect("add series should succeed");
+
+            let refid = writer.register(serid);
+            refs.push(refid);
+            data.push(d.as_slice());
+        }
+
         handles.push(thread::spawn(move || {
+            // TODO: remove legacy make series method
             let ingest_data = make_series(NSERIES, serid_counter, series_table, &mut writer);
             consume(writer, ingest_data);
         }));
