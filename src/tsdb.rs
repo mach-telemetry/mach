@@ -59,12 +59,12 @@ impl From<persistent_list::Error> for Error {
 
 pub struct Mach<T: Backend> {
     backend: T,
-    next_writer_id: AtomicUsize,
     writer_table: HashMap<WriterId, T::Writer>,
     buffer_table: HashMap<WriterId, Buffer>,
     reader_table: HashMap<WriterId, T::Reader>,
     series_table: Arc<DashMap<SeriesId, SeriesMetadata>>,
-    next_id: AtomicUsize,
+    next_writer_id: AtomicUsize,
+    next_series_id: AtomicUsize,
 }
 
 impl<T: Backend> Mach<T> {
@@ -75,12 +75,12 @@ impl<T: Backend> Mach<T> {
 
         Ok(Mach {
             backend,
-            next_writer_id: AtomicUsize::new(0),
             writer_table,
             reader_table,
             buffer_table,
             series_table: Arc::new(DashMap::new()),
-            next_id: AtomicUsize::new(0),
+            next_writer_id: AtomicUsize::new(0),
+            next_series_id: AtomicUsize::new(0),
         })
     }
 
@@ -108,7 +108,7 @@ impl<T: Backend> Mach<T> {
         seg_count: usize,
         nvars: usize,
     ) -> SeriesId {
-        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        let id = self.next_series_id.fetch_add(1, Ordering::SeqCst);
         let writer = WriterId(id % self.next_writer_id.load(Ordering::SeqCst));
         let series = SeriesMetadata::new(
             tags,
