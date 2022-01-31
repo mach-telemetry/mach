@@ -169,7 +169,7 @@ fn make_series(
 
     // Generate series specific information, register, then collect the information into the vecs
     // each series uses 3 active segments
-    for _ in 0..NSERIES {
+    for _ in 0..nseries {
         let serid = SeriesId(serid_counter.fetch_add(1, SeqCst));
         let idx: usize = rand::thread_rng().gen_range(0..base_data.len());
         let d = &base_data[idx];
