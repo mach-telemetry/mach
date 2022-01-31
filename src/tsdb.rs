@@ -45,6 +45,7 @@ impl SeriesId {
     }
 }
 
+#[derive(Debug)]
 pub enum Error {
     List(persistent_list::Error),
     WriterInit,
@@ -58,7 +59,7 @@ impl From<persistent_list::Error> for Error {
 
 pub struct Mach<T: Backend> {
     backend: T,
-    writers: usize,
+    next_writer_id: AtomicUsize,
     writer_table: HashMap<WriterId, T::Writer>,
     buffer_table: HashMap<WriterId, Buffer>,
     reader_table: HashMap<WriterId, T::Reader>,
@@ -67,19 +68,14 @@ pub struct Mach<T: Backend> {
 }
 
 impl<T: Backend> Mach<T> {
-    pub fn new(writers: usize, mut backend: T) -> Result<Self, Error> {
+    pub fn new(mut backend: T) -> Result<Self, Error> {
         let mut writer_table = HashMap::new();
         let mut reader_table = HashMap::new();
         let mut buffer_table = HashMap::new();
-        for i in 0..writers {
-            let (w, r) = backend.make_backend()?;
-            writer_table.insert(WriterId(i), w);
-            reader_table.insert(WriterId(i), r);
-            buffer_table.insert(WriterId(i), Buffer::new(BUFSZ));
-        }
+
         Ok(Mach {
             backend,
-            writers,
+            next_writer_id: AtomicUsize::new(0),
             writer_table,
             reader_table,
             buffer_table,
@@ -90,8 +86,7 @@ impl<T: Backend> Mach<T> {
 
     /// Register a writer to Mach.
     pub fn add_writer(&mut self) -> Result<WriterId, Error> {
-        let id = WriterId(self.writers);
-        self.writers += 1;
+        let id = WriterId(self.next_writer_id.fetch_add(1, Ordering::SeqCst));
         let (w, r) = self.backend.make_backend()?;
         self.writer_table.insert(id, w);
         self.reader_table.insert(id, r);
@@ -114,7 +109,7 @@ impl<T: Backend> Mach<T> {
         nvars: usize,
     ) -> SeriesId {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
-        let writer = WriterId(id % self.writers);
+        let writer = WriterId(id % self.next_writer_id.load(Ordering::SeqCst));
         let series = SeriesMetadata::new(
             tags,
             seg_count,

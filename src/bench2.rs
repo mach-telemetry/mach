@@ -41,6 +41,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+use tsdb::Mach;
 
 use compression::*;
 use dashmap::DashMap;
@@ -280,15 +281,23 @@ fn main() {
     let mut handles = Vec::new();
     let mut backend = FileBackend::new(outdir.into());
 
+    let mut mach = Mach::new(backend).expect("should be able to instantiate Mach");
+
     let series_table = Arc::new(DashMap::new());
     let serid_counter = Arc::new(AtomicUsize::new(0));
     for i in 0..NTHREADS {
-        let (mut persistent_writer, _) = backend.make_backend().unwrap();
         let serid_counter = serid_counter.clone();
         let series_table = series_table.clone();
 
+        let writer_id = mach
+            .add_writer()
+            .expect("should be able to register new writer");
+
+        let mut writer = mach
+            .init_writer(writer_id)
+            .expect("writer_id should be valid");
+
         handles.push(thread::spawn(move || {
-            let mut writer = Writer::new(series_table.clone(), persistent_writer);
             let ingest_data = make_series(NSERIES, serid_counter, series_table, &mut writer);
             consume(writer, ingest_data);
         }));
