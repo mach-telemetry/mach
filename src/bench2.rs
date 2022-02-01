@@ -144,52 +144,6 @@ fn make_zipfian_select(nseries: usize) -> Vec<usize> {
     }
 }
 
-struct IngestData<'a> {
-    data: Vec<&'a [(u64, Box<[[u8; 8]]>)]>,
-    refs: Vec<usize>,
-}
-
-fn make_series(
-    nseries: usize,
-    serid_counter: Arc<AtomicUsize>,
-    series_table: Arc<DashMap<SeriesId, SeriesMetadata>>,
-    writer: &mut Writer,
-) -> IngestData<'static> {
-    // Vectors to hold series-specific information
-    let mut data: Vec<&[(u64, Box<[[u8; 8]]>)]> = Vec::new();
-    let mut refs: Vec<usize> = Vec::new();
-
-    // The buffer used by all time series in this writer
-    let buffer = Buffer::new(BUFSZ);
-
-    // Load data
-    let mut base_data = &DATA;
-
-    // Series will use fixed compression with precision of 10 bits
-    let compression = COMPRESSION;
-
-    // Generate series specific information, register, then collect the information into the vecs
-    // each series uses 3 active segments
-    for _ in 0..nseries {
-        let serid = SeriesId(serid_counter.fetch_add(1, SeqCst));
-        let idx: usize = rand::thread_rng().gen_range(0..base_data.len());
-        let d = &base_data[idx];
-
-        let nvars = d[0].1.len();
-
-        let mut tags = Tags::new();
-        tags.insert((String::from("id"), format!("{}", serid.inner())));
-
-        let series_meta = SeriesMetadata::new(tags, NSEGMENTS, nvars, compression, buffer.clone());
-        series_table.insert(serid, series_meta.clone());
-
-        refs.push(writer.register(serid));
-        data.push(d.as_slice());
-    }
-
-    IngestData { data, refs }
-}
-
 fn consume(mut writer: Writer, mut data: Vec<&[(u64, Box<[[u8; 8]]>)]>, mut refs: Vec<usize>) {
     let nseries = data.len();
     let mut selection = make_zipfian_select(nseries);
@@ -267,6 +221,33 @@ fn file_writer(id: usize) -> FileWriter {
     FileWriter::new(p).unwrap()
 }
 
+fn prepare_timeseries<B: Backend>(
+    mach: &mut Mach<B>,
+    writer: &mut Writer,
+) -> (Vec<&'static [(u64, Box<[[u8; 8]]>)]>, Vec<usize>) {
+    let mut refs = Vec::new();
+    let mut data = Vec::new();
+
+    for _ in 0..NSERIES {
+        let idx: usize = rand::thread_rng().gen_range(0..DATA.len());
+        let d = &DATA[idx];
+        let nvars = d[0].1.len();
+
+        // TODO: tags do not contain series id yet
+        let tags = Tags::new();
+
+        let serid = mach
+            .register(writer.id(), tags, COMPRESSION, NSEGMENTS, nvars)
+            .expect("add series should succeed");
+
+        let refid = writer.register(serid);
+        refs.push(refid);
+        data.push(d.as_slice());
+    }
+
+    (data, refs)
+}
+
 fn main() {
     let outdir = &*OUTDIR;
     match std::fs::remove_dir_all(outdir) {
@@ -289,25 +270,7 @@ fn main() {
             .init_writer(writer_id)
             .expect("writer_id should be valid");
 
-        let mut refs = Vec::new();
-        let mut data = Vec::new();
-
-        for _ in 0..NSERIES {
-            let idx: usize = rand::thread_rng().gen_range(0..DATA.len());
-            let d = &DATA[idx];
-            let nvars = d[0].1.len();
-
-            // TODO: tags do not contain series id yet
-            let tags = Tags::new();
-
-            let serid = mach
-                .register(writer_id, tags, COMPRESSION, NSEGMENTS, nvars)
-                .expect("add series should succeed");
-
-            let refid = writer.register(serid);
-            refs.push(refid);
-            data.push(d.as_slice());
-        }
+        let (data, refs) = prepare_timeseries(&mut mach, &mut writer);
 
         handles.push(thread::spawn(move || {
             consume(writer, data, refs);
