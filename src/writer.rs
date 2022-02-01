@@ -74,7 +74,11 @@ impl Writer {
     }
 
     pub fn register(&mut self, id: SeriesId) -> usize {
-        let meta = self.global_meta.get(&id).unwrap().clone();
+        let meta = self
+            .global_meta
+            .get(&id)
+            .expect("series must be registered globally before it's registered with a writer")
+            .clone();
         let writer = meta.segment.writer().unwrap();
         let list = meta.list.clone();
 
