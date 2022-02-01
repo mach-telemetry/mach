@@ -8,7 +8,23 @@ use crate::{
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, ops::Deref, sync::Arc};
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct WriterId(pub usize);
+
+impl WriterId {
+    pub fn inner(&self) -> usize {
+        self.0
+    }
+}
+
+impl Deref for WriterId {
+    type Target = usize;
+    fn deref(&self) -> &usize {
+        &self.0
+    }
+}
 
 #[derive(Debug)]
 pub enum Error {
@@ -47,6 +63,7 @@ impl SeriesMetadata {
 }
 
 pub struct Writer {
+    id: WriterId,
     global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
     local_meta: HashMap<SeriesId, SeriesMetadata>,
     references: HashMap<SeriesId, usize>,
@@ -58,11 +75,13 @@ pub struct Writer {
 
 impl Writer {
     pub fn new<W: ChunkWriter + 'static>(
+        id: WriterId,
         global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
         w: W,
     ) -> Self {
         let flush_worker = FlushWorker::new(w);
         Self {
+            id,
             global_meta,
             local_meta: HashMap::new(),
             references: HashMap::new(),
@@ -71,6 +90,10 @@ impl Writer {
             lists: Vec::new(),
             flush_worker,
         }
+    }
+
+    pub fn id(&self) -> WriterId {
+        self.id
     }
 
     pub fn register(&mut self, id: SeriesId) -> usize {
@@ -243,7 +266,7 @@ mod test {
         let serid = SeriesId(0);
         let dict = Arc::new(DashMap::new());
         dict.insert(serid, series_meta.clone());
-        let mut write_thread = Writer::new(dict.clone(), persistent_writer);
+        let mut write_thread = Writer::new(WriterId(1), dict.clone(), persistent_writer);
         let series_ref: usize = write_thread.register(serid);
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {

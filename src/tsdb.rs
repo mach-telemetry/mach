@@ -3,7 +3,7 @@ use crate::{
     constants::*,
     persistent_list::{self, Backend, Buffer},
     tags::Tags,
-    writer::{SeriesMetadata, Writer},
+    writer::{SeriesMetadata, Writer, WriterId},
 };
 use dashmap::DashMap;
 use std::{
@@ -12,22 +12,6 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     sync::Arc,
 };
-
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub struct WriterId(pub usize);
-
-impl WriterId {
-    pub fn inner(&self) -> usize {
-        self.0
-    }
-}
-
-impl Deref for WriterId {
-    type Target = usize;
-    fn deref(&self) -> &usize {
-        &self.0
-    }
-}
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct SeriesId(pub usize);
@@ -97,7 +81,7 @@ impl<T: Backend> Mach<T> {
 
     pub fn init_writer(&mut self, id: WriterId) -> Result<Writer, Error> {
         match self.writer_table.remove(&id) {
-            Some(x) => Ok(Writer::new(self.series_table.clone(), x)),
+            Some(x) => Ok(Writer::new(id, self.series_table.clone(), x)),
             None => Err(Error::WriterInit),
         }
     }
