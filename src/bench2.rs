@@ -190,10 +190,7 @@ fn make_series(
     IngestData { data, refs }
 }
 
-fn consume(mut writer: Writer, ingest_data: IngestData) {
-    let mut refs = ingest_data.refs;
-    let mut data = ingest_data.data;
-
+fn consume(mut writer: Writer, mut data: Vec<&[(u64, Box<[[u8; 8]]>)]>, mut refs: Vec<usize>) {
     let nseries = data.len();
     let mut selection = make_zipfian_select(nseries);
     let mut loop_counter = 0;
@@ -283,12 +280,7 @@ fn main() {
 
     let mut mach = Mach::new(backend).expect("should be able to instantiate Mach");
 
-    let series_table = Arc::new(DashMap::new());
-    let serid_counter = Arc::new(AtomicUsize::new(0));
     for i in 0..NTHREADS {
-        let serid_counter = serid_counter.clone();
-        let series_table = series_table.clone();
-
         let writer_id = mach
             .add_writer()
             .expect("should be able to register new writer");
@@ -318,9 +310,7 @@ fn main() {
         }
 
         handles.push(thread::spawn(move || {
-            // TODO: remove legacy make series method
-            let ingest_data = make_series(NSERIES, serid_counter, series_table, &mut writer);
-            consume(writer, ingest_data);
+            consume(writer, data, refs);
         }));
     }
 

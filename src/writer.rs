@@ -1,10 +1,10 @@
 use crate::{
     compression::Compression,
     persistent_list::*,
+    sample::Sample,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
     tags::Tags,
     tsdb::SeriesId,
-    sample::Sample,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
