@@ -272,9 +272,7 @@ fn main() {
 
         let (data, refs) = prepare_timeseries(&mut mach, &mut writer);
 
-        handles.push(thread::spawn(move || {
-            consume(writer, data, refs);
-        }));
+        handles.push(thread::spawn(move || consume(writer, data, refs)));
     }
 
     println!("Waiting for ingestion to finish");
