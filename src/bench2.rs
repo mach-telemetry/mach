@@ -236,8 +236,14 @@ fn prepare_timeseries<B: Backend>(
         // TODO: tags do not contain series id yet
         let tags = Tags::new();
 
+        let series_config = SeriesConfig {
+            compression: COMPRESSION,
+            seg_count: NSEGMENTS,
+            nvars,
+        };
+
         let serid = mach
-            .register(writer.id(), tags, COMPRESSION, NSEGMENTS, nvars)
+            .register(writer.id(), tags, series_config)
             .expect("add series should succeed");
 
         let refid = writer.register(serid);

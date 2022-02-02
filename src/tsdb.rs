@@ -29,6 +29,13 @@ impl SeriesId {
     }
 }
 
+#[derive(Clone)]
+pub struct SeriesConfig {
+    pub compression: Compression,
+    pub seg_count: usize,
+    pub nvars: usize,
+}
+
 #[derive(Debug)]
 pub enum Error {
     List(persistent_list::Error),
@@ -91,15 +98,18 @@ impl<T: Backend> Mach<T> {
         &mut self,
         writer_id: WriterId,
         tags: Tags,
-        compression: Compression,
-        seg_count: usize,
-        nvars: usize,
+        config: SeriesConfig,
     ) -> Result<SeriesId, Error> {
         match self.buffer_table.get(&writer_id) {
             None => Err(Error::WriterInit),
             Some(buffer) => {
-                let series =
-                    SeriesMetadata::new(tags, seg_count, nvars, compression, buffer.clone());
+                let series = SeriesMetadata::new(
+                    tags,
+                    config.seg_count,
+                    config.nvars,
+                    config.compression,
+                    buffer.clone(),
+                );
 
                 let id = self.next_series_id.fetch_add(1, Ordering::SeqCst);
                 let id = SeriesId(id);
