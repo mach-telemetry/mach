@@ -77,21 +77,15 @@ impl<T: Backend> Mach<T> {
         })
     }
 
-    /// Register a writer to Mach.
-    pub fn add_writer(&mut self) -> Result<WriterId, Error> {
+    pub fn add_writer(&mut self) -> Result<Writer, Error> {
         let id = WriterId(self.next_writer_id.fetch_add(1, Ordering::SeqCst));
         let (w, r) = self.backend.make_backend()?;
-        self.writer_table.insert(id, w);
+
+        let writer = Writer::new(id, self.series_table.clone(), w);
         self.reader_table.insert(id, r);
         self.buffer_table.insert(id, Buffer::new(BUFSZ));
-        Ok(id)
-    }
 
-    pub fn init_writer(&mut self, id: WriterId) -> Result<Writer, Error> {
-        match self.writer_table.remove(&id) {
-            Some(backend_writer) => Ok(Writer::new(id, self.series_table.clone(), backend_writer)),
-            None => Err(Error::WriterInit),
-        }
+        Ok(writer)
     }
 
     /// Register a new time series.

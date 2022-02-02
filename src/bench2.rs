@@ -269,13 +269,9 @@ fn main() {
     let mut mach = Mach::new(backend).expect("should be able to instantiate Mach");
 
     for i in 0..NTHREADS {
-        let writer_id = mach
+        let mut writer = mach
             .add_writer()
             .expect("should be able to register new writer");
-
-        let mut writer = mach
-            .init_writer(writer_id)
-            .expect("writer_id should be valid");
 
         let (data, refs) = prepare_timeseries(&mut mach, &mut writer);
 
