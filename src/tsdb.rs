@@ -34,6 +34,7 @@ pub struct SeriesConfig {
     pub compression: Compression,
     pub seg_count: usize,
     pub nvars: usize,
+    pub tags: Tags,
 }
 
 #[derive(Debug)]
@@ -97,14 +98,13 @@ impl<T: Backend> Mach<T> {
     pub fn register(
         &mut self,
         writer_id: WriterId,
-        tags: Tags,
         config: SeriesConfig,
     ) -> Result<SeriesId, Error> {
         match self.buffer_table.get(&writer_id) {
             None => Err(Error::WriterInit),
             Some(buffer) => {
                 let series = SeriesMetadata::new(
-                    tags,
+                    config.tags,
                     config.seg_count,
                     config.nvars,
                     config.compression,

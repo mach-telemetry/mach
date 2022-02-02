@@ -41,7 +41,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use tsdb::Mach;
+use tsdb::{Mach, SeriesConfig};
 
 use compression::*;
 use dashmap::DashMap;
@@ -240,10 +240,11 @@ fn prepare_timeseries<B: Backend>(
             compression: COMPRESSION,
             seg_count: NSEGMENTS,
             nvars,
+            tags,
         };
 
         let serid = mach
-            .register(writer.id(), tags, series_config)
+            .register(writer.id(), series_config)
             .expect("add series should succeed");
 
         let refid = writer.register(serid);
