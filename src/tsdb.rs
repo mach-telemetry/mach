@@ -40,8 +40,8 @@ pub struct SeriesConfig {
 #[derive(Debug)]
 pub enum Error {
     List(persistent_list::Error),
-    /// This API can only be called with a writer_id returned from `add_writer`.
-    WriterInit,
+    /// Err if Mach expects some writer to be initialized, but none could be found.
+    NoWriter,
 }
 
 impl From<persistent_list::Error> for Error {
@@ -90,25 +90,29 @@ impl<T: Backend> Mach<T> {
 
     /// Register a new time series.
     pub fn register(&mut self, config: SeriesConfig) -> Result<(SeriesId, WriterId), Error> {
-        let writer_id = pick_series_writer();
-
-        match self.buffer_table.get(&writer_id) {
-            None => Err(Error::WriterInit),
-            Some(buffer) => {
-                let series = SeriesMetadata::new(
-                    config.tags,
-                    config.seg_count,
-                    config.nvars,
-                    config.compression,
-                    buffer.clone(),
-                );
-
-                let series_id = SeriesId(self.next_series_id.fetch_add(1, Ordering::SeqCst));
-
-                self.series_table.insert(series_id, series);
-
-                Ok(series_id, writer_id)
-            }
+        let next_writer_id = self.next_writer_id.load(Ordering::SeqCst);
+        if next_writer_id == 0 {
+            return Err(Error::NoWriter);
         }
+
+        let series_id = SeriesId(self.next_series_id.fetch_add(1, Ordering::SeqCst));
+        let writer_id = WriterId(*series_id % (next_writer_id - 1));
+
+        let buffer = self
+            .buffer_table
+            .get(&writer_id)
+            .expect("buffer should be defined for an initialized writer");
+
+        let series = SeriesMetadata::new(
+            config.tags,
+            config.seg_count,
+            config.nvars,
+            config.compression,
+            buffer.clone(),
+        );
+
+        self.series_table.insert(series_id, series);
+
+        Ok((series_id, writer_id))
     }
 }
