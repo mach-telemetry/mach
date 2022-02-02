@@ -81,7 +81,7 @@ impl<T: Backend> Mach<T> {
 
     pub fn init_writer(&mut self, id: WriterId) -> Result<Writer, Error> {
         match self.writer_table.remove(&id) {
-            Some(x) => Ok(Writer::new(id, self.series_table.clone(), x)),
+            Some(backend_Writer) => Ok(Writer::new(id, self.series_table.clone(), backend_Writer)),
             None => Err(Error::WriterInit),
         }
     }
