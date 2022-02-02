@@ -95,9 +95,11 @@ impl<T: Backend> Mach<T> {
     }
 
     /// Register a new time series.
-    pub fn register(&mut self, config: SeriesConfig) -> Result<(SeriesId, WriterId), Error> {
-        let writer_id = pick_series_writer();
-
+    pub fn register(
+        &mut self,
+        writer_id: WriterId,
+        config: SeriesConfig,
+    ) -> Result<SeriesId, Error> {
         match self.buffer_table.get(&writer_id) {
             None => Err(Error::WriterInit),
             Some(buffer) => {
@@ -109,11 +111,12 @@ impl<T: Backend> Mach<T> {
                     buffer.clone(),
                 );
 
-                let series_id = SeriesId(self.next_series_id.fetch_add(1, Ordering::SeqCst));
+                let id = self.next_series_id.fetch_add(1, Ordering::SeqCst);
+                let id = SeriesId(id);
 
-                self.series_table.insert(series_id, series);
+                self.series_table.insert(id, series);
 
-                Ok(series_id, writer_id)
+                Ok(id)
             }
         }
     }
