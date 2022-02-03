@@ -221,14 +221,31 @@ fn file_writer(id: usize) -> FileWriter {
     FileWriter::new(p).unwrap()
 }
 
-fn prepare_timeseries<B: Backend>(
-    mach: &mut Mach<B>,
-    writer: &mut Writer,
-) -> (Vec<&'static [(u64, Box<[[u8; 8]]>)]>, Vec<usize>) {
-    let mut refs = Vec::new();
-    let mut data = Vec::new();
+fn main() {
+    let outdir = &*OUTDIR;
+    match std::fs::remove_dir_all(outdir) {
+        _ => {}
+    };
 
-    for _ in 0..NSERIES {
+    std::fs::create_dir_all(outdir).unwrap();
+
+    let mut handles = Vec::new();
+    let mut backend = FileBackend::new(outdir.into());
+
+    let mut mach = Mach::new(backend).expect("should be able to instantiate Mach");
+
+    let mut writers_map = (0..NTHREADS)
+        .map(|_| mach.add_writer())
+        .map(|r| r.expect("should be able to instantiate writer"))
+        .fold(HashMap::new(), |mut map, w| {
+            map.insert(w.id(), w);
+            map
+        });
+
+    let mut refmap: HashMap<WriterId, Vec<usize>> = HashMap::new();
+    let mut datamap: HashMap<WriterId, Vec<&[(u64, Box<[[u8; 8]]>)]>> = HashMap::new();
+
+    for _ in 0..NSERIES * NTHREADS {
         let idx: usize = rand::thread_rng().gen_range(0..DATA.len());
         let d = &DATA[idx];
         let nvars = d[0].1.len();
@@ -243,38 +260,22 @@ fn prepare_timeseries<B: Backend>(
             tags,
         };
 
-        let serid = mach
-            .register(writer.id(), series_config)
+        let (series_id, writerid) = mach
+            .register(series_config)
             .expect("add series should succeed");
 
-        let refid = writer.register(serid);
-        refs.push(refid);
-        data.push(d.as_slice());
+        let writer = writers_map
+            .get_mut(&writerid)
+            .expect("writer should've been created");
+
+        let refid = writer.register(series_id);
+        refmap.get_mut(&writerid).unwrap().push(refid);
+        datamap.get_mut(&writerid).unwrap().push(d.as_slice());
     }
 
-    (data, refs)
-}
-
-fn main() {
-    let outdir = &*OUTDIR;
-    match std::fs::remove_dir_all(outdir) {
-        _ => {}
-    };
-
-    std::fs::create_dir_all(outdir).unwrap();
-
-    let mut handles = Vec::new();
-    let mut backend = FileBackend::new(outdir.into());
-
-    let mut mach = Mach::new(backend).expect("should be able to instantiate Mach");
-
-    for i in 0..NTHREADS {
-        let mut writer = mach
-            .add_writer()
-            .expect("should be able to register new writer");
-
-        let (data, refs) = prepare_timeseries(&mut mach, &mut writer);
-
+    for (writer_id, writer) in writers_map {
+        let mut data = datamap.remove(&writer_id).unwrap();
+        let mut refs = refmap.remove(&writer_id).unwrap();
         handles.push(thread::spawn(move || consume(writer, data, refs)));
     }
 
