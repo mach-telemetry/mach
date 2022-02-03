@@ -116,3 +116,22 @@ impl<T: Backend> Mach<T> {
         Ok((series_id, writer_id))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn test_cannot_add_series_if_no_writer() {
+        let mut db = Mach::new(VectorBackend::new()).unwrap();
+
+        let reg_result = db.register(SeriesConfig {
+            tags: Tags::new(),
+            seg_count: 8,
+            nvars: 8,
+            compression: Compression::Fixed(10),
+        });
+        let expected = Err(Error::NoWriter);
+
+        assert_eq!(reg_result, expected);
+    }
+}
