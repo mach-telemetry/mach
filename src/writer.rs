@@ -10,7 +10,7 @@ use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
 use std::{collections::HashMap, ops::Deref, sync::Arc};
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Debug, Clone, Eq, PartialEq, Hash)]
 pub struct WriterId(pub usize);
 
 impl WriterId {

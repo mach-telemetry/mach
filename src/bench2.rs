@@ -223,9 +223,7 @@ fn file_writer(id: usize) -> FileWriter {
 
 fn main() {
     let outdir = &*OUTDIR;
-    match std::fs::remove_dir_all(outdir) {
-        _ => {}
-    };
+    std::fs::remove_dir_all(outdir);
 
     std::fs::create_dir_all(outdir).unwrap();
 
