@@ -1,7 +1,7 @@
 use crate::{
     compression::Compression,
     constants::*,
-    persistent_list::{self, Backend, Buffer},
+    persistent_list::{self, BackendOld, Buffer},
     tags::Tags,
     writer::{SeriesMetadata, Writer},
 };
@@ -51,7 +51,7 @@ impl From<persistent_list::Error> for Error {
     }
 }
 
-pub struct Mach<T: Backend> {
+pub struct Mach<T: BackendOld> {
     backend: T,
     writers: usize,
     writer_table: HashMap<WriterId, T::Writer>,
@@ -61,7 +61,7 @@ pub struct Mach<T: Backend> {
     next_id: usize,
 }
 
-impl<T: Backend> Mach<T> {
+impl<T: BackendOld> Mach<T> {
     pub fn new(writers: usize, mut backend: T) -> Result<Self, Error> {
         let mut writer_table = HashMap::new();
         let mut reader_table = HashMap::new();

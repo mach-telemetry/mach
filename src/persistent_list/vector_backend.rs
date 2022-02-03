@@ -1,11 +1,11 @@
-use crate::persistent_list::{inner::*, Backend, Error};
+use crate::persistent_list::{inner::*, inner2, PersistentListBackend, Error};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 pub struct VectorReader {
     inner: Arc<Mutex<Vec<Box<[u8]>>>>,
     local_copy: Vec<u8>,
-    current_head: Option<PersistentHead>,
+    offset: usize,
 }
 
 impl VectorReader {
@@ -13,15 +13,29 @@ impl VectorReader {
         Self {
             inner,
             local_copy: Vec::new(),
-            current_head: None,
+            offset: usize::MAX,
         }
+    }
+}
+
+impl inner2::ChunkReader for VectorReader {
+    fn read(&mut self, offset: u64) -> Result<&[u8], Error> {
+        let offset = offset as usize;
+        if self.offset == usize::MAX || self.offset != offset {
+            self.offset = offset;
+            self.local_copy.clear();
+            let guard = self.inner.lock().unwrap();
+            self.local_copy
+                .extend_from_slice(&*guard[offset]);
+        }
+        Ok(self.local_copy.as_slice())
     }
 }
 
 impl ChunkReader for VectorReader {
     fn read(&mut self, persistent: PersistentHead, local: BufferHead) -> Result<&[u8], Error> {
-        if self.current_head.is_none() || *self.current_head.as_ref().unwrap() != persistent {
-            self.current_head = Some(persistent);
+        if self.offset == usize::MAX || self.offset != persistent.offset {
+            self.offset = persistent.offset;
             self.local_copy.clear();
             let guard = self.inner.lock().unwrap();
             self.local_copy
@@ -43,6 +57,17 @@ impl VectorWriter {
             inner,
             _last_flush: Instant::now(),
         }
+    }
+}
+
+impl inner2::ChunkWriter for VectorWriter {
+    fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
+        let mut guard = self.inner.lock().unwrap();
+        let sz = bytes.len();
+        let offset = guard.len();
+        guard.push(bytes.into());
+        let len = guard.len();
+        Ok(len as u64 - 1)
     }
 }
 
@@ -72,27 +97,30 @@ impl ChunkWriter for VectorWriter {
 }
 
 pub struct VectorBackend {
-    data: Vec<Arc<Mutex<Vec<Box<[u8]>>>>>,
+    data: Arc<Mutex<Vec<Box<[u8]>>>>,
 }
 
 impl VectorBackend {
     pub fn new() -> Self {
-        Self { data: Vec::new() }
-    }
-
-    pub fn make_read_write(&mut self) -> (VectorWriter, VectorReader) {
-        let v = Arc::new(Mutex::new(Vec::new()));
-        self.data.push(v.clone());
-        let writer = VectorWriter::new(v.clone());
-        let reader = VectorReader::new(v.clone());
-        (writer, reader)
+        Self { data: Arc::new(Mutex::new(Vec::new())) }
     }
 }
 
-impl Backend for VectorBackend {
+impl PersistentListBackend for VectorBackend {
     type Writer = VectorWriter;
     type Reader = VectorReader;
-    fn make_backend(&mut self) -> Result<(VectorWriter, VectorReader), Error> {
-        Ok(self.make_read_write())
+    fn writer(&self) -> Result<Self::Writer, Error> {
+        Ok(VectorWriter::new(self.data.clone()))
+    }
+    fn reader(&self) -> Result<Self::Reader, Error> {
+        Ok(VectorReader::new(self.data.clone()))
     }
 }
+
+//impl BackendOld for VectorBackend {
+//    type Writer = VectorWriter;
+//    type Reader = VectorReader;
+//    fn make_backend(&mut self) -> Result<(VectorWriter, VectorReader), Error> {
+//        Ok(self.make_read_write())
+//    }
+//}

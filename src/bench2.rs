@@ -16,6 +16,7 @@
 mod compression;
 mod constants;
 mod persistent_list;
+mod sample;
 mod segment;
 mod tags;
 mod test_utils;
@@ -23,7 +24,6 @@ mod tsdb;
 mod utils;
 mod writer;
 mod zipf;
-mod sample;
 
 #[macro_use]
 mod rdtsc;
@@ -41,19 +41,19 @@ use std::{
         Arc, Barrier, Mutex,
     },
     thread,
-    time::{Instant, Duration},
+    time::{Duration, Instant},
 };
 
 use compression::*;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use persistent_list::*;
+use sample::*;
 use seq_macro::seq;
 use tags::*;
 use tsdb::SeriesId;
 use writer::*;
 use zipf::*;
-use sample::*;
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;

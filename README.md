@@ -1,3 +1,20 @@
+### Redis Setup
+
+* Run a redis instance
+
+```
+docker-compose up -f docker-compose-redis.yaml -d
+```
+
+* Check to see if redis is running
+
+```
+docker-compose exec redis bash
+
+# Enter redis CLI
+redis-cli
+```
+
 ### Kafka Setup
 
 * Run a single broker kafka

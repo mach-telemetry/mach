@@ -1,9 +1,9 @@
+mod bytes_lz4;
+mod decimal;
 mod fixed;
 mod timestamps;
 mod utils;
 mod xor;
-mod decimal;
-mod bytes_lz4;
 
 use crate::segment::FullSegment;
 use crate::utils::byte_buffer::ByteBuffer;
@@ -384,7 +384,6 @@ fn decimal_decompress(
     Ok(off)
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -602,5 +601,4 @@ mod test {
             assert!(diff < 0.001);
         }
     }
-
 }

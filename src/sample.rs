@@ -1,5 +1,5 @@
-use std::convert::{TryInto, AsRef};
 use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
+use std::convert::{AsRef, TryInto};
 use std::mem::{align_of, size_of, ManuallyDrop};
 
 /// This is a workaround to Box<[u8]> that stores the size of the slice in the heap.
@@ -11,13 +11,11 @@ use std::mem::{align_of, size_of, ManuallyDrop};
 /// Here, we store the size of the byte slice in the heap before the actual byte array so we only
 /// need a *u8 which is sized and can convert into [u8; 8] without losing data (because it's in the
 /// heap.
-pub struct Bytes(* const u8);
+pub struct Bytes(*const u8);
 
 impl Bytes {
     pub fn len(&self) -> usize {
-        let slice: &[u8] = unsafe {
-            std::slice::from_raw_parts(self.0, 8)
-        };
+        let slice: &[u8] = unsafe { std::slice::from_raw_parts(self.0, 8) };
         usize::from_be_bytes(slice.try_into().unwrap())
     }
 
@@ -39,11 +37,8 @@ impl Bytes {
 
     pub fn as_raw_bytes(&self) -> &[u8] {
         let len = self.len();
-        unsafe {
-            std::slice::from_raw_parts(self.0, len + size_of::<usize>())
-        }
+        unsafe { std::slice::from_raw_parts(self.0, len + size_of::<usize>()) }
     }
-
 
     pub fn from_slice(data: &[u8]) -> Self {
         let usz = size_of::<usize>();
@@ -51,9 +46,7 @@ impl Bytes {
         let total_len = usz + len;
         let layout = Layout::from_size_align(total_len, align_of::<u8>()).unwrap();
         let ptr = unsafe { alloc(layout) };
-        let sl = unsafe {
-            std::slice::from_raw_parts_mut(ptr, total_len)
-        };
+        let sl = unsafe { std::slice::from_raw_parts_mut(ptr, total_len) };
         sl[..usz].copy_from_slice(&len.to_be_bytes());
         sl[usz..].copy_from_slice(data);
         Bytes(ptr)
@@ -64,9 +57,7 @@ impl Bytes {
         let total_len = usz + len;
         let layout = Layout::from_size_align(total_len, align_of::<u8>()).unwrap();
         let ptr = unsafe { alloc_zeroed(layout) };
-        let sl = unsafe {
-            std::slice::from_raw_parts_mut(ptr, total_len)
-        };
+        let sl = unsafe { std::slice::from_raw_parts_mut(ptr, total_len) };
         sl[..usz].copy_from_slice(&len.to_be_bytes());
         Bytes(ptr)
     }
@@ -108,10 +99,7 @@ impl<const V: usize> Sample<V> {
         for i in 0..V {
             values[i] = data[i].to_be_bytes();
         }
-        Sample {
-            timestamp,
-            values,
-        }
+        Sample { timestamp, values }
     }
 
     pub fn from_u64(timestamp: u64, data: [u64; V]) -> Self {
@@ -119,10 +107,7 @@ impl<const V: usize> Sample<V> {
         for i in 0..V {
             values[i] = data[i].to_be_bytes();
         }
-        Sample {
-            timestamp,
-            values,
-        }
+        Sample { timestamp, values }
     }
 
     pub fn from_bytes(timestamp: u64, mut data: [Bytes; V]) -> Self {
@@ -130,11 +115,6 @@ impl<const V: usize> Sample<V> {
         for i in 0..V {
             values[i] = (data[i].0 as usize).to_be_bytes();
         }
-        Sample {
-            timestamp,
-            values,
-        }
+        Sample { timestamp, values }
     }
 }
-
-

@@ -1,15 +1,16 @@
-use crate::persistent_list::{inner::*, Backend, Error};
+use crate::persistent_list::{inner::*, inner2, PersistentListBackend, Error};
 use std::{
     convert::AsRef,
     fs::{File, OpenOptions},
     io::{prelude::*, SeekFrom},
     path::{Path, PathBuf},
+    convert::TryInto,
 };
 
 pub struct FileReader {
     file: File,
     local_copy: Vec<u8>,
-    current_head: Option<PersistentHead>,
+    offset: usize,
 }
 
 impl FileReader {
@@ -18,15 +19,30 @@ impl FileReader {
         Ok(Self {
             file,
             local_copy: Vec::new(),
-            current_head: None,
+            offset: usize::MAX,
         })
+    }
+}
+
+impl inner2::ChunkReader for FileReader {
+    fn read(&mut self, offset: u64) -> Result<&[u8], Error> {
+        let offset = offset as usize;
+        if self.offset == usize::MAX || self.offset != offset {
+            self.file.seek(SeekFrom::Start(offset as u64))?;
+            let mut sz_bytes = [0u8; 8];
+            self.file.read_exact(&mut sz_bytes[..])?;
+            self.local_copy.resize(usize::from_be_bytes(sz_bytes), 0);
+            self.file.read_exact(self.local_copy.as_mut_slice())?;
+            self.offset = offset;
+        }
+        Ok(&self.local_copy[..])
     }
 }
 
 impl ChunkReader for FileReader {
     fn read(&mut self, persistent: PersistentHead, local: BufferHead) -> Result<&[u8], Error> {
-        if self.current_head.is_none() || *self.current_head.as_ref().unwrap() != persistent {
-            self.current_head = Some(persistent);
+        if self.offset == usize::MAX || self.offset != persistent.offset {
+            self.offset = persistent.offset;
             self.local_copy.resize(persistent.sz, 0);
             self.file.seek(SeekFrom::Start(persistent.offset as u64))?;
             self.file.read_exact(self.local_copy.as_mut_slice())?;
@@ -56,6 +72,17 @@ impl FileWriter {
     }
 }
 
+impl inner2::ChunkWriter for FileWriter {
+    fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
+        let offset = self.current_offset;
+        let sz = bytes.len();
+        self.current_offset += self.file.write(&sz.to_be_bytes())?;
+        self.current_offset += self.file.write(bytes)?;
+        self.file.sync_all()?;
+        Ok(offset as u64)
+    }
+}
+
 impl ChunkWriter for FileWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
         let offset = self.current_offset;
@@ -75,28 +102,26 @@ impl ChunkWriter for FileWriter {
 
 pub struct FileBackend {
     dir: PathBuf,
-    counter: usize,
+    id: u32,
 }
 
 impl FileBackend {
-    pub fn new(dir: PathBuf) -> Self {
-        FileBackend { dir, counter: 0 }
-    }
-
-    pub fn make_read_write(&mut self) -> Result<(FileWriter, FileReader), Error> {
-        let counter = self.counter;
-        let file = self.dir.join(format!("data_{}", counter));
-        self.counter += 1;
-        let writer = FileWriter::new(&file)?;
-        let reader = FileReader::new(&file)?;
-        Ok((writer, reader))
+    pub fn new(dir: PathBuf, id: u32) -> Self {
+        FileBackend { dir, id }
     }
 }
 
-impl Backend for FileBackend {
+impl PersistentListBackend for FileBackend {
     type Writer = FileWriter;
     type Reader = FileReader;
-    fn make_backend(&mut self) -> Result<(FileWriter, FileReader), Error> {
-        self.make_read_write()
+
+    fn writer(&self) -> Result<FileWriter, Error> {
+        let file = self.dir.join(format!("data_{}", self.id));
+        FileWriter::new(&file)
+    }
+
+    fn reader(&self) -> Result<FileReader, Error> {
+        let file = self.dir.join(format!("data_{}", self.id));
+        FileReader::new(&file)
     }
 }

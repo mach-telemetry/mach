@@ -20,12 +20,12 @@
 pub mod compression;
 pub mod constants;
 pub mod persistent_list;
+pub mod sample;
 pub mod segment;
 pub mod tags;
 pub mod tsdb;
 pub mod utils;
 pub mod writer;
-pub mod sample;
 //pub mod into;
 
 #[cfg(test)]

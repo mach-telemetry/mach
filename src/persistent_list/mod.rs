@@ -1,6 +1,8 @@
 mod file_backend;
 mod inner;
+mod inner2;
 mod kafka_backend;
+mod kafka2_backend;
 mod vector_backend;
 //mod kafka_hybrid_backend;
 
@@ -12,6 +14,7 @@ pub enum Error {
     Kafka(KafkaError),
     IO(std::io::Error),
     FactoryError,
+    MultipleWriters,
 }
 
 impl From<KafkaError> for Error {
@@ -31,10 +34,41 @@ pub use inner::{Buffer, ChunkReader, ChunkWriter, List, ListReader};
 pub use kafka_backend::{KafkaBackend, KafkaReader, KafkaWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 
-pub trait Backend {
+pub trait BackendOld {
     type Writer: ChunkWriter + 'static;
     type Reader: ChunkReader + 'static;
     fn make_backend(&mut self) -> Result<(Self::Writer, Self::Reader), Error>;
+}
+
+// One Backend per writer thread. Single writer, multiple readers
+pub trait PersistentListBackend: Sized {
+    type Writer: inner2::ChunkWriter + 'static;
+    type Reader: inner2::ChunkReader + 'static;
+    fn writer(&self) -> Result<Self::Writer, Error>;
+    fn reader(&self) -> Result<Self::Reader, Error>;
+}
+
+pub struct Backend<T: PersistentListBackend> {
+    backend: T,
+    writer: Option<T::Writer>
+}
+
+impl<T: PersistentListBackend> Backend<T> {
+    fn new(backend: T) -> Result<Self, Error> {
+        let writer = Some(backend.writer()?);
+        Ok(Self {
+            backend,
+            writer
+        })
+    }
+
+    fn writer(&mut self) -> Result<T::Writer, Error> {
+        self.writer.take().ok_or(Error::MultipleWriters)
+    }
+
+    fn reader(&self) -> Result<T::Reader, Error> {
+        self.backend.reader()
+    }
 }
 
 #[cfg(test)]
@@ -46,33 +80,38 @@ mod test {
         segment::*,
         tags::*,
         test_utils::*,
+        utils::wp_lock::WpLock,
+        constants::*,
     };
     use std::env;
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
 
-    fn test_multiple<R: ChunkReader, W: ChunkWriter>(mut chunk_reader: R, mut chunk_writer: W) {
-        let buffer = Buffer::new(100);
-        let list1 = List::new(buffer.clone());
-        let list2 = List::new(buffer.clone());
+    fn test_multiple<R: inner2::ChunkReader, W: inner2::ChunkWriter>(mut chunk_reader: R, mut chunk_writer: W) {
+        let buffer = Arc::new(WpLock::new(inner2::Buffer::new(100)));
+        let list1 = inner2::List::new(buffer.clone());
+        let list2 = inner2::List::new(buffer.clone());
+
+        let mut list1_writer = list1.writer();
+        let mut list2_writer = list2.writer();
 
         let data1: Vec<Vec<u8>> = (0..5).map(|x| vec![x; 15]).collect();
         let data2: Vec<Vec<u8>> = (5..10).map(|x| vec![x; 15]).collect();
 
-        list1.push_bytes(data1[0].as_slice(), &mut chunk_writer);
-        list1.push_bytes(data1[1].as_slice(), &mut chunk_writer);
-        list2.push_bytes(data2[0].as_slice(), &mut chunk_writer);
+        list1_writer.push_bytes(data1[0].as_slice(), &mut chunk_writer);
+        list1_writer.push_bytes(data1[1].as_slice(), &mut chunk_writer);
+        list2_writer.push_bytes(data2[0].as_slice(), &mut chunk_writer);
         // Should have flushed in the last push
-        list1.push_bytes(data1[2].as_slice(), &mut chunk_writer);
-        list2.push_bytes(data2[1].as_slice(), &mut chunk_writer);
-        list2.push_bytes(data2[2].as_slice(), &mut chunk_writer);
+        list1_writer.push_bytes(data1[2].as_slice(), &mut chunk_writer);
+        list2_writer.push_bytes(data2[1].as_slice(), &mut chunk_writer);
+        list2_writer.push_bytes(data2[2].as_slice(), &mut chunk_writer);
         // Should have flushed in the last push
-        list1.push_bytes(data1[3].as_slice(), &mut chunk_writer);
-        list1.push_bytes(data1[4].as_slice(), &mut chunk_writer);
-        list2.push_bytes(data2[3].as_slice(), &mut chunk_writer);
-        list2.push_bytes(data2[4].as_slice(), &mut chunk_writer);
+        list1_writer.push_bytes(data1[3].as_slice(), &mut chunk_writer);
+        list1_writer.push_bytes(data1[4].as_slice(), &mut chunk_writer);
+        list2_writer.push_bytes(data2[3].as_slice(), &mut chunk_writer);
+        list2_writer.push_bytes(data2[4].as_slice(), &mut chunk_writer);
 
-        let mut reader = list1.reader().unwrap();
+        let mut reader = list1.read().unwrap();
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data1[4], res);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
@@ -84,7 +123,7 @@ mod test {
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data1[0], res);
 
-        let mut reader = list2.reader().unwrap();
+        let mut reader = list2.read().unwrap();
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data2[4], res);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
@@ -97,14 +136,15 @@ mod test {
         assert_eq!(data2[0], res);
     }
 
-    fn test_single<R: ChunkReader, W: ChunkWriter>(mut chunk_reader: R, mut chunk_writer: W) {
-        let buffer = Buffer::new(100);
-        let list = List::new(buffer.clone());
+    fn test_single<R: inner2::ChunkReader, W: inner2::ChunkWriter>(mut chunk_reader: R, mut chunk_writer: W) {
+        let buffer = Arc::new(WpLock::new(inner2::Buffer::new(100)));
+        let list = inner2::List::new(buffer.clone());
+        let mut writer = list.writer();
         let data: Vec<Vec<u8>> = (0..5).map(|x| vec![x; 15]).collect();
         data.iter()
-            .for_each(|x| list.push_bytes(x.as_slice(), &mut chunk_writer));
+            .for_each(|x| writer.push_bytes(x.as_slice(), &mut chunk_writer));
 
-        let mut reader = list.reader().unwrap();
+        let mut reader = list.read().unwrap();
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data[4], res);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
@@ -243,8 +283,8 @@ mod test {
     #[test]
     fn test_kafka_bytes() {
         if env::var("KAFKA").is_ok() {
-            let kafka_writer = KafkaWriter::new(0).unwrap();
-            let kafka_reader = KafkaReader::new().unwrap();
+            let kafka_writer = kafka2_backend::KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
+            let kafka_reader = kafka2_backend::KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
             test_multiple(kafka_reader, kafka_writer);
         }
     }
@@ -291,12 +331,12 @@ mod test {
         test_sample_data(persistent_reader, persistent_writer);
     }
 
-    #[test]
-    fn test_kafka_data() {
-        if env::var("KAFKA").is_ok() {
-            let mut persistent_writer = KafkaWriter::new(0).unwrap();
-            let mut persistent_reader = KafkaReader::new().unwrap();
-            test_sample_data(persistent_reader, persistent_writer);
-        }
-    }
+    //#[test]
+    //fn test_kafka_data() {
+    //    if env::var("KAFKA").is_ok() {
+    //        let mut persistent_writer = KafkaWriter::new(0).unwrap();
+    //        let mut persistent_reader = KafkaReader::new().unwrap();
+    //        test_sample_data(persistent_reader, persistent_writer);
+    //    }
+    //}
 }

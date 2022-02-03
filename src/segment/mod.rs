@@ -318,11 +318,11 @@ mod test {
             let v = to_values(&item.values[..]);
             let res = writer.push(item.ts, &v[..]);
             match res {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(x) => {
                     println!("Result: {:?} id: {}", x, id);
                     assert!(false);
-                },
+                }
             }
             exp_ts.push(item.ts);
             for (e, i) in exp_values.iter_mut().zip(v.iter()) {
