@@ -134,7 +134,7 @@ impl Drop for ListWriter {
 }
 
 impl ListWriter {
-    fn push_segment<W: ChunkWriter>(
+    pub fn push_segment<W: ChunkWriter>(
         &mut self,
         segment: &FullSegment,
         tags: &Tags,
@@ -148,14 +148,8 @@ impl ListWriter {
         // SAFETY: push_bytes doesn't race with a concurrent ListReader.
         let (new_head, to_flush) = unsafe {
             let buf = self.buffer.unprotected_write();
-            let new_head = buf.push_segment(
-                segment,
-                tags,
-                compression,
-                p_meta,
-                head.offset,
-                head.size,
-            );
+            let new_head =
+                buf.push_segment(segment, tags, compression, p_meta, head.offset, head.size);
             let to_flush = buf.is_full();
             (new_head, to_flush)
         };
@@ -217,6 +211,7 @@ pub struct ListReader {
     persistent: Node,
     idx: usize,
     local_buffer: Vec<u8>,
+    decompress_buf: DecompressBuffer,
 }
 
 impl ListReader {
@@ -226,6 +221,36 @@ impl ListReader {
             persistent,
             idx: 0,
             local_buffer: Vec::new(),
+            decompress_buf: DecompressBuffer::new(),
+        }
+    }
+
+    pub fn next_segment<R: ChunkReader>(
+        &mut self,
+        reader: &mut R,
+    ) -> Result<Option<&DecompressBuffer>, Error> {
+        let bytes = self.next_bytes(reader)?;
+        match bytes {
+            None => Ok(None),
+            Some(bytes) => {
+                // bytes is a self reference. drop the reference here and get a local ref so that
+                // we don't make borrow checker sad
+                drop(bytes);
+                let bytes = &self.buffer_copy[self.idx-1][..];
+
+                // get the tag size and skip the tags
+                let mut offset = 0;
+                let end = offset + size_of::<u64>();
+                let tag_sz =
+                    u64::from_be_bytes(bytes[offset..end].try_into().unwrap()) as usize;
+                offset = end + tag_sz;
+
+                // get the compressed size and move to compressed data offset
+                Compression::decompress(&bytes[offset..], &mut self.decompress_buf)
+                    .unwrap();
+
+                Ok(Some(&self.decompress_buf))
+            }
         }
     }
 
@@ -233,7 +258,7 @@ impl ListReader {
         if self.idx == self.buffer_copy.len() {
             let p_meta = self.persistent.p_meta.load(SeqCst);
             if p_meta == u64::MAX {
-                return Ok(None)
+                return Ok(None);
             } else {
                 let buf = InnerBuf(reader.read(p_meta)?);
                 let (copies, node) = buf.read(self.persistent.offset, self.persistent.size);
@@ -285,13 +310,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> DerefMut for InnerBuf<T> {
 }
 
 impl<T: AsRef<[u8]>> InnerBuf<T> {
-    fn read(
-        &self,
-        last_offset: usize,
-        last_size: usize,
-    ) -> (Vec<Box<[u8]>>, Node) {
-
-
+    fn read(&self, last_offset: usize, last_size: usize) -> (Vec<Box<[u8]>>, Node) {
         let mut p_meta = u64::MAX;
         let mut offset = last_offset;
         let mut size = last_size;
@@ -406,7 +425,6 @@ pub struct Buffer {
 unsafe impl NoDealloc for Buffer {}
 
 impl Buffer {
-
     fn is_full(&self) -> bool {
         self.flush_sz <= self.len
     }
@@ -488,7 +506,6 @@ impl Buffer {
         last_offset: usize,
         last_size: usize,
     ) -> Result<(Vec<Box<[u8]>>, Node), Error> {
-
         // We check buffer id internally because wrapping in WPLock does not have enough logic to
         // detect that the buffer was actually flushed. (e.g. the buffer version is wrong)
 

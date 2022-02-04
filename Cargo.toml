@@ -25,6 +25,7 @@ rand = "0.8.4"
 lazy_static = "1.4"
 raw-cpuid = "10.2.0"
 seq-macro = "0.3.0"
+redis = "0.21.5"
 
 [dev-dependencies]
 tempfile = "3.2.0"

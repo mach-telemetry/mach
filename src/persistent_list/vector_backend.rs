@@ -1,4 +1,4 @@
-use crate::persistent_list::{inner::*, inner2, PersistentListBackend, Error};
+use crate::persistent_list::{inner::*, inner2, Error, PersistentListBackend};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -25,8 +25,7 @@ impl inner2::ChunkReader for VectorReader {
             self.offset = offset;
             self.local_copy.clear();
             let guard = self.inner.lock().unwrap();
-            self.local_copy
-                .extend_from_slice(&*guard[offset]);
+            self.local_copy.extend_from_slice(&*guard[offset]);
         }
         Ok(self.local_copy.as_slice())
     }
@@ -102,7 +101,9 @@ pub struct VectorBackend {
 
 impl VectorBackend {
     pub fn new() -> Self {
-        Self { data: Arc::new(Mutex::new(Vec::new())) }
+        Self {
+            data: Arc::new(Mutex::new(Vec::new())),
+        }
     }
 }
 

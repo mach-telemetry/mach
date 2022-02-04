@@ -2,9 +2,9 @@ use crate::{
     constants::*,
     persistent_list::{inner::*, inner2, BackendOld, Error},
 };
-use rand::prelude::*;
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
+use rand::prelude::*;
 pub use rdkafka::consumer::{base_consumer::BaseConsumer, Consumer};
 use rdkafka::{
     config::ClientConfig,
@@ -75,7 +75,7 @@ impl KafkaWriter {
         Ok(KafkaWriter {
             key,
             producer,
-            topic
+            topic,
         })
     }
 
@@ -151,7 +151,9 @@ impl inner2::ChunkReader for KafkaReader {
 
         // Setup the consumer
         let mut tp_list = TopicPartitionList::new();
-        tp_list.add_partition_offset(KAFKA_TOPIC, partition, offset).unwrap();
+        tp_list
+            .add_partition_offset(KAFKA_TOPIC, partition, offset)
+            .unwrap();
         self.consumer.assign(&tp_list)?;
         let msg = loop {
             match self.consumer.poll(self.timeout) {
@@ -168,7 +170,7 @@ impl inner2::ChunkReader for KafkaReader {
 
 pub struct KafkaBackend {
     bootstrap_servers: &'static str,
-    key: [u8; 8]
+    key: [u8; 8],
 }
 
 impl KafkaBackend {

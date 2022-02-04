@@ -1,8 +1,9 @@
 mod file_backend;
 mod inner;
 mod inner2;
-mod kafka_backend;
 mod kafka2_backend;
+mod kafka_backend;
+mod redis_backend;
 mod vector_backend;
 //mod kafka_hybrid_backend;
 
@@ -33,6 +34,7 @@ pub use file_backend::{FileBackend, FileReader, FileWriter};
 pub use inner::{Buffer, ChunkReader, ChunkWriter, List, ListReader};
 pub use kafka_backend::{KafkaBackend, KafkaReader, KafkaWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
+pub use redis_backend::{RedisReader, RedisWriter};
 
 pub trait BackendOld {
     type Writer: ChunkWriter + 'static;
@@ -50,16 +52,13 @@ pub trait PersistentListBackend: Sized {
 
 pub struct Backend<T: PersistentListBackend> {
     backend: T,
-    writer: Option<T::Writer>
+    writer: Option<T::Writer>,
 }
 
 impl<T: PersistentListBackend> Backend<T> {
     fn new(backend: T) -> Result<Self, Error> {
         let writer = Some(backend.writer()?);
-        Ok(Self {
-            backend,
-            writer
-        })
+        Ok(Self { backend, writer })
     }
 
     fn writer(&mut self) -> Result<T::Writer, Error> {
@@ -76,18 +75,22 @@ mod test {
     use super::*;
     use crate::{
         compression::*,
+        constants::*,
         persistent_list::{inner::*, vector_backend::*},
         segment::*,
         tags::*,
         test_utils::*,
         utils::wp_lock::WpLock,
-        constants::*,
     };
     use std::env;
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
+    use dashmap::DashMap;
 
-    fn test_multiple<R: inner2::ChunkReader, W: inner2::ChunkWriter>(mut chunk_reader: R, mut chunk_writer: W) {
+    fn test_multiple<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
+        mut chunk_reader: R,
+        mut chunk_writer: W,
+    ) {
         let buffer = Arc::new(WpLock::new(inner2::Buffer::new(100)));
         let list1 = inner2::List::new(buffer.clone());
         let list2 = inner2::List::new(buffer.clone());
@@ -123,6 +126,8 @@ mod test {
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data1[0], res);
 
+        // Guarantee that reads are available on the source (e.g. redis has async flush)
+        std::thread::sleep(std::time::Duration::from_millis(500));
         let mut reader = list2.read().unwrap();
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data2[4], res);
@@ -136,7 +141,10 @@ mod test {
         assert_eq!(data2[0], res);
     }
 
-    fn test_single<R: inner2::ChunkReader, W: inner2::ChunkWriter>(mut chunk_reader: R, mut chunk_writer: W) {
+    fn test_single<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
+        mut chunk_reader: R,
+        mut chunk_writer: W,
+    ) {
         let buffer = Arc::new(WpLock::new(inner2::Buffer::new(100)));
         let list = inner2::List::new(buffer.clone());
         let mut writer = list.writer();
@@ -157,7 +165,7 @@ mod test {
         assert_eq!(data[0], res);
     }
 
-    fn test_sample_data<R: ChunkReader, W: ChunkWriter>(
+    fn test_sample_data<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
         mut persistent_reader: R,
         mut persistent_writer: W,
     ) {
@@ -170,8 +178,9 @@ mod test {
 
         let compression = Compression::LZ4(1);
 
-        let buffer = Buffer::new(6000);
-        let list = List::new(buffer.clone());
+        let buffer = Arc::new(WpLock::new(inner2::Buffer::new(6000)));
+        let l = inner2::List::new(buffer.clone());
+        let mut list = l.writer();
 
         let segment = Segment::new(1, nvars);
         let mut writer = segment.writer().unwrap();
@@ -221,7 +230,7 @@ mod test {
             exp_values.push(Vec::new());
         }
 
-        let mut reader = list.reader().unwrap();
+        let mut reader = l.read().unwrap();
         let res: &DecompressBuffer = reader
             .next_segment(&mut persistent_reader)
             .unwrap()
@@ -298,6 +307,36 @@ mod test {
     }
 
     #[test]
+    fn test_redis_simple() {
+        if env::var("REDIS").is_ok() {
+            let client = redis::Client::open("redis://127.0.0.1/").unwrap();
+            let map = Arc::new(DashMap::new());
+            let mut con = client.get_connection().unwrap();
+            let mut persistent_writer = RedisWriter::new(con, map.clone());
+
+            let client = redis::Client::open("redis://127.0.0.1/").unwrap();
+            let mut con = client.get_connection().unwrap();
+            let mut persistent_reader = RedisReader::new(con, map.clone());
+            test_single(persistent_reader, persistent_writer);
+        }
+    }
+
+    #[test]
+    fn test_redis_multiple() {
+        if env::var("REDIS").is_ok() {
+            let client = redis::Client::open("redis://127.0.0.1/").unwrap();
+            let map = Arc::new(DashMap::new());
+            let mut con = client.get_connection().unwrap();
+            let mut persistent_writer = RedisWriter::new(con, map.clone());
+
+            let client = redis::Client::open("redis://127.0.0.1/").unwrap();
+            let mut con = client.get_connection().unwrap();
+            let mut persistent_reader = RedisReader::new(con, map.clone());
+            test_multiple(persistent_reader, persistent_writer);
+        }
+    }
+
+    #[test]
     fn test_vec_multiple() {
         let vec = Arc::new(Mutex::new(Vec::new()));
         let mut persistent_writer = VectorWriter::new(vec.clone());
@@ -330,6 +369,22 @@ mod test {
         let mut persistent_reader = FileReader::new(&file_path).unwrap();
         test_sample_data(persistent_reader, persistent_writer);
     }
+
+    #[test]
+    fn test_redis_data() {
+        if env::var("REDIS").is_ok() {
+            let client = redis::Client::open("redis://127.0.0.1/").unwrap();
+            let map = Arc::new(DashMap::new());
+            let mut con = client.get_connection().unwrap();
+            let mut persistent_writer = RedisWriter::new(con, map.clone());
+
+            let client = redis::Client::open("redis://127.0.0.1/").unwrap();
+            let mut con = client.get_connection().unwrap();
+            let mut persistent_reader = RedisReader::new(con, map.clone());
+            test_sample_data(persistent_reader, persistent_writer);
+        }
+    }
+
 
     //#[test]
     //fn test_kafka_data() {

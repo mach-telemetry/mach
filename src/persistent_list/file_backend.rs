@@ -1,10 +1,10 @@
-use crate::persistent_list::{inner::*, inner2, PersistentListBackend, Error};
+use crate::persistent_list::{inner::*, inner2, Error, PersistentListBackend};
 use std::{
     convert::AsRef,
+    convert::TryInto,
     fs::{File, OpenOptions},
     io::{prelude::*, SeekFrom},
     path::{Path, PathBuf},
-    convert::TryInto,
 };
 
 pub struct FileReader {
