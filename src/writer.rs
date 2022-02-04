@@ -4,7 +4,7 @@ use crate::{
     sample::Sample,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
     tags::Tags,
-    tsdb::SeriesId,
+    id::SeriesId,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
@@ -35,7 +35,7 @@ impl SeriesMetadata {
         seg_count: usize,
         nvars: usize,
         compression: Compression,
-        buffer: Buffer,
+        buffer: ListBuffer,
     ) -> Self {
         SeriesMetadata {
             segment: segment::Segment::new(seg_count, nvars),
@@ -138,7 +138,7 @@ struct FlushMeta {
 impl FlushMeta {
     fn flush<W: ChunkWriter>(&self, w: &mut W) {
         let seg: FullSegment = self.segment.to_flush().unwrap();
-        self.list
+        self.list.writer()
             .push_segment(&seg, &self.tags, &self.compression, w);
         self.segment.flushed();
     }
@@ -191,6 +191,7 @@ mod test {
     use super::*;
     use crate::compression::DecompressBuffer;
     use crate::test_utils::*;
+    use crate::constants::*;
     use std::{
         env,
         sync::{Arc, Mutex},
@@ -214,13 +215,26 @@ mod test {
         sample_data(persistent_reader, persistent_writer);
     }
 
+    #[cfg(feature="kafka-backend")]
     #[test]
     fn test_kafka_writer() {
-        if env::var("KAFKA").is_ok() {
-            let mut persistent_writer = KafkaWriter::new(0).unwrap();
-            let mut persistent_reader = KafkaReader::new().unwrap();
-            sample_data(persistent_reader, persistent_writer);
-        }
+        let mut persistent_writer = KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
+        let mut persistent_reader = KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
+        sample_data(persistent_reader, persistent_writer);
+    }
+
+    #[cfg(feature="redis-backend")]
+    #[test]
+    fn test_redis_writer() {
+        let client = redis::Client::open(REDIS_ADDR).unwrap();
+        let map = Arc::new(DashMap::new());
+        let mut con = client.get_connection().unwrap();
+        let mut persistent_writer = RedisWriter::new(con, map.clone());
+
+        let client = redis::Client::open(REDIS_ADDR).unwrap();
+        let mut con = client.get_connection().unwrap();
+        let mut persistent_reader = RedisReader::new(con, map.clone());
+        sample_data(persistent_reader, persistent_writer);
     }
 
     fn sample_data<R: ChunkReader, W: ChunkWriter + 'static>(
@@ -283,7 +297,7 @@ mod test {
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
 
-        let mut reader = series_meta.list.reader().unwrap();
+        let mut reader = series_meta.list.read().unwrap();
         let res: &DecompressBuffer = reader
             .next_segment(&mut persistent_reader)
             .unwrap()

@@ -42,13 +42,32 @@ impl InnerList {
     }
 }
 
+#[derive(Clone)]
+pub struct ListBuffer(Arc<WpLock<InnerBuffer>>);
+
+pub type Buffer = ListBuffer;
+
+impl ListBuffer {
+    pub fn new(flush_sz: usize) -> Self {
+        ListBuffer(Arc::new(WpLock::new(InnerBuffer::new(flush_sz))))
+    }
+}
+
+impl Deref for ListBuffer {
+    type Target=Arc<WpLock<InnerBuffer>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Clone)]
 pub struct List {
     inner_list: Arc<InnerList>,
-    buffer: Arc<WpLock<Buffer>>,
+    buffer: ListBuffer,
 }
 
 impl List {
-    pub fn new(buffer: Arc<WpLock<Buffer>>) -> Self {
+    pub fn new(buffer: ListBuffer) -> Self {
         Self {
             inner_list: Arc::new(InnerList::new()),
             buffer,
@@ -124,7 +143,7 @@ impl List {
 
 pub struct ListWriter {
     inner_list: Arc<InnerList>,
-    buffer: Arc<WpLock<Buffer>>,
+    buffer: ListBuffer,
 }
 
 impl Drop for ListWriter {
@@ -260,7 +279,7 @@ impl ListReader {
             if p_meta == u64::MAX {
                 return Ok(None);
             } else {
-                let buf = InnerBuf(reader.read(p_meta)?);
+                let buf = Bytes(reader.read(p_meta)?);
                 let (copies, node) = buf.read(self.persistent.offset, self.persistent.size);
                 self.buffer_copy = copies;
                 self.persistent = node;
@@ -294,22 +313,22 @@ impl Node {
     }
 }
 
-struct InnerBuf<T>(T);
+struct Bytes<T>(T);
 
-impl<T: AsRef<[u8]>> Deref for InnerBuf<T> {
+impl<T: AsRef<[u8]>> Deref for Bytes<T> {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
         &self.0.as_ref()[..]
     }
 }
 
-impl<T: AsRef<[u8]> + AsMut<[u8]>> DerefMut for InnerBuf<T> {
+impl<T: AsRef<[u8]> + AsMut<[u8]>> DerefMut for Bytes<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0.as_mut()[..]
     }
 }
 
-impl<T: AsRef<[u8]>> InnerBuf<T> {
+impl<T: AsRef<[u8]>> Bytes<T> {
     fn read(&self, last_offset: usize, last_size: usize) -> (Vec<Box<[u8]>>, Node) {
         let mut p_meta = u64::MAX;
         let mut offset = last_offset;
@@ -335,7 +354,7 @@ impl<T: AsRef<[u8]>> InnerBuf<T> {
     }
 }
 
-impl<T: AsRef<[u8]> + AsMut<[u8]>> InnerBuf<T> {
+impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
     fn push_segment(
         &mut self,
         segment: &FullSegment,
@@ -414,24 +433,24 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> InnerBuf<T> {
     }
 }
 
-pub struct Buffer {
+pub struct InnerBuffer {
     p_meta: Arc<AtomicU64>,
-    bytes: InnerBuf<Box<[u8]>>,
+    bytes: Bytes<Box<[u8]>>,
     flush_sz: usize,
     len: usize,
     buffer_id: AtomicUsize,
 }
 
-unsafe impl NoDealloc for Buffer {}
+unsafe impl NoDealloc for InnerBuffer {}
 
-impl Buffer {
+impl InnerBuffer {
     fn is_full(&self) -> bool {
         self.flush_sz <= self.len
     }
 
     pub fn new(flush_sz: usize) -> Self {
         Self {
-            bytes: InnerBuf(vec![0u8; flush_sz * 2].into_boxed_slice()),
+            bytes: Bytes(vec![0u8; flush_sz * 2].into_boxed_slice()),
             p_meta: Arc::new(AtomicU64::new(u64::MAX)),
             flush_sz,
             len: 0,

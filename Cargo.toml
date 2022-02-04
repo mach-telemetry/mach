@@ -40,7 +40,10 @@ debug=true
 #name = "bench-kafka-fs"
 #path = "src/bench1.rs"
 
-[[bin]]
-name = "bench2"
-path = "src/bench2.rs"
+#[[bin]]
+#name = "bench2"
+#path = "src/bench2.rs"
 
+[features]
+redis-backend = []
+kafka-backend = []
