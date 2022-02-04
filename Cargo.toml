@@ -16,7 +16,7 @@ lzzzz = "0.8.0"
 serde = { version = "1.0.127", features = ["derive"] }
 bincode = "1.3.3"
 dashmap = "4.0.2"
-rdkafka = "0.28.0"
+rdkafka = {version="0.28.0", optional=true}
 async-std = { version = "1.9", features = ["unstable", "attributes", "tokio1"] }
 #futures = "0.3.18"
 uuid = { version = "0.8", features = ["v4"] }
@@ -25,7 +25,7 @@ rand = "0.8.4"
 lazy_static = "1.4"
 raw-cpuid = "10.2.0"
 seq-macro = "0.3.0"
-redis = "0.21.5"
+redis = {version="0.21.5", optional=true}
 
 [dev-dependencies]
 tempfile = "3.2.0"
@@ -40,10 +40,12 @@ debug=true
 #name = "bench-kafka-fs"
 #path = "src/bench1.rs"
 
-#[[bin]]
-#name = "bench2"
-#path = "src/bench2.rs"
+[[bin]]
+name = "bench2"
+path = "src/bench2.rs"
 
 [features]
-redis-backend = []
-kafka-backend = []
+redis-backend = ["redis", "rdkafka"]
+kafka-backend = ["rdkafka"]
+vector-backend = []
+file-backend = []

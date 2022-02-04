@@ -7,25 +7,34 @@ mod kafka2_backend;
 mod redis_backend;
 mod vector_backend;
 
+#[cfg(any(feature="redis-backend", feature="kafka-backend"))]
 use rdkafka::error::KafkaError;
+
+#[cfg(feature="redis-backend")]
 use redis::RedisError;
 
 #[derive(Debug)]
 pub enum Error {
     InconsistentRead,
+
+    #[cfg(any(feature="redis-backend", feature="kafka-backend"))]
     Kafka(KafkaError),
+
+    #[cfg(feature="redis-backend")]
     Redis(RedisError),
     IO(std::io::Error),
     FactoryError,
     MultipleWriters,
 }
 
+#[cfg(any(feature="redis-backend", feature="kafka-backend"))]
 impl From<KafkaError> for Error {
     fn from(item: KafkaError) -> Self {
         Error::Kafka(item)
     }
 }
 
+#[cfg(feature="redis-backend")]
 impl From<RedisError> for Error {
     fn from(item: RedisError) -> Self {
         Error::Redis(item)
@@ -42,7 +51,7 @@ impl From<std::io::Error> for Error {
 pub use file_backend::{FileBackend, FileReader, FileWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 #[cfg(feature="redis-backend")]
-pub use redis_backend::{RedisReader, RedisWriter};
+pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
 #[cfg(feature="kafka-backend")]
 pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
 
@@ -68,16 +77,16 @@ pub struct Backend<T: PersistentListBackend> {
 }
 
 impl<T: PersistentListBackend> Backend<T> {
-    fn new(backend: T) -> Result<Self, Error> {
+    pub fn new(backend: T) -> Result<Self, Error> {
         let writer = Some(backend.writer()?);
         Ok(Self { backend, writer })
     }
 
-    fn writer(&mut self) -> Result<T::Writer, Error> {
+    pub fn writer(&mut self) -> Result<T::Writer, Error> {
         self.writer.take().ok_or(Error::MultipleWriters)
     }
 
-    fn reader(&self) -> Result<T::Reader, Error> {
+    pub fn reader(&self) -> Result<T::Reader, Error> {
         self.backend.reader()
     }
 }

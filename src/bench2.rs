@@ -24,6 +24,7 @@ mod tsdb;
 mod utils;
 mod writer;
 mod zipf;
+mod id;
 
 #[macro_use]
 mod rdtsc;
@@ -51,19 +52,18 @@ use persistent_list::*;
 use sample::*;
 use seq_macro::seq;
 use tags::*;
-use tsdb::SeriesId;
+use id::SeriesId;
 use writer::*;
 use zipf::*;
+use constants::*;
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
-const NSERIES: usize = 100_000;
+const NSERIES: usize = 10_000;
 const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
 const UNIVARIATE: bool = true;
-const KAFKA_TOPIC: &str = "MACHSTORAGE";
-const KAFKA_BOOTSTRAP: &str = "localhost:29092";
 //const COMPRESSION: Compression = Compression::XOR;
 const COMPRESSION: Compression = Compression::Fixed(10);
 //const COMPRESSION: Compression = Compression::Decimal(3);
@@ -264,7 +264,7 @@ fn main() {
     std::fs::create_dir_all(outdir).unwrap();
     let _data = DATA.len();
     let mut handles = Vec::new();
-    let mut backend = FileBackend::new(outdir.into());
+
     //let mut backend = KafkaBackend::new()
     //    .bootstrap_servers(KAFKA_BOOTSTRAP)
     //    .topic(KAFKA_TOPIC)
@@ -273,7 +273,23 @@ fn main() {
     let global = Arc::new(DashMap::new());
     let id_counter = Arc::new(AtomicUsize::new(0));
     for i in 0..NTHREADS {
-        let (mut persistent_writer, _) = backend.make_backend().unwrap();
+        let backend = {
+            #[cfg(feature="file-backend")]
+            let backend = FileBackend::new(outdir.into(), i.try_into().unwrap());
+
+            #[cfg(feature="kafka-backend")]
+            let backend = KafkaBackend::new(KAFKA_BOOTSTRAP);
+
+            #[cfg(feature="redis-backend")]
+            let backend = RedisBackend::new(REDIS_ADDR);
+
+            #[cfg(feature="vector-backend")]
+            let backend = VectorBackend::new();
+
+            backend
+        };
+        let mut backend = Backend::new(backend).unwrap();
+        let mut persistent_writer = backend.writer().unwrap();
         let id_counter = id_counter.clone();
         let global = global.clone();
         handles.push(thread::spawn(move || {

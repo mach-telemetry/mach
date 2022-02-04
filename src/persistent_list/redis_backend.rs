@@ -1,4 +1,4 @@
-use crate::persistent_list::{inner2, Error};
+use crate::persistent_list::{inner2, PersistentListBackend, Error};
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
 use rand::prelude::*;
@@ -92,3 +92,32 @@ impl inner2::ChunkReader for RedisReader {
     }
 }
 
+pub struct RedisBackend {
+    transfer_map: Arc<DashMap<u64, Arc<[u8]>>>,
+    redis_addr: &'static str,
+}
+
+impl RedisBackend {
+    pub fn new(redis_addr: &'static str) -> Self {
+        let transfer_map = Arc::new(DashMap::new());
+        Self {
+            transfer_map,
+            redis_addr
+        }
+    }
+}
+
+impl PersistentListBackend for RedisBackend {
+    type Writer = RedisWriter;
+    type Reader = RedisReader;
+    fn writer(&self) -> Result<Self::Writer, Error> {
+        let client = redis::Client::open(self.redis_addr)?;
+        let mut con = client.get_connection()?;
+        Ok(RedisWriter::new(con, self.transfer_map.clone()))
+    }
+    fn reader(&self) -> Result<Self::Reader, Error> {
+        let client = redis::Client::open(self.redis_addr)?;
+        let mut con = client.get_connection()?;
+        Ok(RedisReader::new(con, self.transfer_map.clone()))
+    }
+}
