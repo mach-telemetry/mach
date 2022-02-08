@@ -1,4 +1,8 @@
-use crate::persistent_list::{inner::*, inner2, Error, PersistentListBackend};
+use crate::{
+    persistent_list::{inner2, Error, PersistentListBackend},
+    tags::Tags,
+};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -31,18 +35,18 @@ impl inner2::ChunkReader for VectorReader {
     }
 }
 
-impl ChunkReader for VectorReader {
-    fn read(&mut self, persistent: PersistentHead, local: BufferHead) -> Result<&[u8], Error> {
-        if self.offset == usize::MAX || self.offset != persistent.offset {
-            self.offset = persistent.offset;
-            self.local_copy.clear();
-            let guard = self.inner.lock().unwrap();
-            self.local_copy
-                .extend_from_slice(&*guard[persistent.offset]);
-        }
-        Ok(&self.local_copy[local.offset..local.offset + local.size])
-    }
-}
+//impl ChunkReader for VectorReader {
+//    fn read(&mut self, persistent: PersistentHead, local: BufferHead) -> Result<&[u8], Error> {
+//        if self.offset == usize::MAX || self.offset != persistent.offset {
+//            self.offset = persistent.offset;
+//            self.local_copy.clear();
+//            let guard = self.inner.lock().unwrap();
+//            self.local_copy
+//                .extend_from_slice(&*guard[persistent.offset]);
+//        }
+//        Ok(&self.local_copy[local.offset..local.offset + local.size])
+//    }
+//}
 
 #[derive(Clone)]
 pub struct VectorWriter {
@@ -70,30 +74,58 @@ impl inner2::ChunkWriter for VectorWriter {
     }
 }
 
-impl ChunkWriter for VectorWriter {
-    fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
-        //println!("Since last flush: {:?}", self.last_flush.elapsed());
-        //let now = std::time::Instant::now();
-        let mut guard = self.inner.lock().unwrap();
-        let sz = bytes.len();
-        let offset = guard.len();
-        guard.push(bytes.into());
-        //let spin = Instant::now();
-        //loop {
-        //    if spin.elapsed() > Duration::from_millis(8) {
-        //        break;
-        //    }
-        //}
-        //println!("Duration: {:?}", now.elapsed());
-        //self.last_flush = Instant::now();
-        let head = PersistentHead {
-            partition: usize::MAX,
-            offset,
-            sz,
-        };
-        Ok(head)
+#[derive(Clone)]
+pub struct VectorMeta {
+    map: HashMap<Tags, (u64, inner2::ChunkMetadata)>,
+    inner: Arc<Mutex<Vec<Box<[u8]>>>>,
+}
+
+impl VectorMeta {
+    pub fn new(inner: Arc<Mutex<Vec<Box<[u8]>>>>) -> Self {
+        VectorMeta {
+            inner,
+            map: HashMap::new(),
+        }
     }
 }
+
+impl inner2::ChunkMeta for VectorMeta {
+    fn update(
+        &mut self,
+        tags: &HashMap<Tags, inner2::ChunkMetadata>,
+        chunk_id: u64,
+    ) -> Result<(), Error> {
+        for (k, v) in tags.iter() {
+            self.map.insert(k.clone(), (chunk_id, *v));
+        }
+        Ok(())
+    }
+}
+
+//impl ChunkWriter for VectorWriter {
+//    fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
+//        //println!("Since last flush: {:?}", self.last_flush.elapsed());
+//        //let now = std::time::Instant::now();
+//        let mut guard = self.inner.lock().unwrap();
+//        let sz = bytes.len();
+//        let offset = guard.len();
+//        guard.push(bytes.into());
+//        //let spin = Instant::now();
+//        //loop {
+//        //    if spin.elapsed() > Duration::from_millis(8) {
+//        //        break;
+//        //    }
+//        //}
+//        //println!("Duration: {:?}", now.elapsed());
+//        //self.last_flush = Instant::now();
+//        let head = PersistentHead {
+//            partition: usize::MAX,
+//            offset,
+//            sz,
+//        };
+//        Ok(head)
+//    }
+//}
 
 pub struct VectorBackend {
     data: Arc<Mutex<Vec<Box<[u8]>>>>,
@@ -110,11 +142,15 @@ impl VectorBackend {
 impl PersistentListBackend for VectorBackend {
     type Writer = VectorWriter;
     type Reader = VectorReader;
+    type Meta = VectorMeta;
     fn writer(&self) -> Result<Self::Writer, Error> {
         Ok(VectorWriter::new(self.data.clone()))
     }
     fn reader(&self) -> Result<Self::Reader, Error> {
         Ok(VectorReader::new(self.data.clone()))
+    }
+    fn meta(&self) -> Result<Self::Meta, Error> {
+        Ok(VectorMeta::new(self.data.clone()))
     }
 }
 

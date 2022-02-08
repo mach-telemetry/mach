@@ -1,6 +1,7 @@
 use crate::{
     constants::KAFKA_TOPIC,
     persistent_list::{inner2, Error, PersistentListBackend},
+    tags::Tags,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
@@ -13,13 +14,10 @@ use rdkafka::{
     util::Timeout,
     Message,
 };
-#[cfg(feature="cluster")]
-use redis::cluster::ClusterConnection as Connection;
-#[cfg(not(feature="cluster"))]
-use redis::Connection;
+use redis::aio::Connection;
 
-use redis::{ Commands, RedisError };
-use std::{sync::Arc, time::Duration};
+use redis::{Commands, RedisError};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 fn random_id() -> String {
     uuid::Uuid::new_v4().to_hyphenated().to_string()
@@ -40,7 +38,8 @@ async fn worker(
             .arg("SET")
             .arg(key)
             .arg((partition, offset))
-            .query(&mut redis_con)
+            .query_async(&mut redis_con)
+            .await
             .unwrap();
         transfer_map.remove(&key);
     }
@@ -114,7 +113,8 @@ impl inner2::ChunkReader for RedisKafkaReader {
             None => {
                 let mut cmd = redis::Cmd::new();
                 cmd.arg("GET").arg(offset);
-                let (partition, offset): (i32, i64) = cmd.query(&mut self.redis).unwrap();
+                let (partition, offset): (i32, i64) =
+                    async_std::task::block_on(cmd.query_async(&mut self.redis)).unwrap();
                 let offset = Offset::Offset(offset);
                 let mut tp_list = TopicPartitionList::new();
                 tp_list
@@ -133,6 +133,32 @@ impl inner2::ChunkReader for RedisKafkaReader {
             }
         }
         Ok(self.local.as_slice())
+    }
+}
+
+pub struct RedisKafkaMeta {
+    con: Connection,
+}
+
+impl RedisKafkaMeta {
+    fn new(con: Connection) -> Self {
+        Self { con }
+    }
+}
+
+impl inner2::ChunkMeta for RedisKafkaMeta {
+    fn update(
+        &mut self,
+        tags: &HashMap<Tags, inner2::ChunkMetadata>,
+        chunk_id: u64,
+    ) -> Result<(), Error> {
+        let mut pipe = redis::pipe();
+        for (k, v) in tags.iter() {
+            let meta = (chunk_id, v.offset, v.size);
+            pipe.cmd("SET").arg(("meta", k.id())).arg(meta).ignore();
+        }
+        let _: () = async_std::task::block_on(pipe.query_async(&mut self.con))?;
+        Ok(())
     }
 }
 
@@ -170,26 +196,35 @@ impl RedisKafkaBackend {
 impl PersistentListBackend for RedisKafkaBackend {
     type Writer = RedisKafkaWriter;
     type Reader = RedisKafkaReader;
+    type Meta = RedisKafkaMeta;
     fn writer(&self) -> Result<Self::Writer, Error> {
-        #[cfg(feature="cluster")]
-        let client = redis::cluster::ClusterClient::open(vec![self.redis_addr])?;
-        #[cfg(not(feature="cluster"))]
         let client = redis::Client::open(self.redis_addr)?;
-        let mut redis = client.get_connection()?;
+        let mut redis = async_std::task::block_on(client.get_async_connection())?;
         let kafka = Self::default_producer(self.kafka_bootstrap)?;
-        Ok(RedisKafkaWriter::new(redis, kafka, self.transfer_map.clone()))
+        Ok(RedisKafkaWriter::new(
+            redis,
+            kafka,
+            self.transfer_map.clone(),
+        ))
     }
 
     fn reader(&self) -> Result<Self::Reader, Error> {
-        #[cfg(feature="cluster")]
-        let client = redis::cluster::ClusterClient::open(vec![self.redis_addr])?;
-        #[cfg(not(feature="cluster"))]
         let client = redis::Client::open(self.redis_addr)?;
-        let mut redis = client.get_connection()?;
+        let mut redis = async_std::task::block_on(client.get_async_connection())?;
         let kafka: BaseConsumer = ClientConfig::new()
             .set("bootstrap.servers", self.kafka_bootstrap)
             .set("group.id", random_id())
             .create()?;
-        Ok(RedisKafkaReader::new(redis, kafka, self.transfer_map.clone()))
+        Ok(RedisKafkaReader::new(
+            redis,
+            kafka,
+            self.transfer_map.clone(),
+        ))
+    }
+
+    fn meta(&self) -> Result<Self::Meta, Error> {
+        let client = redis::Client::open(self.redis_addr)?;
+        let mut redis = async_std::task::block_on(client.get_async_connection())?;
+        Ok(RedisKafkaMeta::new(redis))
     }
 }

@@ -11,6 +11,7 @@ use crate::{
 };
 use std::{
     cell::UnsafeCell,
+    collections::HashMap,
     convert::{AsMut, AsRef, TryInto},
     mem::size_of,
     ops::{Deref, DerefMut},
@@ -20,12 +21,23 @@ use std::{
     },
 };
 
+#[derive(Copy, Clone)]
+pub struct ChunkMetadata {
+    pub offset: usize,
+    pub size: usize,
+}
+
+pub trait ChunkMeta: Sync + Send {
+    fn update(&mut self, tags: &HashMap<Tags, ChunkMetadata>, chunk_id: u64) -> Result<(), Error>;
+    //fn get_meta(&mut self, tag: &Tag) -> Result<(u64, usize), Error>;
+}
+
 pub trait ChunkWriter: Sync + Send {
     fn write(&mut self, bytes: &[u8]) -> Result<u64, Error>;
 }
 
 pub trait ChunkReader {
-    fn read(&mut self, p_meta: u64) -> Result<&[u8], Error>;
+    fn read(&mut self, chunk_id: u64) -> Result<&[u8], Error>;
 }
 
 struct InnerList {
@@ -99,7 +111,7 @@ impl List {
 
     pub fn read(&self) -> Result<ListReader, Error> {
         let head = self.get_head()?;
-        let p_meta = head.p_meta.load(SeqCst);
+        let chunk_id = head.chunk_id.load(SeqCst);
 
         // This means the buffer_id has not been updated and this list has not yet written to the
         // buffer. There is no data for this list
@@ -107,7 +119,7 @@ impl List {
             Ok(ListReader::new(Vec::new(), Node::new()))
         }
         // This means that the buffer that this head was pointing has been written to storage.
-        else if p_meta != u64::MAX {
+        else if chunk_id != u64::MAX {
             Ok(ListReader::new(Vec::new(), head))
         }
         // Otherwise the buffer has not yet been written to storage...
@@ -132,8 +144,8 @@ impl List {
                     match buf.release() {
                         _ => {}
                     }
-                    // p_meta must have been updated since the last check
-                    assert!(head.p_meta.load(SeqCst) != u64::MAX);
+                    // chunk_id must have been updated since the last check
+                    assert!(head.chunk_id.load(SeqCst) != u64::MAX);
                     Ok(ListReader::new(Vec::new(), head))
                 }
             }
@@ -153,22 +165,23 @@ impl Drop for ListWriter {
 }
 
 impl ListWriter {
-    pub fn push_segment<W: ChunkWriter>(
+    pub fn push_segment<W: ChunkWriter, M: ChunkMeta>(
         &mut self,
         segment: &FullSegment,
         tags: &Tags,
         compression: &Compression,
         w: &mut W,
+        m: &mut M,
     ) {
         // SAFETY: Holding a read reference to head here doesn't race with a concurrent ListReader
         let head = unsafe { self.inner_list.head.unprotected_read() };
-        let p_meta = head.p_meta.load(SeqCst);
+        let chunk_id = head.chunk_id.load(SeqCst);
 
         // SAFETY: push_bytes doesn't race with a concurrent ListReader.
         let (new_head, to_flush) = unsafe {
             let buf = self.buffer.unprotected_write();
             let new_head =
-                buf.push_segment(segment, tags, compression, p_meta, head.offset, head.size);
+                buf.push_segment(tags, segment, compression, chunk_id, head.offset, head.size);
             let to_flush = buf.is_full();
             (new_head, to_flush)
         };
@@ -186,22 +199,22 @@ impl ListWriter {
         // concurrently.
         if to_flush {
             //SAFETY: flushing does not race with the reader
-            unsafe { self.buffer.unprotected_read().flush(w) };
+            unsafe { self.buffer.unprotected_read().flush(w, m) };
 
             // The reset does race with creating a reader
             self.buffer.protected_write().reset();
         }
     }
 
-    pub fn push_bytes<W: ChunkWriter>(&mut self, bytes: &[u8], w: &mut W) {
+    pub fn push_bytes<W: ChunkWriter, M: ChunkMeta>(&mut self, bytes: &[u8], w: &mut W, m: &mut M) {
         // SAFETY: Holding a read reference to head here doesn't race with a concurrent ListReader
         let head = unsafe { self.inner_list.head.unprotected_read() };
-        let p_meta = head.p_meta.load(SeqCst);
+        let chunk_id = head.chunk_id.load(SeqCst);
 
         // SAFETY: push_bytes doesn't race with a concurrent ListReader.
         let (new_head, to_flush) = unsafe {
             let buf = self.buffer.unprotected_write();
-            let new_head = buf.push_bytes(bytes, p_meta, head.offset, head.size);
+            let new_head = buf.push_bytes(bytes, chunk_id, head.offset, head.size);
             let to_flush = buf.is_full();
             (new_head, to_flush)
         };
@@ -217,7 +230,7 @@ impl ListWriter {
         // concurrently.
         if to_flush {
             //SAFETY: flushing does not race with the reader
-            unsafe { self.buffer.unprotected_read().flush(w) };
+            unsafe { self.buffer.unprotected_read().flush(w, m) };
 
             // The reset does race with creating a reader
             self.buffer.protected_write().reset();
@@ -257,14 +270,8 @@ impl ListReader {
                 drop(bytes);
                 let bytes = &self.buffer_copy[self.idx - 1][..];
 
-                // get the tag size and skip the tags
-                let mut offset = 0;
-                let end = offset + size_of::<u64>();
-                let tag_sz = u64::from_be_bytes(bytes[offset..end].try_into().unwrap()) as usize;
-                offset = end + tag_sz;
-
                 // get the compressed size and move to compressed data offset
-                Compression::decompress(&bytes[offset..], &mut self.decompress_buf).unwrap();
+                Compression::decompress(bytes, &mut self.decompress_buf).unwrap();
 
                 Ok(Some(&self.decompress_buf))
             }
@@ -273,11 +280,11 @@ impl ListReader {
 
     pub fn next_bytes<R: ChunkReader>(&mut self, reader: &mut R) -> Result<Option<&[u8]>, Error> {
         if self.idx == self.buffer_copy.len() {
-            let p_meta = self.persistent.p_meta.load(SeqCst);
-            if p_meta == u64::MAX {
+            let chunk_id = self.persistent.chunk_id.load(SeqCst);
+            if chunk_id == u64::MAX {
                 return Ok(None);
             } else {
-                let buf = Bytes(reader.read(p_meta)?);
+                let buf = Bytes(reader.read(chunk_id)?);
                 let (copies, node) = buf.read(self.persistent.offset, self.persistent.size);
                 self.buffer_copy = copies;
                 self.persistent = node;
@@ -292,7 +299,7 @@ impl ListReader {
 
 #[derive(Clone)]
 struct Node {
-    p_meta: Arc<AtomicU64>,
+    chunk_id: Arc<AtomicU64>,
     offset: usize,
     size: usize,
     buffer_id: usize,
@@ -303,7 +310,7 @@ unsafe impl NoDealloc for Node {}
 impl Node {
     fn new() -> Self {
         Self {
-            p_meta: Arc::new(AtomicU64::new(u64::MAX)),
+            chunk_id: Arc::new(AtomicU64::new(u64::MAX)),
             offset: usize::MAX,
             size: usize::MAX,
             buffer_id: usize::MAX,
@@ -328,21 +335,21 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> DerefMut for Bytes<T> {
 
 impl<T: AsRef<[u8]>> Bytes<T> {
     fn read(&self, last_offset: usize, last_size: usize) -> (Vec<Box<[u8]>>, Node) {
-        let mut p_meta = u64::MAX;
+        let mut chunk_id = u64::MAX;
         let mut offset = last_offset;
         let mut size = last_size;
         let mut copies = Vec::new();
 
-        while p_meta == u64::MAX && offset != usize::MAX {
+        while chunk_id == u64::MAX && offset != usize::MAX {
             let bytes = &self[offset..offset + size];
-            p_meta = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
+            chunk_id = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
             offset = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
             size = usize::from_be_bytes(bytes[16..24].try_into().unwrap());
             copies.push(bytes[24..].into());
         }
 
         let node = Node {
-            p_meta: Arc::new(AtomicU64::new(p_meta)),
+            chunk_id: Arc::new(AtomicU64::new(chunk_id)),
             offset,
             size,
             buffer_id: usize::MAX,
@@ -356,9 +363,8 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
     fn push_segment(
         &mut self,
         segment: &FullSegment,
-        tags: &Tags,
         compression: &Compression,
-        p_meta: u64,
+        chunk_id: u64,
         last_offset: usize,
         last_size: usize,
         offset: usize,
@@ -366,7 +372,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         let start = offset;
         let mut offset = offset;
         let end = offset + size_of::<u64>();
-        self[offset..end].copy_from_slice(&p_meta.to_be_bytes());
+        self[offset..end].copy_from_slice(&chunk_id.to_be_bytes());
         offset = end;
 
         let end = offset + size_of::<usize>();
@@ -376,19 +382,6 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         let end = offset + size_of::<usize>();
         self[offset..end].copy_from_slice(&last_size.to_be_bytes());
         offset = end;
-
-        // Write tags
-        offset += {
-            let sz_offset = offset;
-            let tags_offset = sz_offset + size_of::<u64>();
-            let tags_sz = {
-                let mut byte_buffer = ByteBuffer::new(&mut self[tags_offset..]);
-                tags.serialize_into(&mut byte_buffer);
-                byte_buffer.len()
-            };
-            self[sz_offset..tags_offset].copy_from_slice(&tags_sz.to_be_bytes()[..]);
-            tags_sz + size_of::<u64>()
-        };
 
         // Compress the data into the buffer
         offset += {
@@ -403,7 +396,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
     fn push_bytes(
         &mut self,
         bytes: &[u8],
-        p_meta: u64,
+        chunk_id: u64,
         last_offset: usize,
         last_size: usize,
         offset: usize,
@@ -412,7 +405,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         let mut offset = start;
 
         let end = offset + size_of::<u64>();
-        self[offset..end].copy_from_slice(&p_meta.to_be_bytes());
+        self[offset..end].copy_from_slice(&chunk_id.to_be_bytes());
         offset = end;
 
         let end = offset + size_of::<usize>();
@@ -432,8 +425,9 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
 }
 
 pub struct InnerBuffer {
-    p_meta: Arc<AtomicU64>,
+    chunk_id: Arc<AtomicU64>,
     bytes: Bytes<Box<[u8]>>,
+    tags: HashMap<Tags, ChunkMetadata>,
     flush_sz: usize,
     len: usize,
     buffer_id: AtomicUsize,
@@ -449,7 +443,8 @@ impl InnerBuffer {
     pub fn new(flush_sz: usize) -> Self {
         Self {
             bytes: Bytes(vec![0u8; flush_sz * 2].into_boxed_slice()),
-            p_meta: Arc::new(AtomicU64::new(u64::MAX)),
+            chunk_id: Arc::new(AtomicU64::new(u64::MAX)),
+            tags: HashMap::new(),
             flush_sz,
             len: 0,
             buffer_id: AtomicUsize::new(0),
@@ -458,27 +453,33 @@ impl InnerBuffer {
 
     fn push_segment(
         &mut self,
-        segment: &FullSegment,
         tags: &Tags,
+        segment: &FullSegment,
         compression: &Compression,
-        p_meta: u64,
+        chunk_id: u64,
         last_offset: usize,
         last_size: usize,
     ) -> Node {
         let size = self.bytes.push_segment(
             segment,
-            tags,
             compression,
-            p_meta,
+            chunk_id,
             last_offset,
             last_size,
             self.len,
         );
+
+        let m = ChunkMetadata {
+            offset: self.len,
+            size,
+        };
+
+        self.tags.insert(tags.clone(), m);
         let offset = self.len;
         self.len += size;
 
         Node {
-            p_meta: self.p_meta.clone(),
+            chunk_id: self.chunk_id.clone(),
             offset,
             size,
             buffer_id: self.buffer_id.load(SeqCst),
@@ -488,33 +489,35 @@ impl InnerBuffer {
     fn push_bytes(
         &mut self,
         bytes: &[u8],
-        p_meta: u64,
+        chunk_id: u64,
         last_offset: usize,
         last_size: usize,
     ) -> Node {
         let size = self
             .bytes
-            .push_bytes(bytes, p_meta, last_offset, last_size, self.len);
+            .push_bytes(bytes, chunk_id, last_offset, last_size, self.len);
         let offset = self.len;
         self.len += size;
 
         Node {
-            p_meta: self.p_meta.clone(),
+            chunk_id: self.chunk_id.clone(),
             offset,
             size,
             buffer_id: self.buffer_id.load(SeqCst),
         }
     }
 
-    fn flush<W: ChunkWriter>(&self, flusher: &mut W) {
-        let p_meta = flusher.write(&self.bytes[..self.len]).unwrap();
-        self.p_meta.store(p_meta, SeqCst);
+    fn flush<W: ChunkWriter, M: ChunkMeta>(&self, flusher: &mut W, metadata: &mut M) {
+        let chunk_id = flusher.write(&self.bytes[..self.len]).unwrap();
+        metadata.update(&self.tags, chunk_id).unwrap();
+        self.chunk_id.store(chunk_id, SeqCst);
     }
 
     fn reset(&mut self) {
         let buffer_id = self.buffer_id.fetch_add(1, SeqCst) + 1;
         self.len = 0;
-        self.p_meta = Arc::new(AtomicU64::new(u64::MAX));
+        self.tags.clear();
+        self.chunk_id = Arc::new(AtomicU64::new(u64::MAX));
     }
 
     fn read(

@@ -1,10 +1,10 @@
-mod file_backend;
-mod inner;
-pub mod inner2;
-mod kafka2_backend;
-mod redis_backend;
-mod vector_backend;
+//mod file_backend;
+//mod inner;
+mod inner2;
+//mod kafka2_backend;
+//mod redis_backend;
 mod redis_kafka_backend;
+mod vector_backend;
 use rdkafka::error::KafkaError;
 use redis::RedisError;
 
@@ -36,13 +36,14 @@ impl From<std::io::Error> for Error {
     }
 }
 
-pub use file_backend::{FileBackend, FileReader, FileWriter};
-pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
-pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
-pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
+//pub use file_backend::{FileBackend, FileReader, FileWriter};
+//pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
+//pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
+pub use inner2::{
+    Buffer, ChunkMeta, ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter,
+};
 pub use redis_kafka_backend::{RedisKafkaBackend, RedisKafkaReader, RedisKafkaWriter};
-
-pub use inner2::{Buffer, ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter};
+pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 
 pub trait BackendOld {
     type Writer: ChunkWriter + 'static;
@@ -54,8 +55,10 @@ pub trait BackendOld {
 pub trait PersistentListBackend: Sized {
     type Writer: inner2::ChunkWriter + 'static;
     type Reader: inner2::ChunkReader + 'static;
+    type Meta: inner2::ChunkMeta + 'static;
     fn writer(&self) -> Result<Self::Writer, Error>;
     fn reader(&self) -> Result<Self::Reader, Error>;
+    fn meta(&self) -> Result<Self::Meta, Error>;
 }
 
 pub struct Backend<T: PersistentListBackend> {
@@ -82,15 +85,11 @@ impl<T: PersistentListBackend> Backend<T> {
 mod test {
     use super::*;
     use crate::{
-        compression::*,
-        constants::*,
-        persistent_list::{inner::*, vector_backend::*},
-        segment::*,
-        tags::*,
-        test_utils::*,
-        utils::wp_lock::WpLock,
+        compression::*, constants::*, persistent_list::vector_backend::*, segment::*, tags::*,
+        test_utils::*, utils::wp_lock::WpLock,
     };
     use dashmap::DashMap;
+    use std::collections::HashMap;
     use std::env;
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
@@ -180,9 +179,10 @@ mod test {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
 
-        let mut tags = Tags::new();
-        tags.insert((String::from("A"), String::from("1")));
-        tags.insert((String::from("B"), String::from("2")));
+        let mut tags = HashMap::new();
+        tags.insert(String::from("A"), String::from("1"));
+        tags.insert(String::from("B"), String::from("2"));
+        let tags = Tags::from(tags);
 
         let compression = Compression::LZ4(1);
 
@@ -297,13 +297,13 @@ mod test {
         exp_values.iter_mut().for_each(|e| e.clear());
     }
 
-    #[test]
-    #[cfg_attr(not(feature="kafka-backend"), ignore)]
-    fn test_kafka_bytes() {
-        let kafka_writer = kafka2_backend::KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
-        let kafka_reader = kafka2_backend::KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
-        test_multiple(kafka_reader, kafka_writer);
-    }
+    //#[test]
+    //#[cfg_attr(not(feature="kafka-backend"), ignore)]
+    //fn test_kafka_bytes() {
+    //    let kafka_writer = kafka2_backend::KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
+    //    let kafka_reader = kafka2_backend::KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
+    //    test_multiple(kafka_reader, kafka_writer);
+    //}
 
     #[test]
     fn test_vec_simple() {
@@ -314,7 +314,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(not(feature="redis-kafka-backend"), ignore)]
+    #[cfg_attr(not(feature = "redis-kafka-backend"), ignore)]
     fn test_redis_kafka_simple() {
         let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
         let mut persistent_writer = b.writer().unwrap();
@@ -322,32 +322,40 @@ mod test {
         test_single(persistent_reader, persistent_writer);
     }
 
+    //#[test]
+    //#[cfg_attr(not(feature="redis-backend"), ignore)]
+    //fn test_redis_simple() {
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let map = Arc::new(DashMap::new());
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_writer = RedisWriter::new(con, map.clone());
+
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_reader = RedisReader::new(con, map.clone());
+    //    test_single(persistent_reader, persistent_writer);
+    //}
+
+    //#[test]
+    //#[cfg_attr(not(feature="redis-backend"), ignore)]
+    //fn test_redis_multiple() {
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let map = Arc::new(DashMap::new());
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_writer = RedisWriter::new(con, map.clone());
+
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_reader = RedisReader::new(con, map.clone());
+    //    test_multiple(persistent_reader, persistent_writer);
+    //}
 
     #[test]
-    #[cfg_attr(not(feature="redis-backend"), ignore)]
-    fn test_redis_simple() {
-        let client = redis::Client::open(REDIS_ADDR).unwrap();
-        let map = Arc::new(DashMap::new());
-        let mut con = client.get_connection().unwrap();
-        let mut persistent_writer = RedisWriter::new(con, map.clone());
-
-        let client = redis::Client::open(REDIS_ADDR).unwrap();
-        let mut con = client.get_connection().unwrap();
-        let mut persistent_reader = RedisReader::new(con, map.clone());
-        test_single(persistent_reader, persistent_writer);
-    }
-
-    #[test]
-    #[cfg_attr(not(feature="redis-backend"), ignore)]
-    fn test_redis_multiple() {
-        let client = redis::Client::open(REDIS_ADDR).unwrap();
-        let map = Arc::new(DashMap::new());
-        let mut con = client.get_connection().unwrap();
-        let mut persistent_writer = RedisWriter::new(con, map.clone());
-
-        let client = redis::Client::open(REDIS_ADDR).unwrap();
-        let mut con = client.get_connection().unwrap();
-        let mut persistent_reader = RedisReader::new(con, map.clone());
+    #[cfg_attr(not(feature = "redis-kafka-backend"), ignore)]
+    fn test_redis_kafka_multiple() {
+        let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
+        let mut persistent_writer = b.writer().unwrap();
+        let mut persistent_reader = b.reader().unwrap();
         test_multiple(persistent_reader, persistent_writer);
     }
 
@@ -359,14 +367,14 @@ mod test {
         test_multiple(persistent_reader, persistent_writer);
     }
 
-    #[test]
-    fn test_file_multiple() {
-        let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test_path");
-        let mut persistent_writer = FileWriter::new(&file_path).unwrap();
-        let mut persistent_reader = FileReader::new(&file_path).unwrap();
-        test_multiple(persistent_reader, persistent_writer);
-    }
+    //#[test]
+    //fn test_file_multiple() {
+    //    let dir = tempdir().unwrap();
+    //    let file_path = dir.path().join("test_path");
+    //    let mut persistent_writer = FileWriter::new(&file_path).unwrap();
+    //    let mut persistent_reader = FileReader::new(&file_path).unwrap();
+    //    test_multiple(persistent_reader, persistent_writer);
+    //}
 
     #[test]
     fn test_vec_data() {
@@ -376,34 +384,43 @@ mod test {
         test_sample_data(persistent_reader, persistent_writer);
     }
 
-    #[test]
-    fn test_file_data() {
-        let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test_path");
-        let mut persistent_writer = FileWriter::new(&file_path).unwrap();
-        let mut persistent_reader = FileReader::new(&file_path).unwrap();
-        test_sample_data(persistent_reader, persistent_writer);
-    }
+    //#[test]
+    //fn test_file_data() {
+    //    let dir = tempdir().unwrap();
+    //    let file_path = dir.path().join("test_path");
+    //    let mut persistent_writer = FileWriter::new(&file_path).unwrap();
+    //    let mut persistent_reader = FileReader::new(&file_path).unwrap();
+    //    test_sample_data(persistent_reader, persistent_writer);
+    //}
+
+    //#[test]
+    //#[cfg_attr(not(feature="redis-backend"), ignore)]
+    //fn test_redis_data() {
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let map = Arc::new(DashMap::new());
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_writer = RedisWriter::new(con, map.clone());
+
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_reader = RedisReader::new(con, map.clone());
+    //    test_sample_data(persistent_reader, persistent_writer);
+    //}
+
+    //#[test]
+    //#[cfg_attr(not(feature="kafka-backend"), ignore)]
+    //fn test_kafka_data() {
+    //    let persistent_writer = kafka2_backend::KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
+    //    let persistent_reader = kafka2_backend::KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
+    //    test_sample_data(persistent_reader, persistent_writer);
+    //}
 
     #[test]
-    #[cfg_attr(not(feature="redis-backend"), ignore)]
-    fn test_redis_data() {
-        let client = redis::Client::open(REDIS_ADDR).unwrap();
-        let map = Arc::new(DashMap::new());
-        let mut con = client.get_connection().unwrap();
-        let mut persistent_writer = RedisWriter::new(con, map.clone());
-
-        let client = redis::Client::open(REDIS_ADDR).unwrap();
-        let mut con = client.get_connection().unwrap();
-        let mut persistent_reader = RedisReader::new(con, map.clone());
-        test_sample_data(persistent_reader, persistent_writer);
-    }
-
-    #[test]
-    #[cfg_attr(not(feature="kafka-backend"), ignore)]
-    fn test_kafka_data() {
-        let persistent_writer = kafka2_backend::KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
-        let persistent_reader = kafka2_backend::KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
+    #[cfg_attr(not(feature = "redis-kafka-backend"), ignore)]
+    fn test_redis_kafka_data() {
+        let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
+        let mut persistent_writer = b.writer().unwrap();
+        let mut persistent_reader = b.reader().unwrap();
         test_sample_data(persistent_reader, persistent_writer);
     }
 }
