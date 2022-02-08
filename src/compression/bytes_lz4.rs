@@ -1,9 +1,9 @@
+use crate::compression::Error;
+use crate::sample::Bytes;
 use crate::segment::FullSegment;
 use crate::utils::byte_buffer::ByteBuffer;
 use lzzzz::lz4;
 use std::convert::TryInto;
-use crate::compression::Error;
-use crate::sample::Bytes;
 
 pub fn bytes_lz4_compress(segment: &[[u8; 8]], buf: &mut ByteBuffer) {
     let mut to_compress = Vec::new();
@@ -26,7 +26,7 @@ pub fn bytes_lz4_compress(segment: &[[u8; 8]], buf: &mut ByteBuffer) {
     let usz = std::mem::size_of::<usize>();
     let csz = lz4::compress(to_compress.as_slice(), &mut b[usz..], 1).unwrap();
     let mut t = vec![0u8; to_compress.len()];
-    lz4::decompress(&b[usz..usz+csz], &mut t[..]).unwrap();
+    lz4::decompress(&b[usz..usz + csz], &mut t[..]).unwrap();
     b[..usz].copy_from_slice(&csz.to_be_bytes());
 }
 
@@ -50,7 +50,7 @@ pub fn bytes_lz4_decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usiz
     off += usz;
 
     let mut bytes = vec![0u8; bytes_sz as usize].into_boxed_slice();
-    lz4::decompress(&data[off..off+raw_sz], &mut bytes[..]).unwrap();
+    lz4::decompress(&data[off..off + raw_sz], &mut bytes[..]).unwrap();
     off += raw_sz;
 
     let mut start = 0;

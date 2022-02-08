@@ -1,11 +1,14 @@
 use crate::{
     compression::Compression,
     constants::*,
-    persistent_list::{self, Backend, Buffer},
+    id::{SeriesId, WriterId},
+    persistent_list::{self, BackendOld, Buffer},
     tags::Tags,
     writer::{SeriesMetadata, Writer, WriterId},
 };
 use dashmap::DashMap;
+use std::{collections::HashMap, ops::Deref, sync::Arc};
+
 use std::{
     collections::HashMap,
     ops::Deref,
@@ -50,7 +53,7 @@ impl From<persistent_list::Error> for Error {
     }
 }
 
-pub struct Mach<T: Backend> {
+pub struct Mach<T: BackendOld> {
     backend: T,
     writer_table: HashMap<WriterId, T::Writer>,
     buffer_table: HashMap<WriterId, Buffer>,

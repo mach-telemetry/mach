@@ -13,6 +13,7 @@
 
 mod compression;
 mod constants;
+mod id;
 mod persistent_list;
 mod sample;
 mod segment;
@@ -44,25 +45,24 @@ use std::{
 use tsdb::{Mach, SeriesConfig};
 
 use compression::*;
+use constants::*;
 use dashmap::DashMap;
+use id::SeriesId;
 use lazy_static::lazy_static;
 use persistent_list::*;
 use sample::*;
 use seq_macro::seq;
 use tags::*;
-use tsdb::SeriesId;
 use writer::*;
 use zipf::*;
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
-const NSERIES: usize = 100_000;
-const NTHREADS: usize = 4;
+const NSERIES: usize = 10_000;
+const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
 const UNIVARIATE: bool = true;
-const KAFKA_TOPIC: &str = "MACHSTORAGE";
-const KAFKA_BOOTSTRAP: &str = "localhost:29092";
 //const COMPRESSION: Compression = Compression::XOR;
 const COMPRESSION: Compression = Compression::Fixed(10);
 //const COMPRESSION: Compression = Compression::Decimal(3);
@@ -220,8 +220,22 @@ fn main() {
     std::fs::create_dir_all(outdir).unwrap();
 
     let mut handles = Vec::new();
-    let mut backend = FileBackend::new(outdir.into());
 
+    let backend = {
+        #[cfg(feature = "file-backend")]
+        let backend = FileBackend::new(outdir.into(), i.try_into().unwrap());
+
+        #[cfg(feature = "kafka-backend")]
+        let backend = KafkaBackend::new(KAFKA_BOOTSTRAP);
+
+        #[cfg(feature = "redis-backend")]
+        let backend = RedisBackend::new(REDIS_ADDR);
+
+        #[cfg(feature = "vector-backend")]
+        let backend = VectorBackend::new();
+
+        backend
+    };
     let mut mach = Mach::new(backend).expect("should be able to instantiate Mach");
 
     let mut writers_map = (0..NTHREADS)

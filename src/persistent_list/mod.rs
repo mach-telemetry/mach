@@ -1,22 +1,32 @@
-mod file_backend;
-mod inner;
-mod kafka_backend;
+//mod file_backend;
+//mod inner;
+mod inner2;
+//mod kafka2_backend;
+//mod redis_backend;
+mod redis_kafka_backend;
 mod vector_backend;
-//mod kafka_hybrid_backend;
-
 use rdkafka::error::KafkaError;
+use redis::RedisError;
 
 #[derive(Debug)]
 pub enum Error {
     InconsistentRead,
     Kafka(KafkaError),
+    Redis(RedisError),
     IO(std::io::Error),
     FactoryError,
+    MultipleWriters,
 }
 
 impl From<KafkaError> for Error {
     fn from(item: KafkaError) -> Self {
         Error::Kafka(item)
+    }
+}
+
+impl From<RedisError> for Error {
+    fn from(item: RedisError) -> Self {
+        Error::Redis(item)
     }
 }
 
@@ -26,53 +36,92 @@ impl From<std::io::Error> for Error {
     }
 }
 
-pub use file_backend::{FileBackend, FileReader, FileWriter};
-pub use inner::{Buffer, ChunkReader, ChunkWriter, List, ListReader};
-pub use kafka_backend::{KafkaBackend, KafkaReader, KafkaWriter};
+//pub use file_backend::{FileBackend, FileReader, FileWriter};
+//pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
+//pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
+pub use inner2::{
+    Buffer, ChunkMeta, ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter,
+};
+pub use redis_kafka_backend::{RedisKafkaBackend, RedisKafkaReader, RedisKafkaWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 
-pub trait Backend {
+pub trait BackendOld {
     type Writer: ChunkWriter + 'static;
     type Reader: ChunkReader + 'static;
     fn make_backend(&mut self) -> Result<(Self::Writer, Self::Reader), Error>;
+}
+
+// One Backend per writer thread. Single writer, multiple readers
+pub trait PersistentListBackend: Sized {
+    type Writer: inner2::ChunkWriter + 'static;
+    type Reader: inner2::ChunkReader + 'static;
+    type Meta: inner2::ChunkMeta + 'static;
+    fn writer(&self) -> Result<Self::Writer, Error>;
+    fn reader(&self) -> Result<Self::Reader, Error>;
+    fn meta(&self) -> Result<Self::Meta, Error>;
+}
+
+pub struct Backend<T: PersistentListBackend> {
+    backend: T,
+    writer: Option<T::Writer>,
+}
+
+impl<T: PersistentListBackend> Backend<T> {
+    pub fn new(backend: T) -> Result<Self, Error> {
+        let writer = Some(backend.writer()?);
+        Ok(Self { backend, writer })
+    }
+
+    pub fn writer(&mut self) -> Result<T::Writer, Error> {
+        self.writer.take().ok_or(Error::MultipleWriters)
+    }
+
+    pub fn reader(&self) -> Result<T::Reader, Error> {
+        self.backend.reader()
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::{
-        compression::*,
-        persistent_list::{inner::*, vector_backend::*},
-        segment::*,
-        tags::*,
-        test_utils::*,
+        compression::*, constants::*, persistent_list::vector_backend::*, segment::*, tags::*,
+        test_utils::*, utils::wp_lock::WpLock,
     };
+    use dashmap::DashMap;
+    use std::collections::HashMap;
     use std::env;
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
 
-    fn test_multiple<R: ChunkReader, W: ChunkWriter>(mut chunk_reader: R, mut chunk_writer: W) {
-        let buffer = Buffer::new(100);
-        let list1 = List::new(buffer.clone());
-        let list2 = List::new(buffer.clone());
+    fn test_multiple<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
+        mut chunk_reader: R,
+        mut chunk_writer: W,
+    ) {
+        let buffer = inner2::ListBuffer::new(100);
+        let list1 = inner2::List::new(buffer.clone());
+        let list2 = inner2::List::new(buffer.clone());
+
+        let mut list1_writer = list1.writer();
+        let mut list2_writer = list2.writer();
 
         let data1: Vec<Vec<u8>> = (0..5).map(|x| vec![x; 15]).collect();
         let data2: Vec<Vec<u8>> = (5..10).map(|x| vec![x; 15]).collect();
 
-        list1.push_bytes(data1[0].as_slice(), &mut chunk_writer);
-        list1.push_bytes(data1[1].as_slice(), &mut chunk_writer);
-        list2.push_bytes(data2[0].as_slice(), &mut chunk_writer);
+        list1_writer.push_bytes(data1[0].as_slice(), &mut chunk_writer);
+        list1_writer.push_bytes(data1[1].as_slice(), &mut chunk_writer);
+        list2_writer.push_bytes(data2[0].as_slice(), &mut chunk_writer);
         // Should have flushed in the last push
-        list1.push_bytes(data1[2].as_slice(), &mut chunk_writer);
-        list2.push_bytes(data2[1].as_slice(), &mut chunk_writer);
-        list2.push_bytes(data2[2].as_slice(), &mut chunk_writer);
+        list1_writer.push_bytes(data1[2].as_slice(), &mut chunk_writer);
+        list2_writer.push_bytes(data2[1].as_slice(), &mut chunk_writer);
+        list2_writer.push_bytes(data2[2].as_slice(), &mut chunk_writer);
         // Should have flushed in the last push
-        list1.push_bytes(data1[3].as_slice(), &mut chunk_writer);
-        list1.push_bytes(data1[4].as_slice(), &mut chunk_writer);
-        list2.push_bytes(data2[3].as_slice(), &mut chunk_writer);
-        list2.push_bytes(data2[4].as_slice(), &mut chunk_writer);
+        list1_writer.push_bytes(data1[3].as_slice(), &mut chunk_writer);
+        list1_writer.push_bytes(data1[4].as_slice(), &mut chunk_writer);
+        list2_writer.push_bytes(data2[3].as_slice(), &mut chunk_writer);
+        list2_writer.push_bytes(data2[4].as_slice(), &mut chunk_writer);
 
-        let mut reader = list1.reader().unwrap();
+        let mut reader = list1.read().unwrap();
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data1[4], res);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
@@ -84,7 +133,9 @@ mod test {
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data1[0], res);
 
-        let mut reader = list2.reader().unwrap();
+        // Guarantee that reads are available on the source (e.g. redis has async flush)
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let mut reader = list2.read().unwrap();
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data2[4], res);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
@@ -97,14 +148,18 @@ mod test {
         assert_eq!(data2[0], res);
     }
 
-    fn test_single<R: ChunkReader, W: ChunkWriter>(mut chunk_reader: R, mut chunk_writer: W) {
-        let buffer = Buffer::new(100);
-        let list = List::new(buffer.clone());
+    fn test_single<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
+        mut chunk_reader: R,
+        mut chunk_writer: W,
+    ) {
+        let buffer = inner2::ListBuffer::new(100);
+        let list = inner2::List::new(buffer.clone());
+        let mut writer = list.writer();
         let data: Vec<Vec<u8>> = (0..5).map(|x| vec![x; 15]).collect();
         data.iter()
-            .for_each(|x| list.push_bytes(x.as_slice(), &mut chunk_writer));
+            .for_each(|x| writer.push_bytes(x.as_slice(), &mut chunk_writer));
 
-        let mut reader = list.reader().unwrap();
+        let mut reader = list.read().unwrap();
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data[4], res);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
@@ -117,21 +172,23 @@ mod test {
         assert_eq!(data[0], res);
     }
 
-    fn test_sample_data<R: ChunkReader, W: ChunkWriter>(
+    fn test_sample_data<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
         mut persistent_reader: R,
         mut persistent_writer: W,
     ) {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
 
-        let mut tags = Tags::new();
-        tags.insert((String::from("A"), String::from("1")));
-        tags.insert((String::from("B"), String::from("2")));
+        let mut tags = HashMap::new();
+        tags.insert(String::from("A"), String::from("1"));
+        tags.insert(String::from("B"), String::from("2"));
+        let tags = Tags::from(tags);
 
         let compression = Compression::LZ4(1);
 
-        let buffer = Buffer::new(6000);
-        let list = List::new(buffer.clone());
+        let buffer = inner2::ListBuffer::new(6000);
+        let l = inner2::List::new(buffer.clone());
+        let mut list = l.writer();
 
         let segment = Segment::new(1, nvars);
         let mut writer = segment.writer().unwrap();
@@ -181,7 +238,7 @@ mod test {
             exp_values.push(Vec::new());
         }
 
-        let mut reader = list.reader().unwrap();
+        let mut reader = l.read().unwrap();
         let res: &DecompressBuffer = reader
             .next_segment(&mut persistent_reader)
             .unwrap()
@@ -240,14 +297,13 @@ mod test {
         exp_values.iter_mut().for_each(|e| e.clear());
     }
 
-    #[test]
-    fn test_kafka_bytes() {
-        if env::var("KAFKA").is_ok() {
-            let kafka_writer = KafkaWriter::new(0).unwrap();
-            let kafka_reader = KafkaReader::new().unwrap();
-            test_multiple(kafka_reader, kafka_writer);
-        }
-    }
+    //#[test]
+    //#[cfg_attr(not(feature="kafka-backend"), ignore)]
+    //fn test_kafka_bytes() {
+    //    let kafka_writer = kafka2_backend::KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
+    //    let kafka_reader = kafka2_backend::KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
+    //    test_multiple(kafka_reader, kafka_writer);
+    //}
 
     #[test]
     fn test_vec_simple() {
@@ -258,6 +314,52 @@ mod test {
     }
 
     #[test]
+    #[cfg_attr(not(feature = "redis-kafka-backend"), ignore)]
+    fn test_redis_kafka_simple() {
+        let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
+        let mut persistent_writer = b.writer().unwrap();
+        let mut persistent_reader = b.reader().unwrap();
+        test_single(persistent_reader, persistent_writer);
+    }
+
+    //#[test]
+    //#[cfg_attr(not(feature="redis-backend"), ignore)]
+    //fn test_redis_simple() {
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let map = Arc::new(DashMap::new());
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_writer = RedisWriter::new(con, map.clone());
+
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_reader = RedisReader::new(con, map.clone());
+    //    test_single(persistent_reader, persistent_writer);
+    //}
+
+    //#[test]
+    //#[cfg_attr(not(feature="redis-backend"), ignore)]
+    //fn test_redis_multiple() {
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let map = Arc::new(DashMap::new());
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_writer = RedisWriter::new(con, map.clone());
+
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_reader = RedisReader::new(con, map.clone());
+    //    test_multiple(persistent_reader, persistent_writer);
+    //}
+
+    #[test]
+    #[cfg_attr(not(feature = "redis-kafka-backend"), ignore)]
+    fn test_redis_kafka_multiple() {
+        let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
+        let mut persistent_writer = b.writer().unwrap();
+        let mut persistent_reader = b.reader().unwrap();
+        test_multiple(persistent_reader, persistent_writer);
+    }
+
+    #[test]
     fn test_vec_multiple() {
         let vec = Arc::new(Mutex::new(Vec::new()));
         let mut persistent_writer = VectorWriter::new(vec.clone());
@@ -265,14 +367,14 @@ mod test {
         test_multiple(persistent_reader, persistent_writer);
     }
 
-    #[test]
-    fn test_file_multiple() {
-        let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test_path");
-        let mut persistent_writer = FileWriter::new(&file_path).unwrap();
-        let mut persistent_reader = FileReader::new(&file_path).unwrap();
-        test_multiple(persistent_reader, persistent_writer);
-    }
+    //#[test]
+    //fn test_file_multiple() {
+    //    let dir = tempdir().unwrap();
+    //    let file_path = dir.path().join("test_path");
+    //    let mut persistent_writer = FileWriter::new(&file_path).unwrap();
+    //    let mut persistent_reader = FileReader::new(&file_path).unwrap();
+    //    test_multiple(persistent_reader, persistent_writer);
+    //}
 
     #[test]
     fn test_vec_data() {
@@ -282,21 +384,43 @@ mod test {
         test_sample_data(persistent_reader, persistent_writer);
     }
 
-    #[test]
-    fn test_file_data() {
-        let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test_path");
-        let mut persistent_writer = FileWriter::new(&file_path).unwrap();
-        let mut persistent_reader = FileReader::new(&file_path).unwrap();
-        test_sample_data(persistent_reader, persistent_writer);
-    }
+    //#[test]
+    //fn test_file_data() {
+    //    let dir = tempdir().unwrap();
+    //    let file_path = dir.path().join("test_path");
+    //    let mut persistent_writer = FileWriter::new(&file_path).unwrap();
+    //    let mut persistent_reader = FileReader::new(&file_path).unwrap();
+    //    test_sample_data(persistent_reader, persistent_writer);
+    //}
+
+    //#[test]
+    //#[cfg_attr(not(feature="redis-backend"), ignore)]
+    //fn test_redis_data() {
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let map = Arc::new(DashMap::new());
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_writer = RedisWriter::new(con, map.clone());
+
+    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+    //    let mut con = client.get_connection().unwrap();
+    //    let mut persistent_reader = RedisReader::new(con, map.clone());
+    //    test_sample_data(persistent_reader, persistent_writer);
+    //}
+
+    //#[test]
+    //#[cfg_attr(not(feature="kafka-backend"), ignore)]
+    //fn test_kafka_data() {
+    //    let persistent_writer = kafka2_backend::KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
+    //    let persistent_reader = kafka2_backend::KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
+    //    test_sample_data(persistent_reader, persistent_writer);
+    //}
 
     #[test]
-    fn test_kafka_data() {
-        if env::var("KAFKA").is_ok() {
-            let mut persistent_writer = KafkaWriter::new(0).unwrap();
-            let mut persistent_reader = KafkaReader::new().unwrap();
-            test_sample_data(persistent_reader, persistent_writer);
-        }
+    #[cfg_attr(not(feature = "redis-kafka-backend"), ignore)]
+    fn test_redis_kafka_data() {
+        let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
+        let mut persistent_writer = b.writer().unwrap();
+        let mut persistent_reader = b.reader().unwrap();
+        test_sample_data(persistent_reader, persistent_writer);
     }
 }

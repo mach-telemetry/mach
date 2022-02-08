@@ -1,5 +1,6 @@
 use crate::compression::utils::{
-    bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag, float_to_int, float_from_int,
+    bitpack_256_compress, bitpack_256_decompress, float_from_int, float_to_int, from_zigzag,
+    to_zigzag,
 };
 use crate::utils::byte_buffer::ByteBuffer;
 use fixed::types::extra::*;
@@ -65,11 +66,7 @@ pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer, precision: u8) {
 /// Decompresses data into buf
 /// Returns the number of bytes read from data and number of items decompressed.
 /// Panics if buf is not long enough.
-pub fn decompress(
-    data: &[u8],
-    buf: &mut Vec<[u8; 8]>,
-) -> (usize, usize) {
-
+pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usize) {
     // Get precision
     let precision = data[0];
 
@@ -177,5 +174,3 @@ mod test {
         }
     }
 }
-
-

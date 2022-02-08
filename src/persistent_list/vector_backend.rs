@@ -1,11 +1,15 @@
-use crate::persistent_list::{inner::*, Backend, Error};
+use crate::{
+    persistent_list::{inner2, Error, PersistentListBackend},
+    tags::Tags,
+};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 pub struct VectorReader {
     inner: Arc<Mutex<Vec<Box<[u8]>>>>,
     local_copy: Vec<u8>,
-    current_head: Option<PersistentHead>,
+    offset: usize,
 }
 
 impl VectorReader {
@@ -13,23 +17,36 @@ impl VectorReader {
         Self {
             inner,
             local_copy: Vec::new(),
-            current_head: None,
+            offset: usize::MAX,
         }
     }
 }
 
-impl ChunkReader for VectorReader {
-    fn read(&mut self, persistent: PersistentHead, local: BufferHead) -> Result<&[u8], Error> {
-        if self.current_head.is_none() || *self.current_head.as_ref().unwrap() != persistent {
-            self.current_head = Some(persistent);
+impl inner2::ChunkReader for VectorReader {
+    fn read(&mut self, offset: u64) -> Result<&[u8], Error> {
+        let offset = offset as usize;
+        if self.offset == usize::MAX || self.offset != offset {
+            self.offset = offset;
             self.local_copy.clear();
             let guard = self.inner.lock().unwrap();
-            self.local_copy
-                .extend_from_slice(&*guard[persistent.offset]);
+            self.local_copy.extend_from_slice(&*guard[offset]);
         }
-        Ok(&self.local_copy[local.offset..local.offset + local.size])
+        Ok(self.local_copy.as_slice())
     }
 }
+
+//impl ChunkReader for VectorReader {
+//    fn read(&mut self, persistent: PersistentHead, local: BufferHead) -> Result<&[u8], Error> {
+//        if self.offset == usize::MAX || self.offset != persistent.offset {
+//            self.offset = persistent.offset;
+//            self.local_copy.clear();
+//            let guard = self.inner.lock().unwrap();
+//            self.local_copy
+//                .extend_from_slice(&*guard[persistent.offset]);
+//        }
+//        Ok(&self.local_copy[local.offset..local.offset + local.size])
+//    }
+//}
 
 #[derive(Clone)]
 pub struct VectorWriter {
@@ -46,53 +63,101 @@ impl VectorWriter {
     }
 }
 
-impl ChunkWriter for VectorWriter {
-    fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
-        //println!("Since last flush: {:?}", self.last_flush.elapsed());
-        //let now = std::time::Instant::now();
+impl inner2::ChunkWriter for VectorWriter {
+    fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
         let mut guard = self.inner.lock().unwrap();
         let sz = bytes.len();
         let offset = guard.len();
         guard.push(bytes.into());
-        //let spin = Instant::now();
-        //loop {
-        //    if spin.elapsed() > Duration::from_millis(8) {
-        //        break;
-        //    }
-        //}
-        //println!("Duration: {:?}", now.elapsed());
-        //self.last_flush = Instant::now();
-        let head = PersistentHead {
-            partition: usize::MAX,
-            offset,
-            sz,
-        };
-        Ok(head)
+        let len = guard.len();
+        Ok(len as u64 - 1)
     }
 }
 
+#[derive(Clone)]
+pub struct VectorMeta {
+    map: HashMap<Tags, (u64, inner2::ChunkMetadata)>,
+    inner: Arc<Mutex<Vec<Box<[u8]>>>>,
+}
+
+impl VectorMeta {
+    pub fn new(inner: Arc<Mutex<Vec<Box<[u8]>>>>) -> Self {
+        VectorMeta {
+            inner,
+            map: HashMap::new(),
+        }
+    }
+}
+
+impl inner2::ChunkMeta for VectorMeta {
+    fn update(
+        &mut self,
+        tags: &HashMap<Tags, inner2::ChunkMetadata>,
+        chunk_id: u64,
+    ) -> Result<(), Error> {
+        for (k, v) in tags.iter() {
+            self.map.insert(k.clone(), (chunk_id, *v));
+        }
+        Ok(())
+    }
+}
+
+//impl ChunkWriter for VectorWriter {
+//    fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
+//        //println!("Since last flush: {:?}", self.last_flush.elapsed());
+//        //let now = std::time::Instant::now();
+//        let mut guard = self.inner.lock().unwrap();
+//        let sz = bytes.len();
+//        let offset = guard.len();
+//        guard.push(bytes.into());
+//        //let spin = Instant::now();
+//        //loop {
+//        //    if spin.elapsed() > Duration::from_millis(8) {
+//        //        break;
+//        //    }
+//        //}
+//        //println!("Duration: {:?}", now.elapsed());
+//        //self.last_flush = Instant::now();
+//        let head = PersistentHead {
+//            partition: usize::MAX,
+//            offset,
+//            sz,
+//        };
+//        Ok(head)
+//    }
+//}
+
 pub struct VectorBackend {
-    data: Vec<Arc<Mutex<Vec<Box<[u8]>>>>>,
+    data: Arc<Mutex<Vec<Box<[u8]>>>>,
 }
 
 impl VectorBackend {
     pub fn new() -> Self {
-        Self { data: Vec::new() }
-    }
-
-    pub fn make_read_write(&mut self) -> (VectorWriter, VectorReader) {
-        let v = Arc::new(Mutex::new(Vec::new()));
-        self.data.push(v.clone());
-        let writer = VectorWriter::new(v.clone());
-        let reader = VectorReader::new(v.clone());
-        (writer, reader)
+        Self {
+            data: Arc::new(Mutex::new(Vec::new())),
+        }
     }
 }
 
-impl Backend for VectorBackend {
+impl PersistentListBackend for VectorBackend {
     type Writer = VectorWriter;
     type Reader = VectorReader;
-    fn make_backend(&mut self) -> Result<(VectorWriter, VectorReader), Error> {
-        Ok(self.make_read_write())
+    type Meta = VectorMeta;
+    fn writer(&self) -> Result<Self::Writer, Error> {
+        Ok(VectorWriter::new(self.data.clone()))
+    }
+    fn reader(&self) -> Result<Self::Reader, Error> {
+        Ok(VectorReader::new(self.data.clone()))
+    }
+    fn meta(&self) -> Result<Self::Meta, Error> {
+        Ok(VectorMeta::new(self.data.clone()))
     }
 }
+
+//impl BackendOld for VectorBackend {
+//    type Writer = VectorWriter;
+//    type Reader = VectorReader;
+//    fn make_backend(&mut self) -> Result<(VectorWriter, VectorReader), Error> {
+//        Ok(self.make_read_write())
+//    }
+//}

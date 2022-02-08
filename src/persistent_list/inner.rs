@@ -3,7 +3,10 @@ use crate::{
     persistent_list::Error,
     segment::FullSegment,
     tags::Tags,
-    utils::{byte_buffer::ByteBuffer, wp_lock::WpLock},
+    utils::{
+        byte_buffer::ByteBuffer,
+        wp_lock::{NoDealloc, WpLock},
+    },
 };
 use std::{
     convert::TryInto,
@@ -53,6 +56,9 @@ impl PersistentHead {
     }
 }
 
+/// SAFETY: PersistentHead does not deallocate memory in any of its API (except Drop)
+unsafe impl NoDealloc for PersistentHead {}
+
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct BufferHead {
@@ -96,7 +102,15 @@ impl Head {
     }
 
     fn bytes(&self) -> [u8; Self::size()] {
-        let persistent = *self.persistent.write();
+        let persistent = {
+            let guard = self.persistent.protected_read();
+            let persistent = *guard;
+            match guard.release() {
+                Ok(()) => {}
+                Err(_) => panic!("Tried to get bytes, failed"),
+            }
+            persistent
+        };
         let mut bytes = [0u8; Self::size()];
         bytes[..PersistentHead::size()].copy_from_slice(persistent.as_bytes());
         bytes[PersistentHead::size()..].copy_from_slice(self.buffer.as_bytes());
@@ -125,6 +139,8 @@ struct InnerBuffer {
     buffer: Box<[u8]>,
     flush_sz: usize,
 }
+
+unsafe impl NoDealloc for InnerBuffer {}
 
 impl InnerBuffer {
     fn new(flush_sz: usize) -> Self {
@@ -210,7 +226,7 @@ impl InnerBuffer {
         let head = flusher
             .write(&self.buffer[..self.len.load(SeqCst)])
             .unwrap();
-        let mut guard = self.persistent_head.write();
+        let mut guard = self.persistent_head.protected_write();
         *guard = head;
         drop(guard);
         self.persistent_head = Arc::new(WpLock::new(PersistentHead::new()));
@@ -240,7 +256,7 @@ impl Buffer {
     }
 
     fn read(&self, offset: usize, bytes: usize) -> Result<Box<[u8]>, Error> {
-        let guard = unsafe { self.inner.read() };
+        let guard = self.inner.protected_read();
         let res = guard.read(offset, bytes);
         match guard.release() {
             Ok(()) => Ok(res),
@@ -250,11 +266,11 @@ impl Buffer {
 
     fn push_bytes<W: ChunkWriter>(&mut self, bytes: &[u8], last_head: &Head, w: &mut W) -> Head {
         // Safety: The push_bytes function does not race with readers
-        let inner = unsafe { self.inner.get_mut_ref() };
+        let inner = unsafe { self.inner.unprotected_write() };
         let head = inner.push_bytes(bytes, last_head);
         if head.buffer.offset + head.buffer.size > inner.flush_sz {
             // Need to guard here because reset will conflict with concurrent readers
-            let mut guard = self.inner.write();
+            let mut guard = self.inner.protected_write();
             guard.flush(w);
             guard.reset();
         }
@@ -270,10 +286,10 @@ impl Buffer {
         w: &mut W,
     ) -> Head {
         // Safety: The push_bytes function does not race with readers
-        let inner = unsafe { self.inner.get_mut_ref() };
+        let inner = unsafe { self.inner.unprotected_write() };
         let head = inner.push_segment(segment, tags, compression, last_head);
         if head.buffer.offset + head.buffer.size > inner.flush_sz {
-            let mut guard = self.inner.write();
+            let mut guard = self.inner.protected_write();
             guard.flush(w);
             guard.reset();
         }
@@ -285,6 +301,8 @@ struct InnerList {
     head: Head,
     buffer: Buffer,
 }
+
+unsafe impl NoDealloc for InnerList {}
 
 impl InnerList {
     fn new(buffer: Buffer) -> Self {
@@ -322,7 +340,7 @@ impl List {
     }
 
     pub fn push_bytes<W: ChunkWriter>(&self, bytes: &[u8], w: &mut W) {
-        self.inner.write().push_bytes(bytes, w);
+        self.inner.protected_write().push_bytes(bytes, w);
     }
 
     pub fn push_segment<W: ChunkWriter>(
@@ -333,14 +351,12 @@ impl List {
         w: &mut W,
     ) {
         self.inner
-            .write()
+            .protected_write()
             .push_segment(segment, tags, compression, w);
     }
 
     pub fn reader(&self) -> Result<ListReader, Error> {
-        // Safety: safe because none of the write operations dealloc memory. Protect the list from
-        // concurrent writers
-        let guard = unsafe { self.inner.read() };
+        let guard = self.inner.protected_read();
         let head = guard.head.clone();
         let buff = guard.buffer.clone();
         match guard.release() {
@@ -397,8 +413,8 @@ impl ListReader {
         self.local_buf.clear();
 
         // Try to copy the persistent head
-        let persistent = unsafe {
-            let guard = self.head.persistent.read();
+        let persistent = {
+            let guard = self.head.persistent.protected_read();
             let persistent = *guard;
             match guard.release() {
                 Ok(()) => Ok(persistent),

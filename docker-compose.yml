@@ -27,3 +27,12 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  redis:
+    image: redis:alpine
+    hostname: redis
+    container_name: redis
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server --loglevel warning

@@ -1,3 +1,25 @@
+### Redis Setup
+
+* Run a redis instance
+
+```
+docker-compose up -f docker-compose-redis.yaml -d
+```
+
+* Check to see if redis is running
+
+```
+docker-compose exec redis bash
+
+# Enter redis CLI
+redis-cli
+# exit the CLI and and shell
+
+# run tests with Redis
+cargo test --features redis-backend
+```
+
+
 ### Kafka Setup
 
 * Run a single broker kafka
@@ -18,7 +40,7 @@ kafka-topics --create --topic MACHSTORAGE --config="max.message.bytes=10000000" 
 kafka-topics --list --zookeeper zookeeper:2181
 
 # run tests with kafka
-KAFKA=1 cargo test -- --nocapture
+cargo test --features kafka-backend
 ```
 
 ### Setup

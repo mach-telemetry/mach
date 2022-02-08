@@ -1,6 +1,6 @@
 use crate::{
     constants::*,
-    persistent_list::{inner::*, Backend, Error},
+    persistent_list::{inner::*, inner2, BackendOld, Error},
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
@@ -253,7 +253,7 @@ impl KafkaBackend {
     }
 }
 
-impl Backend for KafkaBackend {
+impl BackendOld for KafkaBackend {
     type Writer = KafkaWriter;
     type Reader = KafkaReader;
     fn make_backend(&mut self) -> Result<(KafkaWriter, KafkaReader), Error> {

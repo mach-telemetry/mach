@@ -33,11 +33,7 @@ impl<const B: usize, const V: usize> Segment<B, V> {
         res
     }
 
-    pub fn push_item(
-        &mut self,
-        ts: u64,
-        item: [[u8; 8]; V],
-    ) -> Result<InnerPushStatus, Error> {
+    pub fn push_item(&mut self, ts: u64, item: [[u8; 8]; V]) -> Result<InnerPushStatus, Error> {
         if self.local_count == SEGSZ {
             self.try_next_buffer();
         }

@@ -4,10 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs::OpenOptions,
-    io::{
-        prelude::*,
-        BufReader,
-    },
+    io::{prelude::*, BufReader},
     path::{Path, PathBuf},
     sync::{atomic::AtomicU64, Arc},
 };

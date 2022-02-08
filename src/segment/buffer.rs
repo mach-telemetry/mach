@@ -36,11 +36,7 @@ impl<const V: usize> InnerBuffer<V> {
         }
     }
 
-    fn push_item(
-        &mut self,
-        ts: u64,
-        item: [[u8; 8]; V],
-    ) -> Result<InnerPushStatus, Error> {
+    fn push_item(&mut self, ts: u64, item: [[u8; 8]; V]) -> Result<InnerPushStatus, Error> {
         let len = self.len;
         if len < SEGSZ - 1 {
             self.inner.ts[len] = ts;
@@ -139,6 +135,9 @@ impl<const V: usize> InnerBuffer<V> {
     }
 }
 
+/// SAFETY: Inner buffer doesn't deallocate memory in any of its API (except Drop)
+unsafe impl<const V: usize> NoDealloc for InnerBuffer<V> {}
+
 #[repr(C)]
 pub struct Buffer<const V: usize> {
     inner: WpLock<InnerBuffer<V>>,
@@ -151,32 +150,27 @@ impl<const V: usize> Buffer<V> {
         }
     }
 
-    pub fn push_item(
-        &mut self,
-        ts: u64,
-        item: [[u8; 8]; V],
-    ) -> Result<InnerPushStatus, Error> {
+    pub fn push_item(&mut self, ts: u64, item: [[u8; 8]; V]) -> Result<InnerPushStatus, Error> {
         // Safe because the push method does not race with another method in buffer
-        unsafe { self.inner.get_mut_ref().push_item(ts, item) }
+        unsafe { self.inner.unprotected_write().push_item(ts, item) }
     }
 
     pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         // Safe because the push method does not race with another method in buffer
-        unsafe { self.inner.get_mut_ref().push(ts, item) }
+        unsafe { self.inner.unprotected_write().push(ts, item) }
     }
 
     pub fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
         // Safe because the push method does not race with another method in buffer
-        unsafe { self.inner.get_mut_ref().push_univariate(ts, item) }
+        unsafe { self.inner.unprotected_write().push_univariate(ts, item) }
     }
 
     pub fn reset(&mut self) {
-        self.inner.write().reset()
+        self.inner.protected_write().reset()
     }
 
     pub fn read(&self) -> Option<ReadBuffer> {
-        // Safety: Safe because the inner buffer's contents are not dropped by any write operation
-        let read_guard = unsafe { self.inner.read() };
+        let read_guard = self.inner.protected_read();
         let read_result = read_guard.read();
         match read_guard.release() {
             Ok(_) => Some(read_result),
@@ -187,7 +181,7 @@ impl<const V: usize> Buffer<V> {
     pub fn to_flush(&self) -> Option<FullSegment> {
         // Safe because the to_flush method does not race with another method requiring mutable
         // access. Uses ref because we can't use the wp lock guard as the lifetime
-        unsafe { self.inner.get_ref().to_flush() }
+        unsafe { self.inner.unprotected_read().to_flush() }
     }
 }
 
