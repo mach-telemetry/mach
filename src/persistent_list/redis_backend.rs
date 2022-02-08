@@ -1,10 +1,9 @@
-use crate::persistent_list::{inner2, PersistentListBackend, Error};
+use crate::persistent_list::{inner2, Error, PersistentListBackend};
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
 use rand::prelude::*;
 use redis::{Commands, Connection, RedisError};
-use std::{sync::Arc};
-
+use std::sync::Arc;
 
 async fn worker(
     mut con: Connection,
@@ -78,15 +77,13 @@ impl inner2::ChunkReader for RedisReader {
             Some(x) => {
                 let x = x.clone();
                 self.local.extend_from_slice(&x[..]);
-            },
-            None => {
-                match self.con.get::<u64, Vec<u8>>(offset) {
-                    Ok(x) => {
-                        self.local = x;
-                    },
-                    Err(x) => panic!(),
-                }
             }
+            None => match self.con.get::<u64, Vec<u8>>(offset) {
+                Ok(x) => {
+                    self.local = x;
+                }
+                Err(x) => panic!(),
+            },
         }
         Ok(self.local.as_slice())
     }
@@ -102,7 +99,7 @@ impl RedisBackend {
         let transfer_map = Arc::new(DashMap::new());
         Self {
             transfer_map,
-            redis_addr
+            redis_addr,
         }
     }
 }

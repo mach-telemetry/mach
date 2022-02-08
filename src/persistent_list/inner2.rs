@@ -54,7 +54,7 @@ impl ListBuffer {
 }
 
 impl Deref for ListBuffer {
-    type Target=Arc<WpLock<InnerBuffer>>;
+    type Target = Arc<WpLock<InnerBuffer>>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -255,18 +255,16 @@ impl ListReader {
                 // bytes is a self reference. drop the reference here and get a local ref so that
                 // we don't make borrow checker sad
                 drop(bytes);
-                let bytes = &self.buffer_copy[self.idx-1][..];
+                let bytes = &self.buffer_copy[self.idx - 1][..];
 
                 // get the tag size and skip the tags
                 let mut offset = 0;
                 let end = offset + size_of::<u64>();
-                let tag_sz =
-                    u64::from_be_bytes(bytes[offset..end].try_into().unwrap()) as usize;
+                let tag_sz = u64::from_be_bytes(bytes[offset..end].try_into().unwrap()) as usize;
                 offset = end + tag_sz;
 
                 // get the compressed size and move to compressed data offset
-                Compression::decompress(&bytes[offset..], &mut self.decompress_buf)
-                    .unwrap();
+                Compression::decompress(&bytes[offset..], &mut self.decompress_buf).unwrap();
 
                 Ok(Some(&self.decompress_buf))
             }

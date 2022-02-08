@@ -1,10 +1,10 @@
 use crate::{
     compression::Compression,
     constants::*,
+    id::{SeriesId, WriterId},
     persistent_list::{self, BackendOld, Buffer},
     tags::Tags,
     writer::{SeriesMetadata, Writer},
-    id::{WriterId, SeriesId},
 };
 use dashmap::DashMap;
 use std::{collections::HashMap, ops::Deref, sync::Arc};

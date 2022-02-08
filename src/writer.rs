@@ -1,10 +1,10 @@
 use crate::{
     compression::Compression,
+    id::SeriesId,
     persistent_list::*,
     sample::Sample,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
     tags::Tags,
-    id::SeriesId,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
@@ -138,7 +138,8 @@ struct FlushMeta {
 impl FlushMeta {
     fn flush<W: ChunkWriter>(&self, w: &mut W) {
         let seg: FullSegment = self.segment.to_flush().unwrap();
-        self.list.writer()
+        self.list
+            .writer()
             .push_segment(&seg, &self.tags, &self.compression, w);
         self.segment.flushed();
     }
@@ -190,8 +191,8 @@ async fn worker<W: ChunkWriter + 'static>(mut w: W, queue: Receiver<FlushRequest
 mod test {
     use super::*;
     use crate::compression::DecompressBuffer;
-    use crate::test_utils::*;
     use crate::constants::*;
+    use crate::test_utils::*;
     use std::{
         env,
         sync::{Arc, Mutex},
@@ -215,7 +216,7 @@ mod test {
         sample_data(persistent_reader, persistent_writer);
     }
 
-    #[cfg(feature="kafka-backend")]
+    #[cfg(feature = "kafka-backend")]
     #[test]
     fn test_kafka_writer() {
         let mut persistent_writer = KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
@@ -223,7 +224,7 @@ mod test {
         sample_data(persistent_reader, persistent_writer);
     }
 
-    #[cfg(feature="redis-backend")]
+    #[cfg(feature = "redis-backend")]
     #[test]
     fn test_redis_writer() {
         let client = redis::Client::open(REDIS_ADDR).unwrap();

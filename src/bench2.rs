@@ -15,6 +15,7 @@
 
 mod compression;
 mod constants;
+mod id;
 mod persistent_list;
 mod sample;
 mod segment;
@@ -24,7 +25,6 @@ mod tsdb;
 mod utils;
 mod writer;
 mod zipf;
-mod id;
 
 #[macro_use]
 mod rdtsc;
@@ -46,16 +46,16 @@ use std::{
 };
 
 use compression::*;
+use constants::*;
 use dashmap::DashMap;
+use id::SeriesId;
 use lazy_static::lazy_static;
 use persistent_list::*;
 use sample::*;
 use seq_macro::seq;
 use tags::*;
-use id::SeriesId;
 use writer::*;
 use zipf::*;
-use constants::*;
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
@@ -274,16 +274,16 @@ fn main() {
     let id_counter = Arc::new(AtomicUsize::new(0));
     for i in 0..NTHREADS {
         let backend = {
-            #[cfg(feature="file-backend")]
+            #[cfg(feature = "file-backend")]
             let backend = FileBackend::new(outdir.into(), i.try_into().unwrap());
 
-            #[cfg(feature="kafka-backend")]
+            #[cfg(feature = "kafka-backend")]
             let backend = KafkaBackend::new(KAFKA_BOOTSTRAP);
 
-            #[cfg(feature="redis-backend")]
+            #[cfg(feature = "redis-backend")]
             let backend = RedisBackend::new(REDIS_ADDR);
 
-            #[cfg(feature="vector-backend")]
+            #[cfg(feature = "vector-backend")]
             let backend = VectorBackend::new();
 
             backend

@@ -1,46 +1,34 @@
 mod file_backend;
 mod inner;
 pub mod inner2;
-#[cfg(feature="kafka-backend")]
 mod kafka2_backend;
-#[cfg(feature="redis-backend")]
 mod redis_backend;
 mod vector_backend;
-
-#[cfg(any(feature="redis-backend", feature="kafka-backend"))]
+mod redis_kafka_backend;
 use rdkafka::error::KafkaError;
-
-#[cfg(feature="redis-backend")]
 use redis::RedisError;
 
 #[derive(Debug)]
 pub enum Error {
     InconsistentRead,
-
-    #[cfg(any(feature="redis-backend", feature="kafka-backend"))]
     Kafka(KafkaError),
-
-    #[cfg(feature="redis-backend")]
     Redis(RedisError),
     IO(std::io::Error),
     FactoryError,
     MultipleWriters,
 }
 
-#[cfg(any(feature="redis-backend", feature="kafka-backend"))]
 impl From<KafkaError> for Error {
     fn from(item: KafkaError) -> Self {
         Error::Kafka(item)
     }
 }
 
-#[cfg(feature="redis-backend")]
 impl From<RedisError> for Error {
     fn from(item: RedisError) -> Self {
         Error::Redis(item)
     }
 }
-
 
 impl From<std::io::Error> for Error {
     fn from(item: std::io::Error) -> Self {
@@ -49,13 +37,12 @@ impl From<std::io::Error> for Error {
 }
 
 pub use file_backend::{FileBackend, FileReader, FileWriter};
-pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
-#[cfg(feature="redis-backend")]
-pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
-#[cfg(feature="kafka-backend")]
 pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
+pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
+pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
+pub use redis_kafka_backend::{RedisKafkaBackend, RedisKafkaReader, RedisKafkaWriter};
 
-pub use inner2::{ListBuffer, Buffer, ChunkReader, ChunkWriter, List, ListReader, ListWriter};
+pub use inner2::{Buffer, ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter};
 
 pub trait BackendOld {
     type Writer: ChunkWriter + 'static;
@@ -103,10 +90,10 @@ mod test {
         test_utils::*,
         utils::wp_lock::WpLock,
     };
+    use dashmap::DashMap;
     use std::env;
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
-    use dashmap::DashMap;
 
     fn test_multiple<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
         mut chunk_reader: R,
@@ -310,8 +297,8 @@ mod test {
         exp_values.iter_mut().for_each(|e| e.clear());
     }
 
-    #[cfg(features="kafka-backend")]
     #[test]
+    #[cfg_attr(not(feature="kafka-backend"), ignore)]
     fn test_kafka_bytes() {
         let kafka_writer = kafka2_backend::KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
         let kafka_reader = kafka2_backend::KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
@@ -326,8 +313,18 @@ mod test {
         test_single(persistent_reader, persistent_writer);
     }
 
-    #[cfg(features="redis-backend")]
     #[test]
+    #[cfg_attr(not(feature="redis-kafka-backend"), ignore)]
+    fn test_redis_kafka_simple() {
+        let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
+        let mut persistent_writer = b.writer().unwrap();
+        let mut persistent_reader = b.reader().unwrap();
+        test_single(persistent_reader, persistent_writer);
+    }
+
+
+    #[test]
+    #[cfg_attr(not(feature="redis-backend"), ignore)]
     fn test_redis_simple() {
         let client = redis::Client::open(REDIS_ADDR).unwrap();
         let map = Arc::new(DashMap::new());
@@ -340,8 +337,8 @@ mod test {
         test_single(persistent_reader, persistent_writer);
     }
 
-    #[cfg(features="redis-backend")]
     #[test]
+    #[cfg_attr(not(feature="redis-backend"), ignore)]
     fn test_redis_multiple() {
         let client = redis::Client::open(REDIS_ADDR).unwrap();
         let map = Arc::new(DashMap::new());
@@ -388,8 +385,8 @@ mod test {
         test_sample_data(persistent_reader, persistent_writer);
     }
 
-    #[cfg(features="redis-backend")]
     #[test]
+    #[cfg_attr(not(feature="redis-backend"), ignore)]
     fn test_redis_data() {
         let client = redis::Client::open(REDIS_ADDR).unwrap();
         let map = Arc::new(DashMap::new());
@@ -402,11 +399,11 @@ mod test {
         test_sample_data(persistent_reader, persistent_writer);
     }
 
-    #[cfg(features="kafka-backend")]
     #[test]
+    #[cfg_attr(not(feature="kafka-backend"), ignore)]
     fn test_kafka_data() {
-        let mut persistent_writer = KafkaWriter::new(0).unwrap();
-        let mut persistent_reader = KafkaReader::new().unwrap();
+        let persistent_writer = kafka2_backend::KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
+        let persistent_reader = kafka2_backend::KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
         test_sample_data(persistent_reader, persistent_writer);
     }
 }
