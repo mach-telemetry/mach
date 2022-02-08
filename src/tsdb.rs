@@ -2,7 +2,7 @@ use crate::{
     compression::Compression,
     constants::*,
     id::{SeriesId, WriterId},
-    persistent_list::{self, BackendOld, Buffer},
+    persistent_list::{self, Buffer, PersistentListBackend},
     tags::Tags,
     writer::{SeriesMetadata, Writer},
 };
@@ -32,7 +32,7 @@ impl From<persistent_list::Error> for Error {
     }
 }
 
-pub struct Mach<T: BackendOld> {
+pub struct Mach<T: PersistentListBackend> {
     backend: T,
     writer_table: HashMap<WriterId, T::Writer>,
     buffer_table: HashMap<WriterId, Buffer>,
@@ -42,7 +42,7 @@ pub struct Mach<T: BackendOld> {
     next_series_id: AtomicUsize,
 }
 
-impl<T: Backend> Mach<T> {
+impl<T: PersistentListBackend> Mach<T> {
     pub fn new(mut backend: T) -> Result<Self, Error> {
         let mut writer_table = HashMap::new();
         let mut reader_table = HashMap::new();
@@ -61,10 +61,14 @@ impl<T: Backend> Mach<T> {
 
     pub fn add_writer(&mut self) -> Result<Writer, Error> {
         let id = WriterId(self.next_writer_id.fetch_add(1, Ordering::SeqCst));
-        let (w, r) = self.backend.make_backend()?;
 
-        let writer = Writer::new(id, self.series_table.clone(), w);
-        self.reader_table.insert(id, r);
+        let writer = Writer::new(
+            id,
+            self.series_table.clone(),
+            self.backend.writer()?,
+            self.backend.meta()?,
+        );
+        self.reader_table.insert(id, self.backend.reader()?);
         self.buffer_table.insert(id, Buffer::new(BUFSZ));
 
         Ok(writer)
