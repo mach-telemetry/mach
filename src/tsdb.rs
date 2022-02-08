@@ -4,33 +4,12 @@ use crate::{
     id::{SeriesId, WriterId},
     persistent_list::{self, BackendOld, Buffer},
     tags::Tags,
-    writer::{SeriesMetadata, Writer, WriterId},
+    writer::{SeriesMetadata, Writer},
 };
 use dashmap::DashMap;
 use std::{collections::HashMap, ops::Deref, sync::Arc};
 
-use std::{
-    collections::HashMap,
-    ops::Deref,
-    sync::atomic::{AtomicUsize, Ordering},
-    sync::Arc,
-};
-
-#[derive(Copy, Debug, Clone, Eq, PartialEq, Hash)]
-pub struct SeriesId(pub usize);
-
-impl Deref for SeriesId {
-    type Target = usize;
-    fn deref(&self) -> &usize {
-        &self.0
-    }
-}
-
-impl SeriesId {
-    pub fn inner(&self) -> usize {
-        self.0
-    }
-}
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Clone)]
 pub struct SeriesConfig {

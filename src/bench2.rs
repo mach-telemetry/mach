@@ -47,7 +47,7 @@ use tsdb::{Mach, SeriesConfig};
 use compression::*;
 use constants::*;
 use dashmap::DashMap;
-use id::SeriesId;
+use id::*;
 use lazy_static::lazy_static;
 use persistent_list::*;
 use sample::*;

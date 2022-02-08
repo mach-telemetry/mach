@@ -1,31 +1,14 @@
 use crate::{
     compression::Compression,
-    id::SeriesId,
+    id::{SeriesId, WriterId},
     persistent_list::*,
     sample::Sample,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
     tags::Tags,
-    tsdb::SeriesId,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
 use std::{collections::HashMap, ops::Deref, sync::Arc};
-
-#[derive(Copy, Debug, Clone, Eq, PartialEq, Hash)]
-pub struct WriterId(pub usize);
-
-impl WriterId {
-    pub fn inner(&self) -> usize {
-        self.0
-    }
-}
-
-impl Deref for WriterId {
-    type Target = usize;
-    fn deref(&self) -> &usize {
-        &self.0
-    }
-}
 
 #[derive(Debug)]
 pub enum Error {
