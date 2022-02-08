@@ -263,7 +263,7 @@ fn main() {
         let nvars = d[0].1.len();
 
         // TODO: tags do not contain series id yet
-        let tags = Tags::new();
+        let tags = Tags::from(HashMap::new());
 
         let series_config = SeriesConfig {
             compression: COMPRESSION,
