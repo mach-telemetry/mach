@@ -103,9 +103,9 @@ impl DataEntry {
 fn load_data() -> HashMap<String, DataEntry> {
     println!("LOADING DATA");
     let file_path = if UNIVARIATE {
-        METRICSPATH.join("univariate.json")
+        METRICSPATH.join("bench1_univariate_small.json")
     } else {
-        METRICSPATH.join("multivariate.json")
+        METRICSPATH.join("bench1_multivariate_small.json")
     };
     let mut file = OpenOptions::new().read(true).open(file_path).unwrap();
     let mut json = String::new();
