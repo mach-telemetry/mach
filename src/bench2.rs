@@ -57,7 +57,7 @@ use zipf::*;
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
 const NSERIES: usize = 100_000;
-const NTHREADS: usize = 1;
+const NTHREADS: usize = 4;
 const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
 const UNIVARIATE: bool = true;
