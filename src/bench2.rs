@@ -123,30 +123,16 @@ fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
         .collect()
 }
 
-fn make_zipfian_select(nseries: usize) -> Vec<usize> {
-    // Change zipfian when avaiable data become less than the zipfian possible values
+fn consume(mut writer: Writer, mut data: Vec<&[(u64, Box<[[u8; 8]]>)]>, mut refs: Vec<usize>) {
     let mut z1000 = Zipfian::new(1000, ZIPF);
     let mut z100 = Zipfian::new(100, ZIPF);
     let mut z10 = Zipfian::new(10, ZIPF);
-    let mut selection1000 = (0..1000).map(|_| z1000.next_item() as usize);
-    let mut selection100 = (0..1000).map(|_| z100.next_item() as usize);
-    let mut selection10 = (0..1000).map(|_| z10.next_item() as usize);
-    let mut selection1 = (0..1000).map(|_| 0);
+    let mut selection1000: Vec<usize> = (0..1000).map(|_| z1000.next_item() as usize).collect();
+    let mut selection100: Vec<usize> = (0..1000).map(|_| z100.next_item() as usize).collect();
+    let mut selection10: Vec<usize> = (0..1000).map(|_| z10.next_item() as usize).collect();
+    let mut selection1: Vec<usize> = (0..1000).map(|_| 0).collect();
 
-    if nseries < 10 {
-        selection1.collect()
-    } else if nseries < 100 {
-        selection10.collect()
-    } else if nseries < 1000 {
-        selection100.collect()
-    } else {
-        selection1000.collect()
-    }
-}
-
-fn consume(mut writer: Writer, mut data: Vec<&[(u64, Box<[[u8; 8]]>)]>, mut refs: Vec<usize>) {
-    let nseries = data.len();
-    let mut selection = make_zipfian_select(nseries);
+    let mut selection = &selection1000;
     let mut loop_counter = 0;
     let mut floats = 0;
     let mut retries = 0;
@@ -158,6 +144,12 @@ fn consume(mut writer: Writer, mut data: Vec<&[(u64, Box<[[u8; 8]]>)]>, mut refs
     let mut remove = Duration::from_secs(0);
 
     'outer: loop {
+        selection = match data.len() {
+            1..=9 => &selection1,
+            10..=99 => &selection10,
+            100..=999 => &selection100,
+            _ => &selection1000,
+        };
         let idx = selection[loop_counter % selection.len()];
         let sample = &data[idx][0];
         let ref_id = refs[idx];
