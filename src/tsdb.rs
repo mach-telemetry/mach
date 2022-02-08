@@ -96,7 +96,7 @@ impl<T: Backend> Mach<T> {
         }
 
         let series_id = SeriesId(self.next_series_id.fetch_add(1, Ordering::SeqCst));
-        let writer_id = WriterId(*series_id % (next_writer_id - 1));
+        let writer_id = WriterId(*series_id % next_writer_id);
 
         let buffer = self
             .buffer_table
