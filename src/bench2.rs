@@ -232,8 +232,16 @@ fn main() {
             map
         });
 
-    let mut refmap: HashMap<WriterId, Vec<usize>> = HashMap::new();
-    let mut datamap: HashMap<WriterId, Vec<&[(u64, Box<[[u8; 8]]>)]>> = HashMap::new();
+    let mut refmap: HashMap<WriterId, Vec<usize>> =
+        writers_map.keys().fold(HashMap::new(), |mut map, wid| {
+            map.insert(*wid, Vec::new());
+            map
+        });
+    let mut datamap: HashMap<WriterId, Vec<&[(u64, Box<[[u8; 8]]>)]>> =
+        writers_map.keys().fold(HashMap::new(), |mut map, wid| {
+            map.insert(*wid, Vec::new());
+            map
+        });
 
     for _ in 0..NSERIES * NTHREADS {
         let idx: usize = rand::thread_rng().gen_range(0..DATA.len());
