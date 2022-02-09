@@ -68,3 +68,13 @@ services:
       - zookeeper
     networks:
       - kafka-cluster
+
+  redis:
+    image: redis:alpine
+    hostname: redis
+    container_name: redis
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server --loglevel warning
+

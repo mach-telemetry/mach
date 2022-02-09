@@ -8,7 +8,9 @@ use crate::{
         byte_buffer::ByteBuffer,
         wp_lock::{NoDealloc, WpLock},
     },
+    id::SeriesId,
 };
+use serde::Serialize;
 use std::{
     cell::UnsafeCell,
     collections::HashMap,
@@ -20,12 +22,6 @@ use std::{
         Arc,
     },
 };
-
-#[derive(Copy, Clone)]
-pub struct ChunkMetadata {
-    pub offset: usize,
-    pub size: usize,
-}
 
 //pub trait ChunkMeta: Sync + Send {
 //    fn update(&mut self, tags: &HashMap<Tags, ChunkMetadata>, chunk_id: u64) -> Result<(), Error>;
@@ -167,8 +163,8 @@ impl Drop for ListWriter {
 impl ListWriter {
     pub fn push_segment<W: ChunkWriter>(
         &mut self,
+        id: SeriesId,
         segment: &FullSegment,
-        tags: &Tags,
         compression: &Compression,
         w: &mut W,
     ) {
@@ -180,7 +176,7 @@ impl ListWriter {
         let (new_head, to_flush) = unsafe {
             let buf = self.buffer.unprotected_write();
             let new_head =
-                buf.push_segment(tags, segment, compression, chunk_id, head.offset, head.size);
+                buf.push_segment(id, segment, compression, chunk_id, head.offset, head.size);
             let to_flush = buf.is_full();
             (new_head, to_flush)
         };
@@ -197,11 +193,9 @@ impl ListWriter {
         // head. When making a copy of the buffer information, will fail if the buffer reset
         // concurrently.
         if to_flush {
-            //SAFETY: flushing does not race with the reader
-            unsafe { self.buffer.unprotected_read().flush(w) };
-
-            // The reset does race with creating a reader
-            self.buffer.protected_write().reset();
+            let mut guard = self.buffer.protected_write();
+            guard.flush(w);
+            guard.reset();
         }
     }
 
@@ -228,11 +222,9 @@ impl ListWriter {
         // head. When making a copy of the buffer information, will fail if the buffer reset
         // concurrently.
         if to_flush {
-            //SAFETY: flushing does not race with the reader
-            unsafe { self.buffer.unprotected_read().flush(w) };
-
-            // The reset does race with creating a reader
-            self.buffer.protected_write().reset();
+            let mut guard = self.buffer.protected_write();
+            guard.flush(w);
+            guard.reset();
         }
     }
 }
@@ -283,7 +275,7 @@ impl ListReader {
             if chunk_id == u64::MAX {
                 return Ok(None);
             } else {
-                let buf = Bytes(reader.read(chunk_id)?);
+                let buf = Bytes::new(reader.read(chunk_id)?);
                 let (copies, node) = buf.read(self.persistent.offset, self.persistent.size);
                 self.buffer_copy = copies;
                 self.persistent = node;
@@ -317,18 +309,21 @@ impl Node {
     }
 }
 
-struct Bytes<T>(T);
+struct Bytes<T>{
+    len: usize,
+    bytes: T,
+}
 
 impl<T: AsRef<[u8]>> Deref for Bytes<T> {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        &self.0.as_ref()[..]
+        &self.bytes.as_ref()[..]
     }
 }
 
 impl<T: AsRef<[u8]> + AsMut<[u8]>> DerefMut for Bytes<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0.as_mut()[..]
+        &mut self.bytes.as_mut()[..]
     }
 }
 
@@ -356,9 +351,28 @@ impl<T: AsRef<[u8]>> Bytes<T> {
 
         (copies, node)
     }
+    fn new(bytes: T) -> Self {
+        Self {
+            len: 8,
+            bytes,
+        }
+    }
+
 }
 
 impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
+    fn set_tail<D: Serialize>(&mut self, data: &D) {
+        let len = self.len;
+        self[0..8].copy_from_slice(&len.to_be_bytes());
+        let mut byte_buffer = ByteBuffer::new(&mut self[len..]);
+        bincode::serialize_into(&mut byte_buffer, data).unwrap();
+        self.len += byte_buffer.len();
+    }
+
+    fn reset(&mut self) {
+        self.len = 8;
+    }
+
     fn push_segment(
         &mut self,
         segment: &FullSegment,
@@ -366,10 +380,8 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         chunk_id: u64,
         last_offset: usize,
         last_size: usize,
-        offset: usize,
-    ) -> usize {
-        let start = offset;
-        let mut offset = offset;
+    ) -> (usize, usize) {
+        let mut offset = self.len;
         let end = offset + size_of::<u64>();
         self[offset..end].copy_from_slice(&chunk_id.to_be_bytes());
         offset = end;
@@ -389,7 +401,9 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
             byte_buffer.len()
         };
 
-        offset - start
+        let result = (self.len, offset-self.len);
+        self.len = offset;
+        result
     }
 
     fn push_bytes(
@@ -398,10 +412,8 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         chunk_id: u64,
         last_offset: usize,
         last_size: usize,
-        offset: usize,
-    ) -> usize {
-        let start = offset;
-        let mut offset = start;
+    ) -> (usize, usize) {
+        let mut offset = self.len;
 
         let end = offset + size_of::<u64>();
         self[offset..end].copy_from_slice(&chunk_id.to_be_bytes());
@@ -419,16 +431,17 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         self[offset..end].copy_from_slice(bytes);
         offset = end;
 
-        offset - start
+        let result = (self.len, offset-self.len);
+        self.len = offset;
+        result
     }
 }
 
 pub struct InnerBuffer {
     chunk_id: Arc<AtomicU64>,
     bytes: Bytes<Box<[u8]>>,
-    tags: HashMap<Tags, ChunkMetadata>,
+    series: HashMap<SeriesId, (usize, usize)>,
     flush_sz: usize,
-    len: usize,
     buffer_id: AtomicUsize,
 }
 
@@ -436,46 +449,37 @@ unsafe impl NoDealloc for InnerBuffer {}
 
 impl InnerBuffer {
     fn is_full(&self) -> bool {
-        self.flush_sz <= self.len
+        self.flush_sz <= self.bytes.len
     }
 
     pub fn new(flush_sz: usize) -> Self {
         Self {
-            bytes: Bytes(vec![0u8; flush_sz * 2].into_boxed_slice()),
+            bytes: Bytes::new(vec![0u8; flush_sz * 2].into_boxed_slice()),
             chunk_id: Arc::new(AtomicU64::new(u64::MAX)),
-            tags: HashMap::new(),
+            series: HashMap::new(),
             flush_sz,
-            len: 0,
             buffer_id: AtomicUsize::new(0),
         }
     }
 
     fn push_segment(
         &mut self,
-        tags: &Tags,
+        id: SeriesId,
         segment: &FullSegment,
         compression: &Compression,
         chunk_id: u64,
         last_offset: usize,
         last_size: usize,
     ) -> Node {
-        let size = self.bytes.push_segment(
+        let (offset, size) = self.bytes.push_segment(
             segment,
             compression,
             chunk_id,
             last_offset,
             last_size,
-            self.len,
         );
 
-        let m = ChunkMetadata {
-            offset: self.len,
-            size,
-        };
-
-        self.tags.insert(tags.clone(), m);
-        let offset = self.len;
-        self.len += size;
+        self.series.insert(id, (offset, size));
 
         Node {
             chunk_id: self.chunk_id.clone(),
@@ -492,12 +496,9 @@ impl InnerBuffer {
         last_offset: usize,
         last_size: usize,
     ) -> Node {
-        let size = self
+        let (offset, size) = self
             .bytes
-            .push_bytes(bytes, chunk_id, last_offset, last_size, self.len);
-        let offset = self.len;
-        self.len += size;
-
+            .push_bytes(bytes, chunk_id, last_offset, last_size);
         Node {
             chunk_id: self.chunk_id.clone(),
             offset,
@@ -506,15 +507,16 @@ impl InnerBuffer {
         }
     }
 
-    fn flush<W: ChunkWriter>(&self, flusher: &mut W) {
-        let chunk_id = flusher.write(&self.bytes[..self.len]).unwrap();
+    fn flush<W: ChunkWriter>(&mut self, flusher: &mut W) {
+        self.bytes.set_tail(&self.series);
+        let chunk_id = flusher.write(&self.bytes[..self.bytes.len]).unwrap();
         self.chunk_id.store(chunk_id, SeqCst);
     }
 
     fn reset(&mut self) {
         let buffer_id = self.buffer_id.fetch_add(1, SeqCst) + 1;
-        self.len = 0;
-        self.tags.clear();
+        self.series.clear();
+        self.bytes.reset();
         self.chunk_id = Arc::new(AtomicU64::new(u64::MAX));
     }
 

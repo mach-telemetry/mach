@@ -4,7 +4,6 @@ use crate::{
     persistent_list::*,
     sample::Sample,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
-    tags::Tags,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
@@ -24,14 +23,14 @@ impl From<segment::Error> for Error {
 #[derive(Clone)]
 pub struct SeriesMetadata {
     segment: Segment,
-    tags: Tags,
+    id: SeriesId,
     list: List,
     compression: Compression,
 }
 
 impl SeriesMetadata {
     pub fn new(
-        tags: Tags,
+        id: SeriesId,
         seg_count: usize,
         nvars: usize,
         compression: Compression,
@@ -39,7 +38,7 @@ impl SeriesMetadata {
     ) -> Self {
         SeriesMetadata {
             segment: segment::Segment::new(seg_count, nvars),
-            tags,
+            id,
             compression,
             list: List::new(buffer),
         }
@@ -81,7 +80,7 @@ impl Writer {
         let flush_id = self.flush_worker.register(FlushMeta {
             segment: writer.flush(),
             list: meta.list.clone(),
-            tags: meta.tags.clone(),
+            id,
             compression: meta.compression,
         });
 
@@ -131,7 +130,7 @@ impl Writer {
 struct FlushMeta {
     segment: FlushSegment,
     list: List,
-    tags: Tags,
+    id: SeriesId,
     compression: Compression,
 }
 
@@ -140,7 +139,7 @@ impl FlushMeta {
         let seg: FullSegment = self.segment.to_flush().unwrap();
         self.list
             .writer()
-            .push_segment(&seg, &self.tags, &self.compression, w);
+            .push_segment(self.id, &seg, &self.compression, w);
         self.segment.flushed();
     }
 }
@@ -201,6 +200,7 @@ mod test {
         sync::{Arc, Mutex},
     };
     use tempfile::tempdir;
+    use rand::prelude::*;
 
     #[test]
     fn test_vec_writer() {
@@ -247,14 +247,11 @@ mod test {
     ) {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
-        let mut tags = HashMap::new();
-        tags.insert(String::from("A"), String::from("1"));
-        tags.insert(String::from("B"), String::from("2"));
-        let tags = Tags::from(tags);
         let compression = Compression::LZ4(1);
         let buffer = Buffer::new(6000);
+        let id = SeriesId(thread_rng().gen());
 
-        let series_meta = SeriesMetadata::new(tags, 1, nvars, compression, buffer.clone());
+        let series_meta = SeriesMetadata::new(id, 1, nvars, compression, buffer.clone());
         let serid = SeriesId(0);
         let dict = Arc::new(DashMap::new());
         dict.insert(serid, series_meta.clone());

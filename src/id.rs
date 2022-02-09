@@ -1,4 +1,5 @@
 use std::ops::Deref;
+use serde::{Serialize, Deserialize};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct WriterId(pub usize);
@@ -16,7 +17,7 @@ impl Deref for WriterId {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct SeriesId(pub usize);
 
 impl Deref for SeriesId {

@@ -46,9 +46,6 @@ name = "bench2"
 path = "src/bench2.rs"
 
 [features]
-redis-backend = []
-redis-kafka-backend = []
-cluster = []
 kafka-backend = []
 vector-backend = []
 file-backend = []

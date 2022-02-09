@@ -89,6 +89,7 @@ mod test {
     use crate::{
         compression::*, constants::*, persistent_list::vector_backend::*, segment::*, tags::*,
         test_utils::*, utils::wp_lock::WpLock,
+        id::SeriesId,
     };
     use dashmap::DashMap;
     use std::collections::HashMap;
@@ -182,10 +183,7 @@ mod test {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
 
-        let mut tags = HashMap::new();
-        tags.insert(String::from("A"), String::from("1"));
-        tags.insert(String::from("B"), String::from("2"));
-        let tags = Tags::from(tags);
+        let id = SeriesId(thread_rng().gen());
 
         let compression = Compression::LZ4(1);
 
@@ -211,7 +209,7 @@ mod test {
         }
         let flusher = writer.flush();
         let seg: FullSegment = flusher.to_flush().unwrap();
-        list.push_segment(&seg, &tags, &compression, &mut persistent_writer);
+        list.push_segment(id, &seg, &compression, &mut persistent_writer);
         flusher.flushed();
 
         // This next set of pushes **should** result in a flush
@@ -221,7 +219,7 @@ mod test {
         }
         let flusher = writer.flush();
         let seg: FullSegment = flusher.to_flush().unwrap();
-        list.push_segment(&seg, &tags, &compression, &mut persistent_writer);
+        list.push_segment(id, &seg, &compression, &mut persistent_writer);
         flusher.flushed();
 
         // This next set of pushes won't result in a flush
@@ -232,7 +230,7 @@ mod test {
 
         let flusher = writer.flush();
         let seg: FullSegment = flusher.to_flush().unwrap();
-        list.push_segment(&seg, &tags, &compression, &mut persistent_writer);
+        list.push_segment(id, &seg, &compression, &mut persistent_writer);
         flusher.flushed();
 
         let mut exp_ts: Vec<u64> = Vec::new();
