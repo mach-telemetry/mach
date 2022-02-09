@@ -27,10 +27,10 @@ pub struct ChunkMetadata {
     pub size: usize,
 }
 
-pub trait ChunkMeta: Sync + Send {
-    fn update(&mut self, tags: &HashMap<Tags, ChunkMetadata>, chunk_id: u64) -> Result<(), Error>;
-    //fn get_meta(&mut self, tag: &Tag) -> Result<(u64, usize), Error>;
-}
+//pub trait ChunkMeta: Sync + Send {
+//    fn update(&mut self, tags: &HashMap<Tags, ChunkMetadata>, chunk_id: u64) -> Result<(), Error>;
+//    //fn get_meta(&mut self, tag: &Tag) -> Result<(u64, usize), Error>;
+//}
 
 pub trait ChunkWriter: Sync + Send {
     fn write(&mut self, bytes: &[u8]) -> Result<u64, Error>;
@@ -165,13 +165,12 @@ impl Drop for ListWriter {
 }
 
 impl ListWriter {
-    pub fn push_segment<W: ChunkWriter, M: ChunkMeta>(
+    pub fn push_segment<W: ChunkWriter>(
         &mut self,
         segment: &FullSegment,
         tags: &Tags,
         compression: &Compression,
         w: &mut W,
-        m: &mut M,
     ) {
         // SAFETY: Holding a read reference to head here doesn't race with a concurrent ListReader
         let head = unsafe { self.inner_list.head.unprotected_read() };
@@ -199,14 +198,14 @@ impl ListWriter {
         // concurrently.
         if to_flush {
             //SAFETY: flushing does not race with the reader
-            unsafe { self.buffer.unprotected_read().flush(w, m) };
+            unsafe { self.buffer.unprotected_read().flush(w) };
 
             // The reset does race with creating a reader
             self.buffer.protected_write().reset();
         }
     }
 
-    pub fn push_bytes<W: ChunkWriter, M: ChunkMeta>(&mut self, bytes: &[u8], w: &mut W, m: &mut M) {
+    pub fn push_bytes<W: ChunkWriter>(&mut self, bytes: &[u8], w: &mut W) {
         // SAFETY: Holding a read reference to head here doesn't race with a concurrent ListReader
         let head = unsafe { self.inner_list.head.unprotected_read() };
         let chunk_id = head.chunk_id.load(SeqCst);
@@ -230,7 +229,7 @@ impl ListWriter {
         // concurrently.
         if to_flush {
             //SAFETY: flushing does not race with the reader
-            unsafe { self.buffer.unprotected_read().flush(w, m) };
+            unsafe { self.buffer.unprotected_read().flush(w) };
 
             // The reset does race with creating a reader
             self.buffer.protected_write().reset();
@@ -507,9 +506,8 @@ impl InnerBuffer {
         }
     }
 
-    fn flush<W: ChunkWriter, M: ChunkMeta>(&self, flusher: &mut W, metadata: &mut M) {
+    fn flush<W: ChunkWriter>(&self, flusher: &mut W) {
         let chunk_id = flusher.write(&self.bytes[..self.len]).unwrap();
-        metadata.update(&self.tags, chunk_id).unwrap();
         self.chunk_id.store(chunk_id, SeqCst);
     }
 

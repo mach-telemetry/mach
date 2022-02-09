@@ -74,34 +74,6 @@ impl inner2::ChunkWriter for VectorWriter {
     }
 }
 
-#[derive(Clone)]
-pub struct VectorMeta {
-    map: HashMap<Tags, (u64, inner2::ChunkMetadata)>,
-    inner: Arc<Mutex<Vec<Box<[u8]>>>>,
-}
-
-impl VectorMeta {
-    pub fn new(inner: Arc<Mutex<Vec<Box<[u8]>>>>) -> Self {
-        VectorMeta {
-            inner,
-            map: HashMap::new(),
-        }
-    }
-}
-
-impl inner2::ChunkMeta for VectorMeta {
-    fn update(
-        &mut self,
-        tags: &HashMap<Tags, inner2::ChunkMetadata>,
-        chunk_id: u64,
-    ) -> Result<(), Error> {
-        for (k, v) in tags.iter() {
-            self.map.insert(k.clone(), (chunk_id, *v));
-        }
-        Ok(())
-    }
-}
-
 //impl ChunkWriter for VectorWriter {
 //    fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
 //        //println!("Since last flush: {:?}", self.last_flush.elapsed());
@@ -142,15 +114,11 @@ impl VectorBackend {
 impl PersistentListBackend for VectorBackend {
     type Writer = VectorWriter;
     type Reader = VectorReader;
-    type Meta = VectorMeta;
     fn writer(&self) -> Result<Self::Writer, Error> {
         Ok(VectorWriter::new(self.data.clone()))
     }
     fn reader(&self) -> Result<Self::Reader, Error> {
         Ok(VectorReader::new(self.data.clone()))
-    }
-    fn meta(&self) -> Result<Self::Meta, Error> {
-        Ok(VectorMeta::new(self.data.clone()))
     }
 }
 

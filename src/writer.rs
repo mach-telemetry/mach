@@ -57,12 +57,11 @@ pub struct Writer {
 }
 
 impl Writer {
-    pub fn new<W: ChunkWriter + 'static, M: ChunkMeta + 'static>(
+    pub fn new<W: ChunkWriter + 'static>(
         global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
         w: W,
-        m: M,
     ) -> Self {
-        let flush_worker = FlushWorker::new(w, m);
+        let flush_worker = FlushWorker::new(w);
         Self {
             global_meta,
             local_meta: HashMap::new(),
@@ -137,11 +136,11 @@ struct FlushMeta {
 }
 
 impl FlushMeta {
-    fn flush<W: ChunkWriter, M: ChunkMeta>(&self, w: &mut W, m: &mut M) {
+    fn flush<W: ChunkWriter>(&self, w: &mut W) {
         let seg: FullSegment = self.segment.to_flush().unwrap();
         self.list
             .writer()
-            .push_segment(&seg, &self.tags, &self.compression, w, m);
+            .push_segment(&seg, &self.tags, &self.compression, w);
         self.segment.flushed();
     }
 }
@@ -157,9 +156,9 @@ struct FlushWorker {
 }
 
 impl FlushWorker {
-    fn new<W: ChunkWriter + 'static, M: ChunkMeta + 'static>(w: W, m: M) -> Self {
+    fn new<W: ChunkWriter + 'static>(w: W) -> Self {
         let (sender, receiver) = unbounded();
-        async_std::task::spawn(worker(w, m, receiver));
+        async_std::task::spawn(worker(w, receiver));
         FlushWorker {
             sender,
             register_counter: 0,
@@ -178,16 +177,15 @@ impl FlushWorker {
     }
 }
 
-async fn worker<W: ChunkWriter + 'static, M: ChunkMeta + 'static>(
+async fn worker<W: ChunkWriter + 'static>(
     mut w: W,
-    mut m: M,
     queue: Receiver<FlushRequest>,
 ) {
     let mut metadata: Vec<FlushMeta> = Vec::new();
     while let Ok(item) = queue.recv().await {
         match item {
             FlushRequest::Register(meta) => metadata.push(meta),
-            FlushRequest::Flush(id) => metadata[id].flush(&mut w, &mut m),
+            FlushRequest::Flush(id) => metadata[id].flush(&mut w),
         }
     }
 }

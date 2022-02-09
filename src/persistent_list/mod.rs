@@ -1,17 +1,21 @@
 //mod file_backend;
 //mod inner;
 mod inner2;
-//mod kafka2_backend;
+mod kafka2_backend;
 //mod redis_backend;
-mod redis_kafka_backend;
+//mod redis_kafka_backend;
 mod vector_backend;
-use rdkafka::error::KafkaError;
+use rdkafka::{
+    error::KafkaError,
+    types::RDKafkaErrorCode
+};
 use redis::RedisError;
 
 #[derive(Debug)]
 pub enum Error {
     InconsistentRead,
     Kafka(KafkaError),
+    KafkaErrorCode((String, RDKafkaErrorCode)),
     Redis(RedisError),
     IO(std::io::Error),
     FactoryError,
@@ -37,12 +41,12 @@ impl From<std::io::Error> for Error {
 }
 
 //pub use file_backend::{FileBackend, FileReader, FileWriter};
-//pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
+pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
 //pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
 pub use inner2::{
-    Buffer, ChunkMeta, ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter,
+    Buffer, ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter,
 };
-pub use redis_kafka_backend::{RedisKafkaBackend, RedisKafkaReader, RedisKafkaWriter};
+//pub use redis_kafka_backend::{RedisKafkaBackend, RedisKafkaReader, RedisKafkaWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 
 pub trait BackendOld {
@@ -55,10 +59,8 @@ pub trait BackendOld {
 pub trait PersistentListBackend: Sized {
     type Writer: inner2::ChunkWriter + 'static;
     type Reader: inner2::ChunkReader + 'static;
-    type Meta: inner2::ChunkMeta + 'static;
     fn writer(&self) -> Result<Self::Writer, Error>;
     fn reader(&self) -> Result<Self::Reader, Error>;
-    fn meta(&self) -> Result<Self::Meta, Error>;
 }
 
 pub struct Backend<T: PersistentListBackend> {
@@ -93,6 +95,7 @@ mod test {
     use std::env;
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
+    use rand::prelude::*;
 
     fn test_multiple<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
         mut chunk_reader: R,
@@ -297,13 +300,15 @@ mod test {
         exp_values.iter_mut().for_each(|e| e.clear());
     }
 
-    //#[test]
-    //#[cfg_attr(not(feature="kafka-backend"), ignore)]
-    //fn test_kafka_bytes() {
-    //    let kafka_writer = kafka2_backend::KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
-    //    let kafka_reader = kafka2_backend::KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
-    //    test_multiple(kafka_reader, kafka_writer);
-    //}
+    #[test]
+    #[cfg_attr(not(feature="kafka-backend"), ignore)]
+    fn test_kafka_bytes() {
+        let topic = format!("test-{}", thread_rng().gen::<usize>());
+        let kafka = kafka2_backend::KafkaBackend::new(KAFKA_BOOTSTRAP, &topic).unwrap();
+        let kafka_writer = kafka.writer().unwrap();
+        let kafka_reader = kafka.reader().unwrap();
+        test_multiple(kafka_reader, kafka_writer);
+    }
 
     #[test]
     fn test_vec_simple() {
@@ -314,12 +319,13 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(not(feature = "redis-kafka-backend"), ignore)]
-    fn test_redis_kafka_simple() {
-        let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
-        let mut persistent_writer = b.writer().unwrap();
-        let mut persistent_reader = b.reader().unwrap();
-        test_single(persistent_reader, persistent_writer);
+    #[cfg_attr(not(feature = "kafka-backend"), ignore)]
+    fn test_kafka_simple() {
+        let topic = format!("test-{}", thread_rng().gen::<usize>());
+        let kafka = kafka2_backend::KafkaBackend::new(KAFKA_BOOTSTRAP, &topic).unwrap();
+        let kafka_writer = kafka.writer().unwrap();
+        let kafka_reader = kafka.reader().unwrap();
+        test_single(kafka_reader, kafka_writer);
     }
 
     //#[test]
@@ -350,14 +356,14 @@ mod test {
     //    test_multiple(persistent_reader, persistent_writer);
     //}
 
-    #[test]
-    #[cfg_attr(not(feature = "redis-kafka-backend"), ignore)]
-    fn test_redis_kafka_multiple() {
-        let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
-        let mut persistent_writer = b.writer().unwrap();
-        let mut persistent_reader = b.reader().unwrap();
-        test_multiple(persistent_reader, persistent_writer);
-    }
+    //#[test]
+    //#[cfg_attr(not(feature = "redis-kafka-backend"), ignore)]
+    //fn test_redis_kafka_multiple() {
+    //    let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
+    //    let mut persistent_writer = b.writer().unwrap();
+    //    let mut persistent_reader = b.reader().unwrap();
+    //    test_multiple(persistent_reader, persistent_writer);
+    //}
 
     #[test]
     fn test_vec_multiple() {
@@ -407,20 +413,22 @@ mod test {
     //    test_sample_data(persistent_reader, persistent_writer);
     //}
 
+    #[test]
+    #[cfg_attr(not(feature="kafka-backend"), ignore)]
+    fn test_kafka_data() {
+        let topic = format!("test-{}", thread_rng().gen::<usize>());
+        let kafka = kafka2_backend::KafkaBackend::new(KAFKA_BOOTSTRAP, &topic).unwrap();
+        let kafka_writer = kafka.writer().unwrap();
+        let kafka_reader = kafka.reader().unwrap();
+        test_sample_data(kafka_reader, kafka_writer);
+    }
+
     //#[test]
-    //#[cfg_attr(not(feature="kafka-backend"), ignore)]
-    //fn test_kafka_data() {
-    //    let persistent_writer = kafka2_backend::KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
-    //    let persistent_reader = kafka2_backend::KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
+    //#[cfg_attr(not(feature = "redis-kafka-backend"), ignore)]
+    //fn test_redis_kafka_data() {
+    //    let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
+    //    let mut persistent_writer = b.writer().unwrap();
+    //    let mut persistent_reader = b.reader().unwrap();
     //    test_sample_data(persistent_reader, persistent_writer);
     //}
-
-    #[test]
-    #[cfg_attr(not(feature = "redis-kafka-backend"), ignore)]
-    fn test_redis_kafka_data() {
-        let b = RedisKafkaBackend::new(REDIS_ADDR, KAFKA_BOOTSTRAP);
-        let mut persistent_writer = b.writer().unwrap();
-        let mut persistent_reader = b.reader().unwrap();
-        test_sample_data(persistent_reader, persistent_writer);
-    }
 }
