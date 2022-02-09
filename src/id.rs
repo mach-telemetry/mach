@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::ops::Deref;
-use serde::{Serialize, Deserialize};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct WriterId(pub usize);

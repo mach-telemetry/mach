@@ -5,10 +5,7 @@ mod kafka2_backend;
 //mod redis_backend;
 //mod redis_kafka_backend;
 mod vector_backend;
-use rdkafka::{
-    error::KafkaError,
-    types::RDKafkaErrorCode
-};
+use rdkafka::{error::KafkaError, types::RDKafkaErrorCode};
 use redis::RedisError;
 
 #[derive(Debug)]
@@ -43,9 +40,7 @@ impl From<std::io::Error> for Error {
 //pub use file_backend::{FileBackend, FileReader, FileWriter};
 pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
 //pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
-pub use inner2::{
-    Buffer, ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter,
-};
+pub use inner2::{Buffer, ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter};
 //pub use redis_kafka_backend::{RedisKafkaBackend, RedisKafkaReader, RedisKafkaWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 
@@ -87,16 +82,15 @@ impl<T: PersistentListBackend> Backend<T> {
 mod test {
     use super::*;
     use crate::{
-        compression::*, constants::*, persistent_list::vector_backend::*, segment::*, tags::*,
-        test_utils::*, utils::wp_lock::WpLock,
-        id::SeriesId,
+        compression::*, constants::*, id::SeriesId, persistent_list::vector_backend::*, segment::*,
+        tags::*, test_utils::*, utils::wp_lock::WpLock,
     };
     use dashmap::DashMap;
+    use rand::prelude::*;
     use std::collections::HashMap;
     use std::env;
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
-    use rand::prelude::*;
 
     fn test_multiple<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
         mut chunk_reader: R,
@@ -299,7 +293,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(not(feature="kafka-backend"), ignore)]
+    #[cfg_attr(not(feature = "kafka-backend"), ignore)]
     fn test_kafka_bytes() {
         let topic = format!("test-{}", thread_rng().gen::<usize>());
         let kafka = kafka2_backend::KafkaBackend::new(KAFKA_BOOTSTRAP, &topic).unwrap();
@@ -412,7 +406,7 @@ mod test {
     //}
 
     #[test]
-    #[cfg_attr(not(feature="kafka-backend"), ignore)]
+    #[cfg_attr(not(feature = "kafka-backend"), ignore)]
     fn test_kafka_data() {
         let topic = format!("test-{}", thread_rng().gen::<usize>());
         let kafka = kafka2_backend::KafkaBackend::new(KAFKA_BOOTSTRAP, &topic).unwrap();

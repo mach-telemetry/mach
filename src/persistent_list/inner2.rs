@@ -1,6 +1,7 @@
 use crate::{
     compression::{Compression, DecompressBuffer},
     constants::BUFSZ,
+    id::SeriesId,
     persistent_list::Error,
     segment::FullSegment,
     tags::Tags,
@@ -8,7 +9,6 @@ use crate::{
         byte_buffer::ByteBuffer,
         wp_lock::{NoDealloc, WpLock},
     },
-    id::SeriesId,
 };
 use serde::Serialize;
 use std::{
@@ -309,7 +309,7 @@ impl Node {
     }
 }
 
-struct Bytes<T>{
+struct Bytes<T> {
     len: usize,
     bytes: T,
 }
@@ -352,12 +352,8 @@ impl<T: AsRef<[u8]>> Bytes<T> {
         (copies, node)
     }
     fn new(bytes: T) -> Self {
-        Self {
-            len: 8,
-            bytes,
-        }
+        Self { len: 8, bytes }
     }
-
 }
 
 impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
@@ -401,7 +397,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
             byte_buffer.len()
         };
 
-        let result = (self.len, offset-self.len);
+        let result = (self.len, offset - self.len);
         self.len = offset;
         result
     }
@@ -431,7 +427,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         self[offset..end].copy_from_slice(bytes);
         offset = end;
 
-        let result = (self.len, offset-self.len);
+        let result = (self.len, offset - self.len);
         self.len = offset;
         result
     }
@@ -471,13 +467,9 @@ impl InnerBuffer {
         last_offset: usize,
         last_size: usize,
     ) -> Node {
-        let (offset, size) = self.bytes.push_segment(
-            segment,
-            compression,
-            chunk_id,
-            last_offset,
-            last_size,
-        );
+        let (offset, size) =
+            self.bytes
+                .push_segment(segment, compression, chunk_id, last_offset, last_size);
 
         self.series.insert(id, (offset, size));
 

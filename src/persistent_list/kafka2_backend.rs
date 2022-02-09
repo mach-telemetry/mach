@@ -7,13 +7,13 @@ use dashmap::DashMap;
 use rand::prelude::*;
 pub use rdkafka::consumer::{base_consumer::BaseConsumer, Consumer};
 use rdkafka::{
+    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
+    client::DefaultClientContext,
     config::ClientConfig,
     producer::{FutureProducer, FutureRecord},
     topic_partition_list::{Offset, TopicPartitionList},
     util::Timeout,
     Message,
-    client::DefaultClientContext,
-    admin::{NewTopic, AdminClient, TopicReplication, AdminOptions},
 };
 use std::{
     convert::TryInto,
@@ -35,8 +35,7 @@ async fn worker(
     let dur = Duration::from_secs(0);
     while let Ok(offset) = queue.recv().await {
         let data = map.get(&offset).unwrap().clone();
-        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&topic)
-            .payload(&data[..]);
+        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&topic).payload(&data[..]);
         let result = producer.send(to_send, dur).await;
         match result {
             Err(err) => {
@@ -75,7 +74,11 @@ impl KafkaWriter {
         Ok(producer)
     }
 
-    pub fn new(kafka_bootstrap: String, topic: String, map: Arc<DashMap<i64, Arc<[u8]>>>) -> Result<Self, Error> {
+    pub fn new(
+        kafka_bootstrap: String,
+        topic: String,
+        map: Arc<DashMap<i64, Arc<[u8]>>>,
+    ) -> Result<Self, Error> {
         let producer = Self::default_producer(kafka_bootstrap)?;
         let (tx, rx) = unbounded();
         async_std::task::spawn(worker(producer, map.clone(), rx, topic));
@@ -108,7 +111,11 @@ pub struct KafkaReader {
 }
 
 impl KafkaReader {
-    pub fn new(bootstrap_servers: String, topic: String, map: Arc<DashMap<i64, Arc<[u8]>>>) -> Result<Self, Error> {
+    pub fn new(
+        bootstrap_servers: String,
+        topic: String,
+        map: Arc<DashMap<i64, Arc<[u8]>>>,
+    ) -> Result<Self, Error> {
         let consumer: BaseConsumer = ClientConfig::new()
             .set("bootstrap.servers", bootstrap_servers)
             .set("group.id", random_id())
@@ -132,7 +139,7 @@ impl inner2::ChunkReader for KafkaReader {
             Some(x) => {
                 let l = x.clone();
                 self.local_buffer.extend_from_slice(&l[..]);
-            },
+            }
             None => {
                 let mut tp_list = TopicPartitionList::new();
                 let offset = Offset::Offset(offset);
@@ -168,7 +175,7 @@ fn create_topic(bootstrap: &str, topic: &str) -> Result<(), Error> {
     let fut = admin.create_topics(&topic, &opts);
     let result = async_std::task::block_on(fut)?;
     if let Err((s, c)) = &result[0] {
-        return Err(Error::KafkaErrorCode((s.into(), c.clone())))
+        return Err(Error::KafkaErrorCode((s.into(), c.clone())));
     }
     Ok(())
 }
@@ -193,11 +200,19 @@ impl KafkaBackend {
     }
 
     pub fn make_writer(&self) -> Result<KafkaWriter, Error> {
-        KafkaWriter::new(self.bootstrap_servers.clone(), self.topic.clone(), self.map.clone())
+        KafkaWriter::new(
+            self.bootstrap_servers.clone(),
+            self.topic.clone(),
+            self.map.clone(),
+        )
     }
 
     pub fn make_reader(&self) -> Result<KafkaReader, Error> {
-        KafkaReader::new(self.bootstrap_servers.clone(), self.topic.clone(), self.map.clone())
+        KafkaReader::new(
+            self.bootstrap_servers.clone(),
+            self.topic.clone(),
+            self.map.clone(),
+        )
     }
 }
 

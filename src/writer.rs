@@ -176,10 +176,7 @@ impl FlushWorker {
     }
 }
 
-async fn worker<W: ChunkWriter + 'static>(
-    mut w: W,
-    queue: Receiver<FlushRequest>,
-) {
+async fn worker<W: ChunkWriter + 'static>(mut w: W, queue: Receiver<FlushRequest>) {
     let mut metadata: Vec<FlushMeta> = Vec::new();
     while let Ok(item) = queue.recv().await {
         match item {
@@ -195,12 +192,12 @@ mod test {
     use crate::compression::DecompressBuffer;
     use crate::constants::*;
     use crate::test_utils::*;
+    use rand::prelude::*;
     use std::{
         env,
         sync::{Arc, Mutex},
     };
     use tempfile::tempdir;
-    use rand::prelude::*;
 
     #[test]
     fn test_vec_writer() {
