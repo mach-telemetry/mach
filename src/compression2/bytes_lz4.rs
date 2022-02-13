@@ -2,7 +2,7 @@ use crate::compression2::Error;
 use crate::sample::Bytes;
 use crate::segment::FullSegment;
 use crate::utils::byte_buffer::ByteBuffer;
-use lzzzz::lz4;
+use lzzzz::{lz4, lz4_hc};
 use std::convert::TryInto;
 
 pub fn compress(segment: &[[u8; 8]], buf: &mut ByteBuffer) {

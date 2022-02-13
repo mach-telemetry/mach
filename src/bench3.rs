@@ -13,7 +13,7 @@
 #![feature(llvm_asm)]
 #![feature(proc_macro_hygiene)]
 
-mod compression;
+mod compression2;
 mod constants;
 mod id;
 mod persistent_list;
@@ -45,7 +45,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use compression::*;
+use compression2::*;
 use constants::*;
 use dashmap::DashMap;
 use id::SeriesId;
@@ -62,10 +62,9 @@ const ZIPF: f64 = 0.99;
 const NSERIES: usize = 10_000;
 const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
-const NSEGMENTS: usize = 1;
+const NSEGMENTS: usize = 3;
 const UNIVARIATE: bool = false;
 //const COMPRESSION: Compression = Compression::XOR;
-const COMPRESSION: Compression = Compression::BytesLZ4;
 //const COMPRESSION: Compression = Compression::Decimal(3);
 const PARTITIONS: usize = 10;
 
@@ -117,7 +116,8 @@ fn main() {
     // The buffer used by all time series in this writer
     let buffer = Buffer::new(BUFSZ);
     let id = SeriesId(12345);
-    let series_meta = SeriesMetadata::new(id, NSEGMENTS, 1, COMPRESSION, buffer.clone());
+    let mut compression = Compression::from(vec![CompressFn::BytesLZ4]);
+    let series_meta = SeriesMetadata::new(id, NSEGMENTS, 1, compression, buffer.clone());
     global.insert(id, series_meta.clone());
     let ref_id = write_thread.register(id);
     let mut samples = 0;
