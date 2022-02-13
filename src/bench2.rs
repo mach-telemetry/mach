@@ -13,7 +13,7 @@
 #![feature(llvm_asm)]
 #![feature(proc_macro_hygiene)]
 
-mod compression;
+mod compression2;
 mod constants;
 mod id;
 mod persistent_list;
@@ -45,7 +45,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use compression::*;
+use compression2::*;
 use constants::*;
 use dashmap::DashMap;
 use id::SeriesId;
@@ -65,7 +65,7 @@ const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
 const UNIVARIATE: bool = false;
 //const COMPRESSION: Compression = Compression::XOR;
-const COMPRESSION: Compression = Compression::Fixed(10);
+//const COMPRESSION: Compression = Compression::Fixed(10);
 //const COMPRESSION: Compression = Compression::Decimal(3);
 const PARTITIONS: usize = 10;
 
@@ -139,7 +139,7 @@ fn consume<W: ChunkWriter + 'static>(
     let mut base_data = &DATA;
 
     // Series will use fixed compression with precision of 10 bits
-    let compression = COMPRESSION;
+    //let compression = COMPRESSION;
 
     // Vectors to hold series-specific information
     let mut data: Vec<&[(u64, Box<[[u8; 8]]>)]> = Vec::new();
@@ -158,6 +158,13 @@ fn consume<W: ChunkWriter + 'static>(
         let idx = rand::thread_rng().gen_range(0..base_data.len());
         let d = &base_data[idx];
         let nvars = d[0].1.len();
+        let compression = {
+            let mut v = Vec::new();
+            for _ in 0..nvars {
+                v.push(CompressFn::Decimal(3));
+            }
+            Compression::from(v)
+        };
         let series_meta = SeriesMetadata::new(id, NSEGMENTS, nvars, compression, buffer.clone());
         global.insert(id, series_meta.clone());
         refs.push(write_thread.register(id));
