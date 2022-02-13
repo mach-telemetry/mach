@@ -21,7 +21,7 @@ mod sample;
 mod segment;
 mod tags;
 mod test_utils;
-mod tsdb;
+//mod tsdb;
 mod utils;
 mod writer;
 mod zipf;
@@ -63,7 +63,7 @@ const NSERIES: usize = 10_000;
 const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
-const UNIVARIATE: bool = true;
+const UNIVARIATE: bool = false;
 //const COMPRESSION: Compression = Compression::XOR;
 const COMPRESSION: Compression = Compression::Fixed(10);
 //const COMPRESSION: Compression = Compression::Decimal(3);
@@ -149,16 +149,18 @@ fn consume<W: ChunkWriter + 'static>(
     // Generate series specific information, register, then collect the information into the vecs
     // each series uses 3 active segments
     // println!("TOTAL BASE_DATA {}", base_data.len());
-    for _ in 0..NSERIES {
-        let i = SeriesId(id_counter.fetch_add(1, SeqCst));
+    for i in 0..NSERIES {
+        //let i = SeriesId(id_counter.fetch_add(1, SeqCst));
+        let mut map = HashMap::new();
+        map.insert("id".into(), format!("{}", rand::thread_rng().gen::<u64>()));
+        let tags = Tags::from(map);
+        let id = tags.id();
         let idx = rand::thread_rng().gen_range(0..base_data.len());
         let d = &base_data[idx];
         let nvars = d[0].1.len();
-        let mut tags = Tags::new();
-        tags.insert((String::from("id"), format!("{}", i.inner())));
-        let series_meta = SeriesMetadata::new(tags, NSEGMENTS, nvars, compression, buffer.clone());
-        global.insert(i, series_meta.clone());
-        refs.push(write_thread.register(i));
+        let series_meta = SeriesMetadata::new(id, NSEGMENTS, nvars, compression, buffer.clone());
+        global.insert(id, series_meta.clone());
+        refs.push(write_thread.register(id));
         data.push(d.as_slice());
         //meta.push(series_meta);
     }
@@ -174,6 +176,7 @@ fn consume<W: ChunkWriter + 'static>(
 
     let mut selection = &selection1000;
     let mut loop_counter = 0;
+    let mut samples = 0;
     let mut floats = 0;
     let mut retries = 0;
     BARRIERS.wait();
@@ -214,6 +217,7 @@ fn consume<W: ChunkWriter + 'static>(
                     let end = rdtsc!();
                     cycles += end - start;
                     //let s = Instant::now();
+                    samples += 1;
                     floats += sample.1.len();
                     data[idx] = &data[idx][1..];
                     if data[idx].len() == 0 {
@@ -240,10 +244,14 @@ fn consume<W: ChunkWriter + 'static>(
         }
         loop_counter += 1;
     }
-    println!("Gross duration (including other crap) {:?}", now.elapsed());
+    let _elapsed = now.elapsed();
+    println!("Gross duration (including other crap) {:?}", _elapsed);
     //let dur = (now.elapsed() - remove).as_secs_f64();
     let dur = rdtsc::cycles_to_seconds(cycles);
-    //println!("floats: {}", floats);
+    println!("Net duration {:?}", dur);
+    println!("floats inserted: {}", floats);
+    println!("samples inserted: {}", samples);
+    //println!("Gross rate (including other crap) {:?}", (floats as f64 / _elapsed.as_secs_f64()) / 1_000_000.);
     //println!("dur: {:?} seconds", dur);
     let rate = (floats as f64 / dur) / 1_000_000.;
     //println!("Rate mfps: {}", rate);
@@ -274,6 +282,8 @@ fn main() {
     let id_counter = Arc::new(AtomicUsize::new(0));
     for i in 0..NTHREADS {
         let backend = {
+            let backend = VectorBackend::new();
+
             #[cfg(feature = "file-backend")]
             let backend = FileBackend::new(outdir.into(), i.try_into().unwrap());
 
@@ -282,9 +292,6 @@ fn main() {
 
             #[cfg(feature = "redis-backend")]
             let backend = RedisBackend::new(REDIS_ADDR);
-
-            #[cfg(feature = "vector-backend")]
-            let backend = VectorBackend::new();
 
             backend
         };

@@ -45,6 +45,10 @@ debug=true
 name = "bench2"
 path = "src/bench2.rs"
 
+[[bin]]
+name = "bench3"
+path = "src/bench3.rs"
+
 [features]
 kafka-backend = []
 vector-backend = []

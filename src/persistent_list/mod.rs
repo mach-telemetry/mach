@@ -1,4 +1,4 @@
-//mod file_backend;
+mod file_backend;
 //mod inner;
 mod inner2;
 mod kafka2_backend;
@@ -37,7 +37,7 @@ impl From<std::io::Error> for Error {
     }
 }
 
-//pub use file_backend::{FileBackend, FileReader, FileWriter};
+pub use file_backend::{FileBackend, FileReader, FileWriter};
 pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
 //pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
 pub use inner2::{Buffer, ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter};
@@ -82,7 +82,7 @@ impl<T: PersistentListBackend> Backend<T> {
 mod test {
     use super::*;
     use crate::{
-        compression::*, constants::*, id::SeriesId, persistent_list::vector_backend::*, segment::*,
+        compression2::*, constants::*, id::SeriesId, persistent_list::vector_backend::*, segment::*,
         tags::*, test_utils::*, utils::wp_lock::WpLock,
     };
     use dashmap::DashMap;
@@ -179,7 +179,11 @@ mod test {
 
         let id = SeriesId(thread_rng().gen());
 
-        let compression = Compression::LZ4(1);
+        let mut compression = Vec::new();
+        for _ in 0..nvars {
+            compression.push(CompressFn::XOR);
+        }
+        let compression = Compression::from(compression);
 
         let buffer = inner2::ListBuffer::new(6000);
         let l = inner2::List::new(buffer.clone());

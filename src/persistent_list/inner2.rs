@@ -1,5 +1,5 @@
 use crate::{
-    compression::{Compression, DecompressBuffer},
+    compression2::{Compression, DecompressBuffer},
     constants::BUFSZ,
     id::SeriesId,
     persistent_list::Error,

@@ -86,12 +86,39 @@ struct Header {
     len: usize,
 }
 
+pub enum CompressionType {
+    Fixed(usize),
+    XOR,
+    Decimal(u8),
+    BytesLZ4,
+}
+
+impl CompressionType {
+    pub fn compress(&self, segment: &[[u8; 8]], buf: &mut ByteBuffer) {
+        let compression_id: u64 = match self {
+            CompressionType::Fixed(_) => 2,
+            CompressionType::XOR => 3,
+            CompressionType::Decimal(_) => 4,
+            CompressionType::BytesLZ4 => 5,
+        };
+        buf.extend_from_slice(&compression_id.to_be_bytes()[..]);
+        buf.extend_from_slice(&0u64.to_be_bytes());
+        match self {
+            CompressionType::Fixed(bits) => fixed::compress(segment, buf, *bits),
+            CompressionType::XOR => xor::compress(segment, buf),
+            CompressionType::Decimal(precision) => decimal::compress(segment, buf, *precision),
+            CompressionType::BytesLZ4 => bytes_lz4::bytes_lz4_compress(segment, buf),
+        };
+    }
+}
+
 #[derive(Copy, Clone)]
 pub enum Compression {
     LZ4(i32),
     Fixed(usize),
     XOR,
     Decimal(u8),
+    BytesLZ4,
 }
 
 impl Compression {
@@ -106,6 +133,7 @@ impl Compression {
             Compression::Fixed(_) => 2,
             Compression::XOR => 3,
             Compression::Decimal(_) => 4,
+            Compression::BytesLZ4 => 5,
         };
         buf.extend_from_slice(&MAGIC[..]);
         buf.extend_from_slice(&compression_id.to_be_bytes()[..]);
@@ -146,6 +174,7 @@ impl Compression {
             Compression::Fixed(bits) => fixed_compress(segment, buf, *bits),
             Compression::XOR => xor_compress(segment, buf),
             Compression::Decimal(precision) => decimal_compress(segment, buf, *precision),
+            Compression::BytesLZ4 => bytes_lz4_compress(segment, buf),
         }
     }
 
@@ -169,6 +198,7 @@ impl Compression {
             2 => fixed_decompress(header, &data[off..], buf)?,
             3 => xor_decompress(header, &data[off..], buf)?,
             4 => decimal_decompress(header, &data[off..], buf)?,
+            5 => bytes_lz4_decompress(header, &data[off..], buf)?,
             _ => return Err(Error::UnrecognizedCompressionType),
         };
 
@@ -290,6 +320,49 @@ fn fixed_decompress(
         fixed::decompress(&data[off..off + sz], &mut buf.values[i], frac);
         off += sz;
     }
+    Ok(off)
+}
+
+
+fn bytes_lz4_compress(segment: &FullSegment, buf: &mut ByteBuffer) {
+    // compress the timesetamps
+    buf.extend_from_slice(&0u64.to_be_bytes()[..]); // compressed sz placeholder
+    let start_len = buf.len();
+    timestamps::compress(segment.timestamps(), buf);
+    let end_len = buf.len();
+    let len = (end_len - start_len) as u64;
+    buf.as_mut_slice()[..8].copy_from_slice(&len.to_be_bytes()[..]);
+
+    // compress the values
+    assert!(segment.nvars==1);
+    let length_offset = buf.len();
+    buf.extend_from_slice(&0u64.to_be_bytes()[..]); // compressed sz placeholder
+    let start_len = buf.len();
+    bytes_lz4::bytes_lz4_compress(segment.variable(0), buf);
+    let len = (buf.len() - start_len) as u64;
+    buf.as_mut_slice()[length_offset..length_offset + 8].copy_from_slice(&len.to_be_bytes()[..]);
+}
+
+fn bytes_lz4_decompress(
+    header: Header,
+    data: &[u8],
+    buf: &mut DecompressBuffer,
+) -> Result<usize, Error> {
+    let mut off = 0;
+
+    // decompress timestamps
+    let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
+    off += 8;
+
+    timestamps::decompress(&data[off..off + sz], &mut buf.ts);
+    off += sz;
+
+    assert_eq!(header.nvars, 1);
+    // decompress values
+    let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
+    off += 8;
+    bytes_lz4::bytes_lz4_decompress(&data[off..off + sz], &mut buf.values[0]);
+    off += sz;
     Ok(off)
 }
 
@@ -599,6 +672,54 @@ mod test {
                 .fold(f64::NAN, f64::max);
 
             assert!(diff < 0.001);
+        }
+    }
+
+    #[test]
+    fn test_bytes_lz4() {
+        use crate::sample::Bytes;
+        let data = &*LOG_DATA;
+
+        let mut timestamps = [0; 256];
+        let mut v = Vec::new();
+        v.push([[0u8; 8]; 256]);
+        for (idx, sample) in data[0..256].iter().enumerate() {
+            timestamps[idx] = idx as u64;
+            let ptr = Bytes::from_slice(sample.as_bytes()).into_raw();
+            v[0][idx] = (ptr as u64).to_be_bytes();
+        }
+
+        let segment = FullSegment {
+            len: 256,
+            nvars: 1,
+            ts: &timestamps,
+            data: v.as_slice(),
+        };
+
+        let mut compressed = vec![0u8; 8192];
+        let mut byte_buf = ByteBuffer::new(&mut compressed[..]);
+        let mut buf = DecompressBuffer::new();
+        let header = Header {
+            code: 1,
+            nvars: 1,
+            len: 256,
+        };
+
+        // Need to set this manually because the header is generated separately
+        buf.set_nvars(1);
+        buf.len = 256;
+
+        bytes_lz4_compress(&segment, &mut byte_buf);
+        println!("BYTE BUF: {}", byte_buf.len());
+        bytes_lz4_decompress(header, &compressed[..], &mut buf).unwrap();
+        assert_eq!(&buf.ts[..], &timestamps[..]);
+        let exp = &data[0..256];
+        let res = buf.variable(0);
+        for (r, e) in res.iter().zip(exp.iter()) {
+            let ptr = usize::from_be_bytes(*r) as *const u8;
+            let bytes = unsafe { Bytes::from_raw(ptr) };
+            let s = std::str::from_utf8(bytes.bytes()).unwrap();
+            assert_eq!(s, e);
         }
     }
 }

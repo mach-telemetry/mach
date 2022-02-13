@@ -1,5 +1,5 @@
 use crate::{
-    compression::Compression,
+    compression2::Compression,
     id::SeriesId,
     persistent_list::*,
     sample::Sample,
@@ -81,7 +81,7 @@ impl Writer {
             segment: writer.flush(),
             list: meta.list.clone(),
             id,
-            compression: meta.compression,
+            compression: meta.compression.clone(),
         });
 
         let len = self.writers.len();
@@ -189,7 +189,7 @@ async fn worker<W: ChunkWriter + 'static>(mut w: W, queue: Receiver<FlushRequest
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::compression::DecompressBuffer;
+    use crate::compression2::*;
     use crate::constants::*;
     use crate::test_utils::*;
     use rand::prelude::*;
@@ -244,7 +244,11 @@ mod test {
     ) {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
-        let compression = Compression::LZ4(1);
+        let mut compression = Vec::new();
+        for _ in 0..nvars {
+            compression.push(CompressFn::XOR);
+        }
+        let compression = Compression::from(compression);
         let buffer = Buffer::new(6000);
         let id = SeriesId(thread_rng().gen());
 

@@ -1,4 +1,7 @@
-use crate::utils::byte_buffer::ByteBuffer;
+use crate::{
+    utils::byte_buffer::ByteBuffer,
+    id::SeriesId,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -54,8 +57,8 @@ impl From<HashMap<String, String>> for Tags {
 }
 
 impl Tags {
-    pub fn id(&self) -> u64 {
-        self.hash
+    pub fn id(&self) -> SeriesId {
+        SeriesId(self.hash)
     }
 
     fn from_map(mut data: HashMap<String, String>) -> Self {

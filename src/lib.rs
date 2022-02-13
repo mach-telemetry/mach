@@ -17,7 +17,8 @@
 //mod writer;
 
 //pub mod tsdb;
-pub mod compression;
+//pub mod compression;
+pub mod compression2;
 pub mod constants;
 pub mod id;
 pub mod persistent_list;
