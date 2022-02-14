@@ -64,7 +64,7 @@ const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
 const UNIVARIATE: bool = false;
 //const COMPRESSION: Compression = Compression::XOR;
-const COMPRESSION: Compression = Compression::Fixed(10);
+//const COMPRESSION: Compression = Compression::Fixed(10);
 //const COMPRESSION: Compression = Compression::Decimal(3);
 const PARTITIONS: usize = 10;
 
@@ -263,14 +263,18 @@ fn main() {
         let d = &DATA[idx];
         let nvars = d[0].1.len();
 
-        // TODO: tags do not contain series id yet
-        let tags = Tags::from(HashMap::new());
+        let compression = {
+            let mut v = Vec::new();
+            for _ in 0..nvars {
+                v.push(CompressFn::Decimal(3));
+            }
+            Compression::from(v)
+        };
 
         let series_config = SeriesConfig {
-            compression: COMPRESSION,
+            compression,
             seg_count: NSEGMENTS,
             nvars,
-            tags,
         };
 
         let (series_id, writerid) = mach

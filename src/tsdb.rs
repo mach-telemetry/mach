@@ -1,22 +1,20 @@
 use crate::{
-    compression::Compression,
+    compression2::{CompressFn, Compression},
     constants::*,
     id::{SeriesId, WriterId},
     persistent_list::{self, Buffer, PersistentListBackend},
-    tags::Tags,
     writer::{SeriesMetadata, Writer},
 };
 use dashmap::DashMap;
 use std::{collections::HashMap, ops::Deref, sync::Arc};
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 #[derive(Clone)]
 pub struct SeriesConfig {
     pub compression: Compression,
     pub seg_count: usize,
     pub nvars: usize,
-    pub tags: Tags,
 }
 
 #[derive(Debug)]
@@ -39,7 +37,7 @@ pub struct Mach<T: PersistentListBackend> {
     reader_table: HashMap<WriterId, T::Reader>,
     series_table: Arc<DashMap<SeriesId, SeriesMetadata>>,
     next_writer_id: AtomicUsize,
-    next_series_id: AtomicUsize,
+    next_series_id: AtomicU64,
 }
 
 impl<T: PersistentListBackend> Mach<T> {
@@ -55,19 +53,14 @@ impl<T: PersistentListBackend> Mach<T> {
             buffer_table,
             series_table: Arc::new(DashMap::new()),
             next_writer_id: AtomicUsize::new(0),
-            next_series_id: AtomicUsize::new(0),
+            next_series_id: AtomicU64::new(0),
         })
     }
 
     pub fn add_writer(&mut self) -> Result<Writer, Error> {
         let id = WriterId(self.next_writer_id.fetch_add(1, Ordering::SeqCst));
 
-        let writer = Writer::new(
-            id,
-            self.series_table.clone(),
-            self.backend.writer()?,
-            self.backend.meta()?,
-        );
+        let writer = Writer::new(id, self.series_table.clone(), self.backend.writer()?);
         self.reader_table.insert(id, self.backend.reader()?);
         self.buffer_table.insert(id, Buffer::new(BUFSZ));
 
@@ -82,7 +75,7 @@ impl<T: PersistentListBackend> Mach<T> {
         }
 
         let series_id = SeriesId(self.next_series_id.fetch_add(1, Ordering::SeqCst));
-        let writer_id = WriterId(*series_id % next_writer_id);
+        let writer_id = WriterId((*series_id) as usize % next_writer_id);
 
         let buffer = self
             .buffer_table
@@ -90,7 +83,7 @@ impl<T: PersistentListBackend> Mach<T> {
             .expect("buffer should be defined for an initialized writer");
 
         let series = SeriesMetadata::new(
-            config.tags,
+            series_id,
             config.seg_count,
             config.nvars,
             config.compression,
@@ -112,11 +105,19 @@ mod test {
     fn test_cannot_add_series_if_no_writer() {
         let mut db = Mach::new(VectorBackend::new()).unwrap();
 
+        let nvars = 8;
+        let compression = {
+            let mut v = Vec::new();
+            for _ in 0..nvars {
+                v.push(CompressFn::Decimal(3));
+            }
+            Compression::from(v)
+        };
+
         match db.register(SeriesConfig {
-            tags: Tags::new(),
             seg_count: 8,
-            nvars: 8,
-            compression: Compression::Fixed(10),
+            nvars,
+            compression,
         }) {
             Ok(..) => panic!("should not be able to register time series"),
             Err(Error::NoWriter) => {}
