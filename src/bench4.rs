@@ -29,6 +29,7 @@ mod rdtsc;
 
 use rand::Rng;
 use serde::*;
+use std::marker::PhantomData;
 use std::{
     collections::HashMap,
     convert::TryInto,
@@ -122,21 +123,81 @@ fn read_data() -> Vec<Vec<RawSample>> {
         .collect()
 }
 
-fn make_writers<B: PersistentListBackend>(
-    writer_count: usize,
-    mach: &mut Mach<B>,
-) -> HashMap<WriterId, Writer> {
-    (0..writer_count)
-        .map(|_| mach.add_writer())
-        .map(|r| r.expect("should be able to instantiate writer"))
-        .fold(HashMap::new(), |mut map, w| {
-            map.insert(w.id(), w);
-            map
-        })
-}
-
 fn make_uniform_compression(scheme: CompressFn, nvars: usize) -> Compression {
     Compression::from((0..nvars).map(|_| scheme).collect::<Vec<CompressFn>>())
+}
+
+struct IngestionThreadMeta {
+    writer: Writer,
+    refids: Vec<usize>,
+    series: Vec<&'static [RawSample]>,
+}
+
+impl IngestionThreadMeta {
+    fn new(writer: Writer) -> Self {
+        IngestionThreadMeta {
+            writer,
+            refids: Vec::new(),
+            series: Vec::new(),
+        }
+    }
+
+    fn register_series(&mut self, series_id: SeriesId, series_data: &'static Vec<RawSample>) {
+        let refid = self.writer.register(series_id);
+
+        self.refids.push(refid);
+        self.series.push(series_data);
+    }
+}
+
+struct IngestionMetadata<'a, B: PersistentListBackend + 'static> {
+    writer_data_map: HashMap<WriterId, IngestionThreadMeta>,
+    data_src: &'static Vec<Vec<RawSample>>,
+    mach: &'a mut Mach<B>,
+}
+
+impl<'a, B: PersistentListBackend> IngestionMetadata<'a, B> {
+    fn new(
+        mach: &'a mut Mach<B>,
+        n_writers: usize,
+        data_src: &'static Vec<Vec<RawSample>>,
+    ) -> Self {
+        let mut writer_data_map = HashMap::new();
+
+        for _ in 0..n_writers {
+            let writer = mach.add_writer().expect("should be able to add new writer");
+            writer_data_map.insert(writer.id(), IngestionThreadMeta::new(writer));
+        }
+
+        IngestionMetadata {
+            writer_data_map,
+            data_src,
+            mach,
+        }
+    }
+
+    fn add_series(&mut self) {
+        let idx: usize = rand::thread_rng().gen_range(0..DATA.len());
+        let series_data = &DATA[idx];
+        let nvars = series_data[0].1.len();
+        let compression = make_uniform_compression(CompressFn::Decimal(3), nvars);
+
+        let series_config = SeriesConfig {
+            compression,
+            seg_count: NSEGMENTS,
+            nvars,
+        };
+
+        let (series_id, writer_id) = self
+            .mach
+            .register(series_config)
+            .expect("add series should succeed");
+
+        self.writer_data_map
+            .get_mut(&writer_id)
+            .expect("found writer id for nonexistent writer")
+            .register_series(series_id, series_data);
+    }
 }
 
 fn main() {
@@ -147,41 +208,9 @@ fn main() {
     let backend = VectorBackend::new();
     let mut mach = Mach::new(backend).expect("should be able to instantiate Mach");
 
-    let mut writers_map = make_writers(NTHREADS, &mut mach);
-
-    let mut refmap: HashMap<WriterId, Vec<usize>> = HashMap::new();
-    let mut datamap: HashMap<WriterId, Vec<&[RawSample]>> = HashMap::new();
+    let mut ingestion_meta = IngestionMetadata::new(&mut mach, NTHREADS, &DATA);
 
     for _ in 0..NSERIES * NTHREADS {
-        let idx: usize = rand::thread_rng().gen_range(0..DATA.len());
-        let d = &DATA[idx];
-        let nvars = d[0].1.len();
-        let compression = make_uniform_compression(CompressFn::Decimal(3), nvars);
-
-        let series_config = SeriesConfig {
-            compression,
-            seg_count: NSEGMENTS,
-            nvars,
-        };
-
-        let (series_id, writerid) = mach
-            .register(series_config)
-            .expect("add series should succeed");
-
-        let writer = writers_map
-            .get_mut(&writerid)
-            .expect("writer should've been created");
-
-        let refid = writer.register(series_id);
-
-        refmap
-            .entry(writerid)
-            .or_insert_with(|| Vec::new())
-            .push(refid);
-
-        datamap
-            .entry(writerid)
-            .or_insert_with(|| Vec::new())
-            .push(d.as_slice());
+        ingestion_meta.add_series();
     }
 }
