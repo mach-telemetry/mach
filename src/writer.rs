@@ -57,7 +57,7 @@ pub struct Writer {
 }
 
 impl Writer {
-    pub fn new<W: ChunkWriter + 'static, M: ChunkMeta + 'static>(
+    pub fn new<W: ChunkWriter + 'static>(
         id: WriterId,
         global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
         w: W,
