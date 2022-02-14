@@ -127,15 +127,15 @@ fn make_uniform_compression(scheme: CompressFn, nvars: usize) -> Compression {
     Compression::from((0..nvars).map(|_| scheme).collect::<Vec<CompressFn>>())
 }
 
-struct IngestionThreadMeta {
+struct IngestionWorker {
     writer: Writer,
     refids: Vec<usize>,
     series: Vec<&'static [RawSample]>,
 }
 
-impl IngestionThreadMeta {
+impl IngestionWorker {
     fn new(writer: Writer) -> Self {
-        IngestionThreadMeta {
+        IngestionWorker {
             writer,
             refids: Vec::new(),
             series: Vec::new(),
@@ -151,7 +151,7 @@ impl IngestionThreadMeta {
 }
 
 struct IngestionMetadata<'a, B: PersistentListBackend + 'static> {
-    writer_data_map: HashMap<WriterId, IngestionThreadMeta>,
+    writer_data_map: HashMap<WriterId, IngestionWorker>,
     data_src: &'static Vec<Vec<RawSample>>,
     mach: &'a mut Mach<B>,
 }
@@ -166,7 +166,7 @@ impl<'a, B: PersistentListBackend> IngestionMetadata<'a, B> {
 
         for _ in 0..n_writers {
             let writer = mach.add_writer().expect("should be able to add new writer");
-            writer_data_map.insert(writer.id(), IngestionThreadMeta::new(writer));
+            writer_data_map.insert(writer.id(), IngestionWorker::new(writer));
         }
 
         IngestionMetadata {
