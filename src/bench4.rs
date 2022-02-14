@@ -58,6 +58,7 @@ use zipf::*;
 
 const UNIVARIATE: bool = false;
 const NTHREADS: usize = 4;
+const NVARS: usize = 8;
 
 lazy_static! {
     static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
@@ -65,10 +66,15 @@ lazy_static! {
     static ref METRICSPATH: PathBuf = BENCHPATH.join("metrics");
     static ref LOGSPATH: PathBuf = BENCHPATH.join("logs");
     static ref OUTDIR: PathBuf = DATAPATH.join("out");
-    static ref DATA: Vec<Vec<(u64, Box<[[u8; 8]]>)>> = read_data();
+    static ref DATA: Vec<Vec<RawSample>> = read_data();
     static ref TOTAL_RATE: Arc<Mutex<f64>> = Arc::new(Mutex::new(0.0f64));
     static ref BARRIERS: Arc<Barrier> = Arc::new(Barrier::new(NTHREADS));
 }
+
+struct RawSample(
+    u64,                // timestamp
+    Box<[[u8; NVARS]]>, // data
+);
 
 #[derive(Serialize, Deserialize)]
 struct DataEntry {
@@ -77,15 +83,15 @@ struct DataEntry {
 }
 
 impl DataEntry {
-    fn to_series(self) -> Vec<(u64, Box<[[u8; 8]]>)> {
+    fn to_series(self) -> Vec<RawSample> {
         let mut res = Vec::new();
         for i in 0..self.timestamps.len() {
             let ts = self.timestamps[i];
-            let mut values: Vec<[u8; 8]> = Vec::new();
+            let mut values: Vec<[u8; NVARS]> = Vec::new();
             for (_, var) in self.values.iter() {
                 values.push(var[i].to_be_bytes());
             }
-            res.push((ts, values.into_boxed_slice()));
+            res.push(RawSample(ts, values.into_boxed_slice()));
         }
         res
     }
@@ -105,7 +111,7 @@ fn load_data() -> HashMap<String, DataEntry> {
     dict
 }
 
-fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
+fn read_data() -> Vec<Vec<RawSample>> {
     let mut dict = load_data();
     println!("MAKING DATA");
     dict.drain()
