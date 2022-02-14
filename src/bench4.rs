@@ -149,16 +149,8 @@ fn main() {
 
     let mut writers_map = make_writers(NTHREADS, &mut mach);
 
-    let mut refmap: HashMap<WriterId, Vec<usize>> =
-        writers_map.keys().fold(HashMap::new(), |mut map, wid| {
-            map.insert(*wid, Vec::new());
-            map
-        });
-    let mut datamap: HashMap<WriterId, Vec<&[RawSample]>> =
-        writers_map.keys().fold(HashMap::new(), |mut map, wid| {
-            map.insert(*wid, Vec::new());
-            map
-        });
+    let mut refmap: HashMap<WriterId, Vec<usize>> = HashMap::new();
+    let mut datamap: HashMap<WriterId, Vec<&[RawSample]>> = HashMap::new();
 
     for _ in 0..NSERIES * NTHREADS {
         let idx: usize = rand::thread_rng().gen_range(0..DATA.len());
@@ -181,7 +173,15 @@ fn main() {
             .expect("writer should've been created");
 
         let refid = writer.register(series_id);
-        refmap.get_mut(&writerid).unwrap().push(refid);
-        datamap.get_mut(&writerid).unwrap().push(d.as_slice());
+
+        refmap
+            .entry(writerid)
+            .or_insert_with(|| Vec::new())
+            .push(refid);
+
+        datamap
+            .entry(writerid)
+            .or_insert_with(|| Vec::new())
+            .push(d.as_slice());
     }
 }
