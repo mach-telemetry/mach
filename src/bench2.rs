@@ -11,7 +11,7 @@
 #![feature(llvm_asm)]
 #![feature(proc_macro_hygiene)]
 
-mod compression;
+mod compression2;
 mod constants;
 mod id;
 mod persistent_list;
@@ -44,7 +44,7 @@ use std::{
 };
 use tsdb::{Mach, SeriesConfig};
 
-use compression::*;
+use compression2::*;
 use constants::*;
 use dashmap::DashMap;
 use id::*;
@@ -62,7 +62,7 @@ const NSERIES: usize = 10_000;
 const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
 const NSEGMENTS: usize = 1;
-const UNIVARIATE: bool = true;
+const UNIVARIATE: bool = false;
 //const COMPRESSION: Compression = Compression::XOR;
 const COMPRESSION: Compression = Compression::Fixed(10);
 //const COMPRESSION: Compression = Compression::Decimal(3);
@@ -134,6 +134,7 @@ fn consume(mut writer: Writer, mut data: Vec<&[(u64, Box<[[u8; 8]]>)]>, mut refs
 
     let mut selection = &selection1000;
     let mut loop_counter = 0;
+    let mut samples = 0;
     let mut floats = 0;
     let mut retries = 0;
 

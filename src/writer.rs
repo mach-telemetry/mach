@@ -1,10 +1,9 @@
 use crate::{
-    compression::Compression,
+    compression2::Compression,
     id::{SeriesId, WriterId},
     persistent_list::*,
     sample::Sample,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
-    tags::Tags,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
@@ -24,14 +23,14 @@ impl From<segment::Error> for Error {
 #[derive(Clone)]
 pub struct SeriesMetadata {
     segment: Segment,
-    tags: Tags,
+    id: SeriesId,
     list: List,
     compression: Compression,
 }
 
 impl SeriesMetadata {
     pub fn new(
-        tags: Tags,
+        id: SeriesId,
         seg_count: usize,
         nvars: usize,
         compression: Compression,
@@ -39,7 +38,7 @@ impl SeriesMetadata {
     ) -> Self {
         SeriesMetadata {
             segment: segment::Segment::new(seg_count, nvars),
-            tags,
+            id,
             compression,
             list: List::new(buffer),
         }
@@ -62,9 +61,8 @@ impl Writer {
         id: WriterId,
         global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
         w: W,
-        m: M,
     ) -> Self {
-        let flush_worker = FlushWorker::new(w, m);
+        let flush_worker = FlushWorker::new(w);
         Self {
             id,
             global_meta,
@@ -93,8 +91,8 @@ impl Writer {
         let flush_id = self.flush_worker.register(FlushMeta {
             segment: writer.flush(),
             list: meta.list.clone(),
-            tags: meta.tags.clone(),
-            compression: meta.compression,
+            id,
+            compression: meta.compression.clone(),
         });
 
         let len = self.writers.len();
@@ -143,16 +141,16 @@ impl Writer {
 struct FlushMeta {
     segment: FlushSegment,
     list: List,
-    tags: Tags,
+    id: SeriesId,
     compression: Compression,
 }
 
 impl FlushMeta {
-    fn flush<W: ChunkWriter, M: ChunkMeta>(&self, w: &mut W, m: &mut M) {
+    fn flush<W: ChunkWriter>(&self, w: &mut W) {
         let seg: FullSegment = self.segment.to_flush().unwrap();
         self.list
             .writer()
-            .push_segment(&seg, &self.tags, &self.compression, w, m);
+            .push_segment(self.id, &seg, &self.compression, w);
         self.segment.flushed();
     }
 }
@@ -168,9 +166,9 @@ struct FlushWorker {
 }
 
 impl FlushWorker {
-    fn new<W: ChunkWriter + 'static, M: ChunkMeta + 'static>(w: W, m: M) -> Self {
+    fn new<W: ChunkWriter + 'static>(w: W) -> Self {
         let (sender, receiver) = unbounded();
-        async_std::task::spawn(worker(w, m, receiver));
+        async_std::task::spawn(worker(w, receiver));
         FlushWorker {
             sender,
             register_counter: 0,
@@ -189,16 +187,12 @@ impl FlushWorker {
     }
 }
 
-async fn worker<W: ChunkWriter + 'static, M: ChunkMeta + 'static>(
-    mut w: W,
-    mut m: M,
-    queue: Receiver<FlushRequest>,
-) {
+async fn worker<W: ChunkWriter + 'static>(mut w: W, queue: Receiver<FlushRequest>) {
     let mut metadata: Vec<FlushMeta> = Vec::new();
     while let Ok(item) = queue.recv().await {
         match item {
             FlushRequest::Register(meta) => metadata.push(meta),
-            FlushRequest::Flush(id) => metadata[id].flush(&mut w, &mut m),
+            FlushRequest::Flush(id) => metadata[id].flush(&mut w),
         }
     }
 }
@@ -206,9 +200,10 @@ async fn worker<W: ChunkWriter + 'static, M: ChunkMeta + 'static>(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::compression::DecompressBuffer;
+    use crate::compression2::*;
     use crate::constants::*;
     use crate::test_utils::*;
+    use rand::prelude::*;
     use std::{
         env,
         sync::{Arc, Mutex},
@@ -260,14 +255,15 @@ mod test {
     ) {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
-        let mut tags = HashMap::new();
-        tags.insert(String::from("A"), String::from("1"));
-        tags.insert(String::from("B"), String::from("2"));
-        let tags = Tags::from(tags);
-        let compression = Compression::LZ4(1);
+        let mut compression = Vec::new();
+        for _ in 0..nvars {
+            compression.push(CompressFn::XOR);
+        }
+        let compression = Compression::from(compression);
         let buffer = Buffer::new(6000);
+        let id = SeriesId(thread_rng().gen());
 
-        let series_meta = SeriesMetadata::new(tags, 1, nvars, compression, buffer.clone());
+        let series_meta = SeriesMetadata::new(id, 1, nvars, compression, buffer.clone());
         let serid = SeriesId(0);
         let dict = Arc::new(DashMap::new());
         dict.insert(serid, series_meta.clone());

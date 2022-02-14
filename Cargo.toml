@@ -45,10 +45,11 @@ debug=true
 name = "bench2"
 path = "src/bench2.rs"
 
+[[bin]]
+name = "bench3"
+path = "src/bench3.rs"
+
 [features]
-redis-backend = []
-redis-kafka-backend = []
-cluster = []
 kafka-backend = []
 vector-backend = []
 file-backend = []

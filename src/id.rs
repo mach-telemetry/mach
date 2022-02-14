@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -16,18 +17,18 @@ impl Deref for WriterId {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub struct SeriesId(pub usize);
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct SeriesId(pub u64);
 
 impl Deref for SeriesId {
-    type Target = usize;
-    fn deref(&self) -> &usize {
+    type Target = u64;
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
 impl SeriesId {
-    pub fn inner(&self) -> usize {
+    pub fn inner(&self) -> u64 {
         self.0
     }
 }

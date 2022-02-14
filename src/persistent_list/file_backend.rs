@@ -1,4 +1,4 @@
-use crate::persistent_list::{inner::*, inner2, Error, PersistentListBackend};
+use crate::persistent_list::{inner2, Error, PersistentListBackend};
 use std::{
     convert::AsRef,
     convert::TryInto,
@@ -39,18 +39,6 @@ impl inner2::ChunkReader for FileReader {
     }
 }
 
-impl ChunkReader for FileReader {
-    fn read(&mut self, persistent: PersistentHead, local: BufferHead) -> Result<&[u8], Error> {
-        if self.offset == usize::MAX || self.offset != persistent.offset {
-            self.offset = persistent.offset;
-            self.local_copy.resize(persistent.sz, 0);
-            self.file.seek(SeekFrom::Start(persistent.offset as u64))?;
-            self.file.read_exact(self.local_copy.as_mut_slice())?;
-        }
-        Ok(&self.local_copy[local.offset..local.offset + local.size])
-    }
-}
-
 //#[derive(Clone)]
 pub struct FileWriter {
     file: File,
@@ -80,23 +68,6 @@ impl inner2::ChunkWriter for FileWriter {
         self.current_offset += self.file.write(bytes)?;
         self.file.sync_all()?;
         Ok(offset as u64)
-    }
-}
-
-impl ChunkWriter for FileWriter {
-    fn write(&mut self, bytes: &[u8]) -> Result<PersistentHead, Error> {
-        let offset = self.current_offset;
-        let sz = bytes.len();
-        //let now = std::time::Instant::now();
-        self.current_offset += self.file.write(bytes)?;
-        //self.file.sync_all()?;
-        //println!("Duration: {:?}", now.elapsed());
-        let head = PersistentHead {
-            partition: usize::MAX,
-            offset,
-            sz,
-        };
-        Ok(head)
     }
 }
 

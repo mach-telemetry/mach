@@ -88,6 +88,7 @@ impl Drop for Bytes {
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct Sample<const V: usize> {
     pub timestamp: u64,
     pub values: [[u8; 8]; V],
