@@ -58,7 +58,9 @@ use zipf::*;
 
 const UNIVARIATE: bool = false;
 const NTHREADS: usize = 4;
+const NSERIES: usize = 10_000;
 const NVARS: usize = 8;
+const NSEGMENTS: usize = 1;
 
 lazy_static! {
     static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
@@ -133,6 +135,10 @@ fn make_writers<B: PersistentListBackend>(
         })
 }
 
+fn make_uniform_compression(scheme: CompressFn, nvars: usize) -> Compression {
+    Compression::from((0..nvars).map(|_| scheme).collect::<Vec<CompressFn>>())
+}
+
 fn main() {
     let outdir = &*OUTDIR;
     std::fs::remove_dir_all(outdir);
@@ -142,4 +148,40 @@ fn main() {
     let mut mach = Mach::new(backend).expect("should be able to instantiate Mach");
 
     let mut writers_map = make_writers(NTHREADS, &mut mach);
+
+    let mut refmap: HashMap<WriterId, Vec<usize>> =
+        writers_map.keys().fold(HashMap::new(), |mut map, wid| {
+            map.insert(*wid, Vec::new());
+            map
+        });
+    let mut datamap: HashMap<WriterId, Vec<&[RawSample]>> =
+        writers_map.keys().fold(HashMap::new(), |mut map, wid| {
+            map.insert(*wid, Vec::new());
+            map
+        });
+
+    for _ in 0..NSERIES * NTHREADS {
+        let idx: usize = rand::thread_rng().gen_range(0..DATA.len());
+        let d = &DATA[idx];
+        let nvars = d[0].1.len();
+        let compression = make_uniform_compression(CompressFn::Decimal(3), nvars);
+
+        let series_config = SeriesConfig {
+            compression,
+            seg_count: NSEGMENTS,
+            nvars,
+        };
+
+        let (series_id, writerid) = mach
+            .register(series_config)
+            .expect("add series should succeed");
+
+        let writer = writers_map
+            .get_mut(&writerid)
+            .expect("writer should've been created");
+
+        let refid = writer.register(series_id);
+        refmap.get_mut(&writerid).unwrap().push(refid);
+        datamap.get_mut(&writerid).unwrap().push(d.as_slice());
+    }
 }

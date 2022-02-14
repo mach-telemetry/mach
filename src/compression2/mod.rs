@@ -79,6 +79,7 @@ impl DecompressBuffer {
     }
 }
 
+#[derive(Copy, Clone)]
 pub enum CompressFn {
     Decimal(u8),
     BytesLZ4,
@@ -99,7 +100,7 @@ impl CompressFn {
             2 => xor::decompress(data, buf),
             3 => decimal::decompress(data, buf),
             4 => bytes_lz4::decompress(data, buf),
-            _ => panic!("Error")
+            _ => panic!("Error"),
         }
     }
 
@@ -121,7 +122,7 @@ struct Header {
 pub struct Compression(Arc<Vec<CompressFn>>);
 
 impl std::ops::Deref for Compression {
-    type Target=[CompressFn];
+    type Target = [CompressFn];
     fn deref(&self) -> &Self::Target {
         &self.0.as_slice()
     }
@@ -174,7 +175,7 @@ impl Compression {
             // placeholder for size post compression
             let len_offset = buf.len();
             buf.extend_from_slice(&0u64.to_be_bytes()[..]); // compressed sz placeholder
-            //println!("VAR {} AT: {}", i, buf.len());
+                                                            //println!("VAR {} AT: {}", i, buf.len());
 
             // compress
             let start_len = buf.len();
