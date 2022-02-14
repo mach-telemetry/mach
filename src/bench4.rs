@@ -124,15 +124,13 @@ fn make_writers<B: PersistentListBackend>(
     writer_count: usize,
     mach: &mut Mach<B>,
 ) -> HashMap<WriterId, Writer> {
-    let writers_map = (0..writer_count)
+    (0..writer_count)
         .map(|_| mach.add_writer())
         .map(|r| r.expect("should be able to instantiate writer"))
         .fold(HashMap::new(), |mut map, w| {
             map.insert(w.id(), w);
             map
-        });
-
-    writers_map
+        })
 }
 
 fn main() {
