@@ -1,6 +1,9 @@
 use crate::{
     constants::*,
-    persistent_list::{inner2, BackendOld, Error, PersistentListBackend},
+    persistent_list::{inner2, Error, PersistentListBackend},
+    id::SeriesId,
+    utils::random_id,
+    //metadata::METADATA,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
@@ -20,11 +23,6 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use uuid::Uuid;
-
-fn random_id() -> String {
-    Uuid::new_v4().to_hyphenated().to_string()
-}
 
 async fn worker(
     producer: FutureProducer,
@@ -34,7 +32,8 @@ async fn worker(
 ) {
     let dur = Duration::from_secs(0);
     while let Ok(offset) = queue.recv().await {
-        let data = map.get(&offset).unwrap().clone();
+        let item = map.get(&offset).unwrap();
+        let data = item.clone();
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&topic).payload(&data[..]);
         let result = producer.send(to_send, dur).await;
         match result {
@@ -43,8 +42,6 @@ async fn worker(
                 panic!("HERE");
             }
             Ok((rp, ro)) => {
-                //let rp: usize = rp.try_into().unwrap();
-                //let ro: usize = ro.try_into().unwrap();
                 assert_eq!(rp, 0);
                 assert_eq!(ro, offset);
             }
@@ -219,6 +216,12 @@ impl KafkaBackend {
 impl PersistentListBackend for KafkaBackend {
     type Writer = KafkaWriter;
     type Reader = KafkaReader;
+    fn id(&self) -> &str {
+        self.topic.as_str()
+    }
+    fn default_backend() -> Result<Self, Error> {
+        Self::new(KAFKA_BOOTSTRAP, random_id().as_str())
+    }
     fn writer(&self) -> Result<Self::Writer, Error> {
         self.make_writer()
     }

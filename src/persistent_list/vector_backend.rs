@@ -1,4 +1,6 @@
 use crate::{
+    id::SeriesId,
+    //metadata::METADATA,
     persistent_list::{inner2, Error, PersistentListBackend},
     tags::Tags,
 };
@@ -51,26 +53,22 @@ impl inner2::ChunkReader for VectorReader {
 #[derive(Clone)]
 pub struct VectorWriter {
     inner: Arc<Mutex<Vec<Box<[u8]>>>>,
-    _last_flush: Instant,
 }
 
 impl VectorWriter {
     pub fn new(inner: Arc<Mutex<Vec<Box<[u8]>>>>) -> Self {
-        VectorWriter {
-            inner,
-            _last_flush: Instant::now(),
-        }
+        VectorWriter { inner }
     }
 }
 
 impl inner2::ChunkWriter for VectorWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
         let mut guard = self.inner.lock().unwrap();
-        let sz = bytes.len();
+        //let sz = bytes.len();
         let offset = guard.len();
         guard.push(bytes.into());
-        let len = guard.len();
-        Ok(len as u64 - 1)
+        drop(guard);
+        Ok(offset as u64)
     }
 }
 
@@ -114,6 +112,14 @@ impl VectorBackend {
 impl PersistentListBackend for VectorBackend {
     type Writer = VectorWriter;
     type Reader = VectorReader;
+
+    fn id(&self) -> &str {
+        &"VectorBackend provides no ID"
+    }
+
+    fn default_backend() -> Result<Self, Error> {
+        Ok(Self::new())
+    }
     fn writer(&self) -> Result<Self::Writer, Error> {
         Ok(VectorWriter::new(self.data.clone()))
     }

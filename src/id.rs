@@ -1,19 +1,24 @@
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
+use crate::utils::random_id;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub struct WriterId(pub usize);
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct WriterId(pub String);
 
 impl WriterId {
-    pub fn inner(&self) -> usize {
-        self.0
+    pub fn inner(&self) -> &str {
+        self.0.as_str()
+    }
+
+    pub fn random() -> Self {
+        WriterId(random_id())
     }
 }
 
 impl Deref for WriterId {
-    type Target = usize;
-    fn deref(&self) -> &usize {
-        &self.0
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.inner()
     }
 }
 
@@ -32,3 +37,20 @@ impl SeriesId {
         self.0
     }
 }
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct SeriesRef(pub usize);
+
+impl Deref for SeriesRef {
+    type Target = usize;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl SeriesRef {
+    pub fn inner(&self) -> usize {
+        self.0
+    }
+}
+

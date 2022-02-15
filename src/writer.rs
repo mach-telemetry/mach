@@ -1,9 +1,10 @@
 use crate::{
     compression2::Compression,
-    id::SeriesId,
+    id::{SeriesId, SeriesRef},
     persistent_list::*,
     sample::Sample,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
+    series::*,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
@@ -17,31 +18,6 @@ pub enum Error {
 impl From<segment::Error> for Error {
     fn from(item: segment::Error) -> Self {
         Error::Segment(item)
-    }
-}
-
-#[derive(Clone)]
-pub struct SeriesMetadata {
-    segment: Segment,
-    id: SeriesId,
-    list: List,
-    compression: Compression,
-}
-
-impl SeriesMetadata {
-    pub fn new(
-        id: SeriesId,
-        seg_count: usize,
-        nvars: usize,
-        compression: Compression,
-        buffer: ListBuffer,
-    ) -> Self {
-        SeriesMetadata {
-            segment: segment::Segment::new(seg_count, nvars),
-            id,
-            compression,
-            list: List::new(buffer),
-        }
     }
 }
 
@@ -72,16 +48,16 @@ impl Writer {
         }
     }
 
-    pub fn register(&mut self, id: SeriesId) -> usize {
+    pub fn get_reference(&mut self, id: SeriesId) -> SeriesRef {
         let meta = self.global_meta.get(&id).unwrap().clone();
-        let writer = meta.segment.writer().unwrap();
-        let list = meta.list.clone();
+        let writer = meta.segment().writer().unwrap();
+        let list = meta.list().clone();
 
         let flush_id = self.flush_worker.register(FlushMeta {
             segment: writer.flush(),
-            list: meta.list.clone(),
+            list: meta.list().clone(),
             id,
-            compression: meta.compression.clone(),
+            compression: meta.compression().clone(),
         });
 
         let len = self.writers.len();
@@ -90,13 +66,13 @@ impl Writer {
         self.writers.push(writer);
         self.lists.push(list);
         self.flush_id.push(flush_id);
-        len
+        SeriesRef(len)
     }
 
-    pub fn push(&mut self, reference: usize, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
-        match self.writers[reference].push(ts, data)? {
+    pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
+        match self.writers[*reference].push(ts, data)? {
             segment::PushStatus::Done => {}
-            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
+            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[*reference]),
         }
         Ok(())
     }
@@ -257,7 +233,7 @@ mod test {
         let dict = Arc::new(DashMap::new());
         dict.insert(serid, series_meta.clone());
         let mut write_thread = Writer::new(dict.clone(), persistent_writer);
-        let series_ref: usize = write_thread.register(serid);
+        let series_ref = write_thread.get_reference(serid);
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];
