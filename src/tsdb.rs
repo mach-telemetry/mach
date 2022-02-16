@@ -5,6 +5,7 @@ use crate::{
     writer::Writer,
     series::*,
     constants::BUFSZ,
+    metadata::{self, Metadata},
 };
 use std::{
     marker::PhantomData,
@@ -16,12 +17,19 @@ use rand::seq::SliceRandom;
 
 pub enum Error {
     PersistentList(persistent_list::Error),
+    Metadata(metadata::Error),
     Uknown,
 }
 
 impl From<persistent_list::Error> for Error {
     fn from(item: persistent_list::Error) -> Self {
         Error::PersistentList(item)
+    }
+}
+
+impl From<metadata::Error> for Error {
+    fn from(item: metadata::Error) -> Self {
+        Error::Metadata(item)
     }
 }
 
@@ -41,22 +49,37 @@ impl<B: ListBackend> Mach<B> {
     }
 
     fn new_writer(&mut self) -> Result<Writer, Error> {
-        let backend: B = B::default_backend()?;
-        let buffer = ListBuffer::new(BUFSZ);
+
         let writer_id = WriterId::random();
-        let writer = Writer::new(self.series_table.clone(), backend.writer()?);
+
+        // Setup persistent list backend for this writer
+        let backend: B = B::default_backend()?;
+        let backend_writer = backend.writer()?;
+        let backend_id: String = backend.id().into();
+
+        // Send metadata to metadata store
+        Metadata::WriterTopic(writer_id.inner().into(), backend_id).send()?;
+
+        //  Setup ListBuffer for this writer
+        let buffer = ListBuffer::new(BUFSZ);
+        let writer = Writer::new(self.series_table.clone(), backend_writer);
+
+        // Store writer information
         self.writer_table.insert(writer_id.clone(), (buffer, backend));
         self.writers.push(writer_id);
-        // TODO Register metadata here
         Ok(writer)
     }
 
     fn add_series(&mut self, config: SeriesConfig) -> Result<WriterId, Error> {
         // For now, randomly choose a writer
         let writer = self.writers.choose(&mut rand::thread_rng()).unwrap().clone();
+
+        // Get the ListBuffer for this series from the writer this series will be assigned to
         let writer_meta = self.writer_table.get(&writer).unwrap();
         let buffer = writer_meta.0.clone();
-        let id = config.tags.id();
+
+        // Initialize the series using the listbuffer for the assigned writer
+        let series_id = config.tags.id();
         let series = SeriesMetadata::new(config, buffer);
         self.series_table.insert(id, series);
         Ok(writer)

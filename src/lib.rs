@@ -22,7 +22,7 @@ pub mod tsdb;
 pub mod compression2;
 pub mod constants;
 pub mod id;
-//pub mod metadata;
+pub mod metadata;
 pub mod persistent_list;
 pub mod sample;
 pub mod segment;
