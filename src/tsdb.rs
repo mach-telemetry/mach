@@ -5,7 +5,7 @@ use crate::{
     writer::Writer,
     series::*,
     constants::BUFSZ,
-    metadata::{self, Metadata},
+    //metadata::{self, Metadata},
 };
 use std::{
     marker::PhantomData,
@@ -17,7 +17,7 @@ use rand::seq::SliceRandom;
 
 pub enum Error {
     PersistentList(persistent_list::Error),
-    Metadata(metadata::Error),
+    //Metadata(metadata::Error),
     Uknown,
 }
 
@@ -27,16 +27,16 @@ impl From<persistent_list::Error> for Error {
     }
 }
 
-impl From<metadata::Error> for Error {
-    fn from(item: metadata::Error) -> Self {
-        Error::Metadata(item)
-    }
-}
+//impl From<metadata::Error> for Error {
+//    fn from(item: metadata::Error) -> Self {
+//        Error::Metadata(item)
+//    }
+//}
 
 pub struct Mach<B: ListBackend> {
     writers: Vec<WriterId>,
     writer_table: HashMap<WriterId, (ListBuffer, B)>,
-    series_table: Arc<DashMap<SeriesId, SeriesMetadata>>,
+    series_table: Arc<DashMap<SeriesId, Series>>,
 }
 
 impl<B: ListBackend> Mach<B> {
@@ -58,7 +58,7 @@ impl<B: ListBackend> Mach<B> {
         let backend_id: String = backend.id().into();
 
         // Send metadata to metadata store
-        Metadata::WriterTopic(writer_id.inner().into(), backend_id).send()?;
+        //Metadata::WriterTopic(writer_id.inner().into(), backend_id).send()?;
 
         //  Setup ListBuffer for this writer
         let buffer = ListBuffer::new(BUFSZ);
@@ -80,8 +80,8 @@ impl<B: ListBackend> Mach<B> {
 
         // Initialize the series using the listbuffer for the assigned writer
         let series_id = config.tags.id();
-        let series = SeriesMetadata::new(config, buffer);
-        self.series_table.insert(id, series);
+        let series = Series::new(config, buffer);
+        self.series_table.insert(series_id, series);
         Ok(writer)
     }
 }

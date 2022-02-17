@@ -16,14 +16,14 @@ pub struct SeriesConfig {
 }
 
 #[derive(Clone)]
-pub struct SeriesMetadata {
+pub struct Series {
     tags: Tags,
     segment: Segment,
     list: List,
     compression: Compression,
 }
 
-impl SeriesMetadata {
+impl Series {
     pub fn new(
         conf: SeriesConfig,
         buffer: ListBuffer,
@@ -37,7 +37,7 @@ impl SeriesMetadata {
         } = conf;
         assert_eq!(nvars, compression.len());
 
-        SeriesMetadata {
+        Self {
             segment: segment::Segment::new(seg_count, nvars),
             tags,
             compression,

@@ -41,7 +41,7 @@ impl From<KafkaError> for Error {
 
 #[derive(Serialize, Deserialize)]
 pub enum Metadata {
-    Mach(String),
+    MachCheckpointerTopic(String, String),
     WriterTopic(String, String)
 }
 

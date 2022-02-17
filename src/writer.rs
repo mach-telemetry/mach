@@ -22,8 +22,8 @@ impl From<segment::Error> for Error {
 }
 
 pub struct Writer {
-    global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
-    local_meta: HashMap<SeriesId, SeriesMetadata>,
+    global_meta: Arc<DashMap<SeriesId, Series>>,
+    local_meta: HashMap<SeriesId, Series>,
     references: HashMap<SeriesId, usize>,
     writers: Vec<WriteSegment>,
     lists: Vec<List>,
@@ -33,7 +33,7 @@ pub struct Writer {
 
 impl Writer {
     pub fn new<W: ChunkWriter + 'static>(
-        global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
+        global_meta: Arc<DashMap<SeriesId, Series>>,
         w: W,
     ) -> Self {
         let flush_worker = FlushWorker::new(w);
@@ -228,7 +228,7 @@ mod test {
         let buffer = Buffer::new(6000);
         let id = SeriesId(thread_rng().gen());
 
-        let series_meta = SeriesMetadata::new(id, 1, nvars, compression, buffer.clone());
+        let series_meta = Series::new(id, 1, nvars, compression, buffer.clone());
         let serid = SeriesId(0);
         let dict = Arc::new(DashMap::new());
         dict.insert(serid, series_meta.clone());
