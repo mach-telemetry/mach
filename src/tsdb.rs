@@ -47,7 +47,7 @@ impl<B: ListBackend> Mach<B> {
         }
     }
 
-    fn new_writer(&mut self) -> Result<Writer, Error> {
+    pub fn new_writer(&mut self) -> Result<Writer, Error> {
         let writer_id = WriterId::random();
 
         // Setup persistent list backend for this writer
@@ -60,7 +60,7 @@ impl<B: ListBackend> Mach<B> {
 
         //  Setup ListBuffer for this writer
         let buffer = ListBuffer::new(BUFSZ);
-        let writer = Writer::new(self.series_table.clone(), backend_writer);
+        let writer = Writer::new(writer_id.clone(), self.series_table.clone(), backend_writer);
 
         // Store writer information
         self.writer_table
