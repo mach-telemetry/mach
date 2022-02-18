@@ -1,9 +1,10 @@
 use crate::{
     compression2::Compression,
-    id::{SeriesId, WriterId},
+    id::{SeriesId, SeriesRef},
     persistent_list::*,
     sample::Sample,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
+    series::*,
 };
 use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
@@ -20,35 +21,9 @@ impl From<segment::Error> for Error {
     }
 }
 
-#[derive(Clone)]
-pub struct SeriesMetadata {
-    segment: Segment,
-    id: SeriesId,
-    list: List,
-    compression: Compression,
-}
-
-impl SeriesMetadata {
-    pub fn new(
-        id: SeriesId,
-        seg_count: usize,
-        nvars: usize,
-        compression: Compression,
-        buffer: ListBuffer,
-    ) -> Self {
-        SeriesMetadata {
-            segment: segment::Segment::new(seg_count, nvars),
-            id,
-            compression,
-            list: List::new(buffer),
-        }
-    }
-}
-
 pub struct Writer {
-    id: WriterId,
-    global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
-    local_meta: HashMap<SeriesId, SeriesMetadata>,
+    global_meta: Arc<DashMap<SeriesId, Series>>,
+    local_meta: HashMap<SeriesId, Series>,
     references: HashMap<SeriesId, usize>,
     writers: Vec<WriteSegment>,
     lists: Vec<List>,
@@ -58,8 +33,7 @@ pub struct Writer {
 
 impl Writer {
     pub fn new<W: ChunkWriter + 'static>(
-        id: WriterId,
-        global_meta: Arc<DashMap<SeriesId, SeriesMetadata>>,
+        global_meta: Arc<DashMap<SeriesId, Series>>,
         w: W,
     ) -> Self {
         let flush_worker = FlushWorker::new(w);
@@ -75,24 +49,16 @@ impl Writer {
         }
     }
 
-    pub fn id(&self) -> WriterId {
-        self.id
-    }
-
-    pub fn register(&mut self, id: SeriesId) -> usize {
-        let meta = self
-            .global_meta
-            .get(&id)
-            .expect("series must be registered globally before it's registered with a writer")
-            .clone();
-        let writer = meta.segment.writer().unwrap();
-        let list = meta.list.clone();
+    pub fn get_reference(&mut self, id: SeriesId) -> SeriesRef {
+        let meta = self.global_meta.get(&id).unwrap().clone();
+        let writer = meta.segment().writer().unwrap();
+        let list = meta.list().clone();
 
         let flush_id = self.flush_worker.register(FlushMeta {
             segment: writer.flush(),
-            list: meta.list.clone(),
+            list: meta.list().clone(),
             id,
-            compression: meta.compression.clone(),
+            compression: meta.compression().clone(),
         });
 
         let len = self.writers.len();
@@ -101,13 +67,13 @@ impl Writer {
         self.writers.push(writer);
         self.lists.push(list);
         self.flush_id.push(flush_id);
-        len
+        SeriesRef(len)
     }
 
-    pub fn push(&mut self, reference: usize, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
-        match self.writers[reference].push(ts, data)? {
+    pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
+        match self.writers[*reference].push(ts, data)? {
             segment::PushStatus::Done => {}
-            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
+            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[*reference]),
         }
         Ok(())
     }
@@ -263,12 +229,12 @@ mod test {
         let buffer = Buffer::new(6000);
         let id = SeriesId(thread_rng().gen());
 
-        let series_meta = SeriesMetadata::new(id, 1, nvars, compression, buffer.clone());
+        let series_meta = Series::new(id, 1, nvars, compression, buffer.clone());
         let serid = SeriesId(0);
         let dict = Arc::new(DashMap::new());
         dict.insert(serid, series_meta.clone());
-        let mut write_thread = Writer::new(WriterId(1), dict.clone(), persistent_writer);
-        let series_ref: usize = write_thread.register(serid);
+        let mut write_thread = Writer::new(dict.clone(), persistent_writer);
+        let series_ref = write_thread.get_reference(serid);
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];

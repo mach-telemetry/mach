@@ -1,8 +1,11 @@
 use crate::persistent_list::{inner2, Error, PersistentListBackend};
+use crate::id::SeriesId;
+use crate::utils::random_id;
+//use crate::metadata::METADATA;
 use std::{
     convert::AsRef,
     convert::TryInto,
-    fs::{File, OpenOptions},
+    fs::{create_dir_all, File, OpenOptions},
     io::{prelude::*, SeekFrom},
     path::{Path, PathBuf},
 };
@@ -73,12 +76,13 @@ impl inner2::ChunkWriter for FileWriter {
 
 pub struct FileBackend {
     dir: PathBuf,
-    id: u32,
+    id: String,
 }
 
 impl FileBackend {
-    pub fn new(dir: PathBuf, id: u32) -> Self {
-        FileBackend { dir, id }
+    pub fn new(dir: PathBuf, id: String) -> Result<Self, Error> {
+        create_dir_all(&dir)?;
+        Ok(FileBackend { dir, id })
     }
 }
 
@@ -86,13 +90,23 @@ impl PersistentListBackend for FileBackend {
     type Writer = FileWriter;
     type Reader = FileReader;
 
+    fn id(&self) -> &str {
+        self.id.as_str()
+    }
+
+    fn default_backend() -> Result<Self, Error> {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data").join("default");
+        let id = random_id();
+        Self::new(dir, id)
+    }
+
     fn writer(&self) -> Result<FileWriter, Error> {
-        let file = self.dir.join(format!("data_{}", self.id));
+        let file = self.dir.join(self.id.as_str());
         FileWriter::new(&file)
     }
 
     fn reader(&self) -> Result<FileReader, Error> {
-        let file = self.dir.join(format!("data_{}", self.id));
+        let file = self.dir.join(self.id.as_str());
         FileReader::new(&file)
     }
 }

@@ -37,53 +37,37 @@ impl From<std::io::Error> for Error {
     }
 }
 
-pub use file_backend::{FileBackend, FileReader, FileWriter};
-pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
+//pub use file_backend::{FileBackend, FileReader, FileWriter};
+//pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
 //pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
-pub use inner2::{Buffer, ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter};
+pub use inner2::{ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter};
 //pub use redis_kafka_backend::{RedisKafkaBackend, RedisKafkaReader, RedisKafkaWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 
-pub trait BackendOld {
-    type Writer: ChunkWriter + 'static;
-    type Reader: ChunkReader + 'static;
-    fn make_backend(&mut self) -> Result<(Self::Writer, Self::Reader), Error>;
-}
+//pub trait BackendOld {
+//    type Writer: ChunkWriter + 'static;
+//    type Reader: ChunkReader + 'static;
+//    fn make_backend(&mut self) -> Result<(Self::Writer, Self::Reader), Error>;
+//}
 
 // One Backend per writer thread. Single writer, multiple readers
 pub trait PersistentListBackend: Sized {
     type Writer: inner2::ChunkWriter + 'static;
     type Reader: inner2::ChunkReader + 'static;
+    fn id(&self) -> &str;
+    fn default_backend() -> Result<Self, Error>;
     fn writer(&self) -> Result<Self::Writer, Error>;
     fn reader(&self) -> Result<Self::Reader, Error>;
 }
 
-pub struct Backend<T: PersistentListBackend> {
-    backend: T,
-    writer: Option<T::Writer>,
-}
-
-impl<T: PersistentListBackend> Backend<T> {
-    pub fn new(backend: T) -> Result<Self, Error> {
-        let writer = Some(backend.writer()?);
-        Ok(Self { backend, writer })
-    }
-
-    pub fn writer(&mut self) -> Result<T::Writer, Error> {
-        self.writer.take().ok_or(Error::MultipleWriters)
-    }
-
-    pub fn reader(&self) -> Result<T::Reader, Error> {
-        self.backend.reader()
-    }
-}
+pub trait ListBackend = PersistentListBackend;
 
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::{
-        compression2::*, constants::*, id::SeriesId, persistent_list::vector_backend::*, segment::*,
-        tags::*, test_utils::*, utils::wp_lock::WpLock,
+        compression2::*, constants::*, id::SeriesId, persistent_list::vector_backend::*,
+        segment::*, tags::*, test_utils::*, utils::wp_lock::WpLock,
     };
     use dashmap::DashMap;
     use rand::prelude::*;

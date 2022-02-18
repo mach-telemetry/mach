@@ -1,7 +1,11 @@
 pub mod byte_buffer;
-//mod list;
-//mod q_allocator;
 pub mod wp_lock;
+
+use uuid::Uuid;
+
+pub fn random_id() -> String {
+    Uuid::new_v4().to_hyphenated().to_string()
+}
 
 //pub use crate::utils::q_allocator::{Qrc, QueueAllocator};
 

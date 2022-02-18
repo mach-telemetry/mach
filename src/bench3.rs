@@ -87,13 +87,15 @@ fn read_data() -> Vec<Sample<1>> {
     let mut json = String::new();
     file.read_to_string(&mut json).unwrap();
     let mut data: Vec<Item> = serde_json::from_str(json.as_str()).unwrap();
-    data.drain(0..).map(|x| {
-        let sample: Sample<1> = Sample {
-            timestamp: x.timestamp,
-            values: [(Bytes::from_slice(x.value.as_bytes()).into_raw() as u64).to_be_bytes()],
-        };
-        sample
-    }).collect()
+    data.drain(0..)
+        .map(|x| {
+            let sample: Sample<1> = Sample {
+                timestamp: x.timestamp,
+                values: [(Bytes::from_slice(x.value.as_bytes()).into_raw() as u64).to_be_bytes()],
+            };
+            sample
+        })
+        .collect()
 }
 
 fn main() {
@@ -127,7 +129,11 @@ fn main() {
     for (idx, sample) in DATA.iter().enumerate() {
         if idx % 1_000_000 == 0 {
             let elapsed = now.elapsed().as_secs_f64();
-            println!("INSERTED {} @ RATE: {}", samples, (samples as f64 / elapsed) / 1_000_000.);
+            println!(
+                "INSERTED {} @ RATE: {}",
+                samples,
+                (samples as f64 / elapsed) / 1_000_000.
+            );
         }
         'inner: loop {
             let res = write_thread.push_sample(ref_id, *sample);
@@ -147,5 +153,3 @@ fn main() {
     println!("ELAPSED: {}", elapsed);
     println!("RATE: {}", (samples as f64 / elapsed) / 1_000_000.);
 }
-
-
