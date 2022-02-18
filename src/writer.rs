@@ -1,6 +1,6 @@
 use crate::{
     compression2::Compression,
-    id::{SeriesId, SeriesRef},
+    id::{SeriesId, SeriesRef, WriterId},
     persistent_list::*,
     sample::Sample,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
@@ -29,10 +29,12 @@ pub struct Writer {
     lists: Vec<List>,
     flush_id: Vec<usize>,
     flush_worker: FlushWorker,
+    id: WriterId,
 }
 
 impl Writer {
     pub fn new<W: ChunkWriter + 'static>(
+        id: WriterId,
         global_meta: Arc<DashMap<SeriesId, Series>>,
         w: W,
     ) -> Self {
@@ -45,7 +47,12 @@ impl Writer {
             writers: Vec::new(),
             lists: Vec::new(),
             flush_worker,
+            id,
         }
+    }
+
+    pub fn id(&self) -> WriterId {
+        self.id.clone()
     }
 
     pub fn get_reference(&mut self, id: SeriesId) -> SeriesRef {
