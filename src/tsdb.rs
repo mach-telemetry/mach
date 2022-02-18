@@ -13,13 +13,6 @@ use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
-#[derive(Clone)]
-pub struct SeriesConfig {
-    pub compression: Compression,
-    pub seg_count: usize,
-    pub nvars: usize,
-}
-
 #[derive(Debug)]
 pub enum Error {
     PersistentList(persistent_list::Error),

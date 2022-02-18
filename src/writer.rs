@@ -38,7 +38,6 @@ impl Writer {
     ) -> Self {
         let flush_worker = FlushWorker::new(w);
         Self {
-            id,
             global_meta,
             local_meta: HashMap::new(),
             references: HashMap::new(),
