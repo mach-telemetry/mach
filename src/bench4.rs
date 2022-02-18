@@ -10,6 +10,7 @@
 #![allow(private_in_public)]
 #![feature(llvm_asm)]
 #![feature(proc_macro_hygiene)]
+#![feature(trait_alias)]
 
 mod compression2;
 mod constants;
@@ -17,6 +18,7 @@ mod id;
 mod persistent_list;
 mod sample;
 mod segment;
+mod series;
 mod tags;
 mod test_utils;
 mod tsdb;
@@ -43,7 +45,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use tsdb::{Mach, SeriesConfig};
+use tsdb::Mach;
 
 use compression2::*;
 use constants::*;
@@ -53,6 +55,7 @@ use lazy_static::lazy_static;
 use persistent_list::*;
 use sample::*;
 use seq_macro::seq;
+use series::SeriesConfig;
 use tags::*;
 use writer::*;
 use zipf::*;
@@ -143,9 +146,9 @@ impl IngestionWorker {
     }
 
     fn register_series(&mut self, series_id: SeriesId, series_data: &'static Vec<RawSample>) {
-        let refid = self.writer.register(series_id);
+        let refid = self.writer.get_reference(series_id);
 
-        self.refids.push(refid);
+        self.refids.push(*refid);
         self.series.push(series_data);
     }
 }
@@ -165,7 +168,7 @@ impl<'a, B: PersistentListBackend> IngestionMetadata<'a, B> {
         let mut writer_data_map = HashMap::new();
 
         for _ in 0..n_writers {
-            let writer = mach.add_writer().expect("should be able to add new writer");
+            let writer = mach.new_writer().expect("should be able to add new writer");
             writer_data_map.insert(writer.id(), IngestionWorker::new(writer));
         }
 
@@ -183,15 +186,16 @@ impl<'a, B: PersistentListBackend> IngestionMetadata<'a, B> {
         let compression = make_uniform_compression(CompressFn::Decimal(3), nvars);
 
         let series_config = SeriesConfig {
+            tags: Tags::from(HashMap::new()),
             compression,
             seg_count: NSEGMENTS,
             nvars,
         };
 
-        let (series_id, writer_id) = self
+        let (writer_id, series_id) = self
             .mach
-            .register(series_config)
-            .expect("add series should succeed");
+            .add_series(series_config)
+            .expect("should add new series without error.");
 
         self.writer_data_map
             .get_mut(&writer_id)
@@ -206,7 +210,7 @@ fn main() {
     std::fs::create_dir_all(outdir).unwrap();
 
     let backend = VectorBackend::new();
-    let mut mach = Mach::new(backend).expect("should be able to instantiate Mach");
+    let mut mach = Mach::<VectorBackend>::new();
 
     let mut ingestion_meta = IngestionMetadata::new(&mut mach, NTHREADS, &DATA);
 
