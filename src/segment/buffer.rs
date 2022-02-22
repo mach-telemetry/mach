@@ -43,16 +43,16 @@ impl<const V: usize> InnerBuffer<V> {
             for i in 0..V {
                 self.inner.data[i][len] = item[i];
             }
-            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            self.len += 1;
+            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
+            //self.len += 1;
             Ok(InnerPushStatus::Done)
         } else if len == SEGSZ - 1 {
             self.inner.ts[len] = ts;
             for i in 0..V {
                 self.inner.data[i][len] = item[i];
             }
-            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            self.len += 1;
+            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
+            //self.len += 1;
             Ok(InnerPushStatus::Flush)
         } else {
             Err(Error::PushIntoFull)
@@ -66,16 +66,16 @@ impl<const V: usize> InnerBuffer<V> {
             for i in 0..V {
                 self.inner.data[i][len] = item[i];
             }
-            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            self.len += 1;
+            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
+            //self.len += 1;
             Ok(InnerPushStatus::Done)
         } else if len == SEGSZ - 1 {
             self.inner.ts[len] = ts;
             for i in 0..V {
                 self.inner.data[i][len] = item[i];
             }
-            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            self.len += 1;
+            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
+            //self.len += 1;
             Ok(InnerPushStatus::Flush)
         } else {
             Err(Error::PushIntoFull)
@@ -87,14 +87,14 @@ impl<const V: usize> InnerBuffer<V> {
         if len < SEGSZ - 1 {
             self.inner.ts[len] = ts;
             self.inner.data[0][len] = item;
-            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            self.len += 1;
+            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
+            //self.len += 1;
             Ok(InnerPushStatus::Done)
         } else if len == SEGSZ - 1 {
             self.inner.ts[len] = ts;
             self.inner.data[0][len] = item;
-            //self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            self.len += 1;
+            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
+            //self.len += 1;
             Ok(InnerPushStatus::Flush)
         } else {
             Err(Error::PushIntoFull)
@@ -102,12 +102,12 @@ impl<const V: usize> InnerBuffer<V> {
     }
 
     fn reset(&mut self) {
+        self.atomic_len.store(0, SeqCst);
         self.len = 0;
-        //self.atomic_len.store(0, SeqCst);
     }
 
     fn read(&self) -> ReadBuffer {
-        let len = self.len;
+        let len = self.atomic_len.load(SeqCst);
         let mut data = Vec::new();
         let mut ts = [0u64; 256];
         let inner: &Inner<V> = &self.inner;
@@ -119,8 +119,8 @@ impl<const V: usize> InnerBuffer<V> {
     }
 
     fn to_flush(&self) -> Option<FullSegment> {
-        //let len = self.atomic_len.load(SeqCst);
-        let len = self.len;
+        let len = self.atomic_len.load(SeqCst);
+        //let len = self.len;
         let inner: &Inner<V> = &self.inner;
         if len > 0 {
             Some(FullSegment {

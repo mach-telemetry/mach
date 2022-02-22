@@ -2,17 +2,17 @@ use crate::compression::Error;
 use crate::sample::Bytes;
 use crate::segment::FullSegment;
 use crate::utils::byte_buffer::ByteBuffer;
-use lzzzz::lz4;
+use lzzzz::{lz4, lz4_hc};
 use std::convert::TryInto;
 
-pub fn bytes_lz4_compress(segment: &[[u8; 8]], buf: &mut ByteBuffer) {
+pub fn compress(segment: &[[u8; 8]], buf: &mut ByteBuffer) {
     let mut to_compress = Vec::new();
 
     for item in segment.iter() {
         let ptr = usize::from_be_bytes(*item) as *const u8;
         let bytes = unsafe { Bytes::from_raw(ptr) };
         to_compress.extend_from_slice(bytes.as_raw_bytes());
-        bytes.into_raw(); // Drop bytes and free underlying memory
+        bytes.into_raw(); // Prevent bytes from dropping
     }
 
     let start = buf.len();
@@ -37,9 +37,7 @@ pub fn bytes_lz4_compress(segment: &[[u8; 8]], buf: &mut ByteBuffer) {
 }
 
 /// Decompresses data into buf
-/// Returns the number of bytes read from data and number of items decompressed.
-/// Panics if buf is not long enough.
-pub fn bytes_lz4_decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usize) {
+pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
     let mut off = 0;
     let usz = std::mem::size_of::<usize>();
 
@@ -65,8 +63,6 @@ pub fn bytes_lz4_decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usiz
         buf.push((bytes.into_raw() as usize).to_be_bytes());
         start += bytes_sz;
     }
-
-    (off, len)
 }
 
 #[cfg(test)]
@@ -83,9 +79,9 @@ mod test {
         }
         let mut buf = vec![0u8; 8192];
         let mut byte_buf = ByteBuffer::new(&mut buf[..]);
-        bytes_lz4_compress(&v[..], &mut byte_buf);
+        compress(&v[..], &mut byte_buf);
         let mut results = Vec::new();
-        bytes_lz4_decompress(&buf[..], &mut results);
+        decompress(&buf[..], &mut results);
 
         for (result, exp) in results.iter().zip(data.iter()) {
             let ptr = usize::from_be_bytes(*result) as *const u8;

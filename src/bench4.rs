@@ -12,10 +12,11 @@
 #![feature(proc_macro_hygiene)]
 #![feature(trait_alias)]
 
-mod compression2;
+mod compression;
 mod constants;
 mod id;
 mod persistent_list;
+mod runtime;
 mod sample;
 mod segment;
 mod series;
@@ -47,7 +48,7 @@ use std::{
 };
 use tsdb::Mach;
 
-use compression2::*;
+use compression::*;
 use constants::*;
 use dashmap::DashMap;
 use id::*;
@@ -201,7 +202,7 @@ impl IngestionWorker {
         let victim = zipf_picker.next();
         let series = self.series[victim];
         let refid = self.refids[victim];
-        let raw_sample = series[self.next[victim] % series.len()];
+        let raw_sample = &series[self.next[victim] % series.len()];
 
         seq!(N in 1..10 {
             match raw_sample.1.len() {
@@ -212,7 +213,7 @@ impl IngestionWorker {
                         values: (*raw_sample.1).try_into().unwrap()
                     };
 
-                    let res = self.writer.push_sample(refid, sample);
+                    let res = self.writer.push_sample(SeriesRef(refid), sample);
 
                     if res.is_ok() {
                         self.next[victim] += 1;

@@ -1,11 +1,28 @@
 use crate::{
-    compression2::Compression,
-    segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
-    persistent_list::{List, ListBuffer},
+    compression::Compression,
+    segment::{self, FlushSegment, FullSegment, Segment, WriteSegment, ReadSegment},
+    persistent_list::{self, List, ListBuffer, ListReader},
     id::SeriesId,
     tags::Tags,
 };
 use std::sync::Arc;
+
+pub enum Error {
+    Segment(segment::Error),
+    PersistentList(persistent_list::Error),
+}
+
+impl From<persistent_list::Error> for Error {
+    fn from(item: persistent_list::Error) -> Self {
+        Error::PersistentList(item)
+    }
+}
+
+impl From<segment::Error> for Error {
+    fn from(item: segment::Error) -> Self {
+        Error::Segment(item)
+    }
+}
 
 #[derive(Clone)]
 pub struct SeriesConfig {
@@ -13,6 +30,11 @@ pub struct SeriesConfig {
     pub compression: Compression,
     pub seg_count: usize,
     pub nvars: usize,
+}
+
+pub struct ReadSeries {
+    segment: ReadSegment,
+    list: ListReader,
 }
 
 #[derive(Clone)]
@@ -44,6 +66,16 @@ impl Series {
             list: List::new(buffer),
         }
     }
+
+    pub fn snapshot(&self) -> Result<ReadSeries, Error> {
+        let segment = self.segment.snapshot()?;
+        let list = self.list.read()?;
+        Ok(ReadSeries {
+            segment,
+            list
+        })
+    }
+
     pub fn compression(&self) -> &Compression {
         &self.compression
     }

@@ -16,13 +16,15 @@
 //mod flush_buffer;
 //mod series_metadata;
 //mod writer;
+//pub mod compression;
+//pub mod metadata;
+//pub mod replication;
+//pub mod into;
 
 pub mod tsdb;
-//pub mod compression;
-pub mod compression2;
+pub mod compression;
 pub mod constants;
 pub mod id;
-//pub mod metadata;
 pub mod persistent_list;
 pub mod sample;
 pub mod segment;
@@ -30,7 +32,7 @@ pub mod series;
 pub mod tags;
 pub mod utils;
 pub mod writer;
-//pub mod into;
+pub mod runtime;
 
 #[cfg(test)]
 mod test_utils;

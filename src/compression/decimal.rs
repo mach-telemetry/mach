@@ -9,6 +9,7 @@ use std::convert::{TryFrom, TryInto};
 use std::mem::size_of;
 
 pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer, precision: u8) {
+    //println!("BUF LEN: {}", buf.len());
     let mut to_compress: [u32; 256] = [0; 256];
     let mut big_values: [u64; 256] = [0; 256];
     let mut big_idx: [u8; 256] = [0; 256];
@@ -43,6 +44,7 @@ pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer, precision: u8) {
     buf.push(precision);
 
     // Write the length
+    //println!("COMPRESS DATA LEN {} at offset {}", data.len(), buf.len());
     buf.extend_from_slice(&data.len().to_be_bytes());
 
     // Write first item
@@ -64,9 +66,7 @@ pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer, precision: u8) {
 }
 
 /// Decompresses data into buf
-/// Returns the number of bytes read from data and number of items decompressed.
-/// Panics if buf is not long enough.
-pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usize) {
+pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
     // Get precision
     let precision = data[0];
 
@@ -75,6 +75,7 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usize) {
     // Get len
     let end = off + size_of::<usize>();
     let len = usize::from_be_bytes(<[u8; 8]>::try_from(&data[off..end]).unwrap());
+    //println!("LEN: {}", len);
     off = end;
 
     // Get first value
@@ -120,7 +121,6 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usize) {
         last = cur;
         last_diff = cur_diff;
     }
-    (off, len)
 }
 
 #[cfg(test)]
@@ -141,7 +141,8 @@ mod test {
         let sz = byte_buf.len();
 
         let mut res = Vec::new();
-        let (b, l) = decompress(&buf[..sz], &mut res);
+        decompress(&buf[..sz], &mut res);
+        let l = res.len();
 
         let diff = data[..len]
             .iter()
@@ -149,9 +150,9 @@ mod test {
             .map(|(x, y)| (x - f64::from_be_bytes(*y)).abs())
             .fold(f64::NAN, f64::max);
 
-        println!("DIFF {}", diff);
+        //println!("DIFF {}", diff);
         assert!(diff <= 0.001);
-        assert_eq!(b, sz);
+        //assert_eq!(b, sz);
         assert_eq!(l, len);
     }
 

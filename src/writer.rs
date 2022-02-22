@@ -1,14 +1,15 @@
 use crate::{
-    compression2::Compression,
+    compression::Compression,
     id::{SeriesId, SeriesRef, WriterId},
     persistent_list::*,
+    runtime::RUNTIME,
     sample::Sample,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
     series::*,
 };
-use async_std::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
 use std::{collections::HashMap, ops::Deref, sync::Arc};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 #[derive(Debug)]
 pub enum Error {
@@ -77,18 +78,20 @@ impl Writer {
     }
 
     pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
-        match self.writers[*reference].push(ts, data)? {
+        let reference = *reference;
+        match self.writers[reference].push(ts, data)? {
             segment::PushStatus::Done => {}
-            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[*reference]),
+            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
         }
         Ok(())
     }
 
     pub fn push_sample<const V: usize>(
         &mut self,
-        reference: usize,
+        reference: SeriesRef,
         sample: Sample<V>,
     ) -> Result<(), Error> {
+        let reference = *reference;
         match self.writers[reference].push_item(sample.timestamp, sample.values)? {
             segment::PushStatus::Done => {}
             segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
@@ -98,10 +101,11 @@ impl Writer {
 
     pub fn push_univariate(
         &mut self,
-        reference: usize,
+        reference: SeriesRef,
         ts: u64,
         data: [u8; 8],
     ) -> Result<(), Error> {
+        let reference = *reference;
         match self.writers[reference].push_univariate(ts, data)? {
             segment::PushStatus::Done => {}
             segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
@@ -132,15 +136,30 @@ enum FlushRequest {
     Flush(usize),
 }
 
+impl std::fmt::Debug for FlushRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("FlushRequest");
+        match self {
+            Self::Register(_) => {
+                ds.field("Register", &"");
+            }
+            Self::Flush(id) => {
+                ds.field("Flush", &id);
+            }
+        }
+        ds.finish()
+    }
+}
+
 struct FlushWorker {
-    sender: Sender<FlushRequest>,
+    sender: UnboundedSender<FlushRequest>,
     register_counter: usize,
 }
 
 impl FlushWorker {
     fn new<W: ChunkWriter + 'static>(w: W) -> Self {
-        let (sender, receiver) = unbounded();
-        async_std::task::spawn(worker(w, receiver));
+        let (sender, receiver) = unbounded_channel();
+        RUNTIME.spawn(worker(w, receiver));
         FlushWorker {
             sender,
             register_counter: 0,
@@ -150,18 +169,21 @@ impl FlushWorker {
     fn register(&mut self, meta: FlushMeta) -> usize {
         let id = self.register_counter;
         self.register_counter += 1;
-        self.sender.try_send(FlushRequest::Register(meta)).unwrap();
+        let e = "failed to send to flush worker";
+        self.sender.send(FlushRequest::Register(meta)).unwrap();
         id
     }
 
     fn flush(&self, id: usize) {
-        self.sender.try_send(FlushRequest::Flush(id)).unwrap();
+        self.sender
+            .send(FlushRequest::Flush(id))
+            .expect("failed to send to flush worker");
     }
 }
 
-async fn worker<W: ChunkWriter + 'static>(mut w: W, queue: Receiver<FlushRequest>) {
+async fn worker<W: ChunkWriter + 'static>(mut w: W, mut queue: UnboundedReceiver<FlushRequest>) {
     let mut metadata: Vec<FlushMeta> = Vec::new();
-    while let Ok(item) = queue.recv().await {
+    while let Some(item) = queue.recv().await {
         match item {
             FlushRequest::Register(meta) => metadata.push(meta),
             FlushRequest::Flush(id) => metadata[id].flush(&mut w),
@@ -172,8 +194,9 @@ async fn worker<W: ChunkWriter + 'static>(mut w: W, queue: Receiver<FlushRequest
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::compression2::*;
+    use crate::compression::*;
     use crate::constants::*;
+    use crate::tags::*;
     use crate::test_utils::*;
     use rand::prelude::*;
     use std::{
@@ -232,10 +255,19 @@ mod test {
             compression.push(CompressFn::XOR);
         }
         let compression = Compression::from(compression);
-        let buffer = Buffer::new(6000);
+        let buffer = ListBuffer::new(6000);
         let id = SeriesId(thread_rng().gen());
+        let mut tags = HashMap::new();
+        tags.insert(String::from("attrib"), String::from("a"));
 
-        let series_meta = Series::new(id, 1, nvars, compression, buffer.clone());
+        let series_conf = SeriesConfig {
+            tags: Tags::from(tags),
+            compression,
+            seg_count: 1,
+            nvars,
+        };
+
+        let series_meta = Series::new(series_conf, buffer.clone());
         let serid = SeriesId(0);
         let dict = Arc::new(DashMap::new());
         dict.insert(serid, series_meta.clone());
@@ -267,7 +299,7 @@ mod test {
             exp_values.push(Vec::new());
         }
 
-        let ss = series_meta.segment.snapshot().unwrap();
+        let ss = series_meta.segment().snapshot().unwrap();
         for item in &data[768..782] {
             let v = to_values(&item.values[..]);
             exp_ts.push(item.ts);
@@ -283,7 +315,7 @@ mod test {
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
 
-        let mut reader = series_meta.list.read().unwrap();
+        let mut reader = series_meta.list().read().unwrap();
         let res: &DecompressBuffer = reader
             .next_segment(&mut persistent_reader)
             .unwrap()

@@ -1,4 +1,4 @@
-use crate::persistent_list::{inner2, Error, PersistentListBackend};
+use crate::persistent_list::{inner, Error, PersistentListBackend};
 use crate::id::SeriesId;
 use crate::utils::random_id;
 //use crate::metadata::METADATA;
@@ -27,7 +27,7 @@ impl FileReader {
     }
 }
 
-impl inner2::ChunkReader for FileReader {
+impl inner::ChunkReader for FileReader {
     fn read(&mut self, offset: u64) -> Result<&[u8], Error> {
         let offset = offset as usize;
         if self.offset == usize::MAX || self.offset != offset {
@@ -63,7 +63,7 @@ impl FileWriter {
     }
 }
 
-impl inner2::ChunkWriter for FileWriter {
+impl inner::ChunkWriter for FileWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
         let offset = self.current_offset;
         let sz = bytes.len();

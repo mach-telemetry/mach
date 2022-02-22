@@ -1,7 +1,6 @@
 use crate::{
-    compression2::*,
+    compression::*,
     constants::BUFSZ,
-    //metadata::{self, Metadata},
     id::*,
     persistent_list::{self, ListBackend, ListBuffer},
     series::*,
