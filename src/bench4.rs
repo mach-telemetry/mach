@@ -85,15 +85,6 @@ struct RawSample(
     Box<[[u8; NVARS]]>, // data
 );
 
-impl RawSample {
-    fn into_sample(&self) -> Sample<NVARS> {
-        Sample {
-            timestamp: self.0,
-            values: (*self.1).try_into().unwrap(),
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 struct DataEntry {
     timestamps: Vec<u64>,
@@ -210,16 +201,29 @@ impl IngestionWorker {
         let victim = zipf_picker.next();
         let series = self.series[victim];
         let refid = self.refids[victim];
+        let raw_sample = series[self.next[victim] % series.len()];
 
-        let res = self
-            .writer
-            .push_sample(refid, series[self.next[victim]].into_sample());
+        seq!(N in 1..10 {
+            match raw_sample.1.len() {
+                #(
+                N => {
+                    let sample: Sample<N> = Sample {
+                        timestamp: raw_sample.0,
+                        values: (*raw_sample.1).try_into().unwrap()
+                    };
 
-        if res.is_ok() {
-            self.next[victim] += 1;
-        }
+                    let res = self.writer.push_sample(refid, sample);
 
-        res
+                    if res.is_ok() {
+                        self.next[victim] += 1;
+                    }
+
+                   return res;
+                },
+                )*
+                _ => unimplemented!()
+            }
+        });
     }
 
     fn did_ingest(&self) -> bool {
