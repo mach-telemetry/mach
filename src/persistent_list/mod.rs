@@ -1,19 +1,14 @@
 mod file_backend;
-//mod inner;
 mod inner;
 mod kafka_backend;
-//mod redis_backend;
-//mod redis_kafka_backend;
 mod vector_backend;
 use rdkafka::{error::KafkaError, types::RDKafkaErrorCode};
-use redis::RedisError;
 
 #[derive(Debug)]
 pub enum Error {
     InconsistentRead,
     Kafka(KafkaError),
     KafkaErrorCode((String, RDKafkaErrorCode)),
-    Redis(RedisError),
     IO(std::io::Error),
     FactoryError,
     MultipleWriters,
@@ -25,30 +20,16 @@ impl From<KafkaError> for Error {
     }
 }
 
-impl From<RedisError> for Error {
-    fn from(item: RedisError) -> Self {
-        Error::Redis(item)
-    }
-}
-
 impl From<std::io::Error> for Error {
     fn from(item: std::io::Error) -> Self {
         Error::IO(item)
     }
 }
 
-//pub use file_backend::{FileBackend, FileReader, FileWriter};
-//pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
-//pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
+pub use file_backend::{FileBackend, FileReader, FileWriter};
+pub use kafka_backend::{KafkaBackend, KafkaReader, KafkaWriter};
 pub use inner::{ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter};
-//pub use redis_kafka_backend::{RedisKafkaBackend, RedisKafkaReader, RedisKafkaWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
-
-//pub trait BackendOld {
-//    type Writer: ChunkWriter + 'static;
-//    type Reader: ChunkReader + 'static;
-//    fn make_backend(&mut self) -> Result<(Self::Writer, Self::Reader), Error>;
-//}
 
 // One Backend per writer thread. Single writer, multiple readers
 pub trait PersistentListBackend: Sized {
@@ -66,7 +47,7 @@ pub trait ListBackend = PersistentListBackend;
 mod test {
     use super::*;
     use crate::{
-        compression2::*, constants::*, id::SeriesId, persistent_list::vector_backend::*,
+        compression::*, constants::*, id::SeriesId, persistent_list::vector_backend::*,
         segment::*, tags::*, test_utils::*, utils::wp_lock::WpLock,
     };
     use dashmap::DashMap;
@@ -284,7 +265,7 @@ mod test {
     #[cfg_attr(not(feature = "kafka-backend"), ignore)]
     fn test_kafka_bytes() {
         let topic = format!("test-{}", thread_rng().gen::<usize>());
-        let kafka = kafka2_backend::KafkaBackend::new(KAFKA_BOOTSTRAP, &topic).unwrap();
+        let kafka = kafka_backend::KafkaBackend::new(KAFKA_BOOTSTRAP, &topic).unwrap();
         let kafka_writer = kafka.writer().unwrap();
         let kafka_reader = kafka.reader().unwrap();
         test_multiple(kafka_reader, kafka_writer);
@@ -302,7 +283,7 @@ mod test {
     #[cfg_attr(not(feature = "kafka-backend"), ignore)]
     fn test_kafka_simple() {
         let topic = format!("test-{}", thread_rng().gen::<usize>());
-        let kafka = kafka2_backend::KafkaBackend::new(KAFKA_BOOTSTRAP, &topic).unwrap();
+        let kafka = kafka_backend::KafkaBackend::new(KAFKA_BOOTSTRAP, &topic).unwrap();
         let kafka_writer = kafka.writer().unwrap();
         let kafka_reader = kafka.reader().unwrap();
         test_single(kafka_reader, kafka_writer);
@@ -397,7 +378,7 @@ mod test {
     #[cfg_attr(not(feature = "kafka-backend"), ignore)]
     fn test_kafka_data() {
         let topic = format!("test-{}", thread_rng().gen::<usize>());
-        let kafka = kafka2_backend::KafkaBackend::new(KAFKA_BOOTSTRAP, &topic).unwrap();
+        let kafka = kafka_backend::KafkaBackend::new(KAFKA_BOOTSTRAP, &topic).unwrap();
         let kafka_writer = kafka.writer().unwrap();
         let kafka_reader = kafka.reader().unwrap();
         test_sample_data(kafka_reader, kafka_writer);

@@ -3,9 +3,9 @@ use crate::{
     persistent_list::{inner, Error, PersistentListBackend},
     id::SeriesId,
     utils::random_id,
-    //metadata::METADATA,
+    runtime::RUNTIME,
 };
-use async_std::channel::{unbounded, Receiver, Sender};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedSender, UnboundedReceiver};
 use dashmap::DashMap;
 use rand::prelude::*;
 pub use rdkafka::consumer::{base_consumer::BaseConsumer, Consumer};
@@ -27,11 +27,11 @@ use std::{
 async fn worker(
     producer: FutureProducer,
     map: Arc<DashMap<i64, Arc<[u8]>>>,
-    queue: Receiver<i64>,
+    mut queue: UnboundedReceiver<i64>,
     topic: String,
 ) {
     let dur = Duration::from_secs(0);
-    while let Ok(offset) = queue.recv().await {
+    while let Some(offset) = queue.recv().await {
         let item = map.get(&offset).unwrap();
         let data = item.clone();
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&topic).payload(&data[..]);
@@ -53,7 +53,7 @@ async fn worker(
 pub struct KafkaWriter {
     counter: i64,
     map: Arc<DashMap<i64, Arc<[u8]>>>,
-    tx: Sender<i64>,
+    tx: UnboundedSender<i64>,
 }
 
 impl KafkaWriter {
@@ -77,8 +77,8 @@ impl KafkaWriter {
         map: Arc<DashMap<i64, Arc<[u8]>>>,
     ) -> Result<Self, Error> {
         let producer = Self::default_producer(kafka_bootstrap)?;
-        let (tx, rx) = unbounded();
-        async_std::task::spawn(worker(producer, map.clone(), rx, topic));
+        let (tx, rx) = unbounded_channel();
+        RUNTIME.spawn(worker(producer, map.clone(), rx, topic));
         Ok(KafkaWriter {
             counter: 0,
             map,
@@ -94,7 +94,7 @@ impl inner::ChunkWriter for KafkaWriter {
         let offset = self.counter;
         self.counter += 1;
         self.map.insert(offset, bytes.into());
-        self.tx.try_send(offset).unwrap();
+        self.tx.send(offset).unwrap();
         Ok(offset.try_into().unwrap())
     }
 }
@@ -170,7 +170,11 @@ fn create_topic(bootstrap: &str, topic: &str) -> Result<(), Error> {
     }];
     let opts = AdminOptions::new();
     let fut = admin.create_topics(&topic, &opts);
-    let result = async_std::task::block_on(fut)?;
+
+    // block on current thread instead of global runtime
+    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let result = rt.block_on(fut)?;
+
     if let Err((s, c)) = &result[0] {
         return Err(Error::KafkaErrorCode((s.into(), c.clone())));
     }
