@@ -60,6 +60,7 @@ use tags::*;
 use writer::*;
 use zipf::*;
 
+const ZIPF: f64 = 0.99;
 const UNIVARIATE: bool = false;
 const NTHREADS: usize = 4;
 const NSERIES: usize = 10_000;
@@ -83,6 +84,15 @@ struct RawSample(
     u64,                // timestamp
     Box<[[u8; NVARS]]>, // data
 );
+
+impl RawSample {
+    fn into_sample(&self) -> Sample<NVARS> {
+        Sample {
+            timestamp: self.0,
+            values: (*self.1).try_into().unwrap(),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 struct DataEntry {
@@ -132,10 +142,33 @@ fn make_uniform_compression(scheme: CompressFn, nvars: usize) -> Compression {
     Compression::from((0..nvars).map(|_| scheme).collect::<Vec<CompressFn>>())
 }
 
+struct ZipfianPicker {
+    selection_pool: Vec<usize>,
+    counter: usize,
+}
+
+impl ZipfianPicker {
+    fn new(size: u64) -> Self {
+        let mut z = Zipfian::new(size, ZIPF);
+
+        ZipfianPicker {
+            selection_pool: (0..1000).map(|_| z.next_item() as usize).collect(),
+            counter: 0,
+        }
+    }
+
+    fn next(&mut self) -> usize {
+        let selected = self.selection_pool[self.counter % self.selection_pool.len()];
+        self.counter += 1;
+        selected
+    }
+}
+
 struct IngestionWorker {
     writer: Writer,
     refids: Vec<usize>,
     series: Vec<&'static [RawSample]>,
+    next: Vec<usize>,
     num_pushed: usize,
 }
 
@@ -145,6 +178,7 @@ impl IngestionWorker {
             writer,
             refids: Vec::new(),
             series: Vec::new(),
+            next: Vec::new(),
             num_pushed: 0,
         }
     }
@@ -154,6 +188,7 @@ impl IngestionWorker {
 
         self.refids.push(*refid);
         self.series.push(series_data);
+        self.next.push(0);
     }
 
     fn ingest(&mut self) {
@@ -161,12 +196,31 @@ impl IngestionWorker {
             panic!("ingest() cannot be invoked multiple times on an ingestion worker.")
         }
 
+        let mut zipf_picker = ZipfianPicker::new(self.series.len() as u64);
+
         while self.num_pushed < NUM_INGESTS_PER_THR {
-            self._ingest_sample();
+            match self._ingest_sample(&mut zipf_picker) {
+                Ok(..) => self.num_pushed += 1,
+                Err(..) => continue,
+            }
         }
     }
 
-    fn _ingest_sample(&mut self) {}
+    fn _ingest_sample(&mut self, mut zipf_picker: &mut ZipfianPicker) -> Result<(), writer::Error> {
+        let victim = zipf_picker.next();
+        let series = self.series[victim];
+        let refid = self.refids[victim];
+
+        let res = self
+            .writer
+            .push_sample(refid, series[self.next[victim]].into_sample());
+
+        if res.is_ok() {
+            self.next[victim] += 1;
+        }
+
+        res
+    }
 
     fn did_ingest(&self) -> bool {
         self.num_pushed != 0
@@ -239,7 +293,7 @@ fn main() {
     }
 
     let mut handles = Vec::new();
-    for (writer_id, ingestion_worker) in ingestion_meta.writer_data_map {
+    for (writer_id, mut ingestion_worker) in ingestion_meta.writer_data_map {
         handles.push(thread::spawn(move || ingestion_worker.ingest()));
     }
 
