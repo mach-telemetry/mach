@@ -151,6 +151,8 @@ impl IngestionWorker {
         self.refids.push(*refid);
         self.series.push(series_data);
     }
+
+    fn ingest(&self) {}
 }
 
 struct IngestionMetadata<'a, B: PersistentListBackend + 'static> {
@@ -217,4 +219,13 @@ fn main() {
     for _ in 0..NSERIES * NTHREADS {
         ingestion_meta.add_series();
     }
+
+    let mut handles = Vec::new();
+    for (writer_id, ingestion_worker) in ingestion_meta.writer_data_map {
+        handles.push(thread::spawn(move || ingestion_worker.ingest()));
+    }
+
+    println!("Waiting for ingestion to finish");
+    handles.drain(..).for_each(|h| h.join().unwrap());
+    println!("Finished!");
 }
