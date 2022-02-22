@@ -66,6 +66,8 @@ const NSERIES: usize = 10_000;
 const NVARS: usize = 8;
 const NSEGMENTS: usize = 1;
 
+const NUM_INGESTS_PER_THR: usize = 10_000;
+
 lazy_static! {
     static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
     static ref BENCHPATH: PathBuf = DATAPATH.join("bench_data");
@@ -134,6 +136,7 @@ struct IngestionWorker {
     writer: Writer,
     refids: Vec<usize>,
     series: Vec<&'static [RawSample]>,
+    num_pushed: usize,
 }
 
 impl IngestionWorker {
@@ -142,6 +145,7 @@ impl IngestionWorker {
             writer,
             refids: Vec::new(),
             series: Vec::new(),
+            num_pushed: 0,
         }
     }
 
@@ -152,7 +156,21 @@ impl IngestionWorker {
         self.series.push(series_data);
     }
 
-    fn ingest(&self) {}
+    fn ingest(&mut self) {
+        if self.did_ingest() {
+            panic!("ingest() cannot be invoked multiple times on an ingestion worker.")
+        }
+
+        while self.num_pushed < NUM_INGESTS_PER_THR {
+            self._ingest_sample();
+        }
+    }
+
+    fn _ingest_sample(&mut self) {}
+
+    fn did_ingest(&self) -> bool {
+        self.num_pushed != 0
+    }
 }
 
 struct IngestionMetadata<'a, B: PersistentListBackend + 'static> {
