@@ -1,5 +1,5 @@
 use crate::{
-    compression2::Compression,
+    compression::Compression,
     id::{SeriesId, SeriesRef},
     persistent_list::*,
     sample::Sample,

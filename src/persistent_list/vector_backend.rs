@@ -1,7 +1,7 @@
 use crate::{
     id::SeriesId,
     //metadata::METADATA,
-    persistent_list::{inner2, Error, PersistentListBackend},
+    persistent_list::{inner, Error, PersistentListBackend},
     tags::Tags,
 };
 use std::collections::HashMap;
@@ -24,7 +24,7 @@ impl VectorReader {
     }
 }
 
-impl inner2::ChunkReader for VectorReader {
+impl inner::ChunkReader for VectorReader {
     fn read(&mut self, offset: u64) -> Result<&[u8], Error> {
         let offset = offset as usize;
         if self.offset == usize::MAX || self.offset != offset {
@@ -61,7 +61,7 @@ impl VectorWriter {
     }
 }
 
-impl inner2::ChunkWriter for VectorWriter {
+impl inner::ChunkWriter for VectorWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
         let mut guard = self.inner.lock().unwrap();
         //let sz = bytes.len();

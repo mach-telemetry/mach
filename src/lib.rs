@@ -19,7 +19,7 @@
 
 pub mod tsdb;
 //pub mod compression;
-pub mod compression2;
+pub mod compression;
 pub mod constants;
 pub mod id;
 //pub mod metadata;
@@ -30,6 +30,7 @@ pub mod series;
 pub mod tags;
 pub mod utils;
 pub mod writer;
+//pub mod replication;
 //pub mod into;
 
 #[cfg(test)]

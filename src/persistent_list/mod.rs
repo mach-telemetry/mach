@@ -1,7 +1,7 @@
 mod file_backend;
 //mod inner;
-mod inner2;
-mod kafka2_backend;
+mod inner;
+mod kafka_backend;
 //mod redis_backend;
 //mod redis_kafka_backend;
 mod vector_backend;
@@ -40,7 +40,7 @@ impl From<std::io::Error> for Error {
 //pub use file_backend::{FileBackend, FileReader, FileWriter};
 //pub use kafka2_backend::{KafkaBackend, KafkaReader, KafkaWriter};
 //pub use redis_backend::{RedisBackend, RedisReader, RedisWriter};
-pub use inner2::{ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter};
+pub use inner::{ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter};
 //pub use redis_kafka_backend::{RedisKafkaBackend, RedisKafkaReader, RedisKafkaWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 
@@ -52,8 +52,8 @@ pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 
 // One Backend per writer thread. Single writer, multiple readers
 pub trait PersistentListBackend: Sized {
-    type Writer: inner2::ChunkWriter + 'static;
-    type Reader: inner2::ChunkReader + 'static;
+    type Writer: inner::ChunkWriter + 'static;
+    type Reader: inner::ChunkReader + 'static;
     fn id(&self) -> &str;
     fn default_backend() -> Result<Self, Error>;
     fn writer(&self) -> Result<Self::Writer, Error>;
@@ -76,13 +76,13 @@ mod test {
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
 
-    fn test_multiple<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
+    fn test_multiple<R: inner::ChunkReader, W: inner::ChunkWriter>(
         mut chunk_reader: R,
         mut chunk_writer: W,
     ) {
-        let buffer = inner2::ListBuffer::new(100);
-        let list1 = inner2::List::new(buffer.clone());
-        let list2 = inner2::List::new(buffer.clone());
+        let buffer = inner::ListBuffer::new(100);
+        let list1 = inner::List::new(buffer.clone());
+        let list2 = inner::List::new(buffer.clone());
 
         let mut list1_writer = list1.writer();
         let mut list2_writer = list2.writer();
@@ -130,12 +130,12 @@ mod test {
         assert_eq!(data2[0], res);
     }
 
-    fn test_single<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
+    fn test_single<R: inner::ChunkReader, W: inner::ChunkWriter>(
         mut chunk_reader: R,
         mut chunk_writer: W,
     ) {
-        let buffer = inner2::ListBuffer::new(100);
-        let list = inner2::List::new(buffer.clone());
+        let buffer = inner::ListBuffer::new(100);
+        let list = inner::List::new(buffer.clone());
         let mut writer = list.writer();
         let data: Vec<Vec<u8>> = (0..5).map(|x| vec![x; 15]).collect();
         data.iter()
@@ -154,7 +154,7 @@ mod test {
         assert_eq!(data[0], res);
     }
 
-    fn test_sample_data<R: inner2::ChunkReader, W: inner2::ChunkWriter>(
+    fn test_sample_data<R: inner::ChunkReader, W: inner::ChunkWriter>(
         mut persistent_reader: R,
         mut persistent_writer: W,
     ) {
@@ -169,8 +169,8 @@ mod test {
         }
         let compression = Compression::from(compression);
 
-        let buffer = inner2::ListBuffer::new(6000);
-        let l = inner2::List::new(buffer.clone());
+        let buffer = inner::ListBuffer::new(6000);
+        let l = inner::List::new(buffer.clone());
         let mut list = l.writer();
 
         let segment = Segment::new(1, nvars);

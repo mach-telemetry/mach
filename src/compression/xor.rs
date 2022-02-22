@@ -83,9 +83,7 @@ pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) {
 }
 
 /// Decompresses data into buf
-/// Returns the number of bytes read from data and number of items decompressed.
-/// Panics if buf is not long enough.
-pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usize) {
+pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
     // Code below inspire heavily from
     // https://github.com/jeromefroe/tsz-rs
 
@@ -145,10 +143,6 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) -> (usize, usize) {
             buf.push(unsafe { transmute::<u64, f64>(bits) }.to_be_bytes());
         }
     }
-
-    let bytes_read = read as usize / 8 + (read % 8 > 0) as usize;
-
-    (bytes_read, len)
 }
 
 #[cfg(test)]
@@ -156,62 +150,22 @@ mod test {
     use super::*;
     use crate::test_utils::*;
 
-    //#[test]
-    //fn compress_decompress_values() {
-    //    let data = UNIVARIATE_DATA.clone();
-    //    let mut buf = vec![0u8; 4096];
-    //    for (_id, samples) in data[..].iter().enumerate() {
-    //        let raw = samples.1.iter().map(|x| x.values[0]).collect::<Vec<f64>>();
-    //        for lo in (0..raw.len()).step_by(256) {
-    //            let mut byte_buf = ByteBuffer::new(&mut buf[..]);
-    //            let hi = raw.len().min(lo + 256);
-    //            let exp = &raw[lo..hi];
-    //            let mut res = vec![0.; hi - lo];
-    //            let bytes = compress(exp, &mut byte_buf);
-    //            let sz = byte_buf.len();
-    //            decompress(&buf[..sz], &mut res[..]);
-    //            assert_eq!(res, exp);
-    //        }
-    //    }
-    //}
-
-    //#[test]
-    //fn compress_decompress_full() {
-    //    let data = UNIVARIATE_DATA.clone();
-    //    let mut buf = [0u8; 8192];
-    //    for (_id, samples) in data[..].iter().enumerate() {
-
-    //        // Re-organize data into columns
-    //        let nvars = samples.1[0].values.len();
-    //        let raw_time = samples.1.iter().map(|x| x.ts).collect::<Vec<Dt>>();
-    //        let mut variables = Vec::new();
-    //        for i in 0..nvars {
-    //            let var = samples.1.iter().map(|x| x.values[i]).collect::<Vec<f64>>();
-    //            variables.push(var);
-    //        }
-
-    //        for lo in (0..raw_time.len()).step_by(256) {
-
-    //            let hi = raw_time.len().min(lo + 256);
-
-    //            let mut segment = Segment::new();
-    //            segment.timestamps.extend_from_slice(&raw_time[lo..hi]);
-    //            for i in 0..nvars {
-    //                segment.values.extend_from_slice(&variables[i][lo..hi]);
-    //            }
-
-    //            let bytes = xor_compression(&segment, &mut buf[..]);
-    //            let mut result = Segment::new();
-    //            let mut header = Header::default();
-    //            header.len = hi - lo;
-    //            xor_decompression(&header, &mut result, &buf[..bytes]);
-
-    //            assert_eq!(result.timestamps, segment.timestamps);
-    //            assert_eq!(result.len(), segment.len());
-    //            for v in 0..nvars {
-    //                assert_eq!(result.variable(v), segment.variable(v));
-    //            }
-    //        }
-    //    }
-    //}
+    #[test]
+    fn compress_decompress_values() {
+        let data = UNIVARIATE_DATA.clone();
+        let mut buf = vec![0u8; 4096];
+        for (_id, samples) in data[..].iter().enumerate() {
+            let raw = samples.1.iter().map(|x| x.values[0]).collect::<Vec<f64>>();
+            for lo in (0..raw.len()).step_by(256) {
+                let mut byte_buf = ByteBuffer::new(&mut buf[..]);
+                let hi = raw.len().min(lo + 256);
+                let exp: Vec<[u8; 8]> = raw[lo..hi].iter().map(|x| x.to_be_bytes()).collect();
+                let mut res = Vec::new();
+                let bytes = compress(exp.as_slice(), &mut byte_buf);
+                let sz = byte_buf.len();
+                decompress(&buf[..sz], &mut res);
+                assert_eq!(res, exp);
+            }
+        }
+    }
 }

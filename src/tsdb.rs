@@ -1,5 +1,5 @@
 use crate::{
-    compression2::*,
+    compression::*,
     persistent_list::{self, ListBuffer, ListBackend},
     id::*,
     writer::Writer,

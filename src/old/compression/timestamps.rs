@@ -1,4 +1,4 @@
-use crate::compression2::utils::{
+use crate::compression::utils::{
     bitpack_256_compress, bitpack_256_decompress, from_zigzag, to_zigzag,
 };
 use crate::utils::byte_buffer::*;
