@@ -71,18 +71,20 @@ impl Writer {
     }
 
     pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
-        match self.writers[*reference].push(ts, data)? {
+        let reference = *reference;
+        match self.writers[reference].push(ts, data)? {
             segment::PushStatus::Done => {}
-            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[*reference]),
+            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
         }
         Ok(())
     }
 
     pub fn push_sample<const V: usize>(
         &mut self,
-        reference: usize,
+        reference: SeriesRef,
         sample: Sample<V>,
     ) -> Result<(), Error> {
+        let reference = *reference;
         match self.writers[reference].push_item(sample.timestamp, sample.values)? {
             segment::PushStatus::Done => {}
             segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
@@ -92,10 +94,11 @@ impl Writer {
 
     pub fn push_univariate(
         &mut self,
-        reference: usize,
+        reference: SeriesRef,
         ts: u64,
         data: [u8; 8],
     ) -> Result<(), Error> {
+        let reference = *reference;
         match self.writers[reference].push_univariate(ts, data)? {
             segment::PushStatus::Done => {}
             segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),

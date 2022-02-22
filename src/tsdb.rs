@@ -15,6 +15,7 @@ use std::{
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
 
+#[derive(Debug)]
 pub enum Error {
     PersistentList(persistent_list::Error),
     //Metadata(metadata::Error),
@@ -48,7 +49,7 @@ impl<B: ListBackend> Mach<B> {
         }
     }
 
-    fn new_writer(&mut self) -> Result<Writer, Error> {
+    pub fn new_writer(&mut self) -> Result<Writer, Error> {
 
         let writer_id = WriterId::random();
 
@@ -70,7 +71,7 @@ impl<B: ListBackend> Mach<B> {
         Ok(writer)
     }
 
-    fn add_series(&mut self, config: SeriesConfig) -> Result<WriterId, Error> {
+    pub fn add_series(&mut self, config: SeriesConfig) -> Result<WriterId, Error> {
         // For now, randomly choose a writer
         let writer = self.writers.choose(&mut rand::thread_rng()).unwrap().clone();
 

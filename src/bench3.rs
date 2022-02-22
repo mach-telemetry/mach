@@ -12,19 +12,23 @@
 #![allow(private_in_public)]
 #![feature(llvm_asm)]
 #![feature(proc_macro_hygiene)]
+#![feature(trait_alias)]
 
-mod compression2;
-mod constants;
-mod id;
-mod persistent_list;
-mod sample;
-mod segment;
-mod tags;
-mod test_utils;
-//mod tsdb;
-mod utils;
-mod writer;
+pub mod tsdb;
+pub mod compression;
+pub mod constants;
+pub mod id;
+pub mod persistent_list;
+pub mod sample;
+pub mod segment;
+pub mod series;
+pub mod tags;
+pub mod utils;
+pub mod writer;
+pub mod runtime;
 mod zipf;
+
+
 
 #[macro_use]
 mod rdtsc;
@@ -45,7 +49,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use compression2::*;
+use compression::*;
 use constants::*;
 use dashmap::DashMap;
 use id::SeriesId;
@@ -100,28 +104,26 @@ fn read_data() -> Vec<Sample<1>> {
 
 fn main() {
     println!("DATA LEN {}", DATA.len());
-    let backend = {
-        let backend = VectorBackend::new();
+    let mut mach = tsdb::Mach::<VectorBackend>::new();
 
-        #[cfg(feature = "file-backend")]
-        let backend = FileBackend::new((&*OUTDIR).into(), 12345);
-
-        #[cfg(feature = "kafka-backend")]
-        let backend = KafkaBackend::new(KAFKA_BOOTSTRAP);
-
-        backend
+    let buffer = ListBuffer::new(BUFSZ);
+    let tags = {
+        let mut map = HashMap::new();
+        map.insert(String::from("foo"), String::from("bar"));
+        Tags::from(map)
     };
-    let mut backend = Backend::new(backend).unwrap();
-    let mut persistent_writer = backend.writer().unwrap();
-    let global = Arc::new(DashMap::new());
-    let mut write_thread = Writer::new(global.clone(), persistent_writer);
-    // The buffer used by all time series in this writer
-    let buffer = Buffer::new(BUFSZ);
-    let id = SeriesId(12345);
-    let mut compression = Compression::from(vec![CompressFn::BytesLZ4]);
-    let series_meta = SeriesMetadata::new(id, NSEGMENTS, 1, compression, buffer.clone());
-    global.insert(id, series_meta.clone());
-    let ref_id = write_thread.register(id);
+    let series_id = tags.id();
+    let series_config = series::SeriesConfig {
+        tags: tags.clone(),
+        compression: Compression::from(vec![CompressFn::BytesLZ4]),
+        seg_count: NSEGMENTS,
+        nvars: 1,
+    };
+
+    let mut writer = mach.new_writer().unwrap();
+    let _writer_id = mach.add_series(series_config).unwrap();
+    let ref_id = writer.get_reference(series_id);
+
     let mut samples = 0;
     let mut retries = 0;
     let now = Instant::now();
@@ -136,7 +138,7 @@ fn main() {
             );
         }
         'inner: loop {
-            let res = write_thread.push_sample(ref_id, *sample);
+            let res = writer.push_sample(ref_id, *sample);
             match res {
                 Ok(_) => {
                     samples += 1;

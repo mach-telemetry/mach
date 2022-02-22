@@ -12,7 +12,7 @@ pub fn compress(segment: &[[u8; 8]], buf: &mut ByteBuffer) {
         let ptr = usize::from_be_bytes(*item) as *const u8;
         let bytes = unsafe { Bytes::from_raw(ptr) };
         to_compress.extend_from_slice(bytes.as_raw_bytes());
-        bytes.into_raw(); // Drop bytes and free underlying memory
+        bytes.into_raw(); // Prevent bytes from dropping
     }
 
     let start = buf.len();
