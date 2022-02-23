@@ -204,12 +204,15 @@ impl IngestionWorker {
         let refid = self.refids[victim];
         let raw_sample = &series[self.next[victim] % series.len()];
 
+        let series_ts_delta = series.last().unwrap().0 - series.first().unwrap().0;
+        let timestamp = raw_sample.0 + series_ts_delta * (self.next[victim] / series.len()) as u64;
+
         seq!(N in 1..10 {
             match raw_sample.1.len() {
                 #(
                 N => {
                     let sample: Sample<N> = Sample {
-                        timestamp: raw_sample.0,
+                        timestamp,
                         values: (*raw_sample.1).try_into().unwrap()
                     };
 
