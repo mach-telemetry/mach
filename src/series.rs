@@ -24,9 +24,17 @@ impl From<segment::Error> for Error {
     }
 }
 
+#[derive(Copy, Clone)]
+pub enum Types {
+    U64,
+    F64,
+    Bytes,
+}
+
 #[derive(Clone)]
 pub struct SeriesConfig {
     pub tags: Tags,
+    pub types: Vec<Types>,
     pub compression: Compression,
     pub seg_count: usize,
     pub nvars: usize,
@@ -43,6 +51,7 @@ pub struct Series {
     segment: Segment,
     list: List,
     compression: Compression,
+    types: Vec<Types>
 }
 
 impl Series {
@@ -56,14 +65,22 @@ impl Series {
             compression,
             nvars,
             seg_count,
+            types,
         } = conf;
         assert_eq!(nvars, compression.len());
 
+        let mut heap_pointers: Vec<bool> = types.iter().map(|x| {
+            match x {
+                Types::Bytes => true,
+                _ => false
+            }
+        }).collect();
         Self {
-            segment: segment::Segment::new(seg_count, nvars),
+            segment: segment::Segment::new(seg_count, nvars, heap_pointers.as_slice()),
             tags,
             compression,
             list: List::new(buffer),
+            types,
         }
     }
 

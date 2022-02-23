@@ -1,5 +1,6 @@
 pub mod byte_buffer;
 pub mod wp_lock;
+pub mod bytes;
 
 use uuid::Uuid;
 

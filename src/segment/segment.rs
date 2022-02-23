@@ -5,10 +5,10 @@ use std::{
     sync::atomic::{AtomicIsize, AtomicUsize, Ordering::SeqCst},
 };
 
-fn init_buffer_array<const B: usize, const V: usize>() -> [Buffer<V>; B] {
+fn init_buffer_array<const B: usize, const V: usize>(heap_pointers: &[bool]) -> [Buffer<V>; B] {
     let mut buffers: [mem::MaybeUninit<Buffer<V>>; B] = mem::MaybeUninit::uninit_array();
     for b in buffers.iter_mut() {
-        b.write(Buffer::<V>::new());
+        b.write(Buffer::<V>::new(heap_pointers));
     }
     unsafe { mem::MaybeUninit::array_assume_init(buffers) }
 }
@@ -120,8 +120,8 @@ impl<const B: usize, const V: usize> Segment<B, V> {
         Ok(copies)
     }
 
-    pub fn new() -> Self {
-        let buffers = init_buffer_array();
+    pub fn new(heap_pointers: &[bool]) -> Self {
+        let buffers = init_buffer_array(heap_pointers);
         Segment {
             local_count: 0,
             local_head: 0,

@@ -1,6 +1,6 @@
 templates = dict()
 templates["[[drop]]"] = "({seg}, {var}) => drop_box!(ptr, {seg}, {var}),\n"
-templates["[[new]]"] = "({seg}, {var}) => new!({seg}, {var}),\n"
+templates["[[new]]"] = "({seg}, {var}) => new!({seg}, {var}, heap_pointer),\n"
 templates["[[push_univariate]]"] = "({seg}, {var}) => cast!(self, {seg}, {var}).push_univariate(ts, item),\n"
 templates["[[push]]"] = "({seg}, {var}) => cast!(self, {seg}, {var}).push(ts, item),\n"
 templates["[[to_flush]]"] = "({seg}, {var}) => cast!(self, {seg}, {var}).to_flush(),\n"

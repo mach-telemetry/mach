@@ -255,7 +255,8 @@ mod test {
             tags: Tags::from(tags),
             compression,
             seg_count: 1,
-            nvars
+            nvars,
+            types: vec![Types::F64; nvars],
         };
 
         let series_meta = Series::new(series_conf, buffer.clone());

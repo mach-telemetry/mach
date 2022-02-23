@@ -154,7 +154,7 @@ mod test {
         let l = inner::List::new(buffer.clone());
         let mut list = l.writer();
 
-        let segment = Segment::new(1, nvars);
+        let segment = Segment::new(1, nvars, vec![false; nvars].as_slice());
         let mut writer = segment.writer().unwrap();
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {

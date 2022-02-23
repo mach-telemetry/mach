@@ -13,10 +13,10 @@ macro_rules! cast {
 }
 
 macro_rules! new {
-    ($b:expr, $v: expr) => {
+    ($b:expr, $v: expr, $h: expr) => {
         // TODO: Note - using Box::new results in stack overflow because reasons
         // https://github.com/rust-lang/rust/issues/53827
-        Box::into_raw(box segment::Segment::<$b, $v>::new()) as *mut u8
+        Box::into_raw(box segment::Segment::<$b, $v>::new($h)) as *mut u8
     };
 }
 
@@ -66,7 +66,7 @@ impl Segment {
         }
     }
 
-    pub fn new(buffers: usize, vars: usize) -> Self {
+    pub fn new(buffers: usize, vars: usize, heap_pointer: &[bool]) -> Self {
         let boxed = match (buffers, vars) {
 [[new]]
 (_, _) => unimplemented!(),

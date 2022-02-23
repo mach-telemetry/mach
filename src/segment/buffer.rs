@@ -1,8 +1,10 @@
 use crate::constants::*;
 use crate::segment::{full_segment::FullSegment, Error};
 use crate::utils::wp_lock::*;
+use crate::sample::Bytes;
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+use std::convert::TryInto;
 
 pub type Column = [[u8; 8]; SEGSZ];
 //pub type ColumnSet = [Column];
@@ -22,10 +24,11 @@ struct InnerBuffer<const V: usize> {
     atomic_len: AtomicUsize,
     len: usize,
     inner: Inner<V>,
+    heap_pointers: [bool; V],
 }
 
 impl<const V: usize> InnerBuffer<V> {
-    fn new() -> Self {
+    fn new(heap_pointers: &[bool]) -> Self {
         InnerBuffer {
             len: 0,
             inner: Inner {
@@ -33,6 +36,7 @@ impl<const V: usize> InnerBuffer<V> {
                 data: [[[0u8; 8]; 256]; V],
             },
             atomic_len: AtomicUsize::new(0),
+            heap_pointers: heap_pointers.try_into().unwrap(),
         }
     }
 
@@ -102,6 +106,18 @@ impl<const V: usize> InnerBuffer<V> {
     }
 
     fn reset(&mut self) {
+
+        // Drop heap allocated pointers if a column is pointers to the heap
+        for (v, heap) in self.heap_pointers.iter().enumerate() {
+            if *heap {
+                for entry in self.inner.data[v].iter_mut() {
+                    let e = *entry;
+                    *entry = [0u8; 8];
+                    let d = unsafe { Bytes::from_sample_entry(e) };
+                    drop(d); // drop bytes to free heap
+                }
+            }
+        }
         self.atomic_len.store(0, SeqCst);
         self.len = 0;
     }
@@ -145,9 +161,9 @@ pub struct Buffer<const V: usize> {
 }
 
 impl<const V: usize> Buffer<V> {
-    pub fn new() -> Self {
+    pub fn new(heap_pointers: &[bool]) -> Self {
         Self {
-            inner: WpLock::new(InnerBuffer::new()),
+            inner: WpLock::new(InnerBuffer::new(heap_pointers)),
         }
     }
 

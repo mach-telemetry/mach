@@ -94,11 +94,11 @@ unsafe impl Send for WriteSegment {}
 unsafe impl Sync for WriteSegment {}
 
 impl Segment {
-    pub fn new(b: usize, v: usize) -> Self {
+    pub fn new(b: usize, v: usize, heap: &[bool]) -> Self {
         Self {
             has_writer: Arc::new(AtomicBool::new(false)),
             //has_flusher: Arc::new(AtomicBool::new(false)),
-            inner: wrapper::Segment::new(b, v),
+            inner: wrapper::Segment::new(b, v, heap),
         }
     }
 
@@ -206,7 +206,8 @@ mod test {
     fn test_push_flush_behavior() {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
-        let segment = Segment::new(3, nvars);
+        let heap_pointers = vec![false; nvars];
+        let segment = Segment::new(3, nvars, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
         //let mut flusher = segment.flusher().unwrap();
 
@@ -296,7 +297,8 @@ mod test {
     fn test_push_flush_data() {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
-        let segment = Segment::new(3, nvars);
+        let heap_pointers = vec![false; nvars];
+        let segment = Segment::new(3, nvars, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
@@ -355,7 +357,8 @@ mod test {
     fn test_push_snapshot() {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
-        let segment = Segment::new(3, nvars);
+        let heap_pointers = vec![false; nvars];
+        let segment = Segment::new(3, nvars, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
         //let mut flusher = segment.flusher().unwrap();
 
