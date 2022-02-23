@@ -68,7 +68,7 @@ const NSERIES: usize = 10_000;
 const NVARS: usize = 8;
 const NSEGMENTS: usize = 1;
 
-const NUM_INGESTS_PER_THR: usize = 10_000;
+const NUM_INGESTS_PER_THR: usize = 100_000_000;
 
 lazy_static! {
     static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
