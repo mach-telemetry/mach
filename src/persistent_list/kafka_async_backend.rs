@@ -24,36 +24,36 @@ use std::{
     time::{Duration, Instant},
 };
 
-//async fn worker(
-//    producer: FutureProducer,
-//    map: Arc<DashMap<i64, Arc<[u8]>>>,
-//    mut queue: UnboundedReceiver<i64>,
-//    topic: String,
-//) {
-//    let dur = Duration::from_secs(0);
-//    while let Some(offset) = queue.recv().await {
-//        let item = map.get(&offset).unwrap();
-//        let data = item.clone();
-//        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&topic).payload(&data[..]);
-//        let result = producer.send(to_send, dur).await;
-//        match result {
-//            Err(err) => {
-//                println!("{:?}", err.0);
-//                panic!("HERE");
-//            }
-//            Ok((rp, ro)) => {
-//                assert_eq!(rp, 0);
-//                assert_eq!(ro, offset);
-//            }
-//        }
-//        map.remove(&offset);
-//    }
-//}
+async fn worker(
+    producer: FutureProducer,
+    map: Arc<DashMap<i64, Arc<[u8]>>>,
+    mut queue: UnboundedReceiver<i64>,
+    topic: String,
+) {
+    let dur = Duration::from_secs(0);
+    while let Some(offset) = queue.recv().await {
+        let item = map.get(&offset).unwrap();
+        let data = item.clone();
+        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&topic).payload(&data[..]);
+        let result = producer.send(to_send, dur).await;
+        match result {
+            Err(err) => {
+                println!("{:?}", err.0);
+                panic!("HERE");
+            }
+            Ok((rp, ro)) => {
+                assert_eq!(rp, 0);
+                assert_eq!(ro, offset);
+            }
+        }
+        map.remove(&offset);
+    }
+}
 
 pub struct KafkaWriter {
-    producer: FutureProducer,
-    topic: String,
-    dur: Duration,
+    counter: i64,
+    map: Arc<DashMap<i64, Arc<[u8]>>>,
+    tx: UnboundedSender<i64>,
 }
 
 impl KafkaWriter {
@@ -65,7 +65,7 @@ impl KafkaWriter {
             .set("message.copy.max.bytes", "5000000")
             .set("batch.num.messages", "1")
             .set("compression.type", "none")
-            .set("acks", "all")
+            .set("acks", "1")
             //.set("max.in.flight", "1")
             .create()?;
         Ok(producer)
@@ -74,28 +74,34 @@ impl KafkaWriter {
     pub fn new(
         kafka_bootstrap: String,
         topic: String,
+        map: Arc<DashMap<i64, Arc<[u8]>>>,
     ) -> Result<Self, Error> {
         let producer = Self::default_producer(kafka_bootstrap)?;
-        let dur = Duration::from_secs(0);
-        Ok(Self {
-            producer,
-            topic,
-            dur
+        let (tx, rx) = unbounded_channel();
+        RUNTIME.spawn(worker(producer, map.clone(), rx, topic));
+        Ok(KafkaWriter {
+            counter: 0,
+            map,
+            tx,
         })
     }
 }
 
+// TODO: Figure out how to make flush to Kafka async. Currently, this is necessarily sync because
+// we need the partition + offset unless we restrict to a single partition.
 impl inner::ChunkWriter for KafkaWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
-        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&self.topic).payload(bytes);
-        let (partition, offset) = RUNTIME.block_on(self.producer.send(to_send, self.dur)).unwrap();
-        assert_eq!(partition, 0);
+        let offset = self.counter;
+        self.counter += 1;
+        self.map.insert(offset, bytes.into());
+        self.tx.send(offset).unwrap();
         Ok(offset.try_into().unwrap())
     }
 }
 
 pub struct KafkaReader {
     consumer: BaseConsumer,
+    map: Arc<DashMap<i64, Arc<[u8]>>>,
     timeout: Timeout,
     local_buffer: Vec<u8>,
     topic: String,
@@ -105,6 +111,7 @@ impl KafkaReader {
     pub fn new(
         bootstrap_servers: String,
         topic: String,
+        map: Arc<DashMap<i64, Arc<[u8]>>>,
     ) -> Result<Self, Error> {
         let consumer: BaseConsumer = ClientConfig::new()
             .set("bootstrap.servers", bootstrap_servers)
@@ -113,6 +120,7 @@ impl KafkaReader {
         let topic = topic.into();
         Ok(KafkaReader {
             consumer,
+            map,
             topic,
             timeout: Timeout::After(Duration::from_secs(0)),
             local_buffer: Vec::new(),
@@ -124,20 +132,28 @@ impl inner::ChunkReader for KafkaReader {
     fn read(&mut self, at: u64) -> Result<&[u8], Error> {
         self.local_buffer.clear();
         let offset: i64 = at.try_into().unwrap();
-        let mut tp_list = TopicPartitionList::new();
-        let offset = Offset::Offset(offset);
-        tp_list
-            .add_partition_offset(&self.topic, 0, offset)
-            .unwrap();
-        self.consumer.assign(&tp_list)?;
-        let msg = loop {
-            match self.consumer.poll(self.timeout) {
-                Some(Ok(x)) => break x,
-                Some(Err(x)) => return Err(x.into()),
-                None => {}
-            };
-        };
-        self.local_buffer.extend_from_slice(msg.payload().unwrap());
+        match self.map.get(&offset) {
+            Some(x) => {
+                let l = x.clone();
+                self.local_buffer.extend_from_slice(&l[..]);
+            }
+            None => {
+                let mut tp_list = TopicPartitionList::new();
+                let offset = Offset::Offset(offset);
+                tp_list
+                    .add_partition_offset(&self.topic, 0, offset)
+                    .unwrap();
+                self.consumer.assign(&tp_list)?;
+                let msg = loop {
+                    match self.consumer.poll(self.timeout) {
+                        Some(Ok(x)) => break x,
+                        Some(Err(x)) => return Err(x.into()),
+                        None => {}
+                    };
+                };
+                self.local_buffer.extend_from_slice(msg.payload().unwrap());
+            }
+        }
         Ok(self.local_buffer.as_slice())
     }
 }
@@ -168,6 +184,7 @@ fn create_topic(bootstrap: &str, topic: &str) -> Result<(), Error> {
 pub struct KafkaBackend {
     bootstrap_servers: String,
     topic: String,
+    map: Arc<DashMap<i64, Arc<[u8]>>>,
 }
 
 impl KafkaBackend {
@@ -175,9 +192,11 @@ impl KafkaBackend {
         create_topic(bootstrap_servers, topic)?;
         let topic = topic.into();
         let bootstrap_servers = bootstrap_servers.into();
+        let map = Arc::new(DashMap::new());
         Ok(Self {
             bootstrap_servers,
             topic,
+            map,
         })
     }
 
@@ -185,6 +204,7 @@ impl KafkaBackend {
         KafkaWriter::new(
             self.bootstrap_servers.clone(),
             self.topic.clone(),
+            self.map.clone(),
         )
     }
 
@@ -192,6 +212,7 @@ impl KafkaBackend {
         KafkaReader::new(
             self.bootstrap_servers.clone(),
             self.topic.clone(),
+            self.map.clone(),
         )
     }
 }
