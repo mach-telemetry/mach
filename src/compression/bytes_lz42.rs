@@ -5,19 +5,11 @@ use crate::utils::byte_buffer::ByteBuffer;
 use lzzzz::{lz4, lz4_hc};
 use std::convert::TryInto;
 
-pub fn compress(segment: &[[u8; 8]], buf: &mut ByteBuffer) {
-    let mut to_compress = Vec::with_capacity(1_000_000);
-
-    for item in segment.iter() {
-        let ptr = usize::from_be_bytes(*item) as *const u8;
-        let bytes = unsafe { Bytes::from_raw(ptr) };
-        to_compress.extend_from_slice(bytes.as_raw_bytes());
-        bytes.into_raw(); // Prevent bytes from dropping
-    }
+pub fn compress(len: usize, to_compress: &[u8], buf: &mut ByteBuffer) {
 
     let start = buf.len();
     // Write in the length of the segment
-    buf.extend_from_slice(&segment.len().to_be_bytes());
+    buf.extend_from_slice(&len.to_be_bytes());
 
     // Write total size of bytes
     buf.extend_from_slice(&to_compress.len().to_be_bytes());
@@ -28,7 +20,7 @@ pub fn compress(segment: &[[u8; 8]], buf: &mut ByteBuffer) {
 
     // Reserve the first 8 bytes for the sz
     let mut b = buf.unused();
-    let csz = lz4::compress(to_compress.as_slice(), &mut b[..], 1).unwrap();
+    let csz = lz4::compress(to_compress, &mut b[..], 1).unwrap();
     drop(b);
     buf.add_len(csz);
 
@@ -74,12 +66,12 @@ mod test {
     fn compress_decompress(data: &[String]) {
         let mut v = Vec::new();
         for s in data.iter() {
-            let ptr = Bytes::from_slice(s.as_bytes()).into_raw();
-            v.push((ptr as u64).to_be_bytes());
+            let b = Bytes::from_slice(s.as_bytes());
+            v.extend_from_slice(b.as_raw_bytes());
         }
         let mut buf = vec![0u8; 8192];
         let mut byte_buf = ByteBuffer::new(&mut buf[..]);
-        compress(&v[..], &mut byte_buf);
+        compress(data.len(), &v[..], &mut byte_buf);
         let mut results = Vec::new();
         decompress(&buf[..], &mut results);
 

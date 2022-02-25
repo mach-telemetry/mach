@@ -310,7 +310,7 @@ impl Node {
 }
 
 struct Bytes<T> {
-    len: usize,
+    len: AtomicUsize,
     bytes: T,
 }
 
@@ -351,22 +351,24 @@ impl<T: AsRef<[u8]>> Bytes<T> {
 
         (copies, node)
     }
+
     fn new(bytes: T) -> Self {
-        Self { len: 8, bytes }
+        Self { len: AtomicUsize::new(8), bytes }
     }
 }
 
 impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
     fn set_tail<D: Serialize>(&mut self, data: &D) {
-        let len = self.len;
+        let len = self.len.load(SeqCst);
         self[0..8].copy_from_slice(&len.to_be_bytes());
         let mut byte_buffer = ByteBuffer::new(&mut self[len..]);
+        let len = byte_buffer.len();
         bincode::serialize_into(&mut byte_buffer, data).unwrap();
-        self.len += byte_buffer.len();
+        self.len.fetch_add(len, SeqCst);
     }
 
     fn reset(&mut self) {
-        self.len = 8;
+        self.len.store(8, SeqCst);
     }
 
     fn push_segment(
@@ -377,7 +379,8 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         last_offset: usize,
         last_size: usize,
     ) -> (usize, usize) {
-        let mut offset = self.len;
+        let len = self.len.load(SeqCst);
+        let mut offset = len;
         let end = offset + size_of::<u64>();
         self[offset..end].copy_from_slice(&chunk_id.to_be_bytes());
         offset = end;
@@ -397,8 +400,8 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
             byte_buffer.len()
         };
 
-        let result = (self.len, offset - self.len);
-        self.len = offset;
+        let result = (len, offset - len);
+        self.len.store(offset, SeqCst);
         result
     }
 
@@ -409,7 +412,8 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         last_offset: usize,
         last_size: usize,
     ) -> (usize, usize) {
-        let mut offset = self.len;
+        let len = self.len.load(SeqCst);
+        let mut offset = len;
 
         let end = offset + size_of::<u64>();
         self[offset..end].copy_from_slice(&chunk_id.to_be_bytes());
@@ -427,8 +431,8 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         self[offset..end].copy_from_slice(bytes);
         offset = end;
 
-        let result = (self.len, offset - self.len);
-        self.len = offset;
+        let result = (len, offset - len);
+        self.len.store(offset, SeqCst);
         result
     }
 }
@@ -445,7 +449,7 @@ unsafe impl NoDealloc for InnerBuffer {}
 
 impl InnerBuffer {
     fn is_full(&self) -> bool {
-        self.flush_sz <= self.bytes.len
+        self.flush_sz <= self.bytes.len.load(SeqCst)
     }
 
     pub fn new(flush_sz: usize) -> Self {
@@ -501,7 +505,7 @@ impl InnerBuffer {
 
     fn flush<W: ChunkWriter>(&mut self, flusher: &mut W) {
         self.bytes.set_tail(&self.series);
-        let chunk_id = flusher.write(&self.bytes[..self.bytes.len]).unwrap();
+        let chunk_id = flusher.write(&self.bytes[..self.bytes.len.load(SeqCst)]).unwrap();
         self.chunk_id.store(chunk_id, SeqCst);
     }
 
@@ -510,6 +514,15 @@ impl InnerBuffer {
         self.series.clear();
         self.bytes.reset();
         self.chunk_id = Arc::new(AtomicU64::new(u64::MAX));
+    }
+
+    fn copy(&self) -> Result<(), Error> {
+        let buffer_id = self.buffer_id.load(SeqCst);
+
+        if buffer_id != self.buffer_id.load(SeqCst) {
+            return Err(Error::InconsistentRead);
+        }
+        Ok(())
     }
 
     fn read(

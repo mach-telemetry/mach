@@ -1,11 +1,12 @@
 mod bytes_lz4;
+mod bytes_lz42;
 mod decimal;
 //mod fixed;
 mod timestamps;
 mod utils;
 mod xor;
 
-use crate::segment::FullSegment;
+use crate::segment::*;
 use crate::utils::byte_buffer::ByteBuffer;
 use lzzzz::lz4;
 use std::convert::TryInto;
@@ -90,8 +91,16 @@ impl CompressFn {
     pub fn compress(&self, segment: &[[u8; 8]], buf: &mut ByteBuffer) {
         match self {
             CompressFn::Decimal(precision) => decimal::compress(segment, buf, *precision),
-            CompressFn::BytesLZ4 => bytes_lz4::compress(segment, buf),
+            //CompressFn::BytesLZ4 => bytes_lz4::compress(segment, buf),
             CompressFn::XOR => xor::compress(segment, buf),
+            _ => unimplemented!(),
+        };
+    }
+
+    pub fn compress_heap(&self, len: usize, heap: &[u8], buf: &mut ByteBuffer) {
+        match self {
+            CompressFn::BytesLZ4 => bytes_lz42::compress(len, heap, buf),
+            _ => unimplemented!(),
         };
     }
 
@@ -142,7 +151,7 @@ impl Compression {
     fn set_header(&self, segment: &FullSegment, buf: &mut ByteBuffer) {
         buf.extend_from_slice(&MAGIC[..]);
         buf.extend_from_slice(&self.0.len().to_be_bytes()[..]);
-        buf.extend_from_slice(&segment.len.to_be_bytes()[..]);
+        buf.extend_from_slice(&segment.len().to_be_bytes()[..]);
         for c in self.0.iter() {
             buf.extend_from_slice(&c.id().to_be_bytes()[..]);
         }
@@ -168,9 +177,10 @@ impl Compression {
         buf.as_mut_slice()[len_offset..len_offset + 8].copy_from_slice(&len.to_be_bytes()[..]);
 
         // compress each variable
-        for i in 0..segment.nvars {
+        let seg_len = segment.len();
+        for i in 0..segment.nvars() {
             let compression = &self.0[i];
-            let variable = segment.variable(i);
+            let variable = segment.get_variable(i);
 
             // placeholder for size post compression
             let len_offset = buf.len();
@@ -179,7 +189,10 @@ impl Compression {
 
             // compress
             let start_len = buf.len();
-            compression.compress(variable, buf);
+            match variable {
+                Variable::Var(x) => compression.compress(x, buf),
+                Variable::Heap(x) => compression.compress_heap(seg_len, x, buf),
+            }
 
             // write size
             let len = (buf.len() - start_len) as u64;
@@ -242,31 +255,26 @@ impl Compression {
 mod test {
     use super::*;
     use crate::test_utils::*;
+    use crate::segment::Buffer;
 
     #[test]
     fn test_decimal() {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
 
+        let heaps = vec![false; nvars];
+        let mut buf = Buffer::new(heaps.as_slice());
+
+        let mut item = vec![[0u8; 8]; nvars];
         let mut timestamps = [0; 256];
-        let mut v = Vec::new();
-        for _ in 0..nvars {
-            v.push([[0u8; 8]; 256]);
-        }
-
         for (idx, sample) in data[0..256].iter().enumerate() {
-            timestamps[idx] = sample.ts;
-            for (var, val) in sample.values.iter().enumerate() {
-                v[var][idx] = val.to_be_bytes();
+            for (i, val) in sample.values.iter().enumerate() {
+                item[i] = val.to_be_bytes();
             }
+            timestamps[idx] = sample.ts;
+            buf.push_item(sample.ts, item.as_slice()).unwrap();
         }
-
-        let segment = FullSegment {
-            len: 256,
-            nvars,
-            ts: &timestamps,
-            data: v.as_slice(),
-        };
+        let segment = buf.to_flush().unwrap();
 
         let mut compression = Vec::new();
         for _ in 0..nvars {
@@ -305,21 +313,17 @@ mod test {
         use crate::sample::Bytes;
         let data = &*LOG_DATA;
 
+        let heaps = vec![true; 1];
+        let mut buf = Buffer::new(heaps.as_slice());
+
+        let mut item = vec![[0u8; 8]; 1];
         let mut timestamps = [0; 256];
-        let mut v = Vec::new();
-        v.push([[0u8; 8]; 256]);
         for (idx, sample) in data[0..256].iter().enumerate() {
             timestamps[idx] = idx as u64;
             let ptr = Bytes::from_slice(sample.as_bytes()).into_raw();
-            v[0][idx] = (ptr as u64).to_be_bytes();
+            buf.push_item(idx as u64, &[(ptr as u64).to_be_bytes()]).unwrap();
         }
-
-        let segment = FullSegment {
-            len: 256,
-            nvars: 1,
-            ts: &timestamps,
-            data: v.as_slice(),
-        };
+        let segment = buf.to_flush().unwrap();
 
         let mut compression = Vec::new();
         compression.push(CompressFn::BytesLZ4);

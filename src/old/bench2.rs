@@ -13,7 +13,7 @@
 #![feature(llvm_asm)]
 #![feature(proc_macro_hygiene)]
 
-mod compression2;
+mod compression;
 mod constants;
 mod id;
 mod persistent_list;
@@ -25,6 +25,8 @@ mod test_utils;
 mod utils;
 mod writer;
 mod zipf;
+mod runtime;
+mod series;
 
 #[macro_use]
 mod rdtsc;
@@ -45,7 +47,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use compression2::*;
+use compression::*;
 use constants::*;
 use dashmap::DashMap;
 use id::SeriesId;
@@ -56,6 +58,7 @@ use seq_macro::seq;
 use tags::*;
 use writer::*;
 use zipf::*;
+use series::*;
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
@@ -165,7 +168,14 @@ fn consume<W: ChunkWriter + 'static>(
             }
             Compression::from(v)
         };
-        let series_meta = SeriesMetadata::new(id, NSEGMENTS, nvars, compression, buffer.clone());
+        let series_config = SeriesConfg {
+            tags,
+            types: vec![Types::F64; nvars],
+            compression: Compression::from(vec![CompressFn::Decimal(3); nvars]),
+            seg_count: NSEGMENTS,
+            nvars,
+        };
+        let series_meta = Series::new(series_config, buffer.clone());
         global.insert(id, series_meta.clone());
         refs.push(write_thread.register(id));
         data.push(d.as_slice());
