@@ -28,8 +28,6 @@ pub mod writer;
 pub mod runtime;
 mod zipf;
 
-
-
 #[macro_use]
 mod rdtsc;
 
@@ -39,6 +37,7 @@ use std::{
     collections::HashMap,
     convert::TryInto,
     fs::OpenOptions,
+    fs::File,
     io::prelude::*,
     path::PathBuf,
     sync::{
@@ -60,13 +59,14 @@ use seq_macro::seq;
 use tags::*;
 use writer::*;
 use zipf::*;
+use series::*;
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
 const NSERIES: usize = 10_000;
 const NTHREADS: usize = 1;
 const BUFSZ: usize = 1_000_000;
-const NSEGMENTS: usize = 3;
+const NSEGMENTS: usize = 1;
 const UNIVARIATE: bool = false;
 //const COMPRESSION: Compression = Compression::XOR;
 //const COMPRESSION: Compression = Compression::Decimal(3);
@@ -118,6 +118,7 @@ fn main() {
         compression: Compression::from(vec![CompressFn::BytesLZ4]),
         seg_count: NSEGMENTS,
         nvars: 1,
+        types: vec![Types::Bytes],
     };
 
     let mut writer = mach.new_writer().unwrap();
@@ -127,15 +128,19 @@ fn main() {
     let mut samples = 0;
     let mut retries = 0;
     let now = Instant::now();
+    let mut intervals = now;
+    let interval = 1_000_000;
+    let interval_f64 = 1_000_000.;
     println!("INSERTING DATA");
     for (idx, sample) in DATA.iter().enumerate() {
-        if idx % 1_000_000 == 0 {
-            let elapsed = now.elapsed().as_secs_f64();
+        if idx % interval == 0 {
+            let elapsed = intervals.elapsed().as_secs_f64();
             println!(
                 "INSERTED {} @ RATE: {}",
-                samples,
-                (samples as f64 / elapsed) / 1_000_000.
+                interval,
+                interval_f64 / elapsed,
             );
+            intervals = Instant::now();
         }
         'inner: loop {
             let res = writer.push_sample(ref_id, *sample);

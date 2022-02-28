@@ -1,7 +1,20 @@
 mod buffer;
-//mod full_segment;
+mod full_segment;
 mod segment;
-//mod wrapper;
+mod wrapper;
+
+use std::ops::Deref;
+use std::sync::{
+    atomic::{AtomicBool, Ordering::SeqCst},
+    Arc,
+};
+
+pub use buffer::ReadBuffer;
+pub use full_segment::FullSegment;
+
+use buffer::InnerPushStatus;
+
+//pub use wrapper::Segment;
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum Error {
@@ -14,18 +27,6 @@ pub enum Error {
     FlushingHead,
     MultipleFlushers,
 }
-
-
-use std::ops::Deref;
-use std::sync::{
-    atomic::{AtomicBool, Ordering::SeqCst},
-    Arc,
-};
-pub use buffer::*;
-
-//pub use wrapper::Segment;
-
-pub type FullSegment<'a> = FlushBuffer<'a>;
 
 //#[derive(Debug)]
 pub enum PushStatus {
@@ -52,12 +53,13 @@ impl PushStatus {
 #[derive(Clone)]
 pub struct Segment {
     has_writer: Arc<AtomicBool>,
-    inner: *mut segment::Segment,
+    //has_flusher: Arc<AtomicBool>,
+    inner: wrapper::Segment,
 }
 
 pub struct WriteSegment {
+    inner: wrapper::Segment,
     has_writer: Arc<AtomicBool>,
-    inner: *mut segment::Segment,
 }
 
 impl Drop for WriteSegment {
@@ -67,7 +69,8 @@ impl Drop for WriteSegment {
 }
 
 pub struct FlushSegment {
-    inner: *mut segment::Segment,
+    inner: wrapper::Segment,
+    //has_flusher: Arc<AtomicBool>,
 }
 
 pub struct ReadSegment {
@@ -94,7 +97,8 @@ impl Segment {
     pub fn new(b: usize, v: usize, heap: &[bool]) -> Self {
         Self {
             has_writer: Arc::new(AtomicBool::new(false)),
-            inner: Box::into_raw(Box::new(segment::Segment::new(b, heap)))
+            //has_flusher: Arc::new(AtomicBool::new(false)),
+            inner: wrapper::Segment::new(b, v, heap),
         }
     }
 
@@ -103,7 +107,7 @@ impl Segment {
             Err(Error::MultipleWriters)
         } else {
             Ok(WriteSegment {
-                inner: self.inner,
+                inner: self.inner.clone(),
                 has_writer: self.has_writer.clone(),
             })
         }
@@ -114,8 +118,8 @@ impl Segment {
     //        Err(Error::MultipleFlushers)
     //    } else {
     //        Ok(FlushSegment {
+    //            inner: self.inner.clone(),
     //            has_flusher: self.has_flusher.clone(),
-    //            inner: self.inner,
     //        })
     //    }
     //}
@@ -123,34 +127,49 @@ impl Segment {
     pub fn snapshot(&self) -> Result<ReadSegment, Error> {
         // Safety: Safe because a reader and a flusher do not race (see to_flush), and a reader and
         // writer can race but the reader checks the version number before returning
-        let inner: &segment::Segment = unsafe { self.inner.as_ref().unwrap() };
-        let inner_information = inner.read()?;
         unsafe {
             Ok(ReadSegment {
-                inner: inner_information,
+                inner: self.inner.read()?,
             })
         }
     }
 }
 
 impl WriteSegment {
-    pub fn push(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<PushStatus, Error> {
-        self.push_item(ts, val)
+    pub fn push_univariate(&mut self, ts: u64, val: [u8; 8]) -> Result<PushStatus, Error> {
+        // Safety: Safe because there is only one writer, one flusher, and many concurrent readers.
+        // Readers don't race with the writer because of the atomic counter. Writer and flusher do
+        // not race because the writer is bounded by the flush_counter which can only be
+        // incremented by the flusher
+        let res = unsafe { self.inner.push_univariate(ts, val) }?;
+        Ok(match res {
+            InnerPushStatus::Done => PushStatus::Done,
+            InnerPushStatus::Flush => PushStatus::Flush(self.flush()),
+        })
     }
 
-    pub fn push_item (
+    pub fn push_item<const I: usize>(
         &mut self,
         ts: u64,
-        val: &[[u8; 8]],
+        val: [[u8; 8]; I],
     ) -> Result<PushStatus, Error> {
         // Safety: Safe because there is only one writer, one flusher, and many concurrent readers.
         // Readers don't race with the writer because of the atomic counter. Writer and flusher do
         // not race because the writer is bounded by the flush_counter which can only be
         // incremented by the flusher
-        let res = unsafe {
-            let inner = self.inner.as_mut().unwrap();
-            inner.push_item(ts, val)
-        }?;
+        let res = unsafe { self.inner.push_item(ts, val) }?;
+        Ok(match res {
+            InnerPushStatus::Done => PushStatus::Done,
+            InnerPushStatus::Flush => PushStatus::Flush(self.flush()),
+        })
+    }
+
+    pub fn push(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<PushStatus, Error> {
+        // Safety: Safe because there is only one writer, one flusher, and many concurrent readers.
+        // Readers don't race with the writer because of the atomic counter. Writer and flusher do
+        // not race because the writer is bounded by the flush_counter which can only be
+        // incremented by the flusher
+        let res = unsafe { self.inner.push(ts, val) }?;
         Ok(match res {
             InnerPushStatus::Done => PushStatus::Done,
             InnerPushStatus::Flush => PushStatus::Flush(self.flush()),
@@ -159,28 +178,22 @@ impl WriteSegment {
 
     pub fn flush(&self) -> FlushSegment {
         FlushSegment {
-            inner: self.inner,
+            inner: self.inner.clone(),
         }
     }
 }
 
 impl FlushSegment {
-    pub fn to_flush(&self) -> Option<FlushBuffer> {
+    pub fn to_flush(&self) -> Option<FullSegment> {
         // Safety: Safe because there is only one flusher, one writer, and many concurrent readers.
         // Readers don't race with the flusher because the flusher does not modify the segments.
         // Writer and flusher do not race because the writer is bounded by the flush_counter,
         // incremented by this struct using the flushed method
-        unsafe {
-            let inner = self.inner.as_ref().unwrap();
-            inner.to_flush()
-        }
+        unsafe { self.inner.to_flush() }
     }
 
     pub fn flushed(&self) {
-        unsafe {
-            let inner = self.inner.as_ref().unwrap();
-            inner.flushed()
-        }
+        self.inner.flushed()
     }
 }
 
@@ -320,8 +333,8 @@ mod test {
         }
         let flusher = writer.flush();
         let seg = flusher.to_flush().unwrap();
-        assert_eq!(seg.len(), 256);
-        assert_eq!(seg.nvars(), nvars);
+        assert_eq!(seg.len, 256);
+        assert_eq!(seg.nvars, nvars);
         assert_eq!(seg.timestamps(), &exp_ts[..256]);
         for i in 0..nvars {
             assert_eq!(seg.variable(i), &exp_values[i][..256]);
@@ -330,7 +343,7 @@ mod test {
 
         let flusher = writer.flush();
         let seg = flusher.to_flush().unwrap();
-        assert_eq!(seg.len(), 256);
+        assert_eq!(seg.len, 256);
         assert_eq!(seg.timestamps(), &exp_ts[256..512]);
         for i in 0..nvars {
             assert_eq!(seg.variable(i), &exp_values[i][256..512]);

@@ -92,26 +92,26 @@ impl Writer {
         sample: Sample<V>,
     ) -> Result<(), Error> {
         let reference = *reference;
-        match self.writers[reference].push_item(sample.timestamp, sample.values)? {
+        match self.writers[reference].push_item(sample.timestamp, &sample.values[..])? {
             segment::PushStatus::Done => {}
             segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
         }
         Ok(())
     }
 
-    pub fn push_univariate(
-        &mut self,
-        reference: SeriesRef,
-        ts: u64,
-        data: [u8; 8],
-    ) -> Result<(), Error> {
-        let reference = *reference;
-        match self.writers[reference].push_univariate(ts, data)? {
-            segment::PushStatus::Done => {}
-            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
-        }
-        Ok(())
-    }
+    //pub fn push_univariate(
+    //    &mut self,
+    //    reference: SeriesRef,
+    //    ts: u64,
+    //    data: [u8; 8],
+    //) -> Result<(), Error> {
+    //    let reference = *reference;
+    //    match self.writers[reference].push_univariate(ts, data)? {
+    //        segment::PushStatus::Done => {}
+    //        segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
+    //    }
+    //    Ok(())
+    //}
 }
 
 struct FlushMeta {
@@ -265,6 +265,7 @@ mod test {
             compression,
             seg_count: 1,
             nvars,
+            types: vec![Types::F64; nvars],
         };
 
         let series_meta = Series::new(series_conf, buffer.clone());

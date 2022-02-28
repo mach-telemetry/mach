@@ -42,7 +42,6 @@ impl inner::ChunkReader for FileReader {
     }
 }
 
-//#[derive(Clone)]
 pub struct FileWriter {
     file: File,
     current_offset: usize,

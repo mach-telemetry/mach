@@ -1,87 +1,71 @@
 use crate::constants::*;
-use crate::segment::{buffer::*, Error, FullSegment, InnerPushStatus};
+use crate::segment::{buffer::*, Error};
 use std::{
     mem,
     sync::atomic::{AtomicIsize, AtomicUsize, Ordering::SeqCst},
 };
 
-fn init_buffer_array<const B: usize, const V: usize>() -> [Buffer<V>; B] {
-    let mut buffers: [mem::MaybeUninit<Buffer<V>>; B] = mem::MaybeUninit::uninit_array();
-    for b in buffers.iter_mut() {
-        b.write(Buffer::<V>::new());
-    }
-    unsafe { mem::MaybeUninit::array_assume_init(buffers) }
-}
-
-pub struct Segment<const B: usize, const V: usize> {
-    local_count: usize,
+pub struct Segment {
     local_head: usize, // always tracks the atomic head
     head: AtomicUsize,
     flushed: AtomicIsize,
-    buffers: [Buffer<V>; B],
+    current_buffer: *mut Buffer,
+    buffers: Vec<Buffer>,
 }
 
-impl<const B: usize, const V: usize> Segment<B, V> {
-    pub fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
-        if self.local_count == SEGSZ {
-            self.try_next_buffer();
+impl Segment {
+    pub fn push_item(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
+        //if self.current_buffer().is_full() {
+        //    self.try_next_buffer();
+        //}
+        //if self.local_count == SEGSZ {
+        //}
+        let mut buf = unsafe { self.current_buffer.as_mut().unwrap() };
+        let res = buf.push_item(ts, item);
+        match res {
+            Err(Error::PushIntoFull) => {
+                self.try_next_buffer();
+                buf = unsafe { self.current_buffer.as_mut().unwrap() };
+                buf.push_item(ts, item)
+            },
+            Err(x) => Err(x),
+            Ok(x) => Ok(x)
         }
-        let res = self.current_buffer().push_univariate(ts, item);
-        if res.is_ok() {
-            self.local_count += 1;
-        }
-        res
-    }
-
-    pub fn push_item(&mut self, ts: u64, item: [[u8; 8]; V]) -> Result<InnerPushStatus, Error> {
-        if self.local_count == SEGSZ {
-            self.try_next_buffer();
-        }
-        let res = self.current_buffer().push_item(ts, item);
-        if res.is_ok() {
-            self.local_count += 1;
-        }
-        res
-    }
-
-    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
-        if self.local_count == SEGSZ {
-            self.try_next_buffer();
-        }
-        let res = self.current_buffer().push(ts, item);
-        if res.is_ok() {
-            self.local_count += 1;
-        }
-        res
+        //if res.is_ok() {
+        //    self.local_count += 1;
+        //}
+        //res
     }
 
     #[inline]
-    fn current_buffer(&mut self) -> &mut Buffer<V> {
-        &mut self.buffers[self.local_head % B]
+    fn current_buffer(&mut self) -> &mut Buffer {
+        let b = self.buffers.len();
+        &mut self.buffers[self.local_head % b]
     }
 
     fn try_next_buffer(&mut self) -> bool {
+        let b = self.buffers.len();
         let flushed = self.flushed.load(SeqCst);
-        //println!("local: {}, flushed: {}, B: {}", self.local_head, flushed, B);
-        if self.local_head as isize - flushed < B as isize {
-            //println!("HERE");
+        if self.local_head as isize - flushed < self.buffers.len() as isize {
             self.local_head = self.head.fetch_add(1, SeqCst) + 1;
-            let buf = &mut self.buffers[self.local_head % B];
+            // reset the new current buffer
+            let buf = &mut self.buffers[self.local_head % b];
             buf.reset();
-            self.local_count = 0;
+            self.current_buffer = buf;
             true
         } else {
             false
         }
     }
 
-    pub fn to_flush(&self) -> Option<FullSegment> {
+    pub fn to_flush(&self) -> Option<FlushBuffer> {
         let head = self.head.load(SeqCst);
         let to_flush = self.flushed.load(SeqCst) + 1;
         if head as isize >= to_flush {
-            let buf = &self.buffers[to_flush as usize % B];
+            let buf = &self.buffers[to_flush as usize % self.buffers.len()];
             buf.to_flush()
         } else {
+            println!("SEGMENT NONE");
             None
         }
     }
@@ -120,13 +104,13 @@ impl<const B: usize, const V: usize> Segment<B, V> {
         Ok(copies)
     }
 
-    pub fn new() -> Self {
-        let buffers = init_buffer_array();
+    pub fn new(nbuffers: usize, heap_pointers: &[bool]) -> Self {
+        let mut buffers: Vec<Buffer> = (0..nbuffers).map(|_| Buffer::new(heap_pointers)).collect();
         Segment {
-            local_count: 0,
             local_head: 0,
             head: AtomicUsize::new(0),
             flushed: AtomicIsize::new(-1),
+            current_buffer: &mut buffers[0],
             buffers,
         }
     }

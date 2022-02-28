@@ -1,11 +1,21 @@
 use crate::constants::*;
-use crate::segment::{full_segment::FullSegment, Error};
+//use crate::segment::{full_segment::FullSegment, Error};
+use crate::runtime::RUNTIME;
+use crate::sample::Bytes;
+use crate::segment::Error;
 use crate::utils::wp_lock::*;
+use lazy_static::*;
 use std::cell::UnsafeCell;
-use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+use std::convert::TryInto;
+use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
-pub type Column = [[u8; 8]; SEGSZ];
-//pub type ColumnSet = [Column];
+const HEAP_SZ: usize = 1_000_000;
+const HEAP_TH: usize = 3 * (HEAP_SZ / 4);
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum InnerPushStatus {
@@ -13,156 +23,147 @@ pub enum InnerPushStatus {
     Flush,
 }
 
-struct Inner<const V: usize> {
-    ts: [u64; SEGSZ],
-    data: [Column; V],
-}
-
-struct InnerBuffer<const V: usize> {
+struct InnerBuffer {
+    is_full: bool,
     atomic_len: AtomicUsize,
     len: usize,
-    inner: Inner<V>,
+    ts: [u64; SEGSZ],
+    data: Vec<[[u8; 8]; SEGSZ]>,
+    heap: Vec<Option<Vec<u8>>>,
+    heap_flags: Vec<bool>,
 }
 
-impl<const V: usize> InnerBuffer<V> {
-    fn new() -> Self {
+impl InnerBuffer {
+    fn new(heap_pointers: &[bool]) -> Self {
+        let nvars = heap_pointers.len();
+        //let heap_count = heap_pointers.iter().map(|x| *x as usize).sum();
+
+        // Heap
+        let mut heap = Vec::new();
+        for in_heap in heap_pointers {
+            if *in_heap {
+                heap.push(Some(Vec::with_capacity(HEAP_SZ)));
+            } else {
+                heap.push(None);
+            }
+        }
+
+        let mut data = Vec::new();
+        for _ in 0..nvars {
+            data.push([[0u8; 8]; SEGSZ]);
+        }
+
+        // Flag
+        let heap_flags = heap_pointers.into();
+
         InnerBuffer {
-            len: 0,
-            inner: Inner {
-                ts: [0u64; SEGSZ],
-                data: [[[0u8; 8]; 256]; V],
-            },
+            is_full: false,
             atomic_len: AtomicUsize::new(0),
+            len: 0,
+            ts: [0u64; SEGSZ],
+            heap,
+            data,
+            heap_flags,
         }
     }
 
-    fn push_item(&mut self, ts: u64, item: [[u8; 8]; V]) -> Result<InnerPushStatus, Error> {
+    fn push_item(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
+        if self.is_full {
+            return Err(Error::PushIntoFull);
+        }
         let len = self.len;
-        if len < SEGSZ - 1 {
-            self.inner.ts[len] = ts;
-            for i in 0..V {
-                self.inner.data[i][len] = item[i];
+        self.ts[len] = ts;
+        let mut heap_offset = 0;
+        for (i, heap) in self.heap_flags.iter().enumerate() {
+            let mut item = item[i];
+            if *heap {
+                let b = unsafe { Bytes::from_sample_entry(item) };
+                let bytes = b.as_raw_bytes();
+                let heap = self.heap[heap_offset].as_mut().unwrap();
+                let cur_len = heap.len();
+                let len_after = bytes.len() + heap.len();
+                heap.extend_from_slice(b.as_raw_bytes());
+                if len_after > HEAP_TH {
+                    self.is_full = true;
+                }
+                b.into_raw();
+                heap_offset += 1;
+                item = ((&heap[cur_len..]).as_ptr() as u64).to_be_bytes();
             }
-            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            //self.len += 1;
-            Ok(InnerPushStatus::Done)
-        } else if len == SEGSZ - 1 {
-            self.inner.ts[len] = ts;
-            for i in 0..V {
-                self.inner.data[i][len] = item[i];
-            }
-            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            //self.len += 1;
+            self.data[i][len] = item;
+        }
+        self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
+        if self.len == SEGSZ {
+            self.is_full = true;
+        }
+        if self.is_full {
             Ok(InnerPushStatus::Flush)
         } else {
-            Err(Error::PushIntoFull)
+            Ok(InnerPushStatus::Done)
         }
     }
 
-    fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
-        let len = self.len;
-        if len < SEGSZ - 1 {
-            self.inner.ts[len] = ts;
-            for i in 0..V {
-                self.inner.data[i][len] = item[i];
-            }
-            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            //self.len += 1;
-            Ok(InnerPushStatus::Done)
-        } else if len == SEGSZ - 1 {
-            self.inner.ts[len] = ts;
-            for i in 0..V {
-                self.inner.data[i][len] = item[i];
-            }
-            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            //self.len += 1;
-            Ok(InnerPushStatus::Flush)
-        } else {
-            Err(Error::PushIntoFull)
-        }
-    }
-
-    fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
-        let len = self.len;
-        if len < SEGSZ - 1 {
-            self.inner.ts[len] = ts;
-            self.inner.data[0][len] = item;
-            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            //self.len += 1;
-            Ok(InnerPushStatus::Done)
-        } else if len == SEGSZ - 1 {
-            self.inner.ts[len] = ts;
-            self.inner.data[0][len] = item;
-            self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;
-            //self.len += 1;
-            Ok(InnerPushStatus::Flush)
-        } else {
-            Err(Error::PushIntoFull)
-        }
+    pub fn is_full(&self) -> bool {
+        self.is_full
     }
 
     fn reset(&mut self) {
         self.atomic_len.store(0, SeqCst);
         self.len = 0;
+        self.is_full = false;
+        for h in self.heap.iter_mut() {
+            match h {
+                Some(v) => v.clear(),
+                None => {}
+            }
+        }
     }
 
     fn read(&self) -> ReadBuffer {
         let len = self.atomic_len.load(SeqCst);
-        let mut data = Vec::new();
-        let mut ts = [0u64; 256];
-        let inner: &Inner<V> = &self.inner;
-        ts[..len].copy_from_slice(&inner.ts[..len]);
-        for v in inner.data.iter() {
-            data.extend_from_slice(&v[..len]);
+        ReadBuffer {
+            len,
+            ts: self.ts,
+            data: self.data.clone(),
+            heap: self.heap.clone(),
+            heap_flags: self.heap_flags.clone(),
         }
-        ReadBuffer { len, ts, data }
     }
 
-    fn to_flush(&self) -> Option<FullSegment> {
+    fn to_flush(&self) -> Option<FlushBuffer> {
+        //println!("In to_flush in Buffer");
         let len = self.atomic_len.load(SeqCst);
-        //let len = self.len;
-        let inner: &Inner<V> = &self.inner;
         if len > 0 {
-            Some(FullSegment {
-                len,
-                nvars: V,
-                ts: &inner.ts,
-                data: &inner.data[..],
-            })
+            Some(FlushBuffer { len, inner: self })
         } else {
+            //println!("Buffer: NONE");
             None
         }
     }
 }
 
 /// SAFETY: Inner buffer doesn't deallocate memory in any of its API (except Drop)
-unsafe impl<const V: usize> NoDealloc for InnerBuffer<V> {}
+unsafe impl NoDealloc for InnerBuffer {}
 
-#[repr(C)]
-pub struct Buffer<const V: usize> {
-    inner: WpLock<InnerBuffer<V>>,
+pub struct Buffer {
+    inner: WpLock<InnerBuffer>,
 }
 
-impl<const V: usize> Buffer<V> {
-    pub fn new() -> Self {
+impl Buffer {
+    pub fn new(heap_pointers: &[bool]) -> Self {
         Self {
-            inner: WpLock::new(InnerBuffer::new()),
+            inner: WpLock::new(InnerBuffer::new(heap_pointers)),
         }
     }
 
-    pub fn push_item(&mut self, ts: u64, item: [[u8; 8]; V]) -> Result<InnerPushStatus, Error> {
+    pub fn is_full(&self) -> bool {
+        // Safe because the is_full method does not race with another method in buffer
+        unsafe { self.inner.unprotected_read().is_full() }
+    }
+
+    pub fn push_item(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         // Safe because the push method does not race with another method in buffer
         unsafe { self.inner.unprotected_write().push_item(ts, item) }
-    }
-
-    pub fn push(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
-        // Safe because the push method does not race with another method in buffer
-        unsafe { self.inner.unprotected_write().push(ts, item) }
-    }
-
-    pub fn push_univariate(&mut self, ts: u64, item: [u8; 8]) -> Result<InnerPushStatus, Error> {
-        // Safe because the push method does not race with another method in buffer
-        unsafe { self.inner.unprotected_write().push_univariate(ts, item) }
     }
 
     pub fn reset(&mut self) {
@@ -178,20 +179,65 @@ impl<const V: usize> Buffer<V> {
         }
     }
 
-    pub fn to_flush(&self) -> Option<FullSegment> {
+    pub fn to_flush(&self) -> Option<FlushBuffer> {
         // Safe because the to_flush method does not race with another method requiring mutable
         // access. Uses ref because we can't use the wp lock guard as the lifetime
         unsafe { self.inner.unprotected_read().to_flush() }
     }
 }
 
+pub enum Variable<'a> {
+    Var(&'a [[u8; 8]]),
+    Heap(&'a [u8]),
+}
+
+pub struct FlushBuffer<'a> {
+    len: usize,
+    inner: &'a InnerBuffer,
+}
+
+impl<'a> FlushBuffer<'a> {
+    pub fn variable(&self, i: usize) -> &[[u8; 8]] {
+        &self.inner.data[i][..self.len]
+    }
+
+    pub fn get_variable(&self, i: usize) -> Variable {
+        match &self.inner.heap[i] {
+            Some(x) => Variable::Heap(x.as_slice()),
+            None => Variable::Var(self.variable(i)),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn nvars(&self) -> usize {
+        self.inner.heap_flags.len()
+    }
+
+    pub fn timestamps(&self) -> &[u64] {
+        &self.inner.ts[..self.len]
+    }
+}
+
 pub struct ReadBuffer {
     len: usize,
     ts: [u64; 256],
-    data: Vec<[u8; 8]>,
+    data: Vec<[[u8; 8]; SEGSZ]>,
+    heap: Vec<Option<Vec<u8>>>,
+    heap_flags: Vec<bool>,
 }
 
 impl ReadBuffer {
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn variable(&self, i: usize) -> &[[u8; 8]] {
+        &self.data[i][..self.len]
+    }
+
     pub fn get_timestamp_at(&self, i: usize) -> u64 {
         let i = self.len - i - 1;
         self.ts[i]
@@ -202,16 +248,7 @@ impl ReadBuffer {
         self.variable(var)[i]
     }
 
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
     pub fn timestamps(&self) -> &[u64] {
         &self.ts[..self.len]
-    }
-
-    pub fn variable(&self, id: usize) -> &[[u8; 8]] {
-        let start = self.len * id;
-        &self.data[start..start + self.len]
     }
 }

@@ -4,8 +4,9 @@ use std::{
     sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
 };
 
-/// SAFETY: Impl only if the struct has ZERO deallocations during &mut T. For example, Vec CANNOT
-/// impl this trait because Vec may dealloc when growing
+/// SAFETY: Impl only if the struct has ZERO deallocations during &mut T that are accessible to
+/// the reader. For example, Vec CANNOT impl this trait because Vec may dealloc when growing.
+/// However, if the Vec isn't accessible to the reader, this should be safe.
 pub unsafe trait NoDealloc {}
 
 #[derive(std::fmt::Debug)]
@@ -54,11 +55,13 @@ impl<T: NoDealloc> WpLock<T> {
     }
 
     /// Safety: Ensure that access to T does not race with write or get_mut_ref
+    #[inline]
     pub unsafe fn unprotected_read(&self) -> &T {
         self.item.get().as_ref().unwrap()
     }
 
     /// Safety: Ensure that access to T does not race with any other method call
+    #[inline]
     pub unsafe fn unprotected_write(&self) -> &mut T {
         self.item.get().as_mut().unwrap()
     }

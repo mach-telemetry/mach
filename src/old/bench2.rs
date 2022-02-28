@@ -11,12 +11,14 @@
 #![feature(llvm_asm)]
 #![feature(proc_macro_hygiene)]
 
-mod compression2;
+mod compression;
 mod constants;
 mod id;
 mod persistent_list;
+mod runtime;
 mod sample;
 mod segment;
+mod series;
 mod tags;
 mod test_utils;
 mod tsdb;
@@ -44,7 +46,7 @@ use std::{
 };
 use tsdb::{Mach, SeriesConfig};
 
-use compression2::*;
+use compression::*;
 use constants::*;
 use dashmap::DashMap;
 use id::*;
@@ -52,6 +54,7 @@ use lazy_static::lazy_static;
 use persistent_list::*;
 use sample::*;
 use seq_macro::seq;
+use series::*;
 use tags::*;
 use writer::*;
 use zipf::*;
@@ -123,7 +126,62 @@ fn read_data() -> Vec<Vec<(u64, Box<[[u8; 8]]>)>> {
         .collect()
 }
 
-fn consume(mut writer: Writer, mut data: Vec<&[(u64, Box<[[u8; 8]]>)]>, mut refs: Vec<usize>) {
+fn consume<W: ChunkWriter + 'static>(
+    id_counter: Arc<AtomicUsize>,
+    global: Arc<DashMap<SeriesId, SeriesMetadata>>,
+    persistent_writer: W,
+) {
+    // Setup write thread
+    let mut write_thread = Writer::new(global.clone(), persistent_writer);
+
+    // The buffer used by all time series in this writer
+    let buffer = Buffer::new(BUFSZ);
+
+    // Load data
+    let mut base_data = &DATA;
+
+    // Series will use fixed compression with precision of 10 bits
+    //let compression = COMPRESSION;
+
+    // Vectors to hold series-specific information
+    let mut data: Vec<&[(u64, Box<[[u8; 8]]>)]> = Vec::new();
+    //let mut meta: Vec<SeriesMetadata> = Vec::new();
+    let mut refs: Vec<usize> = Vec::new();
+
+    // Generate series specific information, register, then collect the information into the vecs
+    // each series uses 3 active segments
+    // println!("TOTAL BASE_DATA {}", base_data.len());
+    for i in 0..NSERIES {
+        //let i = SeriesId(id_counter.fetch_add(1, SeqCst));
+        let mut map = HashMap::new();
+        map.insert("id".into(), format!("{}", rand::thread_rng().gen::<u64>()));
+        let tags = Tags::from(map);
+        let id = tags.id();
+        let idx = rand::thread_rng().gen_range(0..base_data.len());
+        let d = &base_data[idx];
+        let nvars = d[0].1.len();
+        let compression = {
+            let mut v = Vec::new();
+            for _ in 0..nvars {
+                v.push(CompressFn::Decimal(3));
+            }
+            Compression::from(v)
+        };
+        let series_config = SeriesConfg {
+            tags,
+            types: vec![Types::F64; nvars],
+            compression: Compression::from(vec![CompressFn::Decimal(3); nvars]),
+            seg_count: NSEGMENTS,
+            nvars,
+        };
+        let series_meta = Series::new(series_config, buffer.clone());
+        global.insert(id, series_meta.clone());
+        refs.push(write_thread.register(id));
+        data.push(d.as_slice());
+        //meta.push(series_meta);
+    }
+
+    // Change zipfian when avaiable data become less than the zipfian possible values
     let mut z1000 = Zipfian::new(1000, ZIPF);
     let mut z100 = Zipfian::new(100, ZIPF);
     let mut z10 = Zipfian::new(10, ZIPF);
