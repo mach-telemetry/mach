@@ -164,6 +164,7 @@ struct IngestionWorker {
     refids: Vec<usize>,
     series: Vec<&'static [RawSample]>,
     next: Vec<usize>,
+    wraparounds: Vec<usize>,
     num_pushed: usize,
 }
 
@@ -174,6 +175,7 @@ impl IngestionWorker {
             refids: Vec::new(),
             series: Vec::new(),
             next: Vec::new(),
+            wraparounds: Vec::new(),
             num_pushed: 0,
         }
     }
@@ -184,6 +186,7 @@ impl IngestionWorker {
         self.refids.push(*refid);
         self.series.push(series_data);
         self.next.push(0);
+        self.wraparounds.push(0);
     }
 
     fn ingest(&mut self) {
@@ -205,10 +208,11 @@ impl IngestionWorker {
         let victim = zipf_picker.next();
         let series = self.series[victim];
         let refid = self.refids[victim];
-        let raw_sample = &series[self.next[victim] % series.len()];
+        let raw_sample = &series[self.next[victim]];
 
-        let series_ts_delta = series.last().unwrap().0 - series.first().unwrap().0;
-        let timestamp = raw_sample.0 + series_ts_delta * (self.next[victim] / series.len()) as u64;
+        // shift each sample's timestamp forward in time to avoid duplicated timestamps.
+        let ts_offset = series.last().unwrap().0 - series[0].0 + series[1].0 - series[0].0;
+        let timestamp = raw_sample.0 + ts_offset * self.wraparounds[victim] as u64;
 
         seq!(N in 1..10 {
             match raw_sample.1.len() {
@@ -222,7 +226,13 @@ impl IngestionWorker {
                     let res = self.writer.push_sample(SeriesRef(refid), sample);
 
                     if res.is_ok() {
-                        self.next[victim] += 1;
+                        match self.next[victim] {
+                            _ if self.next[victim] == series.len() - 1 => {
+                                self.next[victim] = 0;
+                                self.wraparounds[victim] += 1;
+                            },
+                            _ => self.next[victim] += 1,
+                        }
                     }
 
                    return res;
