@@ -150,8 +150,11 @@ impl ZipfianPicker {
     }
 
     fn next(&mut self) -> usize {
-        let selected = self.selection_pool[self.counter % self.selection_pool.len()];
-        self.counter += 1;
+        let selected = self.selection_pool[self.counter];
+        self.counter = match self.counter {
+            _ if self.counter == self.selection_pool.len() - 1 => 0,
+            _ => self.counter + 1,
+        };
         selected
     }
 }
