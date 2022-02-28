@@ -204,12 +204,22 @@ impl IngestionWorker {
 
         let mut zipf_picker = ZipfianPicker::new(self.series.len() as u64);
 
+        let now = Instant::now();
+
         while self.num_pushed < NUM_INGESTS_PER_THR {
             match self._ingest_sample(&mut zipf_picker) {
                 Ok(..) => self.num_pushed += 1,
                 Err(..) => continue,
             }
         }
+
+        let elapsed = now.elapsed().as_secs_f64();
+
+        println!("Elapsed seconds: {}", elapsed);
+        println!(
+            "Number of samples per second: {}",
+            NUM_INGESTS_PER_THR as f64 / elapsed
+        );
     }
 
     fn _ingest_sample(&mut self, mut zipf_picker: &mut ZipfianPicker) -> Result<(), writer::Error> {
