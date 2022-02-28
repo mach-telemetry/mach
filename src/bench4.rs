@@ -56,7 +56,7 @@ use lazy_static::lazy_static;
 use persistent_list::*;
 use sample::*;
 use seq_macro::seq;
-use series::SeriesConfig;
+use series::{SeriesConfig, Types};
 use tags::*;
 use writer::*;
 use zipf::*;
@@ -303,6 +303,7 @@ impl<'a, B: PersistentListBackend> IngestionMetadata<'a, B> {
             compression,
             seg_count: NSEGMENTS,
             nvars,
+            types: vec![Types::F64; nvars],
         };
 
         let (writer_id, series_id) = self
