@@ -161,11 +161,19 @@ impl ZipfianPicker {
 
 struct IngestionWorker {
     writer: Writer,
-    refids: Vec<usize>,
-    series: Vec<&'static [RawSample]>,
-    next: Vec<usize>,
-    wraparounds: Vec<usize>,
     num_pushed: usize,
+
+    // Vectors below are index-aligned; items at the same index correspond to
+    // the same time series.
+    //
+    /// RefIDs for each time series
+    refids: Vec<usize>,
+    /// Ingestion source data. Samples are reused during ingestion.
+    series: Vec<&'static [RawSample]>,
+    /// Offset pointing to current ingestion progress for each time series.
+    next: Vec<usize>,
+    /// Number of times each series's circular buffer has been wrapped around.
+    wraparounds: Vec<usize>,
 }
 
 impl IngestionWorker {
