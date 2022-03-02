@@ -49,8 +49,8 @@ name = "benchmark_logs"
 path = "src/benchmark_logs.rs"
 
 [[bin]]
-name = "bench4"
-path = "src/bench4.rs"
+name = "microbench"
+path = "src/microbench.rs"
 
 [features]
 kafka-backend = []
