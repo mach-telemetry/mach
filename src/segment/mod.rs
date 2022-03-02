@@ -22,6 +22,8 @@ use std::sync::{
     Arc,
 };
 pub use buffer::*;
+pub use serde::*;
+//use crate::reader::SampleIterator;
 
 //pub use wrapper::Segment;
 
@@ -70,9 +72,12 @@ pub struct FlushSegment {
     inner: *mut segment::Segment,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct ReadSegment {
     inner: Vec<buffer::ReadBuffer>,
 }
+
+pub type SegmentSnapshot = ReadSegment;
 
 impl Deref for ReadSegment {
     type Target = [buffer::ReadBuffer];
@@ -80,6 +85,35 @@ impl Deref for ReadSegment {
         self.inner.as_slice()
     }
 }
+
+//pub struct ReadSegmentIterator<'a> {
+//    inner: &'a mut [buffer::ReadBuffer],
+//    iterator: ReadSegmentIterator<'a>,
+//    idx: usize
+//}
+//
+//impl<'a> ReadSegmentIterator<'a> {
+//    fn next_sample(&mut self) -> Option<(u64, &[[u8; 8]])> {
+//        if self.idx < self.inner.len() {
+//            match self.inner[self.idx].next_sample() {
+//                Some(x) => Some(x),
+//                None => {
+//                    self.idx += 1;
+//                    self.next_sample()
+//                }
+//            }
+//        } else {
+//            None
+//        }
+//    }
+//
+//    fn reset(&mut self) {
+//        for inner in self.inner.iter_mut() {
+//            inner.reset();
+//        }
+//        self.idx = 0;
+//    }
+//}
 
 /// Safety for send and sync: there can only be one writer and the writes and concurrent reads are
 /// protected (no races) within buffer

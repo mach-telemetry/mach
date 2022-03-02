@@ -28,7 +28,7 @@ impl From<std::io::Error> for Error {
 
 pub use file_backend::{FileBackend, FileReader, FileWriter};
 pub use kafka_backend::{KafkaBackend, KafkaReader, KafkaWriter};
-pub use inner::{ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListWriter};
+pub use inner::{ChunkReader, ChunkWriter, List, ListBuffer, ListSnapshot, ListReader, ListWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 
 // One Backend per writer thread. Single writer, multiple readers

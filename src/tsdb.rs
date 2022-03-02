@@ -3,8 +3,9 @@ use crate::{
     persistent_list::{self, ListBuffer, ListBackend},
     id::*,
     writer::Writer,
-    series::*,
+    series::{self, *},
     constants::BUFSZ,
+    reader::Snapshot,
     //metadata::{self, Metadata},
 };
 use std::{
@@ -19,6 +20,7 @@ use rand::seq::SliceRandom;
 pub enum Error {
     PersistentList(persistent_list::Error),
     //Metadata(metadata::Error),
+    Series(series::Error),
     Uknown,
 }
 
@@ -27,6 +29,13 @@ impl From<persistent_list::Error> for Error {
         Error::PersistentList(item)
     }
 }
+
+impl From<series::Error> for Error {
+    fn from(item: series::Error) -> Self {
+        Error::Series(item)
+    }
+}
+
 
 //impl From<metadata::Error> for Error {
 //    fn from(item: metadata::Error) -> Self {
@@ -47,6 +56,10 @@ impl<B: ListBackend> Mach<B> {
             writer_table: HashMap::new(),
             series_table: Arc::new(DashMap::new()),
         }
+    }
+
+    pub fn reader(&self, id: SeriesId) -> Result<Snapshot, Error> {
+        Ok(self.series_table.get(&id).unwrap().snapshot()?)
     }
 
     pub fn new_writer(&mut self) -> Result<Writer, Error> {

@@ -4,9 +4,11 @@ use crate::{
     persistent_list::{self, List, ListBuffer, ListReader},
     id::SeriesId,
     tags::Tags,
+    reader::Snapshot,
 };
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub enum Error {
     Segment(segment::Error),
     PersistentList(persistent_list::Error),
@@ -38,11 +40,6 @@ pub struct SeriesConfig {
     pub compression: Compression,
     pub seg_count: usize,
     pub nvars: usize,
-}
-
-pub struct ReadSeries {
-    segment: ReadSegment,
-    list: ListReader,
 }
 
 #[derive(Clone)]
@@ -84,13 +81,10 @@ impl Series {
         }
     }
 
-    pub fn snapshot(&self) -> Result<ReadSeries, Error> {
+    pub fn snapshot(&self) -> Result<Snapshot, Error> {
         let segment = self.segment.snapshot()?;
         let list = self.list.read()?;
-        Ok(ReadSeries {
-            segment,
-            list
-        })
+        Ok(Snapshot::new(segment, list))
     }
 
     pub fn compression(&self) -> &Compression {
@@ -105,5 +99,4 @@ impl Series {
         &self.list
     }
 }
-
 
