@@ -15,13 +15,14 @@ pub enum Error {
     MultipleFlushers,
 }
 
-
+pub use buffer::*;
+pub use serde::*;
 use std::ops::Deref;
 use std::sync::{
     atomic::{AtomicBool, Ordering::SeqCst},
     Arc,
 };
-pub use buffer::*;
+//use crate::reader::SampleIterator;
 
 //pub use wrapper::Segment;
 
@@ -70,9 +71,12 @@ pub struct FlushSegment {
     inner: *mut segment::Segment,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct ReadSegment {
     inner: Vec<buffer::ReadBuffer>,
 }
+
+pub type SegmentSnapshot = ReadSegment;
 
 impl Deref for ReadSegment {
     type Target = [buffer::ReadBuffer];
@@ -80,6 +84,35 @@ impl Deref for ReadSegment {
         self.inner.as_slice()
     }
 }
+
+//pub struct ReadSegmentIterator<'a> {
+//    inner: &'a mut [buffer::ReadBuffer],
+//    iterator: ReadSegmentIterator<'a>,
+//    idx: usize
+//}
+//
+//impl<'a> ReadSegmentIterator<'a> {
+//    fn next_sample(&mut self) -> Option<(u64, &[[u8; 8]])> {
+//        if self.idx < self.inner.len() {
+//            match self.inner[self.idx].next_sample() {
+//                Some(x) => Some(x),
+//                None => {
+//                    self.idx += 1;
+//                    self.next_sample()
+//                }
+//            }
+//        } else {
+//            None
+//        }
+//    }
+//
+//    fn reset(&mut self) {
+//        for inner in self.inner.iter_mut() {
+//            inner.reset();
+//        }
+//        self.idx = 0;
+//    }
+//}
 
 /// Safety for send and sync: there can only be one writer and the writes and concurrent reads are
 /// protected (no races) within buffer
@@ -94,7 +127,7 @@ impl Segment {
     pub fn new(b: usize, v: usize, heap: &[bool]) -> Self {
         Self {
             has_writer: Arc::new(AtomicBool::new(false)),
-            inner: Box::into_raw(Box::new(segment::Segment::new(b, heap)))
+            inner: Box::into_raw(Box::new(segment::Segment::new(b, heap))),
         }
     }
 
@@ -138,11 +171,7 @@ impl WriteSegment {
         self.push_item(ts, val)
     }
 
-    pub fn push_item (
-        &mut self,
-        ts: u64,
-        val: &[[u8; 8]],
-    ) -> Result<PushStatus, Error> {
+    pub fn push_item(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<PushStatus, Error> {
         // Safety: Safe because there is only one writer, one flusher, and many concurrent readers.
         // Readers don't race with the writer because of the atomic counter. Writer and flusher do
         // not race because the writer is bounded by the flush_counter which can only be
@@ -158,9 +187,7 @@ impl WriteSegment {
     }
 
     pub fn flush(&self) -> FlushSegment {
-        FlushSegment {
-            inner: self.inner,
-        }
+        FlushSegment { inner: self.inner }
     }
 }
 

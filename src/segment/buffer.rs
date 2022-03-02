@@ -1,10 +1,13 @@
 use crate::constants::*;
 //use crate::segment::{full_segment::FullSegment, Error};
+use crate::reader;
 use crate::runtime::RUNTIME;
 use crate::sample::Bytes;
 use crate::segment::Error;
 use crate::utils::wp_lock::*;
+//use crate::reader::SampleIterator;
 use lazy_static::*;
+use serde::*;
 use std::cell::UnsafeCell;
 use std::convert::TryInto;
 use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
@@ -123,8 +126,8 @@ impl InnerBuffer {
         let len = self.atomic_len.load(SeqCst);
         ReadBuffer {
             len,
-            ts: self.ts,
-            data: self.data.clone(),
+            ts: self.ts.into(),
+            data: self.data.iter().map(|x| x[..].into()).collect(),
             heap: self.heap.clone(),
             heap_flags: self.heap_flags.clone(),
         }
@@ -221,10 +224,13 @@ impl<'a> FlushBuffer<'a> {
     }
 }
 
+pub type BufferSnapshot = ReadBuffer;
+
+#[derive(Serialize, Deserialize)]
 pub struct ReadBuffer {
     len: usize,
-    ts: [u64; 256],
-    data: Vec<[[u8; 8]; SEGSZ]>,
+    ts: Vec<u64>,
+    data: Vec<Vec<[u8; 8]>>,
     heap: Vec<Option<Vec<u8>>>,
     heap_flags: Vec<bool>,
 }
@@ -251,4 +257,53 @@ impl ReadBuffer {
     pub fn timestamps(&self) -> &[u64] {
         &self.ts[..self.len]
     }
+
+    //pub fn as_segment(&self) -> reader::Segment {
+    //    let mut ts = self.ts[..self.len].into();
+    //    let mut data = Vec::new();
+    //    let mut heap = Vec::new();
+
+    //    for i in 0..self.data.len() {
+    //        if self.heap_flags[i] {
+    //            for j in 0..self.len {
+    //                // Copy each bytes location into the heap
+    //                let b = unsafe { Bytes::from_sample_entry(self.data[i][j]) };
+    //                let l = heap.len();
+    //                heap.extend_from_slice(b.as_raw_bytes());
+    //                let ptr: *const u8 = (&heap[l..heap.len()]).as_ptr();
+    //                data.push((ptr as u64).to_be_bytes());
+    //                b.into_raw(); // prevent freeing
+    //            }
+    //        } else {
+    //            data.extend_from_slice(&self.data[i][..self.len]);
+    //        }
+    //    }
+    //    reader::Segment::new(ts, data, heap)
+    //}
+
+    //pub fn reader(&self) -> reader::Segment {
+    //    let mut ts = Vec::new();
+    //    let mut data = Vec::new();
+    //    let nvars = self.heap_flags.len();
+
+    //    for i in (0..self.len).rev() {
+    //        ts.push(self.ts[i]);
+    //        for col in self.data.iter() {
+    //            data.push(col[i]);
+    //        }
+    //    }
+
+    //    reader::Segment {
+    //        ts,
+    //        data,
+    //        heap: self.heap.clone(),
+    //        heap_flags: self.heap_flags.clone(),
+    //    }
+    //}
 }
+
+//impl From<ReadBuffer> for reader::Segment {
+//    fn from(buf: ReadBuffer) -> reader::Segment {
+//        buf.reader()
+//    }
+//}

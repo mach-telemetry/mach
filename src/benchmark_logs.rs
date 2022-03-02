@@ -14,18 +14,19 @@
 #![feature(proc_macro_hygiene)]
 #![feature(trait_alias)]
 
-pub mod tsdb;
 pub mod compression;
 pub mod constants;
 pub mod id;
 pub mod persistent_list;
+mod reader;
+pub mod runtime;
 pub mod sample;
 pub mod segment;
 pub mod series;
 pub mod tags;
+pub mod tsdb;
 pub mod utils;
 pub mod writer;
-pub mod runtime;
 mod zipf;
 
 #[macro_use]
@@ -36,8 +37,8 @@ use serde::*;
 use std::{
     collections::HashMap,
     convert::TryInto,
-    fs::OpenOptions,
     fs::File,
+    fs::OpenOptions,
     io::prelude::*,
     path::PathBuf,
     sync::{
@@ -56,10 +57,10 @@ use lazy_static::lazy_static;
 use persistent_list::*;
 use sample::*;
 use seq_macro::seq;
+use series::*;
 use tags::*;
 use writer::*;
 use zipf::*;
-use series::*;
 
 const BLOCKING_RETRY: bool = false;
 const ZIPF: f64 = 0.99;
@@ -135,11 +136,7 @@ fn main() {
     for (idx, sample) in DATA.iter().enumerate() {
         if idx % interval == 0 {
             let elapsed = intervals.elapsed().as_secs_f64();
-            println!(
-                "INSERTED {} @ RATE: {}",
-                interval,
-                interval_f64 / elapsed,
-            );
+            println!("INSERTED {} @ RATE: {}", interval, interval_f64 / elapsed,);
             intervals = Instant::now();
         }
         'inner: loop {

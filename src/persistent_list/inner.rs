@@ -10,7 +10,7 @@ use crate::{
         wp_lock::{NoDealloc, WpLock},
     },
 };
-use serde::Serialize;
+use serde::*;
 use std::{
     cell::UnsafeCell,
     collections::HashMap,
@@ -105,18 +105,18 @@ impl List {
         self.inner_get_head(1)
     }
 
-    pub fn read(&self) -> Result<ListReader, Error> {
+    pub fn read(&self) -> Result<ListSnapshot, Error> {
         let head = self.get_head()?;
         let chunk_id = head.chunk_id.load(SeqCst);
 
         // This means the buffer_id has not been updated and this list has not yet written to the
         // buffer. There is no data for this list
         if head.buffer_id == usize::MAX {
-            Ok(ListReader::new(Vec::new(), Node::new()))
+            Ok(ListSnapshot::new(Vec::new(), ReadNode::new()))
         }
         // This means that the buffer that this head was pointing has been written to storage.
         else if chunk_id != u64::MAX {
-            Ok(ListReader::new(Vec::new(), head))
+            Ok(ListSnapshot::new(Vec::new(), head.read_node()))
         }
         // Otherwise the buffer has not yet been written to storage...
         else {
@@ -129,7 +129,7 @@ impl List {
                     match buf.release() {
                         _ => {}
                     }
-                    Ok(ListReader::new(buffer_copy, persistent))
+                    Ok(ListSnapshot::new(buffer_copy, persistent))
                 }
 
                 // And the relevant buffer items were not copied successfully (by implication
@@ -142,7 +142,7 @@ impl List {
                     }
                     // chunk_id must have been updated since the last check
                     assert!(head.chunk_id.load(SeqCst) != u64::MAX);
-                    Ok(ListReader::new(Vec::new(), head))
+                    Ok(ListSnapshot::new(Vec::new(), head.read_node()))
                 }
             }
         }
@@ -229,16 +229,33 @@ impl ListWriter {
     }
 }
 
-pub struct ListReader {
+#[derive(Serialize, Deserialize)]
+pub struct ListSnapshot {
     buffer_copy: Vec<Box<[u8]>>,
-    persistent: Node,
+    persistent: ReadNode,
+}
+
+impl ListSnapshot {
+    fn new(buffer_copy: Vec<Box<[u8]>>, persistent: ReadNode) -> Self {
+        Self {
+            buffer_copy,
+            persistent,
+        }
+    }
+}
+
+pub struct ListSnapshotReader {
+    buffer_copy: Vec<Box<[u8]>>,
+    persistent: ReadNode,
     idx: usize,
     local_buffer: Vec<u8>,
     decompress_buf: DecompressBuffer,
 }
 
-impl ListReader {
-    fn new(buffer_copy: Vec<Box<[u8]>>, persistent: Node) -> Self {
+impl ListSnapshotReader {
+    pub fn new(snapshot: ListSnapshot) -> Self {
+        let buffer_copy = snapshot.buffer_copy;
+        let persistent = snapshot.persistent;
         Self {
             buffer_copy,
             persistent,
@@ -271,7 +288,7 @@ impl ListReader {
 
     pub fn next_bytes<R: ChunkReader>(&mut self, reader: &mut R) -> Result<Option<&[u8]>, Error> {
         if self.idx == self.buffer_copy.len() {
-            let chunk_id = self.persistent.chunk_id.load(SeqCst);
+            let chunk_id = self.persistent.chunk_id;
             if chunk_id == u64::MAX {
                 return Ok(None);
             } else {
@@ -285,6 +302,25 @@ impl ListReader {
         let idx = self.idx;
         self.idx += 1;
         Ok(Some(&self.buffer_copy[idx][..]))
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct ReadNode {
+    chunk_id: u64,
+    offset: usize,
+    size: usize,
+    buffer_id: usize,
+}
+
+impl ReadNode {
+    fn new() -> Self {
+        Self {
+            chunk_id: u64::MAX,
+            offset: usize::MAX,
+            size: usize::MAX,
+            buffer_id: usize::MAX,
+        }
     }
 }
 
@@ -305,6 +341,15 @@ impl Node {
             offset: usize::MAX,
             size: usize::MAX,
             buffer_id: usize::MAX,
+        }
+    }
+
+    fn read_node(&self) -> ReadNode {
+        ReadNode {
+            chunk_id: self.chunk_id.load(SeqCst),
+            offset: self.offset,
+            size: self.size,
+            buffer_id: self.buffer_id,
         }
     }
 }
@@ -328,7 +373,12 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> DerefMut for Bytes<T> {
 }
 
 impl<T: AsRef<[u8]>> Bytes<T> {
-    fn read(&self, last_offset: usize, last_size: usize) -> (Vec<Box<[u8]>>, Node) {
+    fn copy(&self) -> Box<[u8]> {
+        let len = self.len.load(SeqCst);
+        self.bytes.as_ref()[..len].into()
+    }
+
+    fn read(&self, last_offset: usize, last_size: usize) -> (Vec<Box<[u8]>>, ReadNode) {
         let mut chunk_id = u64::MAX;
         let mut offset = last_offset;
         let mut size = last_size;
@@ -336,14 +386,15 @@ impl<T: AsRef<[u8]>> Bytes<T> {
 
         while chunk_id == u64::MAX && offset != usize::MAX {
             let bytes = &self[offset..offset + size];
-            chunk_id = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
-            offset = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
-            size = usize::from_be_bytes(bytes[16..24].try_into().unwrap());
-            copies.push(bytes[24..].into());
+            //let _series_id = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
+            chunk_id = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
+            offset = usize::from_be_bytes(bytes[16..24].try_into().unwrap());
+            size = usize::from_be_bytes(bytes[24..32].try_into().unwrap());
+            copies.push(bytes[32..].into());
         }
 
-        let node = Node {
-            chunk_id: Arc::new(AtomicU64::new(chunk_id)),
+        let node = ReadNode {
+            chunk_id,
             offset,
             size,
             buffer_id: usize::MAX,
@@ -353,7 +404,10 @@ impl<T: AsRef<[u8]>> Bytes<T> {
     }
 
     fn new(bytes: T) -> Self {
-        Self { len: AtomicUsize::new(8), bytes }
+        Self {
+            len: AtomicUsize::new(8),
+            bytes,
+        }
     }
 }
 
@@ -373,6 +427,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
 
     fn push_segment(
         &mut self,
+        series_id: SeriesId,
         segment: &FullSegment,
         compression: &Compression,
         chunk_id: u64,
@@ -381,6 +436,11 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
     ) -> (usize, usize) {
         let len = self.len.load(SeqCst);
         let mut offset = len;
+
+        let end = offset + size_of::<u64>();
+        self[offset..end].copy_from_slice(&series_id.0.to_be_bytes());
+        offset = end;
+
         let end = offset + size_of::<u64>();
         self[offset..end].copy_from_slice(&chunk_id.to_be_bytes());
         offset = end;
@@ -414,6 +474,10 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
     ) -> (usize, usize) {
         let len = self.len.load(SeqCst);
         let mut offset = len;
+
+        let end = offset + size_of::<u64>();
+        self[offset..end].copy_from_slice(&0u64.to_be_bytes());
+        offset = end;
 
         let end = offset + size_of::<u64>();
         self[offset..end].copy_from_slice(&chunk_id.to_be_bytes());
@@ -473,7 +537,7 @@ impl InnerBuffer {
     ) -> Node {
         let (offset, size) =
             self.bytes
-                .push_segment(segment, compression, chunk_id, last_offset, last_size);
+                .push_segment(id, segment, compression, chunk_id, last_offset, last_size);
 
         self.series.insert(id, (offset, size));
 
@@ -505,7 +569,9 @@ impl InnerBuffer {
 
     fn flush<W: ChunkWriter>(&mut self, flusher: &mut W) {
         self.bytes.set_tail(&self.series);
-        let chunk_id = flusher.write(&self.bytes[..self.bytes.len.load(SeqCst)]).unwrap();
+        let chunk_id = flusher
+            .write(&self.bytes[..self.bytes.len.load(SeqCst)])
+            .unwrap();
         self.chunk_id.store(chunk_id, SeqCst);
     }
 
@@ -516,13 +582,13 @@ impl InnerBuffer {
         self.chunk_id = Arc::new(AtomicU64::new(u64::MAX));
     }
 
-    fn copy(&self) -> Result<(), Error> {
+    fn copy(&self) -> Result<Box<[u8]>, Error> {
         let buffer_id = self.buffer_id.load(SeqCst);
-
+        let copy = self.bytes.copy();
         if buffer_id != self.buffer_id.load(SeqCst) {
             return Err(Error::InconsistentRead);
         }
-        Ok(())
+        Ok(copy)
     }
 
     fn read(
@@ -530,7 +596,7 @@ impl InnerBuffer {
         buffer_id: usize,
         last_offset: usize,
         last_size: usize,
-    ) -> Result<(Vec<Box<[u8]>>, Node), Error> {
+    ) -> Result<(Vec<Box<[u8]>>, ReadNode), Error> {
         // We check buffer id internally because wrapping in WPLock does not have enough logic to
         // detect that the buffer was actually flushed. (e.g. the buffer version is wrong)
 

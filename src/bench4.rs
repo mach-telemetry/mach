@@ -16,6 +16,7 @@ mod compression;
 mod constants;
 mod id;
 mod persistent_list;
+mod reader;
 mod runtime;
 mod sample;
 mod segment;

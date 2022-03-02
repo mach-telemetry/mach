@@ -6,7 +6,6 @@ use lzzzz::{lz4, lz4_hc};
 use std::convert::TryInto;
 
 pub fn compress(len: usize, to_compress: &[u8], buf: &mut ByteBuffer) {
-
     let start = buf.len();
     // Write in the length of the segment
     buf.extend_from_slice(&len.to_be_bytes());
@@ -29,7 +28,7 @@ pub fn compress(len: usize, to_compress: &[u8], buf: &mut ByteBuffer) {
 }
 
 /// Decompresses data into buf
-pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
+pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>, bytes: &mut Vec<u8>) {
     let mut off = 0;
     let usz = std::mem::size_of::<usize>();
 
@@ -45,15 +44,17 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
     let raw_sz = usize::from_be_bytes(data[off..end].try_into().unwrap());
     off += usz;
 
-    let mut bytes = vec![0u8; bytes_sz as usize].into_boxed_slice();
+    bytes.resize(bytes_sz, 0u8);
     lz4::decompress(&data[off..off + raw_sz], &mut bytes[..]).unwrap();
     off += raw_sz;
 
     let mut start = 0;
     for _ in 0..len {
-        let (bytes, bytes_sz) = Bytes::from_raw_bytes(&bytes[start..]);
-        buf.push((bytes.into_raw() as usize).to_be_bytes());
-        start += bytes_sz;
+        let ptr: *const u8 = bytes[start..].as_ptr();
+        let b = unsafe { Bytes::from_raw(ptr) };
+        let b_sz = b.as_raw_bytes().len();
+        buf.push((b.into_raw() as usize).to_be_bytes());
+        start += b_sz;
     }
 }
 
@@ -73,13 +74,15 @@ mod test {
         let mut byte_buf = ByteBuffer::new(&mut buf[..]);
         compress(data.len(), &v[..], &mut byte_buf);
         let mut results = Vec::new();
-        decompress(&buf[..], &mut results);
+        let mut heap = Vec::new();
+        decompress(&buf[..], &mut results, &mut heap);
 
         for (result, exp) in results.iter().zip(data.iter()) {
             let ptr = usize::from_be_bytes(*result) as *const u8;
             let bytes = unsafe { Bytes::from_raw(ptr) };
             let s = std::str::from_utf8(bytes.bytes()).unwrap();
             assert_eq!(s, exp);
+            bytes.into_raw(); // don't deallocate
         }
     }
 
