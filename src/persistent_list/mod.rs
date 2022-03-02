@@ -27,7 +27,9 @@ impl From<std::io::Error> for Error {
 }
 
 pub use file_backend::{FileBackend, FileReader, FileWriter};
-pub use inner::{ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListSnapshot, ListWriter};
+pub use inner::{
+    ChunkReader, ChunkWriter, List, ListBuffer, ListSnapshot, ListSnapshotReader, ListWriter,
+};
 pub use kafka_backend::{KafkaBackend, KafkaReader, KafkaWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 
@@ -84,7 +86,8 @@ mod test {
         list2_writer.push_bytes(data2[3].as_slice(), &mut chunk_writer);
         list2_writer.push_bytes(data2[4].as_slice(), &mut chunk_writer);
 
-        let mut reader = list1.read().unwrap();
+        let snapshot = list1.read().unwrap();
+        let mut reader = ListSnapshotReader::new(snapshot);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data1[4], res);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
@@ -98,7 +101,8 @@ mod test {
 
         // Guarantee that reads are available on the source (e.g. redis has async flush)
         std::thread::sleep(std::time::Duration::from_millis(500));
-        let mut reader = list2.read().unwrap();
+        let snapshot = list2.read().unwrap();
+        let mut reader = ListSnapshotReader::new(snapshot);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data2[4], res);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
@@ -122,7 +126,8 @@ mod test {
         data.iter()
             .for_each(|x| writer.push_bytes(x.as_slice(), &mut chunk_writer));
 
-        let mut reader = list.read().unwrap();
+        let snapshot = list.read().unwrap();
+        let mut reader = ListSnapshotReader::new(snapshot);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
         assert_eq!(data[4], res);
         let res = reader.next_bytes(&mut chunk_reader).unwrap().unwrap();
@@ -202,7 +207,9 @@ mod test {
             exp_values.push(Vec::new());
         }
 
-        let mut reader = l.read().unwrap();
+        let snapshot = l.read().unwrap();
+        let mut reader = ListSnapshotReader::new(snapshot);
+        //let mut reader = l.read().unwrap();
         let res: &DecompressBuffer = reader
             .next_segment(&mut persistent_reader)
             .unwrap()

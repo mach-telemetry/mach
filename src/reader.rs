@@ -1,11 +1,18 @@
 use crate::{
-    persistent_list::ListSnapshot, sample::Type, segment::SegmentSnapshot, series::Series,
+    id::SeriesId, persistent_list::ListSnapshot, runtime::RUNTIME, sample::Type,
+    segment::SegmentSnapshot, series::Series,
 };
 use bincode::{deserialize_from, serialize_into};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::convert::From;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::{sync::mpsc, time};
+use tokio::{
+    sync::{self, mpsc, RwLock},
+    time,
+};
 
 #[derive(Serialize, Deserialize)]
 pub struct Snapshot {
@@ -30,32 +37,118 @@ impl Snapshot {
 }
 
 pub enum SnapshotterRequest {
-    Read,
+    Read(sync::oneshot::Sender<Arc<[u8]>>),
     Close,
 }
 
 async fn snapshot_worker(
     duration: Duration,
+    series_id: SeriesId,
     series: Series,
-    mut receiver: mpsc::Receiver<SnapshotterRequest>,
+    snapshotters: Arc<RwLock<HashMap<SeriesId, Snapshotter>>>,
+    mut receiver: mpsc::UnboundedReceiver<SnapshotterRequest>,
 ) {
-    let mut snapshot = series.snapshot().unwrap().to_bytes();
+    let mut snapshot: Arc<[u8]> = series.snapshot().unwrap().to_bytes().into();
+    let mut durable = false;
     let mut last_snapshot = Instant::now();
     loop {
-        match receiver.recv() {
-            _ => {
+        match time::timeout(Duration::from_secs(30), receiver.recv()).await {
+            Ok(Some(SnapshotterRequest::Read(sender))) => {
                 if last_snapshot.elapsed() >= duration {
-                    snapshot = series.snapshot().unwrap().to_bytes();
+                    snapshot = series.snapshot().unwrap().to_bytes().into();
+                    durable = false;
                 }
-                // Do stuff with snapshot
+
+                if !durable {
+                    // TODO: make durable
+                }
+
+                sender.send(snapshot.clone()).unwrap();
             }
-            Close => break,
+
+            // Got a close signal from the timeout match below in a prior loop
+            Ok(Some(Close)) => break,
+
+            // This should be unreachable, panic if we get a None, but this is only when the
+            // snapshotter was removed from the snapshotters map
+            Ok(None) => unreachable!(),
+            Err(_) => {
+                // Reached timeout, lock the hashmap to prevent other items from requesting, send a
+                // close signal over the channel, then loop back around, service all remaining
+                // requests
+                let snapshotter = snapshotters.write().await.remove(&series_id).unwrap();
+                snapshotter.close().await;
+            }
         }
     }
 }
 
 pub struct Snapshotter {
-    worker: mpsc::Sender<SnapshotterRequest>,
+    worker: mpsc::UnboundedSender<SnapshotterRequest>,
+}
+
+impl Snapshotter {
+    async fn request(&self) -> Arc<[u8]> {
+        let (tx, rx) = sync::oneshot::channel();
+        if let Err(_) = self.worker.send(SnapshotterRequest::Read(tx)) {
+            panic!("Requesting to non-existent snapshot worker");
+        }
+        rx.await.unwrap()
+    }
+    async fn close(&self) {
+        if let Err(_) = self.worker.send(SnapshotterRequest::Close) {
+            panic!("Requesting to non-existent snapshot worker");
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ReadServer {
+    series_table: Arc<DashMap<SeriesId, Series>>,
+    snapshotters: Arc<RwLock<HashMap<SeriesId, Snapshotter>>>,
+}
+
+impl ReadServer {
+    pub fn new(series_table: Arc<DashMap<SeriesId, Series>>) -> Self {
+        Self {
+            series_table,
+            snapshotters: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub async fn initialize_snapshotter(&self, snapshot_interval: Duration, series_id: SeriesId) {
+        let mut write_guard = self.snapshotters.write().await;
+        write_guard.entry(series_id).or_insert({
+            let (worker, rx) = mpsc::unbounded_channel();
+            let series = self.series_table.get(&series_id).unwrap().clone();
+            RUNTIME.spawn(snapshot_worker(
+                snapshot_interval,
+                series_id,
+                series,
+                self.snapshotters.clone(),
+                rx,
+            ));
+            Snapshotter { worker }
+        });
+    }
+
+    pub async fn read_request(&self, series_id: SeriesId) -> Arc<[u8]> {
+        let read_guard = self.snapshotters.read().await;
+        if let Some(snapshotter) = read_guard.get(&series_id) {
+            snapshotter.request().await
+        } else {
+            drop(read_guard);
+            self.initialize_snapshotter(Duration::from_secs(1), series_id)
+                .await;
+            self.snapshotters
+                .read()
+                .await
+                .get(&series_id)
+                .unwrap()
+                .request()
+                .await
+        }
+    }
 }
 
 #[cfg(test)]

@@ -244,7 +244,7 @@ impl ListSnapshot {
     }
 }
 
-pub struct ListReader {
+pub struct ListSnapshotReader {
     buffer_copy: Vec<Box<[u8]>>,
     persistent: ReadNode,
     idx: usize,
@@ -252,8 +252,10 @@ pub struct ListReader {
     decompress_buf: DecompressBuffer,
 }
 
-impl ListReader {
-    fn new(buffer_copy: Vec<Box<[u8]>>, persistent: ReadNode) -> Self {
+impl ListSnapshotReader {
+    pub fn new(snapshot: ListSnapshot) -> Self {
+        let buffer_copy = snapshot.buffer_copy;
+        let persistent = snapshot.persistent;
         Self {
             buffer_copy,
             persistent,

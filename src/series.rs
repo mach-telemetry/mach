@@ -1,7 +1,7 @@
 use crate::{
     compression::Compression,
     id::SeriesId,
-    persistent_list::{self, List, ListBuffer, ListReader},
+    persistent_list::{self, List, ListBuffer},
     reader::Snapshot,
     segment::{self, FlushSegment, FullSegment, ReadSegment, Segment, WriteSegment},
     tags::Tags,

@@ -309,7 +309,8 @@ mod test {
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
 
-        let mut reader = series_meta.list().read().unwrap();
+        let snapshot = series_meta.list().read().unwrap();
+        let mut reader = ListSnapshotReader::new(snapshot);
         let res: &DecompressBuffer = reader
             .next_segment(&mut persistent_reader)
             .unwrap()
