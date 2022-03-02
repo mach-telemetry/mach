@@ -153,6 +153,9 @@ impl Snapshotter {
 #[derive(Clone)]
 pub struct ReadServer {
     series_table: Arc<DashMap<SeriesId, Series>>,
+
+    // Use RwLock hashmap here because DashMap might deadlock if getting a &mut ref and holding
+    // another reference.
     snapshotters: Arc<RwLock<HashMap<SeriesId, Snapshotter>>>,
 }
 
@@ -166,6 +169,11 @@ impl ReadServer {
 
     pub async fn initialize_snapshotter(&self, snapshot_interval: Duration, series_id: SeriesId) {
         let mut write_guard = self.snapshotters.write().await;
+
+        // If there already is one, must have been another request that called this method and we
+        // don't insert. Otherwise, init a new snapshotter. This will NOT content with an existing
+        // snapshotter in that is on the way to closing because initialize is only called when
+        // there are no snapshotters in the map in the current read request
         write_guard.entry(series_id).or_insert({
             let (worker, rx) = mpsc::unbounded_channel();
             let series = self.series_table.get(&series_id).unwrap().clone();
