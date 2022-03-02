@@ -2,14 +2,14 @@ use crate::{
     compression::Compression,
     id::{SeriesId, SeriesRef},
     persistent_list::*,
+    runtime::RUNTIME,
     sample::Sample,
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
     series::*,
-    runtime::RUNTIME,
 };
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender, UnboundedReceiver};
 use dashmap::DashMap;
 use std::{collections::HashMap, sync::Arc};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 #[derive(Debug)]
 pub enum Error {
@@ -135,10 +135,10 @@ impl std::fmt::Debug for FlushRequest {
         match self {
             Self::Register(_) => {
                 ds.field("Register", &"");
-            },
+            }
             Self::Flush(id) => {
                 ds.field("Flush", &id);
-            },
+            }
         }
         ds.finish()
     }
@@ -168,7 +168,9 @@ impl FlushWorker {
     }
 
     fn flush(&self, id: usize) {
-        self.sender.send(FlushRequest::Flush(id)).expect("failed to send to flush worker");;
+        self.sender
+            .send(FlushRequest::Flush(id))
+            .expect("failed to send to flush worker");
     }
 }
 
@@ -187,8 +189,8 @@ mod test {
     use super::*;
     use crate::compression::*;
     use crate::constants::*;
-    use crate::test_utils::*;
     use crate::tags::*;
+    use crate::test_utils::*;
     use rand::prelude::*;
     use std::{
         env,

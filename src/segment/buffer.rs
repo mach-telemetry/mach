@@ -1,18 +1,21 @@
 use crate::constants::*;
 //use crate::segment::{full_segment::FullSegment, Error};
+use crate::reader;
+use crate::runtime::RUNTIME;
+use crate::sample::Bytes;
 use crate::segment::Error;
 use crate::utils::wp_lock::*;
-use crate::sample::Bytes;
-use crate::runtime::RUNTIME;
-use crate::reader;
 //use crate::reader::SampleIterator;
-use std::cell::UnsafeCell;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
-use std::convert::TryInto;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender, UnboundedReceiver};
-use std::sync::mpsc::{channel, Sender, Receiver, sync_channel, SyncSender};
 use lazy_static::*;
 use serde::*;
+use std::cell::UnsafeCell;
+use std::convert::TryInto;
+use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 const HEAP_SZ: usize = 1_000_000;
 const HEAP_TH: usize = 3 * (HEAP_SZ / 4);
@@ -34,7 +37,6 @@ struct InnerBuffer {
 }
 
 impl InnerBuffer {
-
     fn new(heap_pointers: &[bool]) -> Self {
         let nvars = heap_pointers.len();
         //let heap_count = heap_pointers.iter().map(|x| *x as usize).sum();
@@ -70,7 +72,7 @@ impl InnerBuffer {
 
     fn push_item(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
         if self.is_full {
-            return Err(Error::PushIntoFull)
+            return Err(Error::PushIntoFull);
         }
         let len = self.len;
         self.ts[len] = ts;
@@ -135,10 +137,7 @@ impl InnerBuffer {
         //println!("In to_flush in Buffer");
         let len = self.atomic_len.load(SeqCst);
         if len > 0 {
-            Some(FlushBuffer {
-                len,
-                inner: self
-            })
+            Some(FlushBuffer { len, inner: self })
         } else {
             //println!("Buffer: NONE");
             None
@@ -208,7 +207,7 @@ impl<'a> FlushBuffer<'a> {
     pub fn get_variable(&self, i: usize) -> Variable {
         match &self.inner.heap[i] {
             Some(x) => Variable::Heap(x.as_slice()),
-            None => Variable::Var(self.variable(i))
+            None => Variable::Var(self.variable(i)),
         }
     }
 
@@ -308,4 +307,3 @@ impl ReadBuffer {
 //        buf.reader()
 //    }
 //}
-

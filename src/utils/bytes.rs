@@ -95,5 +95,3 @@ impl Drop for Bytes {
         unsafe { dealloc(self.0 as *mut u8, layout) };
     }
 }
-
-

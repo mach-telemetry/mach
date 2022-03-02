@@ -1,6 +1,6 @@
+use crate::utils::random_id;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
-use crate::utils::random_id;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct WriterId(pub String);
@@ -53,4 +53,3 @@ impl SeriesRef {
         self.0
     }
 }
-

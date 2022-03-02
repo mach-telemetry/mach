@@ -1,20 +1,16 @@
 use crate::{
     compression::*,
-    persistent_list::{self, ListBuffer, ListBackend},
-    id::*,
-    writer::Writer,
-    series::{self, *},
     constants::BUFSZ,
+    id::*,
+    persistent_list::{self, ListBackend, ListBuffer},
     reader::Snapshot,
     //metadata::{self, Metadata},
-};
-use std::{
-    marker::PhantomData,
-    collections::HashMap,
-    sync::Arc,
+    series::{self, *},
+    writer::Writer,
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
+use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 #[derive(Debug)]
 pub enum Error {
@@ -56,7 +52,6 @@ impl<B: ListBackend> Mach<B> {
     }
 
     pub fn new_writer(&mut self) -> Result<Writer, Error> {
-
         let writer_id = WriterId::random();
 
         // Setup persistent list backend for this writer
@@ -72,14 +67,19 @@ impl<B: ListBackend> Mach<B> {
         let writer = Writer::new(self.series_table.clone(), backend_writer);
 
         // Store writer information
-        self.writer_table.insert(writer_id.clone(), (buffer, backend));
+        self.writer_table
+            .insert(writer_id.clone(), (buffer, backend));
         self.writers.push(writer_id);
         Ok(writer)
     }
 
     pub fn add_series(&mut self, config: SeriesConfig) -> Result<WriterId, Error> {
         // For now, randomly choose a writer
-        let writer = self.writers.choose(&mut rand::thread_rng()).unwrap().clone();
+        let writer = self
+            .writers
+            .choose(&mut rand::thread_rng())
+            .unwrap()
+            .clone();
 
         // Get the ListBuffer for this series from the writer this series will be assigned to
         let writer_meta = self.writer_table.get(&writer).unwrap();

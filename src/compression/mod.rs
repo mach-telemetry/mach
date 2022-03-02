@@ -122,7 +122,6 @@ impl CompressFn {
         }
     }
 
-
     fn id(&self) -> u64 {
         match self {
             CompressFn::XOR => 2,
@@ -270,8 +269,8 @@ impl Compression {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test_utils::*;
     use crate::segment::Buffer;
+    use crate::test_utils::*;
 
     #[test]
     fn test_decimal() {
@@ -337,7 +336,8 @@ mod test {
         for (idx, sample) in data[0..256].iter().enumerate() {
             timestamps[idx] = idx as u64;
             let ptr = Bytes::from_slice(sample.as_bytes()).into_raw();
-            buf.push_item(idx as u64, &[(ptr as u64).to_be_bytes()]).unwrap();
+            buf.push_item(idx as u64, &[(ptr as u64).to_be_bytes()])
+                .unwrap();
         }
         let segment = buf.to_flush().unwrap();
 

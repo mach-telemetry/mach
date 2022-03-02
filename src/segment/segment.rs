@@ -27,9 +27,9 @@ impl Segment {
                 self.try_next_buffer();
                 buf = unsafe { self.current_buffer.as_mut().unwrap() };
                 buf.push_item(ts, item)
-            },
+            }
             Err(x) => Err(x),
-            Ok(x) => Ok(x)
+            Ok(x) => Ok(x),
         }
         //if res.is_ok() {
         //    self.local_count += 1;

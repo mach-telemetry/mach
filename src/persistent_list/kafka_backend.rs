@@ -1,11 +1,10 @@
 use crate::{
     constants::*,
-    persistent_list::{inner, Error, PersistentListBackend},
     id::SeriesId,
-    utils::random_id,
+    persistent_list::{inner, Error, PersistentListBackend},
     runtime::RUNTIME,
+    utils::random_id,
 };
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender, UnboundedReceiver};
 use dashmap::DashMap;
 use rand::prelude::*;
 pub use rdkafka::consumer::{base_consumer::BaseConsumer, Consumer};
@@ -23,6 +22,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 //async fn worker(
 //    producer: FutureProducer,
@@ -71,16 +71,13 @@ impl KafkaWriter {
         Ok(producer)
     }
 
-    pub fn new(
-        kafka_bootstrap: String,
-        topic: String,
-    ) -> Result<Self, Error> {
+    pub fn new(kafka_bootstrap: String, topic: String) -> Result<Self, Error> {
         let producer = Self::default_producer(kafka_bootstrap)?;
         let dur = Duration::from_secs(0);
         Ok(Self {
             producer,
             topic,
-            dur
+            dur,
         })
     }
 }
@@ -88,7 +85,9 @@ impl KafkaWriter {
 impl inner::ChunkWriter for KafkaWriter {
     fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&self.topic).payload(bytes);
-        let (partition, offset) = RUNTIME.block_on(self.producer.send(to_send, self.dur)).unwrap();
+        let (partition, offset) = RUNTIME
+            .block_on(self.producer.send(to_send, self.dur))
+            .unwrap();
         assert_eq!(partition, 0);
         Ok(offset.try_into().unwrap())
     }
@@ -102,10 +101,7 @@ pub struct KafkaReader {
 }
 
 impl KafkaReader {
-    pub fn new(
-        bootstrap_servers: String,
-        topic: String,
-    ) -> Result<Self, Error> {
+    pub fn new(bootstrap_servers: String, topic: String) -> Result<Self, Error> {
         let consumer: BaseConsumer = ClientConfig::new()
             .set("bootstrap.servers", bootstrap_servers)
             .set("group.id", random_id())
@@ -156,7 +152,10 @@ fn create_topic(bootstrap: &str, topic: &str) -> Result<(), Error> {
     let fut = admin.create_topics(&topic, &opts);
 
     // block on current thread instead of global runtime
-    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
     let result = rt.block_on(fut)?;
 
     if let Err((s, c)) = &result[0] {
@@ -182,17 +181,11 @@ impl KafkaBackend {
     }
 
     pub fn make_writer(&self) -> Result<KafkaWriter, Error> {
-        KafkaWriter::new(
-            self.bootstrap_servers.clone(),
-            self.topic.clone(),
-        )
+        KafkaWriter::new(self.bootstrap_servers.clone(), self.topic.clone())
     }
 
     pub fn make_reader(&self) -> Result<KafkaReader, Error> {
-        KafkaReader::new(
-            self.bootstrap_servers.clone(),
-            self.topic.clone(),
-        )
+        KafkaReader::new(self.bootstrap_servers.clone(), self.topic.clone())
     }
 }
 

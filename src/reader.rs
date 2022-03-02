@@ -1,17 +1,11 @@
 use crate::{
-    persistent_list::ListSnapshot,
-    segment::SegmentSnapshot,
-    sample::Type,
-    series::Series,
+    persistent_list::ListSnapshot, sample::Type, segment::SegmentSnapshot, series::Series,
 };
-use serde::{Serialize, Deserialize};
+use bincode::{deserialize_from, serialize_into};
+use serde::{Deserialize, Serialize};
 use std::convert::From;
-use bincode::{serialize_into, deserialize_from};
-use tokio::{
-    time,
-    sync::mpsc,
-};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
+use tokio::{sync::mpsc, time};
 
 #[derive(Serialize, Deserialize)]
 pub struct Snapshot {
@@ -21,10 +15,7 @@ pub struct Snapshot {
 
 impl Snapshot {
     pub fn new(segments: SegmentSnapshot, list: ListSnapshot) -> Self {
-        Snapshot {
-            segments,
-            list
-        }
+        Snapshot { segments, list }
     }
 
     pub fn to_bytes(self) -> Vec<u8> {
@@ -40,10 +31,14 @@ impl Snapshot {
 
 pub enum SnapshotterRequest {
     Read,
-    Close
+    Close,
 }
 
-async fn snapshot_worker(duration: Duration, series: Series, mut receiver: mpsc::Receiver<SnapshotterRequest>) {
+async fn snapshot_worker(
+    duration: Duration,
+    series: Series,
+    mut receiver: mpsc::Receiver<SnapshotterRequest>,
+) {
     let mut snapshot = series.snapshot().unwrap().to_bytes();
     let mut last_snapshot = Instant::now();
     loop {
@@ -53,30 +48,30 @@ async fn snapshot_worker(duration: Duration, series: Series, mut receiver: mpsc:
                     snapshot = series.snapshot().unwrap().to_bytes();
                 }
                 // Do stuff with snapshot
-            },
+            }
             Close => break,
         }
     }
 }
 
 pub struct Snapshotter {
-    worker: mpsc::Sender<SnapshotterRequest>
+    worker: mpsc::Sender<SnapshotterRequest>,
 }
 
 #[cfg(test)]
 mod test {
     use crate::compression::*;
     use crate::constants::*;
-    use crate::test_utils::*;
-    use crate::tags::*;
-    use crate::series::*;
-    use crate::tsdb::Mach;
     use crate::persistent_list::*;
+    use crate::series::*;
+    use crate::tags::*;
+    use crate::test_utils::*;
+    use crate::tsdb::Mach;
     use rand::prelude::*;
     use std::{
+        collections::HashMap,
         env,
         sync::{Arc, Mutex},
-        collections::HashMap,
     };
     use tempfile::tempdir;
 
@@ -118,8 +113,10 @@ mod test {
                 }
                 let res = writer.push(ref_id, sample.ts, &values);
                 match res {
-                    Ok(_) => { break 'inner; },
-                    Err(_) => { }
+                    Ok(_) => {
+                        break 'inner;
+                    }
+                    Err(_) => {}
                 }
             }
         }
@@ -127,6 +124,3 @@ mod test {
         let reader = mach.reader(series_id).unwrap();
     }
 }
-
-
-

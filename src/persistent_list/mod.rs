@@ -27,8 +27,8 @@ impl From<std::io::Error> for Error {
 }
 
 pub use file_backend::{FileBackend, FileReader, FileWriter};
+pub use inner::{ChunkReader, ChunkWriter, List, ListBuffer, ListReader, ListSnapshot, ListWriter};
 pub use kafka_backend::{KafkaBackend, KafkaReader, KafkaWriter};
-pub use inner::{ChunkReader, ChunkWriter, List, ListBuffer, ListSnapshot, ListReader, ListWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
 
 // One Backend per writer thread. Single writer, multiple readers
@@ -47,8 +47,8 @@ pub trait ListBackend = PersistentListBackend;
 mod test {
     use super::*;
     use crate::{
-        compression::*, constants::*, id::SeriesId, persistent_list::vector_backend::*,
-        segment::*, tags::*, test_utils::*, utils::wp_lock::WpLock,
+        compression::*, constants::*, id::SeriesId, persistent_list::vector_backend::*, segment::*,
+        tags::*, test_utils::*, utils::wp_lock::WpLock,
     };
     use dashmap::DashMap;
     use rand::prelude::*;

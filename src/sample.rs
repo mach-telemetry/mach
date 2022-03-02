@@ -1,7 +1,7 @@
+pub use crate::utils::bytes::*;
 use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
 use std::convert::{AsRef, TryInto};
 use std::mem::{align_of, size_of, ManuallyDrop};
-pub use crate::utils::bytes::*;
 
 pub enum Type {
     U64(u64),

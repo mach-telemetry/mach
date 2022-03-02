@@ -15,14 +15,13 @@ pub enum Error {
     MultipleFlushers,
 }
 
-
+pub use buffer::*;
+pub use serde::*;
 use std::ops::Deref;
 use std::sync::{
     atomic::{AtomicBool, Ordering::SeqCst},
     Arc,
 };
-pub use buffer::*;
-pub use serde::*;
 //use crate::reader::SampleIterator;
 
 //pub use wrapper::Segment;
@@ -128,7 +127,7 @@ impl Segment {
     pub fn new(b: usize, v: usize, heap: &[bool]) -> Self {
         Self {
             has_writer: Arc::new(AtomicBool::new(false)),
-            inner: Box::into_raw(Box::new(segment::Segment::new(b, heap)))
+            inner: Box::into_raw(Box::new(segment::Segment::new(b, heap))),
         }
     }
 
@@ -172,11 +171,7 @@ impl WriteSegment {
         self.push_item(ts, val)
     }
 
-    pub fn push_item (
-        &mut self,
-        ts: u64,
-        val: &[[u8; 8]],
-    ) -> Result<PushStatus, Error> {
+    pub fn push_item(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<PushStatus, Error> {
         // Safety: Safe because there is only one writer, one flusher, and many concurrent readers.
         // Readers don't race with the writer because of the atomic counter. Writer and flusher do
         // not race because the writer is bounded by the flush_counter which can only be
@@ -192,9 +187,7 @@ impl WriteSegment {
     }
 
     pub fn flush(&self) -> FlushSegment {
-        FlushSegment {
-            inner: self.inner,
-        }
+        FlushSegment { inner: self.inner }
     }
 }
 

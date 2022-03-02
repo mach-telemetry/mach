@@ -6,7 +6,6 @@ use lzzzz::{lz4, lz4_hc};
 use std::convert::TryInto;
 
 pub fn compress(len: usize, to_compress: &[u8], buf: &mut ByteBuffer) {
-
     let start = buf.len();
     // Write in the length of the segment
     buf.extend_from_slice(&len.to_be_bytes());

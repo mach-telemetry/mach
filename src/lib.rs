@@ -21,19 +21,19 @@
 //pub mod replication;
 //pub mod into;
 
-pub mod tsdb;
 pub mod compression;
 pub mod constants;
 pub mod id;
 pub mod persistent_list;
+pub mod reader;
+pub mod runtime;
 pub mod sample;
 pub mod segment;
 pub mod series;
 pub mod tags;
+pub mod tsdb;
 pub mod utils;
 pub mod writer;
-pub mod runtime;
-pub mod reader;
 //pub mod segment2;
 
 #[cfg(test)]

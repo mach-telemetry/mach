@@ -114,7 +114,6 @@ impl List {
         if head.buffer_id == usize::MAX {
             Ok(ListSnapshot::new(Vec::new(), ReadNode::new()))
         }
-
         // This means that the buffer that this head was pointing has been written to storage.
         else if chunk_id != u64::MAX {
             Ok(ListSnapshot::new(Vec::new(), head.read_node()))
@@ -372,7 +371,6 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> DerefMut for Bytes<T> {
 }
 
 impl<T: AsRef<[u8]>> Bytes<T> {
-
     fn copy(&self) -> Box<[u8]> {
         let len = self.len.load(SeqCst);
         self.bytes.as_ref()[..len].into()
@@ -404,7 +402,10 @@ impl<T: AsRef<[u8]>> Bytes<T> {
     }
 
     fn new(bytes: T) -> Self {
-        Self { len: AtomicUsize::new(8), bytes }
+        Self {
+            len: AtomicUsize::new(8),
+            bytes,
+        }
     }
 }
 
@@ -566,7 +567,9 @@ impl InnerBuffer {
 
     fn flush<W: ChunkWriter>(&mut self, flusher: &mut W) {
         self.bytes.set_tail(&self.series);
-        let chunk_id = flusher.write(&self.bytes[..self.bytes.len.load(SeqCst)]).unwrap();
+        let chunk_id = flusher
+            .write(&self.bytes[..self.bytes.len.load(SeqCst)])
+            .unwrap();
         self.chunk_id.store(chunk_id, SeqCst);
     }
 

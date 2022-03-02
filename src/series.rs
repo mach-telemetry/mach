@@ -1,10 +1,10 @@
 use crate::{
     compression::Compression,
-    segment::{self, FlushSegment, FullSegment, Segment, WriteSegment, ReadSegment},
-    persistent_list::{self, List, ListBuffer, ListReader},
     id::SeriesId,
-    tags::Tags,
+    persistent_list::{self, List, ListBuffer, ListReader},
     reader::Snapshot,
+    segment::{self, FlushSegment, FullSegment, ReadSegment, Segment, WriteSegment},
+    tags::Tags,
 };
 use std::sync::Arc;
 
@@ -48,15 +48,11 @@ pub struct Series {
     segment: Segment,
     list: List,
     compression: Compression,
-    types: Vec<Types>
+    types: Vec<Types>,
 }
 
 impl Series {
-    pub fn new(
-        conf: SeriesConfig,
-        buffer: ListBuffer,
-    ) -> Self {
-
+    pub fn new(conf: SeriesConfig, buffer: ListBuffer) -> Self {
         let SeriesConfig {
             tags,
             compression,
@@ -66,12 +62,13 @@ impl Series {
         } = conf;
         assert_eq!(nvars, compression.len());
 
-        let mut heap_pointers: Vec<bool> = types.iter().map(|x| {
-            match x {
+        let mut heap_pointers: Vec<bool> = types
+            .iter()
+            .map(|x| match x {
                 Types::Bytes => true,
-                _ => false
-            }
-        }).collect();
+                _ => false,
+            })
+            .collect();
         Self {
             segment: segment::Segment::new(seg_count, nvars, heap_pointers.as_slice()),
             tags,
@@ -99,4 +96,3 @@ impl Series {
         &self.list
     }
 }
-
