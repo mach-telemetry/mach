@@ -36,13 +36,6 @@ impl From<series::Error> for Error {
     }
 }
 
-
-//impl From<metadata::Error> for Error {
-//    fn from(item: metadata::Error) -> Self {
-//        Error::Metadata(item)
-//    }
-//}
-
 pub struct Mach<B: ListBackend> {
     writers: Vec<WriterId>,
     writer_table: HashMap<WriterId, (ListBuffer, B)>,

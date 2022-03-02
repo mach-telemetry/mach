@@ -2,10 +2,16 @@ use crate::{
     persistent_list::ListSnapshot,
     segment::SegmentSnapshot,
     sample::Type,
+    series::Series,
 };
 use serde::{Serialize, Deserialize};
 use std::convert::From;
 use bincode::{serialize_into, deserialize_from};
+use tokio::{
+    time,
+    sync::mpsc,
+};
+use std::time::{Instant, Duration};
 
 #[derive(Serialize, Deserialize)]
 pub struct Snapshot {
@@ -30,6 +36,31 @@ impl Snapshot {
     pub fn from_bytes(bytes: &[u8]) -> Self {
         deserialize_from(bytes).unwrap()
     }
+}
+
+pub enum SnapshotterRequest {
+    Read,
+    Close
+}
+
+async fn snapshot_worker(duration: Duration, series: Series, mut receiver: mpsc::Receiver<SnapshotterRequest>) {
+    let mut snapshot = series.snapshot().unwrap().to_bytes();
+    let mut last_snapshot = Instant::now();
+    loop {
+        match receiver.recv() {
+            _ => {
+                if last_snapshot.elapsed() >= duration {
+                    snapshot = series.snapshot().unwrap().to_bytes();
+                }
+                // Do stuff with snapshot
+            },
+            Close => break,
+        }
+    }
+}
+
+pub struct Snapshotter {
+    worker: mpsc::Sender<SnapshotterRequest>
 }
 
 #[cfg(test)]
