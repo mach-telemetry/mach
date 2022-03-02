@@ -1,6 +1,7 @@
 use crate::{
     id::SeriesId, persistent_list::ListSnapshot, runtime::RUNTIME, sample::Type,
     segment::SegmentSnapshot, series::Series,
+    constants::*,
 };
 use bincode::{deserialize_from, serialize_into};
 use dashmap::DashMap;
@@ -12,6 +13,16 @@ use std::time::{Duration, Instant};
 use tokio::{
     sync::{self, mpsc, RwLock},
     time,
+};
+use rdkafka::{
+    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
+    client::DefaultClientContext,
+    config::ClientConfig,
+    producer::{FutureProducer, FutureRecord},
+    topic_partition_list::{Offset, TopicPartitionList},
+    util::Timeout,
+    Message,
+    types::RDKafkaErrorCode,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -48,19 +59,36 @@ async fn snapshot_worker(
     snapshotters: Arc<RwLock<HashMap<SeriesId, Snapshotter>>>,
     mut receiver: mpsc::UnboundedReceiver<SnapshotterRequest>,
 ) {
+    let topic = format!("read_ahead_log_{}", series_id.0);
+    create_topic(KAFKA_BOOTSTRAP, topic.as_str()).await;
+    let producer: FutureProducer = ClientConfig::new()
+            .set("bootstrap.servers", KAFKA_BOOTSTRAP)
+            .set("message.max.bytes", "2000000")
+            .set("linger.ms", "0")
+            .set("message.copy.max.bytes", "5000000")
+            .set("batch.num.messages", "1")
+            .set("compression.type", "none")
+            .set("acks", "all")
+            .create().unwrap();
     let mut snapshot: Arc<[u8]> = series.snapshot().unwrap().to_bytes().into();
     let mut durable = false;
     let mut last_snapshot = Instant::now();
     loop {
         match time::timeout(Duration::from_secs(30), receiver.recv()).await {
             Ok(Some(SnapshotterRequest::Read(sender))) => {
+
+                // Make a new snapshot only when there is a request and the last snapshot is older
+                // than the snapshot interval. If so, mark as not durable
                 if last_snapshot.elapsed() >= duration {
                     snapshot = series.snapshot().unwrap().to_bytes().into();
                     durable = false;
                 }
 
+                // If the snapshot is not durable, send to kafka topic for durability
                 if !durable {
-                    // TODO: make durable
+                    let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&topic).payload(&snapshot[..]);
+                    let (partition, offset) = producer.send(to_send, Duration::from_secs(0)).await.unwrap();
+                    durable = true;
                 }
 
                 sender.send(snapshot.clone()).unwrap();
@@ -72,15 +100,35 @@ async fn snapshot_worker(
             // This should be unreachable, panic if we get a None, but this is only when the
             // snapshotter was removed from the snapshotters map
             Ok(None) => unreachable!(),
+
+            // Reached timeout, lock the hashmap to prevent other items from requesting, send a
+            // close signal over the channel, then loop back around, service all remaining
+            // requests
             Err(_) => {
-                // Reached timeout, lock the hashmap to prevent other items from requesting, send a
-                // close signal over the channel, then loop back around, service all remaining
-                // requests
                 let snapshotter = snapshotters.write().await.remove(&series_id).unwrap();
                 snapshotter.close().await;
             }
         }
     }
+}
+
+async fn create_topic(bootstrap: &str, topic: &str) {
+    let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
+        .set("bootstrap.servers", bootstrap)
+        .create().unwrap();
+    let topic = [NewTopic {
+        name: topic,
+        num_partitions: 1,
+        replication: TopicReplication::Fixed(3),
+        config: Vec::new(),
+    }];
+    let opts = AdminOptions::new();
+    let result = admin.create_topics(&topic, &opts).await.unwrap();
+    match result[0].as_ref() {
+        Ok(_) => {},
+        Err((_, RDKafkaErrorCode::TopicAlreadyExists)) => {}, // Ok if topic already exists
+        Err(_) => panic!("Can't create topic"),
+    };
 }
 
 pub struct Snapshotter {
