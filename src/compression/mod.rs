@@ -26,6 +26,7 @@ const MAGIC: &[u8; 12] = b"202107280428";
 pub struct DecompressBuffer {
     ts: Vec<u64>,
     values: Vec<Vec<[u8; 8]>>,
+    heap: Vec<u8>,
     len: usize,
     nvars: usize,
 }
@@ -33,6 +34,7 @@ pub struct DecompressBuffer {
 impl DecompressBuffer {
     fn clear(&mut self) {
         self.ts.clear();
+        self.heap.clear();
         self.values.iter_mut().for_each(|x| x.clear());
         self.len = 0;
     }
@@ -54,6 +56,7 @@ impl DecompressBuffer {
         Self {
             ts: Vec::new(),
             values: Vec::new(),
+            heap: Vec::new(),
             len: 0,
             nvars: 0,
         }
@@ -108,10 +111,17 @@ impl CompressFn {
         match id {
             2 => xor::decompress(data, buf),
             3 => decimal::decompress(data, buf),
-            4 => bytes_lz4::decompress(data, buf),
             _ => panic!("Error"),
         }
     }
+
+    pub fn decompress_heap(id: u64, data: &[u8], buf: &mut Vec<[u8; 8]>, heap: &mut Vec<u8>) {
+        match id {
+            4 => bytes_lz42::decompress(data, buf, heap),
+            _ => panic!("Error"),
+        }
+    }
+
 
     fn id(&self) -> u64 {
         match self {
@@ -244,7 +254,13 @@ impl Compression {
             let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
             off += 8;
             //println!("DECOMP VAR {} AT: {}", i, off);
-            CompressFn::decompress(*code, &data[off..off + sz], &mut buf.values[i]);
+            let d = &data[off..off + sz];
+            let v = &mut buf.values[i];
+            let h = &mut buf.heap;
+            match code {
+                4 => CompressFn::decompress_heap(*code, d, v, h),
+                _ => CompressFn::decompress(*code, d, v),
+            }
             off += sz;
         }
         Ok(off)
@@ -347,6 +363,7 @@ mod test {
             let bytes = unsafe { Bytes::from_raw(ptr) };
             let s = std::str::from_utf8(bytes.bytes()).unwrap();
             assert_eq!(s, e);
+            bytes.into_raw(); // prevent dealloc
         }
     }
 }
