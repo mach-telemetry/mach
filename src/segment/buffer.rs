@@ -117,8 +117,8 @@ impl InnerBuffer {
             match item {
                 Type::U64(x) => { self.data[i][len] = x.to_be_bytes(); },
                 Type::F64(x) => { self.data[i][len] = x.to_be_bytes(); },
-                Type::Bytes(x) => {
-                    let b = unsafe { Bytes::from_raw(*x) };
+                Type::Bytes(b) => {
+                    //let b = unsafe { Bytes::from_raw(*x) };
                     let bytes = b.as_raw_bytes();
                     let heap = self.heap[heap_offset].as_mut().unwrap();
                     let cur_len = heap.len();
@@ -127,7 +127,6 @@ impl InnerBuffer {
                     if len_after > HEAP_TH {
                         self.is_full = true;
                     }
-                    b.into_raw();
                     heap_offset += 1;
                     let item = ((&heap[cur_len..]).as_ptr() as u64).to_be_bytes();
                     self.data[i][len] = item;

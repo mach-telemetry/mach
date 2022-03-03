@@ -59,6 +59,12 @@ impl ListBuffer {
     pub fn new(flush_sz: usize) -> Self {
         ListBuffer(Arc::new(WpLock::new(InnerBuffer::new(flush_sz))))
     }
+
+    pub fn copy_buffer(&self) -> Result<Box<[u8]>, Error> {
+        unsafe {
+            self.0.unprotected_read().copy_buffer()
+        }
+    }
 }
 
 impl Deref for ListBuffer {
@@ -373,7 +379,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> DerefMut for Bytes<T> {
 }
 
 impl<T: AsRef<[u8]>> Bytes<T> {
-    fn copy(&self) -> Box<[u8]> {
+    fn copy_buffer(&self) -> Box<[u8]> {
         let len = self.len.load(SeqCst);
         self.bytes.as_ref()[..len].into()
     }
@@ -582,9 +588,9 @@ impl InnerBuffer {
         self.chunk_id = Arc::new(AtomicU64::new(u64::MAX));
     }
 
-    fn copy(&self) -> Result<Box<[u8]>, Error> {
+    fn copy_buffer(&self) -> Result<Box<[u8]>, Error> {
         let buffer_id = self.buffer_id.load(SeqCst);
-        let copy = self.bytes.copy();
+        let copy = self.bytes.copy_buffer();
         if buffer_id != self.buffer_id.load(SeqCst) {
             return Err(Error::InconsistentRead);
         }

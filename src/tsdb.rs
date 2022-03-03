@@ -7,6 +7,7 @@ use crate::{
     //metadata::{self, Metadata},
     series::{self, *},
     writer::Writer,
+    durability::*,
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
@@ -34,7 +35,7 @@ impl From<series::Error> for Error {
 
 pub struct Mach<B: ListBackend> {
     writers: Vec<WriterId>,
-    writer_table: HashMap<WriterId, (ListBuffer, B)>,
+    writer_table: HashMap<WriterId, (ListBuffer, B, DurabilityHandle)>,
     series_table: Arc<DashMap<SeriesId, Series>>,
 }
 
@@ -65,10 +66,11 @@ impl<B: ListBackend> Mach<B> {
         //  Setup ListBuffer for this writer
         let buffer = ListBuffer::new(BUFSZ);
         let writer = Writer::new(writer_id.clone(), self.series_table.clone(), backend_writer);
+        let durability_handle = DurabilityHandle::new(writer_id.as_str(), buffer.clone());
 
         // Store writer information
         self.writer_table
-            .insert(writer_id.clone(), (buffer, backend));
+            .insert(writer_id.clone(), (buffer, backend, durability_handle));
         self.writers.push(writer_id);
         Ok(writer)
     }
@@ -88,6 +90,7 @@ impl<B: ListBackend> Mach<B> {
         // Initialize the series using the listbuffer for the assigned writer
         let series_id = config.tags.id();
         let series = Series::new(config, buffer);
+        writer_meta.2.register_series(series.clone());
         self.series_table.insert(series_id, series);
         Ok((writer, series_id))
     }

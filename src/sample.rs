@@ -6,7 +6,7 @@ use std::mem::{align_of, size_of, ManuallyDrop};
 pub enum Type {
     U64(u64),
     F64(f64),
-    Bytes(*const u8),
+    Bytes(Bytes),
 }
 
 unsafe impl Sync for Type {}

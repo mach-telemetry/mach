@@ -28,6 +28,7 @@ services:
       - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka1:9092,EXTERNAL://localhost:9093
       - KAFKA_INTER_BROKER_LISTENER_NAME=CLIENT
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_MESSAGE_MAX_BYTES=100000000
     depends_on:
       - zookeeper
     networks:
@@ -46,6 +47,7 @@ services:
       - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka2:9092,EXTERNAL://localhost:9094
       - KAFKA_INTER_BROKER_LISTENER_NAME=CLIENT
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_MESSAGE_MAX_BYTES=100000000
     depends_on:
       - zookeeper
     networks:
@@ -64,6 +66,7 @@ services:
       - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka3:9092,EXTERNAL://localhost:9095
       - KAFKA_INTER_BROKER_LISTENER_NAME=CLIENT
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_MESSAGE_MAX_BYTES=100000000
     depends_on:
       - zookeeper
     networks:

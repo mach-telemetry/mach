@@ -3,7 +3,7 @@ use crate::{
     id::SeriesId,
     persistent_list::{self, List, ListBuffer},
     reader::Snapshot,
-    segment::{self, FlushSegment, FullSegment, ReadSegment, Segment, WriteSegment},
+    segment::{self, FlushSegment, FullSegment, ReadSegment, Segment, WriteSegment, SegmentSnapshot},
     tags::Tags,
 };
 use std::sync::Arc;
@@ -76,6 +76,10 @@ impl Series {
             list: List::new(buffer),
             types,
         }
+    }
+
+    pub fn segment_snapshot(&self) -> Result<SegmentSnapshot, Error> {
+        Ok(self.segment.snapshot()?)
     }
 
     pub fn snapshot(&self) -> Result<Snapshot, Error> {

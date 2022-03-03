@@ -13,6 +13,10 @@ impl WriterId {
     pub fn random() -> Self {
         WriterId(random_id())
     }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
 }
 
 impl Deref for WriterId {

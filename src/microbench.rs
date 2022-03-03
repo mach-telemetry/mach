@@ -27,6 +27,7 @@ mod tsdb;
 mod utils;
 mod writer;
 mod zipf;
+mod durability;
 
 #[macro_use]
 mod rdtsc;
@@ -165,6 +166,8 @@ struct IngestionWorker {
     // Vectors below are index-aligned; items at the same index correspond to
     // the same time series.
     //
+    /// SeriesIds for each time series
+    seriesids: Vec<u64>,
     /// RefIDs for each time series
     refids: Vec<usize>,
     /// Ingestion source data. Samples are reused during ingestion.
@@ -179,6 +182,7 @@ impl IngestionWorker {
     fn new(writer: Writer) -> Self {
         IngestionWorker {
             writer,
+            seriesids: Vec::new(),
             refids: Vec::new(),
             series: Vec::new(),
             next: Vec::new(),
@@ -190,6 +194,7 @@ impl IngestionWorker {
     fn register_series(&mut self, series_id: SeriesId, series_data: &'static Vec<RawSample>) {
         let refid = self.writer.get_reference(series_id);
 
+        self.seriesids.push(*series_id);
         self.refids.push(*refid);
         self.series.push(series_data);
         self.next.push(0);
@@ -232,6 +237,7 @@ impl IngestionWorker {
     fn _ingest_sample(&mut self, mut zipf_picker: &mut ZipfianPicker) -> Result<(), writer::Error> {
         let victim = zipf_picker.next();
         let series = self.series[victim];
+        let seriesid = self.seriesids[victim];
         let refid = self.refids[victim];
         let raw_sample = &series[self.next[victim]];
 
@@ -239,7 +245,7 @@ impl IngestionWorker {
         let ts_offset = series.last().unwrap().0 - series[0].0 + series[1].0 - series[0].0;
         let timestamp = raw_sample.0 + ts_offset * self.wraparounds[victim] as u64;
 
-        self.writer.push_type(SeriesRef(refid), timestamp, &raw_sample.1[..])?;
+        self.writer.push_type(SeriesRef(refid), SeriesId(seriesid), timestamp, &raw_sample.1[..])?;
 
         match self.next[victim] {
             _ if self.next[victim] == series.len() - 1 => {
@@ -313,8 +319,8 @@ fn main() {
     std::fs::remove_dir_all(outdir);
     std::fs::create_dir_all(outdir).unwrap();
 
-    let backend = VectorBackend::new();
-    let mut mach = Mach::<VectorBackend>::new();
+    //let backend = FileBackend::new();
+    let mut mach = Mach::<FileBackend>::new();
 
     let mut ingestion_meta = IngestionMetadata::new(&mut mach, NTHREADS, &DATA);
 
