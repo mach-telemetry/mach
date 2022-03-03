@@ -63,9 +63,9 @@ use writer::*;
 use zipf::*;
 
 const ZIPF: f64 = 0.99;
-const UNIVARIATE: bool = false;
+const UNIVARIATE: bool = true;
 const NTHREADS: usize = 1;
-const NSERIES: usize = 100_000;
+const NSERIES: usize = 10_000;
 const NSEGMENTS: usize = 1;
 const NUM_INGESTS_PER_THR: usize = 100_000_000;
 
@@ -82,7 +82,7 @@ lazy_static! {
 
 struct RawSample(
     u64,                // timestamp
-    Box<[[u8; 8]]>, // data
+    Box<[Type]>, // data
 );
 
 #[derive(Serialize, Deserialize)]
@@ -96,9 +96,9 @@ impl DataEntry {
         let mut res = Vec::new();
         for i in 0..self.timestamps.len() {
             let ts = self.timestamps[i];
-            let mut values: Vec<[u8; 8]> = Vec::new();
+            let mut values: Vec<Type> = Vec::new();
             for (_, var) in self.values.iter() {
-                values.push(var[i].to_be_bytes());
+                values.push(Type::F64(var[i]));
             }
             res.push(RawSample(ts, values.into_boxed_slice()));
         }
@@ -239,7 +239,7 @@ impl IngestionWorker {
         let ts_offset = series.last().unwrap().0 - series[0].0 + series[1].0 - series[0].0;
         let timestamp = raw_sample.0 + ts_offset * self.wraparounds[victim] as u64;
 
-        self.writer.push(SeriesRef(refid), timestamp, &raw_sample.1[..])?;
+        self.writer.push_type(SeriesRef(refid), timestamp, &raw_sample.1[..])?;
 
         match self.next[victim] {
             _ if self.next[victim] == series.len() - 1 => {

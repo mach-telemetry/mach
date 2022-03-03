@@ -6,9 +6,11 @@ use std::mem::{align_of, size_of, ManuallyDrop};
 pub enum Type {
     U64(u64),
     F64(f64),
-    Bytes(Bytes),
-    Null,
+    Bytes(*const u8),
 }
+
+unsafe impl Sync for Type {}
+unsafe impl Send for Type {}
 
 #[derive(Copy, Clone)]
 pub struct Sample<const V: usize> {

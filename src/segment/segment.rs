@@ -1,5 +1,6 @@
 use crate::constants::*;
 use crate::segment::{buffer::*, Error};
+use crate::sample::Type;
 use std::{
     mem,
     sync::atomic::{AtomicIsize, AtomicUsize, Ordering::SeqCst},
@@ -15,11 +16,6 @@ pub struct Segment {
 
 impl Segment {
     pub fn push_item(&mut self, ts: u64, item: &[[u8; 8]]) -> Result<InnerPushStatus, Error> {
-        //if self.current_buffer().is_full() {
-        //    self.try_next_buffer();
-        //}
-        //if self.local_count == SEGSZ {
-        //}
         let mut buf = unsafe { self.current_buffer.as_mut().unwrap() };
         let res = buf.push_item(ts, item);
         match res {
@@ -31,10 +27,20 @@ impl Segment {
             Err(x) => Err(x),
             Ok(x) => Ok(x),
         }
-        //if res.is_ok() {
-        //    self.local_count += 1;
-        //}
-        //res
+    }
+
+    pub fn push_type(&mut self, ts: u64, item: &[Type]) -> Result<InnerPushStatus, Error> {
+        let mut buf = unsafe { self.current_buffer.as_mut().unwrap() };
+        let res = buf.push_type(ts, item);
+        match res {
+            Err(Error::PushIntoFull) => {
+                self.try_next_buffer();
+                buf = unsafe { self.current_buffer.as_mut().unwrap() };
+                buf.push_type(ts, item)
+            }
+            Err(x) => Err(x),
+            Ok(x) => Ok(x),
+        }
     }
 
     #[inline]

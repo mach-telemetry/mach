@@ -3,7 +3,7 @@ use crate::{
     id::{SeriesId, SeriesRef, WriterId},
     persistent_list::*,
     runtime::RUNTIME,
-    sample::Sample,
+    sample::{Sample, Type},
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
     series::*,
 };
@@ -86,18 +86,27 @@ impl Writer {
         Ok(())
     }
 
-    pub fn push_sample<const V: usize>(
-        &mut self,
-        reference: SeriesRef,
-        sample: Sample<V>,
-    ) -> Result<(), Error> {
+    pub fn push_type(&mut self, reference: SeriesRef, ts: u64, data: &[Type]) -> Result<(), Error> {
         let reference = *reference;
-        match self.writers[reference].push_item(sample.timestamp, &sample.values[..])? {
+        match self.writers[reference].push_type(ts, data)? {
             segment::PushStatus::Done => {}
             segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
         }
         Ok(())
     }
+
+    //pub fn push_sample<const V: usize>(
+    //    &mut self,
+    //    reference: SeriesRef,
+    //    sample: Sample<V>,
+    //) -> Result<(), Error> {
+    //    let reference = *reference;
+    //    match self.writers[reference].push_item(sample.timestamp, &sample.values[..])? {
+    //        segment::PushStatus::Done => {}
+    //        segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
+    //    }
+    //    Ok(())
+    //}
 
     //pub fn push_univariate(
     //    &mut self,

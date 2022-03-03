@@ -22,6 +22,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering::SeqCst},
     Arc,
 };
+use crate::sample::Type;
 //use crate::reader::SampleIterator;
 
 //pub use wrapper::Segment;
@@ -185,6 +186,22 @@ impl WriteSegment {
             InnerPushStatus::Flush => PushStatus::Flush(self.flush()),
         })
     }
+
+    pub fn push_type(&mut self, ts: u64, val: &[Type]) -> Result<PushStatus, Error> {
+        // Safety: Safe because there is only one writer, one flusher, and many concurrent readers.
+        // Readers don't race with the writer because of the atomic counter. Writer and flusher do
+        // not race because the writer is bounded by the flush_counter which can only be
+        // incremented by the flusher
+        let res = unsafe {
+            let inner = self.inner.as_mut().unwrap();
+            inner.push_type(ts, val)
+        }?;
+        Ok(match res {
+            InnerPushStatus::Done => PushStatus::Done,
+            InnerPushStatus::Flush => PushStatus::Flush(self.flush()),
+        })
+    }
+
 
     pub fn flush(&self) -> FlushSegment {
         FlushSegment { inner: self.inner }
