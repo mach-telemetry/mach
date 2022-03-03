@@ -29,6 +29,8 @@ services:
       - KAFKA_INTER_BROKER_LISTENER_NAME=CLIENT
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
       - KAFKA_MESSAGE_MAX_BYTES=100000000
+      - KAFKA_DEFAULT_REPLICATION_FACTOR=3
+      - KAFKA_NUM_PARTITIONS=1
     depends_on:
       - zookeeper
     networks:
@@ -48,6 +50,7 @@ services:
       - KAFKA_INTER_BROKER_LISTENER_NAME=CLIENT
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
       - KAFKA_MESSAGE_MAX_BYTES=100000000
+      - KAFKA_NUM_PARTITIONS=1
     depends_on:
       - zookeeper
     networks:
@@ -67,6 +70,7 @@ services:
       - KAFKA_INTER_BROKER_LISTENER_NAME=CLIENT
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
       - KAFKA_MESSAGE_MAX_BYTES=100000000
+      - KAFKA_NUM_PARTITIONS=1
     depends_on:
       - zookeeper
     networks:

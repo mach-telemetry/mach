@@ -66,7 +66,7 @@ async fn durability_receiver(mut recv: UnboundedReceiver<Series>, series: Arc<Mu
 
 async fn durability_worker(writer_id: String, series: Arc<Mutex<Vec<Series>>>, list: ListBuffer) {
     let topic = format!("durability_{}", writer_id);
-    create_topic(KAFKA_BOOTSTRAP, topic.as_str()).await;
+    //create_topic(KAFKA_BOOTSTRAP, topic.as_str()).await;
     let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", KAFKA_BOOTSTRAP)
             .set("message.max.bytes", "100000000")
@@ -105,23 +105,23 @@ async fn durability_worker(writer_id: String, series: Arc<Mutex<Vec<Series>>>, l
     }
 }
 
-async fn create_topic(bootstrap: &str, topic: &str) {
-    let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
-        .set("bootstrap.servers", bootstrap)
-        .create().unwrap();
-    let topic = [NewTopic {
-        name: topic,
-        num_partitions: 1,
-        replication: TopicReplication::Fixed(2),
-        config: Vec::new(),
-    }];
-    let opts = AdminOptions::new();
-    let result = admin.create_topics(&topic, &opts).await.unwrap();
-    match result[0].as_ref() {
-        Ok(_) => {},
-        Err((_, RDKafkaErrorCode::TopicAlreadyExists)) => {}, // Ok if topic already exists
-        Err(x) => println!("DURABILITY ERROR: Cant create topic {:?}",x),
-    };
-}
+//async fn create_topic(bootstrap: &str, topic: &str) {
+//    let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
+//        .set("bootstrap.servers", bootstrap)
+//        .create().unwrap();
+//    let topic = [NewTopic {
+//        name: topic,
+//        num_partitions: 1,
+//        replication: TopicReplication::Fixed(2),
+//        config: Vec::new(),
+//    }];
+//    let opts = AdminOptions::new();
+//    let result = admin.create_topics(&topic, &opts).await.unwrap();
+//    match result[0].as_ref() {
+//        Ok(_) => {},
+//        Err((_, RDKafkaErrorCode::TopicAlreadyExists)) => {}, // Ok if topic already exists
+//        Err(x) => println!("DURABILITY ERROR: Cant create topic {:?}",x),
+//    };
+//}
 
 

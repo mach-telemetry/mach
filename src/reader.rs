@@ -60,7 +60,7 @@ async fn snapshot_worker(
     mut receiver: mpsc::UnboundedReceiver<SnapshotterRequest>,
 ) {
     let topic = format!("read_ahead_log_{}", series_id.0);
-    create_topic(KAFKA_BOOTSTRAP, topic.as_str()).await;
+    //create_topic(KAFKA_BOOTSTRAP, topic.as_str()).await;
     let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", KAFKA_BOOTSTRAP)
             .set("message.max.bytes", "2000000")
@@ -112,24 +112,24 @@ async fn snapshot_worker(
     }
 }
 
-async fn create_topic(bootstrap: &str, topic: &str) {
-    let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
-        .set("bootstrap.servers", bootstrap)
-        .create().unwrap();
-    let topic = [NewTopic {
-        name: topic,
-        num_partitions: 1,
-        replication: TopicReplication::Fixed(3),
-        config: Vec::new(),
-    }];
-    let opts = AdminOptions::new();
-    let result = admin.create_topics(&topic, &opts).await.unwrap();
-    match result[0].as_ref() {
-        Ok(_) => {},
-        Err((_, RDKafkaErrorCode::TopicAlreadyExists)) => {}, // Ok if topic already exists
-        Err(_) => panic!("Can't create topic"),
-    };
-}
+//async fn create_topic(bootstrap: &str, topic: &str) {
+//    let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
+//        .set("bootstrap.servers", bootstrap)
+//        .create().unwrap();
+//    let topic = [NewTopic {
+//        name: topic,
+//        num_partitions: 1,
+//        replication: TopicReplication::Fixed(3),
+//        config: Vec::new(),
+//    }];
+//    let opts = AdminOptions::new();
+//    let result = admin.create_topics(&topic, &opts).await.unwrap();
+//    match result[0].as_ref() {
+//        Ok(_) => {},
+//        Err((_, RDKafkaErrorCode::TopicAlreadyExists)) => {}, // Ok if topic already exists
+//        Err(_) => panic!("Can't create topic"),
+//    };
+//}
 
 pub struct Snapshotter {
     worker: mpsc::UnboundedSender<SnapshotterRequest>,

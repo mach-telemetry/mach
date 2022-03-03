@@ -138,31 +138,31 @@ impl inner::ChunkReader for KafkaReader {
     }
 }
 
-fn create_topic(bootstrap: &str, topic: &str) -> Result<(), Error> {
-    let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
-        .set("bootstrap.servers", bootstrap)
-        .create()?;
-    let topic = [NewTopic {
-        name: topic,
-        num_partitions: 1,
-        replication: TopicReplication::Fixed(3),
-        config: Vec::new(),
-    }];
-    let opts = AdminOptions::new();
-    let fut = admin.create_topics(&topic, &opts);
-
-    // block on current thread instead of global runtime
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    let result = rt.block_on(fut)?;
-
-    if let Err((s, c)) = &result[0] {
-        return Err(Error::KafkaErrorCode((s.into(), c.clone())));
-    }
-    Ok(())
-}
+//fn create_topic(bootstrap: &str, topic: &str) -> Result<(), Error> {
+//    let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
+//        .set("bootstrap.servers", bootstrap)
+//        .create()?;
+//    let topic = [NewTopic {
+//        name: topic,
+//        num_partitions: 1,
+//        replication: TopicReplication::Fixed(3),
+//        config: Vec::new(),
+//    }];
+//    let opts = AdminOptions::new();
+//    let fut = admin.create_topics(&topic, &opts);
+//
+//    // block on current thread instead of global runtime
+//    let rt = tokio::runtime::Builder::new_current_thread()
+//        .enable_all()
+//        .build()
+//        .unwrap();
+//    let result = rt.block_on(fut)?;
+//
+//    if let Err((s, c)) = &result[0] {
+//        return Err(Error::KafkaErrorCode((s.into(), c.clone())));
+//    }
+//    Ok(())
+//}
 
 pub struct KafkaBackend {
     bootstrap_servers: String,
@@ -171,7 +171,7 @@ pub struct KafkaBackend {
 
 impl KafkaBackend {
     pub fn new(bootstrap_servers: &str, topic: &str) -> Result<Self, Error> {
-        create_topic(bootstrap_servers, topic)?;
+        //create_topic(bootstrap_servers, topic)?;
         let topic = topic.into();
         let bootstrap_servers = bootstrap_servers.into();
         Ok(Self {
