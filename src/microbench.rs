@@ -64,11 +64,9 @@ use zipf::*;
 
 const ZIPF: f64 = 0.99;
 const UNIVARIATE: bool = false;
-const NTHREADS: usize = 4;
-const NSERIES: usize = 10_000;
-const NVARS: usize = 8;
+const NTHREADS: usize = 1;
+const NSERIES: usize = 100_000;
 const NSEGMENTS: usize = 1;
-
 const NUM_INGESTS_PER_THR: usize = 100_000_000;
 
 lazy_static! {
@@ -84,7 +82,7 @@ lazy_static! {
 
 struct RawSample(
     u64,                // timestamp
-    Box<[[u8; NVARS]]>, // data
+    Box<[[u8; 8]]>, // data
 );
 
 #[derive(Serialize, Deserialize)]
@@ -98,7 +96,7 @@ impl DataEntry {
         let mut res = Vec::new();
         for i in 0..self.timestamps.len() {
             let ts = self.timestamps[i];
-            let mut values: Vec<[u8; NVARS]> = Vec::new();
+            let mut values: Vec<[u8; 8]> = Vec::new();
             for (_, var) in self.values.iter() {
                 values.push(var[i].to_be_bytes());
             }
@@ -207,7 +205,15 @@ impl IngestionWorker {
 
         let now = Instant::now();
 
+        let mut interval = Instant::now();
+        let mut last_num_pushed = 0;
         while self.num_pushed < NUM_INGESTS_PER_THR {
+            if self.num_pushed > last_num_pushed && self.num_pushed % 1_000_000 == 0 {
+                last_num_pushed = self.num_pushed;
+                let elapsed = interval.elapsed();
+                println!("Rate: {}", 1_000_000./elapsed.as_secs_f64());
+                interval = Instant::now();
+            }
             match self._ingest_sample(&mut zipf_picker) {
                 Ok(..) => self.num_pushed += 1,
                 Err(..) => continue,
@@ -233,33 +239,16 @@ impl IngestionWorker {
         let ts_offset = series.last().unwrap().0 - series[0].0 + series[1].0 - series[0].0;
         let timestamp = raw_sample.0 + ts_offset * self.wraparounds[victim] as u64;
 
-        seq!(N in 1..10 {
-            match raw_sample.1.len() {
-                #(
-                N => {
-                    let sample: Sample<N> = Sample {
-                        timestamp,
-                        values: (*raw_sample.1).try_into().unwrap()
-                    };
+        self.writer.push(SeriesRef(refid), timestamp, &raw_sample.1[..])?;
 
-                    let res = self.writer.push_sample(SeriesRef(refid), sample);
-
-                    if res.is_ok() {
-                        match self.next[victim] {
-                            _ if self.next[victim] == series.len() - 1 => {
-                                self.next[victim] = 0;
-                                self.wraparounds[victim] += 1;
-                            },
-                            _ => self.next[victim] += 1,
-                        }
-                    }
-
-                   return res;
-                },
-                )*
-                _ => unimplemented!()
-            }
-        });
+        match self.next[victim] {
+            _ if self.next[victim] == series.len() - 1 => {
+                self.next[victim] = 0;
+                self.wraparounds[victim] += 1;
+            },
+            _ => self.next[victim] += 1,
+        }
+        Ok(())
     }
 
     fn did_ingest(&self) -> bool {
