@@ -64,7 +64,7 @@ impl<B: ListBackend> Mach<B> {
 
         //  Setup ListBuffer for this writer
         let buffer = ListBuffer::new(BUFSZ);
-        let writer = Writer::new(self.series_table.clone(), backend_writer);
+        let writer = Writer::new(writer_id.clone(), self.series_table.clone(), backend_writer);
 
         // Store writer information
         self.writer_table
@@ -73,7 +73,7 @@ impl<B: ListBackend> Mach<B> {
         Ok(writer)
     }
 
-    pub fn add_series(&mut self, config: SeriesConfig) -> Result<WriterId, Error> {
+    pub fn add_series(&mut self, config: SeriesConfig) -> Result<(WriterId, SeriesId), Error> {
         // For now, randomly choose a writer
         let writer = self
             .writers
@@ -89,6 +89,6 @@ impl<B: ListBackend> Mach<B> {
         let series_id = config.tags.id();
         let series = Series::new(config, buffer);
         self.series_table.insert(series_id, series);
-        Ok(writer)
+        Ok((writer, series_id))
     }
 }

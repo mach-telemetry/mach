@@ -48,6 +48,10 @@ debug=true
 name = "benchmark_logs"
 path = "src/benchmark_logs.rs"
 
+[[bin]]
+name = "microbench"
+path = "src/microbench.rs"
+
 [features]
 kafka-backend = []
 vector-backend = []

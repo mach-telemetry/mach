@@ -18,6 +18,7 @@ pub mod compression;
 pub mod constants;
 pub mod id;
 pub mod persistent_list;
+mod reader;
 pub mod runtime;
 pub mod sample;
 pub mod segment;
