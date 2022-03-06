@@ -8,7 +8,7 @@
 #![allow(clippy::len_without_is_empty)]
 #![allow(unused)]
 #![allow(private_in_public)]
-#![feature(llvm_asm)]
+//#![feature(llvm_asm)]
 #![feature(proc_macro_hygiene)]
 #![feature(trait_alias)]
 
