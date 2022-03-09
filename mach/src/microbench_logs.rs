@@ -82,8 +82,16 @@ lazy_static! {
     static ref BARRIERS: Arc<Barrier> = Arc::new(Barrier::new(NTHREADS));
 }
 
+fn clean_outdir() {
+    let outdir = &*OUTDIR;
+    std::fs::remove_dir_all(outdir);
+    std::fs::create_dir_all(outdir).unwrap();
+}
+
+struct DataSrcName(String);
+
 struct DataSrc {
-    src_names: Vec<String>,
+    src_names: Vec<DataSrcName>,
 }
 
 impl DataSrc {
@@ -92,9 +100,11 @@ impl DataSrc {
             .expect("Could not read from data path")
             .flat_map(|res| {
                 res.map(|e| {
-                    e.file_name()
-                        .into_string()
-                        .expect("datasrc file name not converable into string")
+                    DataSrcName(
+                        e.file_name()
+                            .into_string()
+                            .expect("datasrc file name not converable into string"),
+                    )
                 })
             })
             .collect();
@@ -102,11 +112,94 @@ impl DataSrc {
         Self { src_names }
     }
 
-    fn size(&self) -> usize {
+    fn pick_from_series_id(&self, series_id: SeriesId) -> DataSrcName {
+        self.src_names[*series_id as usize % self.src_names.len()]
+    }
+
+    fn len(&self) -> usize {
         self.src_names.len()
     }
 }
 
+struct BenchWriter {
+    writer: Writer,
+    series_refs: Vec<SeriesRef>,
+    series_ids: Vec<SeriesId>,
+    datasrc_names: Vec<DataSrcName>,
+}
+
+impl BenchWriter {
+    fn new(mut writer: Writer) -> Self {
+        Self {
+            writer,
+            series_refs: Vec::new(),
+            series_ids: Vec::new(),
+            datasrc_names: Vec::new(),
+        }
+    }
+
+    fn register_series(&mut self, series_id: SeriesId, datasrc_name: DataSrcName) {
+        let series_ref = self.writer.get_reference(series_id);
+        self.series_refs.push(series_ref);
+        self.series_ids.push(series_id);
+        self.datasrc_names.push(datasrc_name);
+    }
+}
+
+struct Microbench<B: PersistentListBackend> {
+    mach: Mach<B>,
+    data_src: DataSrc,
+    writer_map: HashMap<WriterId, BenchWriter>,
+}
+
+impl<B: PersistentListBackend> Microbench<B> {
+    fn new(mach: Mach<B>, data_src: DataSrc, nthreads: usize) -> Self {
+        let writer_map = HashMap::new();
+        for _ in 0..nthreads {
+            let writer = mach.new_writer().expect("writer creation failed");
+            writer_map.insert(writer.id(), BenchWriter::new(writer));
+        }
+
+        Self {
+            mach,
+            data_src,
+            writer_map,
+        }
+    }
+
+    fn with_n_series(&self, n_series: usize) {
+        for _ in 0..n_series {
+            let config = SeriesConfig {
+                tags: Tags::from(HashMap::new()),
+                compression: Compression::from(vec![CompressFn::BytesLZ4]),
+                seg_count: NSEGMENTS,
+                nvars: 1,
+                types: vec![Types::Bytes],
+            };
+
+            let (writer_id, series_id) = self
+                .mach
+                .add_series(config)
+                .expect("add new series failed unexpectedly");
+
+            let bench_writer = self
+                .writer_map
+                .get_mut(&writer_id)
+                .expect("writer_map is incomplete");
+
+            bench_writer.register_series(series_id, self.data_src.pick_from_series_id(series_id));
+        }
+    }
+}
+
 fn main() {
+    clean_outdir();
+
+    let mut mach = Mach::<FileBackend>::new();
     let datasrc = DataSrc::new(LOGSPATH.as_path());
+
+    let bench = Microbench::new(mach, datasrc, NTHREADS);
+
+    bench.with_n_series(NTHREADS * NSERIES);
+    bench.start().join();
 }
