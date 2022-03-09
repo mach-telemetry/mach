@@ -45,6 +45,10 @@ path = "src/benchmark_logs.rs"
 name = "microbench"
 path = "src/microbench.rs"
 
+[[bin]]
+name = "microbench_logs"
+path = "src/microbench_logs.rs"
+
 [features]
 kafka-backend = []
 vector-backend = []
