@@ -1,0 +1,23 @@
+[package]
+name = "bin"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mach = { path = "../mach" }
+tonic = { version = "0.6.2", features = ["prost", "compression"] }
+tokio = "1.17.0"
+prost = "0.9"
+
+[[bin]]
+name = "tsdb"
+path = "src/tsdb.rs"
+
+[[bin]]
+name = "tsdb-client"
+path = "src/tsdb_client.rs"
+
+[build-dependencies]
+tonic-build = { version = "0.6.2", features = ["prost", "compression"] }

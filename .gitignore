@@ -1,6 +1,6 @@
-/data
+**/data
 .*.swp
 .*.swo
-/target
+**/target
 Cargo.lock
 .DS_Store
