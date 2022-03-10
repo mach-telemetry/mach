@@ -31,6 +31,7 @@ mod zipf;
 #[macro_use]
 mod rdtsc;
 
+use crossbeam::channel::{bounded, Receiver, Sender};
 use rand::Rng;
 use serde::*;
 use std::fs;
@@ -121,14 +122,45 @@ impl DataSrc {
     }
 }
 
-struct BenchWriter {
+struct ZipfianPicker {
+    selection_pool: Vec<usize>,
+    counter: usize,
+}
+
+impl ZipfianPicker {
+    fn new(size: u64) -> Self {
+        let mut z = Zipfian::new(size, ZIPF);
+
+        ZipfianPicker {
+            selection_pool: (0..1000).map(|_| z.next_item() as usize).collect(),
+            counter: 0,
+        }
+    }
+
+    fn next(&mut self) -> usize {
+        let selected = self.selection_pool[self.counter];
+        self.counter = match self.counter {
+            _ if self.counter == self.selection_pool.len() - 1 => 0,
+            _ => self.counter + 1,
+        };
+        selected
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct RawSample {
+    timestamp: u64,
+    value: String,
+}
+
+struct BenchWriterMeta {
     writer: Writer,
     series_refs: Vec<SeriesRef>,
     series_ids: Vec<SeriesId>,
     datasrc_names: Vec<DataSrcName>,
 }
 
-impl BenchWriter {
+impl BenchWriterMeta {
     fn new(mut writer: Writer) -> Self {
         Self {
             writer,
@@ -144,12 +176,34 @@ impl BenchWriter {
         self.series_ids.push(series_id);
         self.datasrc_names.push(datasrc_name);
     }
+
+    fn run(&mut self) {
+        let (s, r) = bounded::<Vec<RawSample>>(1);
+
+        let write_thr = thread::spawn(|| {
+            let mut zipf_picker = ZipfianPicker::new(self.series_ids.len() as u64);
+
+            while let Ok(data) = r.recv() {
+                for sample in data {
+                    let picked = zipf_picker.next();
+                    self.writer.push_type(
+                        self.series_refs[picked],
+                        self.series_ids[picked],
+                        sample.timestamp,
+                        &vec![Type::Bytes(Bytes::from_slice(sample.value.as_bytes()))],
+                    );
+                }
+            }
+        });
+
+        write_thr.join();
+    }
 }
 
 struct Microbench<B: PersistentListBackend> {
     mach: Mach<B>,
     data_src: DataSrc,
-    writer_map: HashMap<WriterId, BenchWriter>,
+    writer_map: HashMap<WriterId, BenchWriterMeta>,
 }
 
 impl<B: PersistentListBackend> Microbench<B> {
@@ -157,7 +211,7 @@ impl<B: PersistentListBackend> Microbench<B> {
         let writer_map = HashMap::new();
         for _ in 0..nthreads {
             let writer = mach.new_writer().expect("writer creation failed");
-            writer_map.insert(writer.id(), BenchWriter::new(writer));
+            writer_map.insert(writer.id(), BenchWriterMeta::new(writer));
         }
 
         Self {
@@ -190,6 +244,20 @@ impl<B: PersistentListBackend> Microbench<B> {
             bench_writer.register_series(series_id, self.data_src.pick_from_series_id(series_id));
         }
     }
+
+    fn run(&self) {
+        let handles = Vec::new();
+
+        for (id, mut writer) in self.writer_map {
+            handles.push(thread::spawn(|| {
+                writer.ingest();
+            }));
+        }
+
+        println!("Waiting for ingestion to finish");
+        handles.drain(..).for_each(|h| h.join().unwrap());
+        println!("Finished!");
+    }
 }
 
 fn main() {
@@ -199,7 +267,7 @@ fn main() {
     let datasrc = DataSrc::new(LOGSPATH.as_path());
 
     let bench = Microbench::new(mach, datasrc, NTHREADS);
-
     bench.with_n_series(NTHREADS * NSERIES);
-    bench.start().join();
+
+    bench.run();
 }
