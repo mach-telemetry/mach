@@ -1,10 +1,13 @@
 syntax = "proto3";
-package mach_server;
+package mach_rpc;
 
 // The definition for serving global state
-service Mach {
+service TsdbService {
   rpc AddSeries(AddSeriesRequest) returns (AddSeriesResponse) {}
   rpc Echo(EchoRequest) returns (EchoResponse) {}
+  rpc Map(MapRequest) returns (MapResponse) {}
+  rpc EchoStream(stream EchoRequest) returns (stream EchoResponse) {}
+  rpc MapStream(stream MapRequest) returns (stream MapResponse) {}
 }
 
 message EchoRequest {
@@ -13,6 +16,14 @@ message EchoRequest {
 
 message EchoResponse {
   string msg = 1;
+}
+
+message MapRequest {
+  map<uint64, uint64> samples = 1;
+}
+
+message MapResponse {
+  map<uint64, bool> samples = 1;
 }
 
 message AddSeriesRequest {
@@ -34,6 +45,10 @@ message AddSeriesResponse {
   uint64 series_id = 2;
 }
 
-
+// The definition for serving global state
+service WriterService {
+  rpc Echo(EchoRequest) returns (EchoResponse) {}
+  rpc MapStream(stream MapRequest) returns (stream MapResponse) {}
+}
 
 

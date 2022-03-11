@@ -2,7 +2,7 @@ pub mod mach_rpc {
     tonic::include_proto!("mach_rpc"); // The string specified here must match the proto package name
 }
 
-use mach_rpc::tsdb_service_client::TsdbServiceClient;
+use mach_rpc::writer_service_client::WriterServiceClient;
 use mach_rpc::{AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse};
 use std::time::{Instant, Duration};
 use std::thread::sleep;
@@ -19,40 +19,7 @@ fn echo_requests_iter() -> impl Stream<Item = EchoRequest> {
     })
 }
 
-async fn echo_stream(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>, num: usize) {
-    let in_stream = echo_requests_iter().take(num);
-
-    let response = client
-        .echo_stream(in_stream)
-        .await
-        .unwrap();
-
-    let mut resp_stream = response.into_inner();
-
-    let mut instant = Instant::now();
-    while let Some(recieved) = resp_stream.next().await {
-        let received = recieved.unwrap();
-        let count = counter.fetch_add(1, SeqCst);
-        //if count > 0 && count % 1_000_000 == 0 {
-        //    let elapsed = instant.elapsed();
-        //    println!("received 1,000,000 responses in {:?}", elapsed);
-        //    instant = Instant::now();
-        //}
-    }
-}
-
-async fn map(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
-    let (tx, mut rx) = channel(1);
-    tokio::spawn(map_maker(tx));
-
-    loop {
-        client.map(rx.recv().await.unwrap()).await.unwrap();
-        counter.fetch_add(100_000, SeqCst);
-    }
-}
-
-
-async fn map_stream(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
+async fn map_stream(client: &mut WriterServiceClient<Channel>, counter: Arc<AtomicUsize>) {
     let (tx, rx) = channel(1);
     tokio::spawn(map_maker(tx));
 
@@ -95,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in 0..clients {
         let counter = counter.clone();
         v.push(tokio::spawn(async move {
-            let mut client = TsdbServiceClient::connect("http://[::1]:50051").await.unwrap();
+            let mut client = WriterServiceClient::connect("http://[::1]:50051").await.unwrap();
             map_stream(&mut client, counter.clone()).await;
         }));
     }

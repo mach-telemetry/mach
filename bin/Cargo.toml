@@ -9,7 +9,9 @@ edition = "2021"
 mach = { path = "../mach" }
 tonic = { version = "0.6.2", features = ["prost", "compression"] }
 tokio = "1.17.0"
+tokio-stream = "0.1.8"
 prost = "0.9"
+futures = "0.3.21"
 
 [[bin]]
 name = "tsdb"
@@ -18,6 +20,10 @@ path = "src/tsdb.rs"
 [[bin]]
 name = "tsdb-client"
 path = "src/tsdb_client.rs"
+
+[[bin]]
+name = "writer-client"
+path = "src/writer_client.rs"
 
 [build-dependencies]
 tonic-build = { version = "0.6.2", features = ["prost", "compression"] }
