@@ -87,7 +87,7 @@ impl Writer {
         Ok(())
     }
 
-    pub fn push_type(&mut self, reference: SeriesRef, series_id: SeriesId, ts: u64, data: &[Type]) -> Result<(), Error> {
+    pub fn push_type(&mut self, reference: SeriesRef, ts: u64, data: &[Type]) -> Result<(), Error> {
         //self.wal.write(series_id.0, ts, data);
         let reference = *reference;
         match self.writers[reference].push_type(ts, data)? {
