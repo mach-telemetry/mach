@@ -30,16 +30,24 @@ use std::{
 
 pub struct MachTSDB {
     tsdb: Arc<Mutex<Mach<VectorBackend>>>,
+    writers: HashMap<String, String>,
 }
 
 impl MachTSDB {
     fn new() -> Self {
         let mut mach = Mach::new();
 
-        writer::serve_writer(mach.new_writer().unwrap(), "[::1]:50051");
-
+        let mut writers = HashMap::new();
+        for i in 0..1 {
+            let writer = mach.new_writer().unwrap();
+            let id = writer.id().0;
+            let addr = format!("[::1]:500{}", 51 + i);
+            writer::serve_writer(writer, &addr);
+            writers.insert(id, format!("http://{}", addr));
+        }
         Self {
             tsdb: Arc::new(Mutex::new(mach)),
+            writers,
         }
     }
 }
@@ -73,11 +81,6 @@ impl TsdbService for MachTSDB {
         msg: Request<AddSeriesRequest>,
     ) -> Result<Response<AddSeriesResponse>, Status> {
         let mut req = msg.into_inner();
-        let mut map = HashMap::new();
-        for kv in req.tags.drain(..) {
-            map.insert(kv.key, kv.value);
-        }
-        let tags = Tags::from(map);
         let types: Vec<Types> = req
             .types
             .iter()
@@ -88,6 +91,7 @@ impl TsdbService for MachTSDB {
                 _ => unimplemented!(),
             })
             .collect();
+        let tags = Tags::from(req.tags);
 
         let compression = {
             let compression: Vec<CompressFn> = types
@@ -112,9 +116,14 @@ impl TsdbService for MachTSDB {
             nvars,
         };
 
-        //self.tsdb.lock().add_series(conf);
+        let (writer_id, series_id) = self.tsdb.lock().unwrap().add_series(conf).unwrap();
+        let writer_address = self.writers.get(&writer_id.0).unwrap().clone();
+        let series_id = series_id.0;
 
-        unimplemented!();
+        Ok(Response::new(AddSeriesResponse {
+            writer_address,
+            series_id,
+        }))
     }
 
     type EchoStreamStream = ReceiverStream<Result<EchoResponse, Status>>;

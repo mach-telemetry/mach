@@ -32,12 +32,8 @@ message AddSeriesRequest {
       F64 = 1;
       Bytes = 2;
   }
-  message Tag {
-    string key = 1;
-    string value = 2;
-  }
   repeated ValueType types = 1;
-  repeated Tag tags = 2;
+  map<string, string> tags = 2;
 }
 
 message AddSeriesResponse {

@@ -3,9 +3,11 @@ pub mod mach_rpc {
 }
 
 use futures::stream::Stream;
+use mach_rpc::tsdb_service_client::TsdbServiceClient;
 use mach_rpc::writer_service_client::WriterServiceClient;
 use mach_rpc::{
-    AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse,
+    add_series_request::ValueType, AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse,
+    GetSeriesReferenceRequest, GetSeriesReferenceResponse, MapRequest, MapResponse,
 };
 use std::collections::HashMap;
 use std::sync::{
@@ -63,25 +65,29 @@ async fn map_maker(sender: Sender<MapRequest>) {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicUsize::new(0));
+    let mut client = TsdbServiceClient::connect("http://[::1]:50050")
+        .await
+        .unwrap();
 
-    let clients = 4;
-    let mut v = Vec::new();
-    for i in 0..clients {
-        let counter = counter.clone();
-        v.push(tokio::spawn(async move {
-            let mut client = WriterServiceClient::connect("http://[::1]:50051")
-                .await
-                .unwrap();
-            map_stream(&mut client, counter.clone()).await;
-        }));
-    }
-    let mut last = 0;
-    loop {
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        let cur = counter.load(SeqCst);
-        println!("received {} / sec", cur - last);
-        last = cur;
-    }
+    // Timeseries information
+    let mut tags: HashMap<String, String> = HashMap::new();
+    tags.insert("foo".into(), "bar".into());
+    let types = vec![ValueType::F64.into(), ValueType::Bytes.into()];
+    let req = AddSeriesRequest { types, tags };
+    let AddSeriesResponse {
+        writer_address,
+        series_id,
+    } = client.add_series(req).await.unwrap().into_inner();
+    println!("Writer address: {:?}", writer_address);
+    let mut writer_client = WriterServiceClient::connect(writer_address).await.unwrap();
+
+    let series_ref_request = GetSeriesReferenceRequest { series_id };
+    let GetSeriesReferenceResponse { series_reference } = writer_client
+        .get_series_reference(series_ref_request)
+        .await
+        .unwrap()
+        .into_inner();
+    println!("Series reference: {:?}", series_reference);
 
     //let mut counter: u64 = 0;
     //let mut instant = Instant::now();
