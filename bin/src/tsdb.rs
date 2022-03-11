@@ -6,24 +6,26 @@ pub mod mach_rpc {
 
 use mach_rpc::tsdb_service_server::{TsdbService, TsdbServiceServer};
 use mach_rpc::writer_service_server::{WriterService, WriterServiceServer};
-use mach_rpc::{AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse};
+use mach_rpc::{
+    AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse,
+};
+use std::{error::Error, io::ErrorKind, net::ToSocketAddrs, pin::Pin, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
-use std::{error::Error, io::ErrorKind, net::ToSocketAddrs, pin::Pin, time::Duration};
 
 //use futures::Stream;
 
 mod writer;
 use mach::{
-    tsdb::Mach,
+    compression::{CompressFn, Compression},
     persistent_list::VectorBackend,
-    series::{Types, SeriesConfig},
+    series::{SeriesConfig, Types},
     tags::Tags,
-    compression::{Compression, CompressFn},
+    tsdb::Mach,
 };
 use std::{
-    sync::{Arc, Mutex},
     collections::HashMap,
+    sync::{Arc, Mutex},
 };
 
 pub struct MachTSDB {
@@ -54,9 +56,14 @@ impl TsdbService for MachTSDB {
 
     async fn map(&self, msg: Request<MapRequest>) -> Result<Response<MapResponse>, Status> {
         //println!("Got a request: {:?}", msg);
-        let response: HashMap<u64, bool> = msg.into_inner().samples.iter().map(|(k, _)| (*k, true)).collect();
+        let response: HashMap<u64, bool> = msg
+            .into_inner()
+            .samples
+            .iter()
+            .map(|(k, _)| (*k, true))
+            .collect();
         let reply = MapResponse {
-            samples: response.into()
+            samples: response.into(),
         };
         Ok(Response::new(reply))
     }
@@ -71,19 +78,26 @@ impl TsdbService for MachTSDB {
             map.insert(kv.key, kv.value);
         }
         let tags = Tags::from(map);
-        let types: Vec<Types> = req.types.iter().map(|x| match x {
-            0 => Types::U64,
-            1 => Types::F64,
-            2 => Types::Bytes,
-            _ => unimplemented!(),
-        }).collect();
+        let types: Vec<Types> = req
+            .types
+            .iter()
+            .map(|x| match x {
+                0 => Types::U64,
+                1 => Types::F64,
+                2 => Types::Bytes,
+                _ => unimplemented!(),
+            })
+            .collect();
 
         let compression = {
-            let compression: Vec<CompressFn> = types.iter().map(|x| match x {
-                Types::F64 => CompressFn::Decimal(3),
-                Types::Bytes => CompressFn::BytesLZ4,
-                _ => unimplemented!(),
-            }).collect();
+            let compression: Vec<CompressFn> = types
+                .iter()
+                .map(|x| match x {
+                    Types::F64 => CompressFn::Decimal(3),
+                    Types::Bytes => CompressFn::BytesLZ4,
+                    _ => unimplemented!(),
+                })
+                .collect();
             Compression::from(compression)
         };
 
@@ -104,10 +118,10 @@ impl TsdbService for MachTSDB {
     }
 
     type EchoStreamStream = ReceiverStream<Result<EchoResponse, Status>>;
-    async fn echo_stream(&self,
+    async fn echo_stream(
+        &self,
         request: Request<tonic::Streaming<EchoRequest>>,
     ) -> Result<Response<Self::EchoStreamStream>, Status> {
-
         let mut in_stream = request.into_inner();
         let (mut tx, rx) = mpsc::channel(4);
         tokio::spawn(async move {
@@ -131,22 +145,24 @@ impl TsdbService for MachTSDB {
     }
 
     type MapStreamStream = ReceiverStream<Result<MapResponse, Status>>;
-    async fn map_stream(&self,
+    async fn map_stream(
+        &self,
         request: Request<tonic::Streaming<MapRequest>>,
     ) -> Result<Response<Self::MapStreamStream>, Status> {
-
         let mut in_stream = request.into_inner();
         let (mut tx, rx) = mpsc::channel(4);
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
                 match result {
                     Ok(v) => {
-                        let response: HashMap<u64, bool> = v.samples.iter().map(|(k, _)| (*k, true)).collect();
-                        tx
-                            .send(Ok(MapResponse { samples: response.into() }))
-                            .await
-                            .expect("working rx")
-                    },
+                        let response: HashMap<u64, bool> =
+                            v.samples.iter().map(|(k, _)| (*k, true)).collect();
+                        tx.send(Ok(MapResponse {
+                            samples: response.into(),
+                        }))
+                        .await
+                        .expect("working rx")
+                    }
                     Err(err) => {
                         eprintln!("Error {:?}", err);
                         match tx.send(Err(err)).await {

@@ -4,23 +4,26 @@ pub mod mach_rpc {
     tonic::include_proto!("mach_rpc"); // The string specified here must match the proto package name
 }
 
+use mach::{
+    compression::{CompressFn, Compression},
+    persistent_list::VectorBackend,
+    series::{SeriesConfig, Types},
+    tags::Tags,
+    tsdb::Mach,
+    writer::Writer,
+};
 use mach_rpc::writer_service_server::{WriterService, WriterServiceServer};
 use mach_rpc::{EchoRequest, EchoResponse, MapRequest, MapResponse};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Arc, Mutex,
+    },
+};
+use std::{error::Error, io::ErrorKind, net::ToSocketAddrs, pin::Pin, time::Duration};
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
-use std::{error::Error, io::ErrorKind, net::ToSocketAddrs, pin::Pin, time::Duration};
-use mach::{
-    writer::Writer,
-    tsdb::Mach,
-    persistent_list::VectorBackend,
-    series::{Types, SeriesConfig},
-    tags::Tags,
-    compression::{Compression, CompressFn},
-};
-use std::{
-    sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering::SeqCst}},
-    collections::HashMap,
-};
 
 enum WriteRequest {
     GetReferenceId(GetReferenceId),
@@ -57,9 +60,10 @@ async fn writer_worker(mut writer: Writer, mut channel: mpsc::UnboundedReceiver<
         match item {
             WriteRequest::GetReferenceId(x) => {
                 x.resp.send(0);
-            },
+            }
             WriteRequest::Push(x) => {
-                let response: HashMap<u64, bool> = x.samples.iter().map(|(k, _)| (*k, true)).collect();
+                let response: HashMap<u64, bool> =
+                    x.samples.iter().map(|(k, _)| (*k, true)).collect();
                 let len = response.len();
                 x.resp.send(response);
                 counter.fetch_add(len, SeqCst);
@@ -70,9 +74,11 @@ async fn writer_worker(mut writer: Writer, mut channel: mpsc::UnboundedReceiver<
 
 pub fn serve_writer(writer: Writer, addr: &str) {
     let w = WriterServiceServer::new(MachWriter::new(writer));
-    tokio::spawn(Server::builder()
-        .add_service(w)
-        .serve(addr.parse().unwrap()));
+    tokio::spawn(
+        Server::builder()
+            .add_service(w)
+            .serve(addr.parse().unwrap()),
+    );
 }
 
 pub struct MachWriter {
@@ -83,9 +89,7 @@ impl MachWriter {
     pub fn new(writer: Writer) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         tokio::spawn(writer_worker(writer, rx));
-        Self {
-            sender: tx,
-        }
+        Self { sender: tx }
     }
 }
 
@@ -100,10 +104,10 @@ impl WriterService for MachWriter {
     }
 
     type MapStreamStream = ReceiverStream<Result<MapResponse, Status>>;
-    async fn map_stream(&self,
+    async fn map_stream(
+        &self,
         request: Request<tonic::Streaming<MapRequest>>,
     ) -> Result<Response<Self::MapStreamStream>, Status> {
-
         let mut in_stream = request.into_inner();
         let (mut tx, rx) = mpsc::channel(4);
         let sender_to_writer = self.sender.clone();
@@ -122,11 +126,12 @@ impl WriterService for MachWriter {
                             panic!("Writer thread is dead");
                         }
                         let response = resp_rx.await.unwrap();
-                        tx
-                            .send(Ok(MapResponse { samples: response.into() }))
-                            .await
-                            .expect("working rx")
-                    },
+                        tx.send(Ok(MapResponse {
+                            samples: response.into(),
+                        }))
+                        .await
+                        .expect("working rx")
+                    }
                     Err(err) => {
                         eprintln!("Error {:?}", err);
                         match tx.send(Err(err)).await {

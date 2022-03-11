@@ -2,16 +2,21 @@ pub mod mach_rpc {
     tonic::include_proto!("mach_rpc"); // The string specified here must match the proto package name
 }
 
-use mach_rpc::tsdb_service_client::TsdbServiceClient;
-use mach_rpc::{AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse};
-use std::time::{Instant, Duration};
-use std::thread::sleep;
-use tonic::transport::Channel;
 use futures::stream::Stream;
-use tokio_stream::{wrappers::ReceiverStream, StreamExt};
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
-use tokio::sync::mpsc::{Sender, Receiver, channel};
+use mach_rpc::tsdb_service_client::TsdbServiceClient;
+use mach_rpc::{
+    AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse,
+};
 use std::collections::HashMap;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
+use std::thread::sleep;
+use std::time::{Duration, Instant};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio_stream::{wrappers::ReceiverStream, StreamExt};
+use tonic::transport::Channel;
 
 fn echo_requests_iter() -> impl Stream<Item = EchoRequest> {
     tokio_stream::iter(1..usize::MAX).map(|i| EchoRequest {
@@ -19,13 +24,14 @@ fn echo_requests_iter() -> impl Stream<Item = EchoRequest> {
     })
 }
 
-async fn echo_stream(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>, num: usize) {
+async fn echo_stream(
+    client: &mut TsdbServiceClient<Channel>,
+    counter: Arc<AtomicUsize>,
+    num: usize,
+) {
     let in_stream = echo_requests_iter().take(num);
 
-    let response = client
-        .echo_stream(in_stream)
-        .await
-        .unwrap();
+    let response = client.echo_stream(in_stream).await.unwrap();
 
     let mut resp_stream = response.into_inner();
 
@@ -51,16 +57,12 @@ async fn map(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>)
     }
 }
 
-
 async fn map_stream(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
     let (tx, rx) = channel(1);
     tokio::spawn(map_maker(tx));
 
     let in_stream = ReceiverStream::new(rx);
-    let response = client
-        .map_stream(in_stream)
-        .await
-        .unwrap();
+    let response = client.map_stream(in_stream).await.unwrap();
 
     let mut resp_stream = response.into_inner();
 
@@ -82,7 +84,12 @@ async fn map_maker(sender: Sender<MapRequest>) {
         map.insert(i, i);
     }
     loop {
-        sender.send(MapRequest { samples: map.clone().into() }).await.unwrap();
+        sender
+            .send(MapRequest {
+                samples: map.clone().into(),
+            })
+            .await
+            .unwrap();
     }
 }
 
@@ -95,7 +102,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in 0..clients {
         let counter = counter.clone();
         v.push(tokio::spawn(async move {
-            let mut client = TsdbServiceClient::connect("http://[::1]:50051").await.unwrap();
+            let mut client = TsdbServiceClient::connect("http://[::1]:50051")
+                .await
+                .unwrap();
             map_stream(&mut client, counter.clone()).await;
         }));
     }
@@ -125,4 +134,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //}
     Ok(())
 }
-
