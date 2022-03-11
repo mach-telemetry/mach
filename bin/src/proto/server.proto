@@ -75,6 +75,7 @@ service WriterService {
   rpc GetSeriesReference(GetSeriesReferenceRequest) returns (GetSeriesReferenceResponse) {}
   rpc MapStream(stream MapRequest) returns (stream MapResponse) {}
   rpc PushStream(stream PushRequest) returns (stream PushResponse) {}
+  rpc Push(PushRequest) returns (PushResponse) {}
 }
 
 

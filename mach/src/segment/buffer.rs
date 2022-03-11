@@ -38,6 +38,7 @@ struct InnerBuffer {
 
 impl InnerBuffer {
     fn new(heap_pointers: &[bool]) -> Self {
+        println!("Heap pointers: {:?}", heap_pointers);
         let nvars = heap_pointers.len();
         //let heap_count = heap_pointers.iter().map(|x| *x as usize).sum();
 
@@ -112,7 +113,6 @@ impl InnerBuffer {
         }
         let len = self.len;
         self.ts[len] = ts;
-        let mut heap_offset = 0;
         for (i, item) in items.iter().enumerate() {
             match item {
                 Type::U64(x) => { self.data[i][len] = x.to_be_bytes(); },
@@ -120,14 +120,13 @@ impl InnerBuffer {
                 Type::Bytes(b) => {
                     //let b = unsafe { Bytes::from_raw(*x) };
                     let bytes = b.as_raw_bytes();
-                    let heap = self.heap[heap_offset].as_mut().unwrap();
+                    let heap = self.heap[i].as_mut().unwrap();
                     let cur_len = heap.len();
                     let len_after = bytes.len() + heap.len();
                     heap.extend_from_slice(b.as_raw_bytes());
                     if len_after > HEAP_TH {
                         self.is_full = true;
                     }
-                    heap_offset += 1;
                     let item = ((&heap[cur_len..]).as_ptr() as u64).to_be_bytes();
                     self.data[i][len] = item;
                 }

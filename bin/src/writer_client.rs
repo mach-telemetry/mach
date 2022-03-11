@@ -6,8 +6,9 @@ use futures::stream::Stream;
 use mach_rpc::tsdb_service_client::TsdbServiceClient;
 use mach_rpc::writer_service_client::WriterServiceClient;
 use mach_rpc::{
-    add_series_request::ValueType, AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse,
-    GetSeriesReferenceRequest, GetSeriesReferenceResponse, MapRequest, MapResponse,
+    add_series_request::ValueType, value::PbType, AddSeriesRequest, AddSeriesResponse, EchoRequest,
+    EchoResponse, GetSeriesReferenceRequest, GetSeriesReferenceResponse, MapRequest, MapResponse,
+    PushRequest, PushResponse, Sample, Value,
 };
 use std::collections::HashMap;
 use std::sync::{
@@ -88,6 +89,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap()
         .into_inner();
     println!("Series reference: {:?}", series_reference);
+
+    // Samples
+    let mut samples = HashMap::new();
+    let sample = Sample {
+        timestamp: 12345,
+        values: vec![
+            Value {
+                pb_type: Some(PbType::F64(123.4)),
+            },
+            Value {
+                pb_type: Some(PbType::Str("hello world".into())),
+            },
+        ],
+    };
+    samples.insert(series_reference, sample);
+    let request = PushRequest { samples };
+
+    let results = writer_client
+        .push(request)
+        .await
+        .unwrap()
+        .into_inner()
+        .results;
+    println!("{:?}", results);
 
     //let mut counter: u64 = 0;
     //let mut instant = Instant::now();

@@ -250,6 +250,20 @@ impl WriterService for MachWriter {
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 
+    async fn push(&self, msg: Request<PushRequest>) -> Result<Response<PushResponse>, Status> {
+        let request = msg.into_inner();
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let request = WriteRequest::Push(Push {
+            samples: request.samples,
+            resp: resp_tx,
+        });
+        if let Err(_) = self.sender.send(request) {
+            panic!("Writer thread is dead");
+        }
+        let results = resp_rx.await.unwrap();
+        Ok(Response::new(PushResponse { results }))
+    }
+
     async fn get_series_reference(
         &self,
         msg: Request<GetSeriesReferenceRequest>,
