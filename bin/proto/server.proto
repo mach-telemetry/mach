@@ -1,4 +1,6 @@
 syntax = "proto3";
+option go_package = "./main";
+
 package mach_rpc;
 
 // The definition for serving global state

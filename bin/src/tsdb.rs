@@ -41,9 +41,9 @@ impl MachTSDB {
         for i in 0..1 {
             let writer = mach.new_writer().unwrap();
             let id = writer.id().0;
-            let addr = format!("[::1]:500{}", 51 + i);
+            let addr = format!("127.0.0.1:500{}", 51 + i);
             writer::serve_writer(writer, &addr);
-            writers.insert(id, format!("http://{}", addr));
+            writers.insert(id, addr);
         }
         Self {
             tsdb: Arc::new(Mutex::new(mach)),
@@ -188,7 +188,7 @@ impl TsdbService for MachTSDB {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "[::1]:50050".parse()?;
+    let addr = "127.0.0.1:50050".parse()?;
     let tsdb = MachTSDB::new();
 
     Server::builder()

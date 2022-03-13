@@ -79,7 +79,7 @@ async fn counter_watcher(counter: Arc<AtomicUsize>) {
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;
             let cur = counter.load(SeqCst);
-            println!("received {} / sec", cur - last);
+            //println!("received {} / sec", cur - last);
             last = cur;
         }
     });
@@ -200,6 +200,7 @@ async fn push_worker(
 }
 
 pub fn serve_writer(writer: Writer, addr: &str) {
+    println!("Serving at: {}", addr);
     let w = WriterServiceServer::new(MachWriter::new(writer));
     tokio::spawn(
         Server::builder()
@@ -223,7 +224,6 @@ impl MachWriter {
 #[tonic::async_trait]
 impl WriterService for MachWriter {
     async fn echo(&self, msg: Request<EchoRequest>) -> Result<Response<EchoResponse>, Status> {
-        //println!("Got a request: {:?}", msg);
         let reply = EchoResponse {
             msg: format!("Echo: {}", msg.into_inner().msg).into(),
         };
