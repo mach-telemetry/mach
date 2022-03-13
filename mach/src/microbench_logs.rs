@@ -205,30 +205,42 @@ impl BenchWriterMeta {
 
             let readers = Vec::new();
             let line_itr = Vec::new();
+
             for name in self.datasrc_names {
                 let file = File::open(name.0).expect("open datasrc file failed");
                 let reader = BufReader::new(file);
-                line_itr.push(reader.lines());
+                line_itr.push(Some(reader.lines()));
                 readers.push(reader);
             }
 
+            let finished = 0;
+
             loop {
                 let picked = zipf.next();
-                match line_itr[picked].next() {
-                    None => break,
-                    Some(line) => {
-                        let line = line.expect("cannot read line");
-                        let item: Item =
-                            serde_json::from_str(&line).expect("unrecognized data item in file");
+                match line_itr[picked] {
+                    None => continue,
+                    Some(itr) => match itr.next() {
+                        None => {
+                            line_itr[picked] = None;
+                            finished += 1;
+                            if finished == self.series_refs.len() {
+                                break;
+                            }
+                        }
+                        Some(line) => {
+                            let line = line.expect("cannot read line");
+                            let item: Item = serde_json::from_str(&line)
+                                .expect("unrecognized data item in file");
 
-                        s.send(IngestionSample {
-                            timestamp: item.timestamp,
-                            value: item.value,
-                            serid: self.series_ids[picked],
-                            refid: self.series_refs[picked],
-                        })
-                        .expect("failed to send sample to writer");
-                    }
+                            s.send(IngestionSample {
+                                timestamp: item.timestamp,
+                                value: item.value,
+                                serid: self.series_ids[picked],
+                                refid: self.series_refs[picked],
+                            })
+                            .expect("failed to send sample to writer");
+                        }
+                    },
                 }
             }
 
