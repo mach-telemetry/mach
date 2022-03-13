@@ -39,8 +39,10 @@ use std::marker::PhantomData;
 use std::{
     collections::HashMap,
     convert::TryInto,
+    fs::File,
     fs::OpenOptions,
     io::prelude::*,
+    io::BufReader,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
@@ -146,11 +148,18 @@ impl ZipfianPicker {
         selected
     }
 }
-
 #[derive(Serialize, Deserialize)]
-struct RawSample {
+struct Item {
     timestamp: u64,
     value: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct IngestionSample {
+    timestamp: u64,
+    value: String,
+    serid: SeriesId,
+    refid: SeriesRef,
 }
 
 struct BenchWriterMeta {
@@ -178,25 +187,56 @@ impl BenchWriterMeta {
     }
 
     fn run(&mut self) {
-        let (s, r) = bounded::<Vec<RawSample>>(1);
+        let (s, r) = bounded::<IngestionSample>(1);
 
-        let write_thr = thread::spawn(|| {
-            let mut zipf_picker = ZipfianPicker::new(self.series_ids.len() as u64);
-
-            while let Ok(data) = r.recv() {
-                for sample in data {
-                    let picked = zipf_picker.next();
-                    self.writer.push_type(
-                        self.series_refs[picked],
-                        self.series_ids[picked],
-                        sample.timestamp,
-                        &vec![Type::Bytes(Bytes::from_slice(sample.value.as_bytes()))],
-                    );
-                }
+        let writer = thread::spawn(|| {
+            while let Ok(sample) = r.recv() {
+                self.writer.push_type(
+                    sample.refid,
+                    sample.serid,
+                    sample.timestamp,
+                    &vec![Type::Bytes(Bytes::from_slice(sample.value.as_bytes()))],
+                );
             }
         });
 
-        write_thr.join();
+        let loader = thread::spawn(|| {
+            let zipf = ZipfianPicker::new(self.series_refs.len() as u64);
+
+            let readers = Vec::new();
+            let line_itr = Vec::new();
+            for name in self.datasrc_names {
+                let file = File::open(name.0).expect("open datasrc file failed");
+                let reader = BufReader::new(file);
+                line_itr.push(reader.lines());
+                readers.push(reader);
+            }
+
+            loop {
+                let picked = zipf.next();
+                match line_itr[picked].next() {
+                    None => break,
+                    Some(line) => {
+                        let line = line.expect("cannot read line");
+                        let item: Item =
+                            serde_json::from_str(&line).expect("unrecognized data item in file");
+
+                        s.send(IngestionSample {
+                            timestamp: item.timestamp,
+                            value: item.value,
+                            serid: self.series_ids[picked],
+                            refid: self.series_refs[picked],
+                        })
+                        .expect("failed to send sample to writer");
+                    }
+                }
+            }
+
+            drop(s);
+        });
+
+        writer.join();
+        loader.join();
     }
 }
 
@@ -249,9 +289,7 @@ impl<B: PersistentListBackend> Microbench<B> {
         let handles = Vec::new();
 
         for (id, mut writer) in self.writer_map {
-            handles.push(thread::spawn(|| {
-                writer.ingest();
-            }));
+            handles.push(thread::spawn(|| writer.run()));
         }
 
         println!("Waiting for ingestion to finish");
