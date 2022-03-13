@@ -14,6 +14,7 @@
 
 mod compression;
 mod constants;
+mod durability;
 mod id;
 mod persistent_list;
 mod reader;
@@ -27,7 +28,6 @@ mod tsdb;
 mod utils;
 mod writer;
 mod zipf;
-mod durability;
 
 #[macro_use]
 mod rdtsc;
@@ -82,7 +82,7 @@ lazy_static! {
 }
 
 struct RawSample(
-    u64,                // timestamp
+    u64,         // timestamp
     Box<[Type]>, // data
 );
 
@@ -216,7 +216,7 @@ impl IngestionWorker {
             if self.num_pushed > last_num_pushed && self.num_pushed % 1_000_000 == 0 {
                 last_num_pushed = self.num_pushed;
                 let elapsed = interval.elapsed();
-                println!("Rate: {}", 1_000_000./elapsed.as_secs_f64());
+                println!("Rate: {}", 1_000_000. / elapsed.as_secs_f64());
                 interval = Instant::now();
             }
             match self._ingest_sample(&mut zipf_picker) {
@@ -245,13 +245,18 @@ impl IngestionWorker {
         let ts_offset = series.last().unwrap().0 - series[0].0 + series[1].0 - series[0].0;
         let timestamp = raw_sample.0 + ts_offset * self.wraparounds[victim] as u64;
 
-        self.writer.push_type(SeriesRef(refid), SeriesId(seriesid), timestamp, &raw_sample.1[..])?;
+        self.writer.push_type(
+            SeriesRef(refid),
+            SeriesId(seriesid),
+            timestamp,
+            &raw_sample.1[..],
+        )?;
 
         match self.next[victim] {
             _ if self.next[victim] == series.len() - 1 => {
                 self.next[victim] = 0;
                 self.wraparounds[victim] += 1;
-            },
+            }
             _ => self.next[victim] += 1,
         }
         Ok(())
