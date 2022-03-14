@@ -69,9 +69,9 @@ use zipf::*;
 const ZIPF: f64 = 0.99;
 const UNIVARIATE: bool = true;
 const NTHREADS: usize = 1;
-const NSERIES: usize = 10_000;
+const NSERIES: usize = 100_000;
 const NSEGMENTS: usize = 1;
-const NUM_INGESTS_PER_THR: usize = 100_000_000;
+const N_SAMPLES_PER_THR: usize = 10_000_000;
 
 lazy_static! {
     static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
@@ -91,8 +91,7 @@ fn clean_outdir() {
     std::fs::create_dir_all(outdir).unwrap();
 }
 
-#[derive(Clone)]
-struct DataSrcName(String);
+type DataSrcName = String;
 
 struct DataSrc {
     src_names: Vec<DataSrcName>,
@@ -104,11 +103,9 @@ impl DataSrc {
             .expect("Could not read from data path")
             .flat_map(|res| {
                 res.map(|e| {
-                    DataSrcName(
-                        e.file_name()
-                            .into_string()
-                            .expect("datasrc file name not converable into string"),
-                    )
+                    e.file_name()
+                        .into_string()
+                        .expect("datasrc file name not converable into string")
                 })
             })
             .collect();
@@ -210,45 +207,83 @@ impl DataLoader {
     fn load(&mut self) {
         let mut zipf = ZipfianPicker::new(self.series_refs.len() as u64);
 
-        let mut line_itr = Vec::new();
+        let mut line_itrs = Vec::new();
+        let mut nwraps = Vec::new(); // number of times started over from file beginning
+        let mut ts_min = Vec::new();
+        let mut ts_max = Vec::new();
 
         for name in &self.datasrc_names {
-            let file = File::open(name.0.as_str()).expect("open datasrc file failed");
+            let file = File::open(LOGSPATH.join(name.as_str())).expect("open datasrc file failed");
             let reader = BufReader::new(file);
             let lines = reader.lines();
-            line_itr.push(Some(lines));
+            line_itrs.push(lines);
+            nwraps.push(0);
         }
 
-        let mut finished = 0;
+        // get min timestamp in all files (assume data items are sorted chronologically)
+        for itr in line_itrs.iter_mut() {
+            match itr.next() {
+                None => panic!("empty data file"),
+                Some(line) => {
+                    let item: Item = serde_json::from_str(&line.expect("cannot read line"))
+                        .expect("cannot parse data item");
+                    ts_min.push(item.timestamp);
+                    ts_max.push(item.timestamp);
+                }
+            }
+        }
 
-        loop {
+        let mut c = 0;
+        let mut i = 0;
+        while c < N_SAMPLES_PER_THR {
+            i += 1;
+            if i % 1_000_000 == 0 {
+                println!("progress: {}/{}", c, N_SAMPLES_PER_THR);
+            }
+
             let picked = zipf.next();
-            let itr = line_itr.get_mut(picked).expect("missing line iterator");
-            match itr {
-                None => continue,
-                Some(itr) => match itr.next() {
-                    None => {
-                        line_itr[picked] = None;
-                        finished += 1;
-                        if finished == self.series_refs.len() {
-                            break;
-                        }
-                    }
-                    Some(line) => {
-                        let line = line.expect("cannot read line");
-                        let item: Item =
-                            serde_json::from_str(&line).expect("unrecognized data item in file");
+            let itr = line_itrs.get_mut(picked).expect("missing line iterator");
+            match itr.next() {
+                None => {
+                    nwraps[picked] += 1;
+                    drop(itr);
 
-                        self.s
-                            .send(IngestionSample {
-                                timestamp: item.timestamp,
-                                value: item.value,
-                                serid: self.series_ids[picked],
-                                refid: self.series_refs[picked],
-                            })
-                            .expect("failed to send sample to writer");
+                    let file = File::open(LOGSPATH.join(&self.datasrc_names[picked].as_str()))
+                        .expect("open datasrc file failed");
+                    let reader = BufReader::new(file);
+                    let lines = reader.lines();
+                    line_itrs[picked] = lines;
+                }
+                Some(line) => {
+                    let line = line.expect("cannot read line");
+                    let item: Item =
+                        serde_json::from_str(&line).expect("unrecognized data item in file");
+
+                    if nwraps[picked] == 0 {
+                        ts_max[picked] = item.timestamp;
                     }
-                },
+
+                    // amount of time to shift a timestamp during wraparounds, to avoid
+                    // duplicated timestamps.
+                    let ts_shift = 100;
+                    let timestamp = match nwraps[picked] {
+                        0 => item.timestamp,
+                        _ => {
+                            item.timestamp
+                                + (ts_max[picked] - ts_min[picked] + ts_shift) * nwraps[picked]
+                        }
+                    };
+
+                    self.s
+                        .send(IngestionSample {
+                            timestamp,
+                            value: item.value,
+                            serid: self.series_ids[picked],
+                            refid: self.series_refs[picked],
+                        })
+                        .expect("failed to send sample to writer");
+                    c += 1;
+                }
             }
         }
     }
@@ -360,5 +395,7 @@ fn main() {
     let mut bench = Microbench::new(mach, datasrc, NTHREADS);
     bench.with_n_series(NTHREADS * NSERIES);
 
+    let now = Instant::now();
     bench.run();
+    println!("Elapsed: {:.2?}", now.elapsed());
 }
