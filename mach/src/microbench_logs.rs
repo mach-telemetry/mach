@@ -91,6 +91,7 @@ fn clean_outdir() {
     std::fs::create_dir_all(outdir).unwrap();
 }
 
+#[derive(Clone)]
 struct DataSrcName(String);
 
 struct DataSrc {
@@ -115,8 +116,8 @@ impl DataSrc {
         Self { src_names }
     }
 
-    fn pick_from_series_id(&self, series_id: SeriesId) -> DataSrcName {
-        self.src_names[*series_id as usize % self.src_names.len()]
+    fn pick_from_series_id(&self, series_id: SeriesId) -> &DataSrcName {
+        &self.src_names[*series_id as usize % self.src_names.len()]
     }
 
     fn len(&self) -> usize {
@@ -162,6 +163,97 @@ struct IngestionSample {
     refid: SeriesRef,
 }
 
+struct IngestionWorker {
+    writer: Writer,
+    r: Receiver<IngestionSample>,
+}
+
+impl IngestionWorker {
+    fn new(writer: Writer, recv: Receiver<IngestionSample>) -> Self {
+        IngestionWorker { writer, r: recv }
+    }
+
+    fn ingest(&mut self) {
+        while let Ok(sample) = self.r.recv() {
+            self.writer.push_type(
+                sample.refid,
+                sample.serid,
+                sample.timestamp,
+                &vec![Type::Bytes(Bytes::from_slice(sample.value.as_bytes()))],
+            );
+        }
+    }
+}
+
+struct DataLoader {
+    s: Sender<IngestionSample>,
+    series_refs: Vec<SeriesRef>,
+    series_ids: Vec<SeriesId>,
+    datasrc_names: Vec<DataSrcName>,
+}
+
+impl DataLoader {
+    fn new(
+        s: Sender<IngestionSample>,
+        series_refs: Vec<SeriesRef>,
+        series_ids: Vec<SeriesId>,
+        datasrc_names: Vec<DataSrcName>,
+    ) -> Self {
+        DataLoader {
+            s,
+            series_refs,
+            series_ids,
+            datasrc_names,
+        }
+    }
+
+    fn load(&mut self) {
+        let mut zipf = ZipfianPicker::new(self.series_refs.len() as u64);
+
+        let mut line_itr = Vec::new();
+
+        for name in &self.datasrc_names {
+            let file = File::open(name.0.as_str()).expect("open datasrc file failed");
+            let reader = BufReader::new(file);
+            let lines = reader.lines();
+            line_itr.push(Some(lines));
+        }
+
+        let mut finished = 0;
+
+        loop {
+            let picked = zipf.next();
+            let itr = line_itr.get_mut(picked).expect("missing line iterator");
+            match itr {
+                None => continue,
+                Some(itr) => match itr.next() {
+                    None => {
+                        line_itr[picked] = None;
+                        finished += 1;
+                        if finished == self.series_refs.len() {
+                            break;
+                        }
+                    }
+                    Some(line) => {
+                        let line = line.expect("cannot read line");
+                        let item: Item =
+                            serde_json::from_str(&line).expect("unrecognized data item in file");
+
+                        self.s
+                            .send(IngestionSample {
+                                timestamp: item.timestamp,
+                                value: item.value,
+                                serid: self.series_ids[picked],
+                                refid: self.series_refs[picked],
+                            })
+                            .expect("failed to send sample to writer");
+                    }
+                },
+            }
+        }
+    }
+}
+
 struct BenchWriterMeta {
     writer: Writer,
     series_refs: Vec<SeriesRef>,
@@ -186,69 +278,13 @@ impl BenchWriterMeta {
         self.datasrc_names.push(datasrc_name);
     }
 
-    fn run(&mut self) {
+    fn spawn(self) -> (IngestionWorker, DataLoader) {
         let (s, r) = bounded::<IngestionSample>(1);
 
-        let writer = thread::spawn(|| {
-            while let Ok(sample) = r.recv() {
-                self.writer.push_type(
-                    sample.refid,
-                    sample.serid,
-                    sample.timestamp,
-                    &vec![Type::Bytes(Bytes::from_slice(sample.value.as_bytes()))],
-                );
-            }
-        });
-
-        let loader = thread::spawn(|| {
-            let zipf = ZipfianPicker::new(self.series_refs.len() as u64);
-
-            let readers = Vec::new();
-            let line_itr = Vec::new();
-
-            for name in self.datasrc_names {
-                let file = File::open(name.0).expect("open datasrc file failed");
-                let reader = BufReader::new(file);
-                line_itr.push(Some(reader.lines()));
-                readers.push(reader);
-            }
-
-            let finished = 0;
-
-            loop {
-                let picked = zipf.next();
-                match line_itr[picked] {
-                    None => continue,
-                    Some(itr) => match itr.next() {
-                        None => {
-                            line_itr[picked] = None;
-                            finished += 1;
-                            if finished == self.series_refs.len() {
-                                break;
-                            }
-                        }
-                        Some(line) => {
-                            let line = line.expect("cannot read line");
-                            let item: Item = serde_json::from_str(&line)
-                                .expect("unrecognized data item in file");
-
-                            s.send(IngestionSample {
-                                timestamp: item.timestamp,
-                                value: item.value,
-                                serid: self.series_ids[picked],
-                                refid: self.series_refs[picked],
-                            })
-                            .expect("failed to send sample to writer");
-                        }
-                    },
-                }
-            }
-
-            drop(s);
-        });
-
-        writer.join();
-        loader.join();
+        (
+            IngestionWorker::new(self.writer, r),
+            DataLoader::new(s, self.series_refs, self.series_ids, self.datasrc_names),
+        )
     }
 }
 
@@ -259,8 +295,8 @@ struct Microbench<B: PersistentListBackend> {
 }
 
 impl<B: PersistentListBackend> Microbench<B> {
-    fn new(mach: Mach<B>, data_src: DataSrc, nthreads: usize) -> Self {
-        let writer_map = HashMap::new();
+    fn new(mut mach: Mach<B>, data_src: DataSrc, nthreads: usize) -> Self {
+        let mut writer_map = HashMap::new();
         for _ in 0..nthreads {
             let writer = mach.new_writer().expect("writer creation failed");
             writer_map.insert(writer.id(), BenchWriterMeta::new(writer));
@@ -273,7 +309,7 @@ impl<B: PersistentListBackend> Microbench<B> {
         }
     }
 
-    fn with_n_series(&self, n_series: usize) {
+    fn with_n_series(&mut self, n_series: usize) {
         for _ in 0..n_series {
             let config = SeriesConfig {
                 tags: Tags::from(HashMap::new()),
@@ -293,15 +329,20 @@ impl<B: PersistentListBackend> Microbench<B> {
                 .get_mut(&writer_id)
                 .expect("writer_map is incomplete");
 
-            bench_writer.register_series(series_id, self.data_src.pick_from_series_id(series_id));
+            bench_writer.register_series(
+                series_id,
+                self.data_src.pick_from_series_id(series_id).clone(),
+            );
         }
     }
 
-    fn run(&self) {
-        let handles = Vec::new();
+    fn run(&mut self) {
+        let mut handles = Vec::new();
 
-        for (id, mut writer) in self.writer_map {
-            handles.push(thread::spawn(|| writer.run()));
+        for (id, writer_meta) in self.writer_map.drain() {
+            let (mut writer, mut loader) = writer_meta.spawn();
+            handles.push(thread::spawn(move || writer.ingest()));
+            handles.push(thread::spawn(move || loader.load()));
         }
 
         println!("Waiting for ingestion to finish");
@@ -316,7 +357,7 @@ fn main() {
     let mut mach = Mach::<FileBackend>::new();
     let datasrc = DataSrc::new(LOGSPATH.as_path());
 
-    let bench = Microbench::new(mach, datasrc, NTHREADS);
+    let mut bench = Microbench::new(mach, datasrc, NTHREADS);
     bench.with_n_series(NTHREADS * NSERIES);
 
     bench.run();
