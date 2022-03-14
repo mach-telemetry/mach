@@ -28,9 +28,15 @@ cargo test --features kafka-backend
 
 ```
 cd this/directory
-rustup override set nightly
+rustup override set nightly-2021-11-16
 tar -xzf data.tar.gz
-cargo test
+cargo test --lib
+```
+
+### Featuers,
+
+```
+cargo test --lib --features kafka-backend,file-backend
 ```
 
 ### Data

@@ -209,6 +209,7 @@ mod test {
     use crate::constants::*;
     use crate::tags::*;
     use crate::test_utils::*;
+    use crate::id::*;
     use rand::prelude::*;
     use std::{
         env,
@@ -283,7 +284,8 @@ mod test {
         let serid = SeriesId(0);
         let dict = Arc::new(DashMap::new());
         dict.insert(serid, series_meta.clone());
-        let mut write_thread = Writer::new(dict.clone(), persistent_writer);
+        let writer_id = WriterId::random();
+        let mut write_thread = Writer::new(writer_id, dict.clone(), persistent_writer);
         let series_ref = write_thread.get_reference(serid);
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
