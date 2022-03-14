@@ -8,7 +8,7 @@ cargo run --release --bin tsdb
 
 ### Run example clients
 
-**Rust:** `cargo run --release --bin tsdb-client`
+**Rust:** `cargo run --release --bin writer-client`
 
 **Go:** `cd golang && go run client.go server_grpc.pb.go server.pb.go`
 

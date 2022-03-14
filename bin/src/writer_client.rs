@@ -17,6 +17,7 @@ use std::sync::{
 };
 use std::thread::sleep;
 use std::time::{Duration, Instant};
+use std::net::SocketAddr;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
@@ -66,7 +67,7 @@ async fn map_maker(sender: Sender<MapRequest>) {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicUsize::new(0));
-    let mut client = TsdbServiceClient::connect("http://[::1]:50050")
+    let mut client = TsdbServiceClient::connect("http://127.0.0.1:50050")
         .await
         .unwrap();
 
@@ -80,6 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         series_id,
     } = client.add_series(req).await.unwrap().into_inner();
     println!("Writer address: {:?}", writer_address);
+    let writer_address = format!("http://{}", writer_address);
     let mut writer_client = WriterServiceClient::connect(writer_address).await.unwrap();
 
     let series_ref_request = GetSeriesReferenceRequest { series_id };
