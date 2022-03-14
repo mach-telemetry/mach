@@ -37,7 +37,7 @@ use serde::*;
 use std::fs;
 use std::marker::PhantomData;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     convert::TryInto,
     fs::File,
     fs::OpenOptions,
@@ -207,16 +207,24 @@ impl DataLoader {
     fn load(&mut self) {
         let mut zipf = ZipfianPicker::new(self.series_refs.len() as u64);
 
-        let mut line_itrs = Vec::new();
+        let mut writer_set = HashSet::<BufReader<File>>::new();
+        let mut writers = Vec::<&BufReader<File>>::new();
         let mut nwraps = Vec::new(); // number of times started over from file beginning
         let mut ts_min = Vec::new();
         let mut ts_max = Vec::new();
 
         for name in &self.datasrc_names {
-            let file = File::open(LOGSPATH.join(name.as_str())).expect("open datasrc file failed");
-            let reader = BufReader::new(file);
-            let lines = reader.lines();
-            line_itrs.push(lines);
+            match writer_set.get(&name) {
+                Some(writer) => {}
+                None => {
+                    let file =
+                        File::open(LOGSPATH.join(name.as_str())).expect("open datasrc file failed");
+                    let reader = BufReader::new(file);
+                    writer_set[name] = reader;
+                }
+            }
+
+            writers.push(writer_set.get().unwrap());
             nwraps.push(0);
         }
 

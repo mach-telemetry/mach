@@ -94,4 +94,4 @@ impl<B: ListBackend> Mach<B> {
         self.series_table.insert(series_id, series);
         Ok((writer, series_id))
     }
-}
+
