@@ -31,7 +31,6 @@ mod zipf;
 #[macro_use]
 mod rdtsc;
 
-use crossbeam::channel::{bounded, Receiver, Sender};
 use rand::Rng;
 use rtrb::{Consumer, Producer, RingBuffer};
 use serde::*;
@@ -74,9 +73,9 @@ use zipf::*;
 const ZIPF: f64 = 0.99;
 const UNIVARIATE: bool = true;
 const NTHREADS: usize = 1;
-const NSERIES: usize = 100_000;
 const NSEGMENTS: usize = 1;
-const N_SAMPLES_PER_THR: usize = 10_000_000;
+const NSERIES_PER_THR: usize = 100_000;
+const NSAMPLES_PER_THR: usize = 10_000_000;
 
 lazy_static! {
     static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
@@ -110,7 +109,7 @@ impl DataSrc {
                 res.map(|e| {
                     e.file_name()
                         .into_string()
-                        .expect("datasrc file name not converable into string")
+                        .expect("datasrc file name not a valid string")
                 })
             })
             .collect();
@@ -155,6 +154,13 @@ impl ZipfianPicker {
 struct Item {
     timestamp: u64,
     value: String,
+}
+
+impl Item {
+    fn from_str(s: &String) -> Item {
+        let item: Item = serde_json::from_str(s).expect("cannot parse data item");
+        item
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -260,10 +266,10 @@ impl IngestionWorker {
         let mut c = 0;
         let mut i: u64 = 0;
 
-        while c < N_SAMPLES_PER_THR {
+        while c < NSAMPLES_PER_THR {
             i += 1;
             if i % 2_000_000_000 == 0 {
-                println!("progress: {}/{}", c, N_SAMPLES_PER_THR);
+                println!("progress: {}/{}", c, NSAMPLES_PER_THR);
             }
 
             match self.r.pop() {
@@ -285,7 +291,7 @@ impl IngestionWorker {
     }
 
     fn notify_completed(&mut self) {
-        self.c.push(()).unwrap();
+        self.c.push(()).expect("cannot notify complete twice");
     }
 }
 
@@ -340,12 +346,11 @@ impl DataLoader {
                 .expect("empty data file");
             offsets[i] += nread as i64;
 
-            let item: Item = serde_json::from_str(&line_bufs[i]).expect("cannot parse data item");
+            let item = Item::from_str(&line_bufs[i]);
             ts_min.push(item.timestamp);
             ts_max.push(item.timestamp);
         }
 
-        let mut c = 0;
         loop {
             let picked = zipf.next();
 
@@ -371,8 +376,7 @@ impl DataLoader {
                 offsets[picked] += nread;
             }
 
-            let item: Item =
-                serde_json::from_str(&line_bufs[picked]).expect("unrecognized data item in file");
+            let item = Item::from_str(&line_bufs[picked]);
 
             if nwraps[picked] == 0 {
                 ts_max[picked] = item.timestamp;
@@ -392,7 +396,7 @@ impl DataLoader {
                 serid: self.series_ids[picked],
                 refid: self.series_refs[picked],
             }) {
-                Ok(_) => c += 1,
+                Ok(_) => (),
                 Err(_) => {
                     if !self.terminated.is_empty() {
                         break;
@@ -514,15 +518,15 @@ fn main() {
     let datasrc = DataSrc::new(LOGSPATH.as_path());
 
     let mut bench = Microbench::new(mach, datasrc, NTHREADS);
-    bench.with_n_series(NTHREADS * NSERIES);
+    bench.with_n_series(NTHREADS * NSERIES_PER_THR);
 
     let now = Instant::now();
     bench.run();
     let dur = now.elapsed();
 
     println!(
-        "Elapsed: {:.2?}, {:.2} samples / sec",
+        "Elapsed: {:.2?}, {:.2} samples/sec for 1 thread",
         dur,
-        (N_SAMPLES_PER_THR * NTHREADS) as f32 / dur.as_secs_f32()
+        NSAMPLES_PER_THR as f32 / dur.as_secs_f32()
     );
 }
