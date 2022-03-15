@@ -35,14 +35,17 @@ use crossbeam::channel::{bounded, Receiver, Sender};
 use rand::Rng;
 use serde::*;
 use std::fs;
+use std::io;
 use std::marker::PhantomData;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     convert::TryInto,
     fs::File,
     fs::OpenOptions,
     io::prelude::*,
     io::BufReader,
+    io::SeekFrom,
+    iter,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
@@ -160,6 +163,43 @@ struct IngestionSample {
     refid: SeriesRef,
 }
 
+/// BufReader with seek_set capability.
+struct SeekableBufReader<R> {
+    reader: BufReader<R>,
+    /// Seek location.
+    offset: i64,
+}
+
+impl<R: Read + Seek> SeekableBufReader<R> {
+    fn new(inner: R) -> Self {
+        Self {
+            reader: BufReader::new(inner),
+            offset: 0,
+        }
+    }
+
+    fn read_line(&mut self, buf: &mut String) -> io::Result<usize> {
+        let nread = self.reader.read_line(buf)?;
+        self.offset += nread as i64;
+        Ok(nread)
+    }
+
+    fn seek_relative(&mut self, offset: i64) -> io::Result<()> {
+        match self.reader.seek_relative(offset) {
+            Ok(_) => {
+                self.offset += offset;
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    fn seek_set(&mut self, offset: i64) -> io::Result<()> {
+        let offset_relative = offset - self.offset;
+        self.seek_relative(offset_relative)
+    }
+}
+
 struct IngestionWorker {
     writer: Writer,
     r: Receiver<IngestionSample>,
@@ -179,6 +219,45 @@ impl IngestionWorker {
                 &vec![Type::Bytes(Bytes::from_slice(sample.value.as_bytes()))],
             );
         }
+    }
+}
+
+struct ReaderSet {
+    readers: Vec<SeekableBufReader<File>>,
+    refs: Vec<usize>,
+}
+
+impl ReaderSet {
+    fn new(filenames: &Vec<DataSrcName>) -> Self {
+        let mut readers = Vec::new();
+        let mut refs = Vec::<usize>::new();
+        let mut file_reader_map = HashMap::new();
+
+        for name in filenames {
+            match file_reader_map.get(name) {
+                Some(idx) => refs.push(*idx),
+                None => {
+                    let file = OpenOptions::new()
+                        .read(true)
+                        .open(&*LOGSPATH.join(name))
+                        .expect("could not open data file");
+                    let mut reader = SeekableBufReader::new(file);
+                    readers.push(reader);
+                    refs.push(readers.len() - 1);
+                    file_reader_map.insert(name, readers.len() - 1);
+                }
+            }
+        }
+
+        Self { readers, refs }
+    }
+
+    fn get_by_ref(&self, refid: usize) -> &SeekableBufReader<File> {
+        &self.readers[self.refs[refid]]
+    }
+
+    fn get_mut_by_ref(&mut self, refid: usize) -> &mut SeekableBufReader<File> {
+        &mut self.readers[self.refs[refid]]
     }
 }
 
@@ -204,41 +283,35 @@ impl DataLoader {
         }
     }
 
-    fn load(&mut self) {
-        let mut zipf = ZipfianPicker::new(self.series_refs.len() as u64);
+    fn num_series(&self) -> usize {
+        self.series_refs.len()
+    }
 
-        let mut writer_set = HashSet::<BufReader<File>>::new();
-        let mut writers = Vec::<&BufReader<File>>::new();
-        let mut nwraps = Vec::new(); // number of times started over from file beginning
+    fn load(&mut self) {
+        let mut zipf = ZipfianPicker::new(self.num_series() as u64);
+
+        let mut readers = ReaderSet::new(&self.datasrc_names);
+
         let mut ts_min = Vec::new();
         let mut ts_max = Vec::new();
-
-        for name in &self.datasrc_names {
-            match writer_set.get(&name) {
-                Some(writer) => {}
-                None => {
-                    let file =
-                        File::open(LOGSPATH.join(name.as_str())).expect("open datasrc file failed");
-                    let reader = BufReader::new(file);
-                    writer_set[name] = reader;
-                }
-            }
-
-            writers.push(writer_set.get().unwrap());
-            nwraps.push(0);
-        }
+        let mut nwraps: Vec<u64> = iter::repeat(0).take(self.num_series()).collect();
+        let mut offsets: Vec<i64> = iter::repeat(0).take(self.num_series()).collect();
+        let mut line_bufs: Vec<String> = iter::repeat_with(String::new)
+            .take(self.num_series())
+            .collect();
 
         // get min timestamp in all files (assume data items are sorted chronologically)
-        for itr in line_itrs.iter_mut() {
-            match itr.next() {
-                None => panic!("empty data file"),
-                Some(line) => {
-                    let item: Item = serde_json::from_str(&line.expect("cannot read line"))
-                        .expect("cannot parse data item");
-                    ts_min.push(item.timestamp);
-                    ts_max.push(item.timestamp);
-                }
-            }
+        for i in 0..self.num_series() {
+            let reader = readers.get_mut_by_ref(i);
+            reader.seek_set(0);
+            let nread = reader
+                .read_line(&mut line_bufs[i])
+                .expect("empty data file");
+            offsets[i] += nread as i64;
+
+            let item: Item = serde_json::from_str(&line_bufs[i]).expect("cannot parse data item");
+            ts_min.push(item.timestamp);
+            ts_max.push(item.timestamp);
         }
 
         let mut c = 0;
@@ -250,49 +323,53 @@ impl DataLoader {
             }
 
             let picked = zipf.next();
-            let itr = line_itrs.get_mut(picked).expect("missing line iterator");
-            match itr.next() {
-                None => {
-                    nwraps[picked] += 1;
-                    drop(itr);
 
-                    let file = File::open(LOGSPATH.join(&self.datasrc_names[picked].as_str()))
-                        .expect("open datasrc file failed");
-                    let reader = BufReader::new(file);
-                    let lines = reader.lines();
-                    line_itrs[picked] = lines;
+            let mut reader = &mut readers.get_mut_by_ref(picked);
+            let offset = offsets[picked];
+            reader.seek_set(offset).expect("data file seek failed");
+
+            line_bufs[picked].clear();
+            let nread = reader
+                .read_line(&mut line_bufs[picked])
+                .expect("read line failed") as i64;
+            if nread == 0 {
+                nwraps[picked] += 1;
+                reader.seek_set(0).unwrap();
+                offsets[picked] = reader
+                    .read_line(&mut line_bufs[picked])
+                    .expect("read line failed unexpectedly")
+                    as i64;
+                if offsets[picked] == 0 {
+                    panic!("unexpected empty file")
                 }
-                Some(line) => {
-                    let line = line.expect("cannot read line");
-                    let item: Item =
-                        serde_json::from_str(&line).expect("unrecognized data item in file");
-
-                    if nwraps[picked] == 0 {
-                        ts_max[picked] = item.timestamp;
-                    }
-
-                    // amount of time to shift a timestamp during wraparounds, to avoid
-                    // duplicated timestamps.
-                    let ts_shift = 100;
-                    let timestamp = match nwraps[picked] {
-                        0 => item.timestamp,
-                        _ => {
-                            item.timestamp
-                                + (ts_max[picked] - ts_min[picked] + ts_shift) * nwraps[picked]
-                        }
-                    };
-
-                    self.s
-                        .send(IngestionSample {
-                            timestamp,
-                            value: item.value,
-                            serid: self.series_ids[picked],
-                            refid: self.series_refs[picked],
-                        })
-                        .expect("failed to send sample to writer");
-                    c += 1;
-                }
+            } else {
+                offsets[picked] += nread;
             }
+
+            let item: Item =
+                serde_json::from_str(&line_bufs[picked]).expect("unrecognized data item in file");
+
+            if nwraps[picked] == 0 {
+                ts_max[picked] = item.timestamp;
+            }
+
+            // amount of time to shift a timestamp during wraparounds, to avoid
+            // duplicated timestamps.
+            let ts_shift = 100;
+            let timestamp = match nwraps[picked] {
+                0 => item.timestamp,
+                _ => item.timestamp + (ts_max[picked] - ts_min[picked] + ts_shift) * nwraps[picked],
+            };
+
+            self.s
+                .send(IngestionSample {
+                    timestamp,
+                    value: item.value,
+                    serid: self.series_ids[picked],
+                    refid: self.series_refs[picked],
+                })
+                .expect("failed to send sample to writer");
+            c += 1;
         }
     }
 }
