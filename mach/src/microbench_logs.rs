@@ -219,7 +219,14 @@ impl IngestionWorker {
 
     fn ingest(&mut self) {
         let mut c = 0;
+        let mut i: u64 = 0;
+
         while c < N_SAMPLES_PER_THR {
+            i += 1;
+            if i % 2_000_000_000 == 0 {
+                println!("progress: {}/{}", c, N_SAMPLES_PER_THR);
+            }
+
             match self.r.pop() {
                 Ok(sample) => {
                     let r = self.writer.push_type(
@@ -339,13 +346,7 @@ impl DataLoader {
         }
 
         let mut c = 0;
-        let mut i = 0;
         loop {
-            i += 1;
-            if i % 1_000_000 == 0 {
-                println!("progress: {}/{}", c, N_SAMPLES_PER_THR);
-            }
-
             let picked = zipf.next();
 
             let mut reader = &mut readers.get_mut_by_ref(picked);
