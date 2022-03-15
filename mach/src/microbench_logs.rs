@@ -518,5 +518,11 @@ fn main() {
 
     let now = Instant::now();
     bench.run();
-    println!("Elapsed: {:.2?}", now.elapsed());
+    let dur = now.elapsed();
+
+    println!(
+        "Elapsed: {:.2?}, {:.2} samples / sec",
+        dur,
+        (N_SAMPLES_PER_THR * NTHREADS) as f32 / dur.as_secs_f32()
+    );
 }
