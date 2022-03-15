@@ -40,9 +40,9 @@ impl DurabilityHandle {
     }
 
     pub fn register_series(&self, series: Series) {
-        // if let Err(_) = self.chan.send(series) {
-        //     panic!("Can't send series to durability task");
-        // }
+        if let Err(_) = self.chan.send(series) {
+            panic!("Can't send series to durability task");
+        }
     }
 }
 
@@ -51,8 +51,8 @@ fn init(writer_id: &str, list: ListBuffer) -> DurabilityHandle {
     let (tx, rx) = unbounded_channel();
     let series = Arc::new(Mutex::new(Vec::<Series>::new()));
     let series2 = series.clone();
-    // RUNTIME.spawn(durability_receiver(rx, series2));
-    // RUNTIME.spawn(durability_worker(writer_id, series, list));
+    RUNTIME.spawn(durability_receiver(rx, series2));
+    RUNTIME.spawn(durability_worker(writer_id, series, list));
     DurabilityHandle { chan: tx }
 }
 
