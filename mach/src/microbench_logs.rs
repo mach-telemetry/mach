@@ -276,7 +276,6 @@ impl IngestionWorker {
                 Ok(sample) => {
                     let r = self.writer.push_type(
                         sample.refid,
-                        sample.serid,
                         sample.timestamp,
                         &vec![Type::Bytes(Bytes::from_slice(sample.value.as_bytes()))],
                     );

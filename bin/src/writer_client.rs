@@ -4,8 +4,11 @@ pub mod mach_rpc {
 
 use futures::stream::Stream;
 use mach_rpc::tsdb_service_client::TsdbServiceClient;
+use mach_rpc::writer_service_client::WriterServiceClient;
 use mach_rpc::{
-    AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse,
+    add_series_request::ValueType, value::PbType, AddSeriesRequest, AddSeriesResponse, EchoRequest,
+    EchoResponse, GetSeriesReferenceRequest, GetSeriesReferenceResponse, MapRequest, MapResponse,
+    PushRequest, PushResponse, Sample, Value,
 };
 use std::collections::HashMap;
 use std::sync::{
@@ -14,6 +17,7 @@ use std::sync::{
 };
 use std::thread::sleep;
 use std::time::{Duration, Instant};
+use std::net::SocketAddr;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
@@ -24,40 +28,7 @@ fn echo_requests_iter() -> impl Stream<Item = EchoRequest> {
     })
 }
 
-async fn echo_stream(
-    client: &mut TsdbServiceClient<Channel>,
-    counter: Arc<AtomicUsize>,
-    num: usize,
-) {
-    let in_stream = echo_requests_iter().take(num);
-
-    let response = client.echo_stream(in_stream).await.unwrap();
-
-    let mut resp_stream = response.into_inner();
-
-    let mut instant = Instant::now();
-    while let Some(recieved) = resp_stream.next().await {
-        let received = recieved.unwrap();
-        let count = counter.fetch_add(1, SeqCst);
-        //if count > 0 && count % 1_000_000 == 0 {
-        //    let elapsed = instant.elapsed();
-        //    println!("received 1,000,000 responses in {:?}", elapsed);
-        //    instant = Instant::now();
-        //}
-    }
-}
-
-async fn map(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
-    let (tx, mut rx) = channel(1);
-    tokio::spawn(map_maker(tx));
-
-    loop {
-        client.map(rx.recv().await.unwrap()).await.unwrap();
-        counter.fetch_add(100_000, SeqCst);
-    }
-}
-
-async fn map_stream(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
+async fn map_stream(client: &mut WriterServiceClient<Channel>, counter: Arc<AtomicUsize>) {
     let (tx, rx) = channel(1);
     tokio::spawn(map_maker(tx));
 
@@ -96,25 +67,54 @@ async fn map_maker(sender: Sender<MapRequest>) {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicUsize::new(0));
+    let mut client = TsdbServiceClient::connect("http://127.0.0.1:50050")
+        .await
+        .unwrap();
 
-    let clients = 4;
-    let mut v = Vec::new();
-    for i in 0..clients {
-        let counter = counter.clone();
-        v.push(tokio::spawn(async move {
-            let mut client = TsdbServiceClient::connect("http://[::1]:50051")
-                .await
-                .unwrap();
-            map_stream(&mut client, counter.clone()).await;
-        }));
-    }
-    let mut last = 0;
-    loop {
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        let cur = counter.load(SeqCst);
-        println!("received {} / sec", cur - last);
-        last = cur;
-    }
+    // Timeseries information
+    let mut tags: HashMap<String, String> = HashMap::new();
+    tags.insert("foo".into(), "bar".into());
+    let types = vec![ValueType::F64.into(), ValueType::Bytes.into()];
+    let req = AddSeriesRequest { types, tags };
+    let AddSeriesResponse {
+        writer_address,
+        series_id,
+    } = client.add_series(req).await.unwrap().into_inner();
+    println!("Writer address: {:?}", writer_address);
+    let writer_address = format!("http://{}", writer_address);
+    let mut writer_client = WriterServiceClient::connect(writer_address).await.unwrap();
+
+    let series_ref_request = GetSeriesReferenceRequest { series_id };
+    let GetSeriesReferenceResponse { series_reference } = writer_client
+        .get_series_reference(series_ref_request)
+        .await
+        .unwrap()
+        .into_inner();
+    println!("Series reference: {:?}", series_reference);
+
+    // Samples
+    let mut samples = HashMap::new();
+    let sample = Sample {
+        timestamp: 12345,
+        values: vec![
+            Value {
+                pb_type: Some(PbType::F64(123.4)),
+            },
+            Value {
+                pb_type: Some(PbType::Str("hello world".into())),
+            },
+        ],
+    };
+    samples.insert(series_reference, sample);
+    let request = PushRequest { samples };
+
+    let results = writer_client
+        .push(request)
+        .await
+        .unwrap()
+        .into_inner()
+        .results;
+    println!("{:?}", results);
 
     //let mut counter: u64 = 0;
     //let mut instant = Instant::now();

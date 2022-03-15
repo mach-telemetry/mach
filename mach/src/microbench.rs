@@ -245,12 +245,8 @@ impl IngestionWorker {
         let ts_offset = series.last().unwrap().0 - series[0].0 + series[1].0 - series[0].0;
         let timestamp = raw_sample.0 + ts_offset * self.wraparounds[victim] as u64;
 
-        self.writer.push_type(
-            SeriesRef(refid),
-            SeriesId(seriesid),
-            timestamp,
-            &raw_sample.1[..],
-        )?;
+        self.writer
+            .push_type(SeriesRef(refid), timestamp, &raw_sample.1[..])?;
 
         match self.next[victim] {
             _ if self.next[victim] == series.len() - 1 => {
