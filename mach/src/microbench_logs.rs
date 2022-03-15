@@ -202,6 +202,45 @@ impl<R: Read + Seek> SeekableBufReader<R> {
     }
 }
 
+/// Manages one file reader per file for a list of files, with potentially
+/// duplicated file entries.
+struct ReaderSet {
+    readers: Vec<SeekableBufReader<File>>,
+    refs: Vec<usize>,
+}
+
+impl ReaderSet {
+    fn new(filenames: &Vec<DataSrcName>) -> Self {
+        let mut readers = Vec::new();
+        let mut refs = Vec::<usize>::new();
+        let mut file_reader_map = HashMap::new();
+
+        for name in filenames {
+            match file_reader_map.get(name) {
+                Some(idx) => refs.push(*idx),
+                None => {
+                    let file = OpenOptions::new()
+                        .read(true)
+                        .open(&*LOGSPATH.join(name))
+                        .expect("could not open data file");
+                    let mut reader = SeekableBufReader::new(file);
+                    readers.push(reader);
+                    refs.push(readers.len() - 1);
+                    file_reader_map.insert(name, readers.len() - 1);
+                }
+            }
+        }
+
+        Self { readers, refs }
+    }
+
+    /// Gets a reader for a file, using the file's index in the `filenames`
+    /// vector provided during this struct's construction.
+    fn get(&mut self, refid: usize) -> &mut SeekableBufReader<File> {
+        &mut self.readers[self.refs[refid]]
+    }
+}
+
 struct IngestionWorker {
     writer: Writer,
     r: Consumer<IngestionSample>,
@@ -247,41 +286,6 @@ impl IngestionWorker {
 
     fn notify_completed(&mut self) {
         self.c.push(()).unwrap();
-    }
-}
-
-struct ReaderSet {
-    readers: Vec<SeekableBufReader<File>>,
-    refs: Vec<usize>,
-}
-
-impl ReaderSet {
-    fn new(filenames: &Vec<DataSrcName>) -> Self {
-        let mut readers = Vec::new();
-        let mut refs = Vec::<usize>::new();
-        let mut file_reader_map = HashMap::new();
-
-        for name in filenames {
-            match file_reader_map.get(name) {
-                Some(idx) => refs.push(*idx),
-                None => {
-                    let file = OpenOptions::new()
-                        .read(true)
-                        .open(&*LOGSPATH.join(name))
-                        .expect("could not open data file");
-                    let mut reader = SeekableBufReader::new(file);
-                    readers.push(reader);
-                    refs.push(readers.len() - 1);
-                    file_reader_map.insert(name, readers.len() - 1);
-                }
-            }
-        }
-
-        Self { readers, refs }
-    }
-
-    fn get(&mut self, refid: usize) -> &mut SeekableBufReader<File> {
-        &mut self.readers[self.refs[refid]]
     }
 }
 
