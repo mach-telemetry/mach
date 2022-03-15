@@ -280,11 +280,7 @@ impl ReaderSet {
         Self { readers, refs }
     }
 
-    fn get_by_ref(&self, refid: usize) -> &SeekableBufReader<File> {
-        &self.readers[self.refs[refid]]
-    }
-
-    fn get_mut_by_ref(&mut self, refid: usize) -> &mut SeekableBufReader<File> {
+    fn get(&mut self, refid: usize) -> &mut SeekableBufReader<File> {
         &mut self.readers[self.refs[refid]]
     }
 }
@@ -333,7 +329,7 @@ impl DataLoader {
 
         // get min timestamp in all files (assume data items are sorted chronologically)
         for i in 0..self.num_series() {
-            let reader = readers.get_mut_by_ref(i);
+            let reader = readers.get(i);
             reader.seek_set(0);
             let nread = reader
                 .read_line(&mut line_bufs[i])
@@ -349,7 +345,7 @@ impl DataLoader {
         loop {
             let picked = zipf.next();
 
-            let mut reader = &mut readers.get_mut_by_ref(picked);
+            let mut reader = &mut readers.get(picked);
             let offset = offsets[picked];
             reader.seek_set(offset).expect("data file seek failed");
 
