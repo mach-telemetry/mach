@@ -33,6 +33,7 @@ mod rdtsc;
 
 use crossbeam::channel::{bounded, Receiver, Sender};
 use rand::Rng;
+use rtrb::{Consumer, Producer, RingBuffer};
 use serde::*;
 use std::fs;
 use std::io;
@@ -54,6 +55,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+
 use tsdb::Mach;
 
 use compression::*;
@@ -202,23 +204,42 @@ impl<R: Read + Seek> SeekableBufReader<R> {
 
 struct IngestionWorker {
     writer: Writer,
-    r: Receiver<IngestionSample>,
+    r: Consumer<IngestionSample>,
+    c: Producer<()>,
 }
 
 impl IngestionWorker {
-    fn new(writer: Writer, recv: Receiver<IngestionSample>) -> Self {
-        IngestionWorker { writer, r: recv }
+    fn new(writer: Writer, recv: Consumer<IngestionSample>, completed: Producer<()>) -> Self {
+        IngestionWorker {
+            writer,
+            r: recv,
+            c: completed,
+        }
     }
 
     fn ingest(&mut self) {
-        while let Ok(sample) = self.r.recv() {
-            self.writer.push_type(
-                sample.refid,
-                sample.serid,
-                sample.timestamp,
-                &vec![Type::Bytes(Bytes::from_slice(sample.value.as_bytes()))],
-            );
+        let mut c = 0;
+        while c < N_SAMPLES_PER_THR {
+            match self.r.pop() {
+                Ok(sample) => {
+                    let r = self.writer.push_type(
+                        sample.refid,
+                        sample.serid,
+                        sample.timestamp,
+                        &vec![Type::Bytes(Bytes::from_slice(sample.value.as_bytes()))],
+                    );
+                    if r.is_ok() {
+                        c += 1;
+                    }
+                }
+                Err(..) => (),
+            }
         }
+        self.notify_completed()
+    }
+
+    fn notify_completed(&mut self) {
+        self.c.push(()).unwrap();
     }
 }
 
@@ -262,7 +283,8 @@ impl ReaderSet {
 }
 
 struct DataLoader {
-    s: Sender<IngestionSample>,
+    s: Producer<IngestionSample>,
+    terminated: Consumer<()>,
     series_refs: Vec<SeriesRef>,
     series_ids: Vec<SeriesId>,
     datasrc_names: Vec<DataSrcName>,
@@ -270,13 +292,15 @@ struct DataLoader {
 
 impl DataLoader {
     fn new(
-        s: Sender<IngestionSample>,
+        s: Producer<IngestionSample>,
+        terminated: Consumer<()>,
         series_refs: Vec<SeriesRef>,
         series_ids: Vec<SeriesId>,
         datasrc_names: Vec<DataSrcName>,
     ) -> Self {
         DataLoader {
             s,
+            terminated,
             series_refs,
             series_ids,
             datasrc_names,
@@ -316,7 +340,7 @@ impl DataLoader {
 
         let mut c = 0;
         let mut i = 0;
-        while c < N_SAMPLES_PER_THR {
+        loop {
             i += 1;
             if i % 1_000_000 == 0 {
                 println!("progress: {}/{}", c, N_SAMPLES_PER_THR);
@@ -361,15 +385,19 @@ impl DataLoader {
                 _ => item.timestamp + (ts_max[picked] - ts_min[picked] + ts_shift) * nwraps[picked],
             };
 
-            self.s
-                .send(IngestionSample {
-                    timestamp,
-                    value: item.value,
-                    serid: self.series_ids[picked],
-                    refid: self.series_refs[picked],
-                })
-                .expect("failed to send sample to writer");
-            c += 1;
+            match self.s.push(IngestionSample {
+                timestamp,
+                value: item.value,
+                serid: self.series_ids[picked],
+                refid: self.series_refs[picked],
+            }) {
+                Ok(_) => c += 1,
+                Err(_) => {
+                    if !self.terminated.is_empty() {
+                        break;
+                    }
+                }
+            }
         }
     }
 }
@@ -399,11 +427,18 @@ impl BenchWriterMeta {
     }
 
     fn spawn(self) -> (IngestionWorker, DataLoader) {
-        let (s, r) = bounded::<IngestionSample>(1);
+        let (s, r) = RingBuffer::<IngestionSample>::new(1);
+        let (completed, terminated) = RingBuffer::<()>::new(1);
 
         (
-            IngestionWorker::new(self.writer, r),
-            DataLoader::new(s, self.series_refs, self.series_ids, self.datasrc_names),
+            IngestionWorker::new(self.writer, r, completed),
+            DataLoader::new(
+                s,
+                terminated,
+                self.series_refs,
+                self.series_ids,
+                self.datasrc_names,
+            ),
         )
     }
 }
