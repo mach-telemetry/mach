@@ -163,10 +163,9 @@ impl Item {
     }
 }
 
-#[derive(Serialize, Deserialize)]
 struct IngestionSample {
     timestamp: u64,
-    value: String,
+    value: Type,
     serid: SeriesId,
     refid: SeriesRef,
 }
@@ -274,11 +273,9 @@ impl IngestionWorker {
 
             match self.r.pop() {
                 Ok(sample) => {
-                    let r = self.writer.push_type(
-                        sample.refid,
-                        sample.timestamp,
-                        &[Type::Bytes(Bytes::from_slice(sample.value.as_bytes()))],
-                    );
+                    let r = self
+                        .writer
+                        .push_type(sample.refid, sample.timestamp, &[sample.value]);
                     if r.is_ok() {
                         c += 1;
                     }
@@ -391,7 +388,7 @@ impl DataLoader {
 
             match self.s.push(IngestionSample {
                 timestamp,
-                value: item.value,
+                value: Type::Bytes(Bytes::from_slice(item.value.as_bytes())),
                 serid: self.series_ids[picked],
                 refid: self.series_refs[picked],
             }) {
