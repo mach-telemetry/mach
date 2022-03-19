@@ -11,29 +11,22 @@
 #![feature(proc_macro_hygiene)]
 #![feature(trait_alias)]
 
-mod compression;
-mod constants;
-mod durability;
-mod id;
-mod persistent_list;
-mod reader;
-mod runtime;
-mod sample;
-mod segment;
-mod series;
-mod tags;
-mod test_utils;
-mod tsdb;
-mod utils;
-mod writer;
-mod zipf;
-
-#[macro_use]
-mod rdtsc;
-
+use lazy_static::lazy_static;
+use mach::{
+    compression::{CompressFn, Compression},
+    id::{SeriesId, SeriesRef, WriterId},
+    persistent_list::{FileBackend, PersistentListBackend},
+    sample::Type,
+    series::{SeriesConfig, Types},
+    tags::Tags,
+    tsdb::Mach,
+    utils::bytes::Bytes,
+    writer::Writer,
+};
 use rand::Rng;
 use rtrb::{Consumer, Producer, RingBuffer};
 use serde::*;
+use serde_json::*;
 use std::fs;
 use std::io;
 use std::marker::PhantomData;
@@ -54,21 +47,6 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-
-use tsdb::Mach;
-
-use compression::*;
-use constants::*;
-use dashmap::DashMap;
-use id::*;
-use lazy_static::lazy_static;
-use persistent_list::*;
-use sample::*;
-use seq_macro::seq;
-use series::{SeriesConfig, Types};
-use tags::*;
-use writer::*;
-use zipf::*;
 
 const ZIPF: f64 = 0.99;
 const UNIVARIATE: bool = true;
