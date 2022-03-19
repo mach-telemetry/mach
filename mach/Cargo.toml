@@ -27,6 +27,7 @@ tokio = { version = "1.14.0", features = ["full"] }
 flame = "0.2.2"
 flamer = "0.4"
 tonic = "0.6.2"
+rtrb = "0.2.0"
 
 [dev-dependencies]
 tempfile = "3.2.0"
@@ -44,6 +45,10 @@ path = "src/benchmark_logs.rs"
 [[bin]]
 name = "microbench"
 path = "src/microbench.rs"
+
+[[bin]]
+name = "microbench_logs"
+path = "src/microbench_logs.rs"
 
 [features]
 kafka-backend = []

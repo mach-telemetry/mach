@@ -1,13 +1,13 @@
 use crate::{
     compression::*,
     constants::BUFSZ,
+    durability::*,
     id::*,
     persistent_list::{self, ListBackend, ListBuffer},
     reader::Snapshot,
     //metadata::{self, Metadata},
     series::{self, *},
     writer::Writer,
-    durability::*,
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;

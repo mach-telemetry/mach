@@ -2,7 +2,7 @@ use crate::constants::*;
 //use crate::segment::{full_segment::FullSegment, Error};
 use crate::reader;
 use crate::runtime::RUNTIME;
-use crate::sample::{Type, Bytes};
+use crate::sample::{Bytes, Type};
 use crate::segment::Error;
 use crate::utils::wp_lock::*;
 //use crate::reader::SampleIterator;
@@ -38,7 +38,6 @@ struct InnerBuffer {
 
 impl InnerBuffer {
     fn new(heap_pointers: &[bool]) -> Self {
-        println!("Heap pointers: {:?}", heap_pointers);
         let nvars = heap_pointers.len();
         //let heap_count = heap_pointers.iter().map(|x| *x as usize).sum();
 
@@ -115,8 +114,12 @@ impl InnerBuffer {
         self.ts[len] = ts;
         for (i, item) in items.iter().enumerate() {
             match item {
-                Type::U64(x) => { self.data[i][len] = x.to_be_bytes(); },
-                Type::F64(x) => { self.data[i][len] = x.to_be_bytes(); },
+                Type::U64(x) => {
+                    self.data[i][len] = x.to_be_bytes();
+                }
+                Type::F64(x) => {
+                    self.data[i][len] = x.to_be_bytes();
+                }
                 Type::Bytes(b) => {
                     //let b = unsafe { Bytes::from_raw(*x) };
                     let bytes = b.as_raw_bytes();
@@ -142,7 +145,6 @@ impl InnerBuffer {
             Ok(InnerPushStatus::Done)
         }
     }
-
 
     pub fn is_full(&self) -> bool {
         self.is_full
