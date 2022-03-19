@@ -1,10 +1,19 @@
 use crate::{
-    id::SeriesId, persistent_list::ListSnapshot, runtime::RUNTIME, sample::Type,
+    constants::*, id::SeriesId, persistent_list::ListSnapshot, runtime::RUNTIME, sample::Type,
     segment::SegmentSnapshot, series::Series,
-    constants::*,
 };
 use bincode::{deserialize_from, serialize_into};
 use dashmap::DashMap;
+use rdkafka::{
+    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
+    client::DefaultClientContext,
+    config::ClientConfig,
+    producer::{FutureProducer, FutureRecord},
+    topic_partition_list::{Offset, TopicPartitionList},
+    types::RDKafkaErrorCode,
+    util::Timeout,
+    Message,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::From;
@@ -13,16 +22,6 @@ use std::time::{Duration, Instant};
 use tokio::{
     sync::{self, mpsc, RwLock},
     time,
-};
-use rdkafka::{
-    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
-    client::DefaultClientContext,
-    config::ClientConfig,
-    producer::{FutureProducer, FutureRecord},
-    topic_partition_list::{Offset, TopicPartitionList},
-    util::Timeout,
-    Message,
-    types::RDKafkaErrorCode,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -48,7 +47,7 @@ impl Snapshot {
 }
 
 pub enum SnapshotterRequest {
-    Read(sync::oneshot::Sender<Arc<[u8]>>),
+    Read(sync::oneshot::Sender<(i32, i64)>),
     Close,
 }
 
@@ -62,21 +61,23 @@ async fn snapshot_worker(
     let topic = format!("read_ahead_log_{}", series_id.0);
     //create_topic(KAFKA_BOOTSTRAP, topic.as_str()).await;
     let producer: FutureProducer = ClientConfig::new()
-            .set("bootstrap.servers", KAFKA_BOOTSTRAP)
-            .set("message.max.bytes", "2000000")
-            .set("linger.ms", "0")
-            .set("message.copy.max.bytes", "5000000")
-            .set("batch.num.messages", "1")
-            .set("compression.type", "none")
-            .set("acks", "all")
-            .create().unwrap();
+        .set("bootstrap.servers", KAFKA_BOOTSTRAP)
+        .set("message.max.bytes", "2000000")
+        .set("linger.ms", "0")
+        .set("message.copy.max.bytes", "5000000")
+        .set("batch.num.messages", "1")
+        .set("compression.type", "none")
+        .set("acks", "all")
+        .create()
+        .unwrap();
     let mut snapshot: Arc<[u8]> = series.snapshot().unwrap().to_bytes().into();
     let mut durable = false;
+    let mut partition = 0;
+    let mut offset = 0;
     let mut last_snapshot = Instant::now();
     loop {
         match time::timeout(Duration::from_secs(30), receiver.recv()).await {
             Ok(Some(SnapshotterRequest::Read(sender))) => {
-
                 // Make a new snapshot only when there is a request and the last snapshot is older
                 // than the snapshot interval. If so, mark as not durable
                 if last_snapshot.elapsed() >= duration {
@@ -86,12 +87,18 @@ async fn snapshot_worker(
 
                 // If the snapshot is not durable, send to kafka topic for durability
                 if !durable {
-                    let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&topic).payload(&snapshot[..]);
-                    let (partition, offset) = producer.send(to_send, Duration::from_secs(0)).await.unwrap();
+                    let to_send: FutureRecord<str, [u8]> =
+                        FutureRecord::to(&topic).payload(&snapshot[..]);
+                    let r = producer
+                        .send(to_send, Duration::from_secs(0))
+                        .await
+                        .unwrap();
+                    partition = r.0;
+                    offset = r.1;
                     durable = true;
                 }
 
-                sender.send(snapshot.clone()).unwrap();
+                sender.send((partition, offset)).unwrap();
             }
 
             // Got a close signal from the timeout match below in a prior loop
@@ -136,7 +143,7 @@ pub struct Snapshotter {
 }
 
 impl Snapshotter {
-    async fn request(&self) -> Arc<[u8]> {
+    async fn request(&self) -> (i32, i64) {
         let (tx, rx) = sync::oneshot::channel();
         if let Err(_) = self.worker.send(SnapshotterRequest::Read(tx)) {
             panic!("Requesting to non-existent snapshot worker");
@@ -188,7 +195,7 @@ impl ReadServer {
         });
     }
 
-    pub async fn read_request(&self, series_id: SeriesId) -> Arc<[u8]> {
+    pub async fn read_request(&self, series_id: SeriesId) -> (i32, i64) {
         let read_guard = self.snapshotters.read().await;
         if let Some(snapshotter) = read_guard.get(&series_id) {
             snapshotter.request().await
