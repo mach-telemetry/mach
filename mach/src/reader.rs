@@ -46,8 +46,14 @@ impl Snapshot {
     }
 }
 
+#[derive(Debug)]
+pub struct ReadResponse {
+    partition: i32,
+    offset: i64,
+}
+
 pub enum SnapshotterRequest {
-    Read(sync::oneshot::Sender<(i32, i64)>),
+    Read(sync::oneshot::Sender<ReadResponse>),
     Close,
 }
 
@@ -98,7 +104,7 @@ async fn snapshot_worker(
                     durable = true;
                 }
 
-                sender.send((partition, offset)).unwrap();
+                sender.send(ReadResponse { partition, offset }).unwrap();
             }
 
             // Got a close signal from the timeout match below in a prior loop
@@ -143,7 +149,7 @@ pub struct Snapshotter {
 }
 
 impl Snapshotter {
-    async fn request(&self) -> (i32, i64) {
+    async fn request(&self) -> ReadResponse {
         let (tx, rx) = sync::oneshot::channel();
         if let Err(_) = self.worker.send(SnapshotterRequest::Read(tx)) {
             panic!("Requesting to non-existent snapshot worker");
@@ -195,7 +201,7 @@ impl ReadServer {
         });
     }
 
-    pub async fn read_request(&self, series_id: SeriesId) -> (i32, i64) {
+    pub async fn read_request(&self, series_id: SeriesId) -> ReadResponse {
         let read_guard = self.snapshotters.read().await;
         if let Some(snapshotter) = read_guard.get(&series_id) {
             snapshotter.request().await
