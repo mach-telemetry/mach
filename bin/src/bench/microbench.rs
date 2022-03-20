@@ -11,6 +11,8 @@
 #![feature(proc_macro_hygiene)]
 #![feature(trait_alias)]
 
+mod zipf;
+
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use rand::Rng;
@@ -30,6 +32,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+
 use zipf::*;
 
 use mach::{

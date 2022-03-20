@@ -11,6 +11,8 @@
 #![feature(proc_macro_hygiene)]
 #![feature(trait_alias)]
 
+mod zipf;
+
 use lazy_static::lazy_static;
 use mach::{
     compression::{CompressFn, Compression},
@@ -47,6 +49,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+use zipf::*;
 
 const ZIPF: f64 = 0.99;
 const UNIVARIATE: bool = true;
