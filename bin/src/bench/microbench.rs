@@ -8,31 +8,13 @@
 #![allow(clippy::len_without_is_empty)]
 #![allow(unused)]
 #![allow(private_in_public)]
-//#![feature(llvm_asm)]
 #![feature(proc_macro_hygiene)]
 #![feature(trait_alias)]
 
-mod compression;
-mod constants;
-mod durability;
-mod id;
-mod persistent_list;
-mod reader;
-mod runtime;
-mod sample;
-mod segment;
-mod series;
-mod tags;
-mod test_utils;
-mod tsdb;
-mod utils;
-mod writer;
-mod zipf;
-
-#[macro_use]
-mod rdtsc;
-
+use dashmap::DashMap;
+use lazy_static::lazy_static;
 use rand::Rng;
+use seq_macro::seq;
 use serde::*;
 use std::marker::PhantomData;
 use std::{
@@ -48,20 +30,19 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use tsdb::Mach;
-
-use compression::*;
-use constants::*;
-use dashmap::DashMap;
-use id::*;
-use lazy_static::lazy_static;
-use persistent_list::*;
-use sample::*;
-use seq_macro::seq;
-use series::{SeriesConfig, Types};
-use tags::*;
-use writer::*;
 use zipf::*;
+
+use mach::{
+    compression::*,
+    constants::*,
+    id::*,
+    persistent_list::*,
+    sample::*,
+    series::{SeriesConfig, Types},
+    tags::*,
+    tsdb::Mach,
+    writer::*,
+};
 
 const ZIPF: f64 = 0.99;
 const UNIVARIATE: bool = true;
@@ -234,7 +215,10 @@ impl IngestionWorker {
         );
     }
 
-    fn _ingest_sample(&mut self, mut zipf_picker: &mut ZipfianPicker) -> Result<(), writer::Error> {
+    fn _ingest_sample(
+        &mut self,
+        mut zipf_picker: &mut ZipfianPicker,
+    ) -> Result<(), mach::writer::Error> {
         let victim = zipf_picker.next();
         let series = self.series[victim];
         let seriesid = self.seriesids[victim];

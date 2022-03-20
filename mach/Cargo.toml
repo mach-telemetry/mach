@@ -38,14 +38,6 @@ tempfile = "3.2.0"
 [profile.release]
 debug=true
 
-[[bin]]
-name = "microbench"
-path = "src/microbench.rs"
-
-[[bin]]
-name = "microbench_logs"
-path = "src/microbench_logs.rs"
-
 [features]
 kafka-backend = []
 vector-backend = []
