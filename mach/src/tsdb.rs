@@ -4,7 +4,7 @@ use crate::{
     durability::*,
     id::*,
     persistent_list::{self, ListBackend, ListBuffer},
-    reader::Snapshot,
+    reader::{ReadServer, Snapshot},
     //metadata::{self, Metadata},
     series::{self, *},
     writer::Writer,
@@ -37,14 +37,19 @@ pub struct Mach<B: ListBackend> {
     writers: Vec<WriterId>,
     writer_table: HashMap<WriterId, (ListBuffer, B, DurabilityHandle)>,
     series_table: Arc<DashMap<SeriesId, Series>>,
+    read_server: ReadServer,
 }
 
 impl<B: ListBackend> Mach<B> {
     pub fn new() -> Self {
+        let series_table = Arc::new(DashMap::new());
+        let read_server = ReadServer::new(series_table.clone());
+
         Mach {
             writers: Vec::new(),
             writer_table: HashMap::new(),
-            series_table: Arc::new(DashMap::new()),
+            series_table,
+            read_server,
         }
     }
 
