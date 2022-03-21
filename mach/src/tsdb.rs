@@ -4,8 +4,7 @@ use crate::{
     durability::*,
     id::*,
     persistent_list::{self, ListBackend, ListBuffer},
-    reader::{ReadServer, Snapshot},
-    //metadata::{self, Metadata},
+    reader::{ReadResponse, ReadServer, Snapshot},
     series::{self, *},
     writer::Writer,
 };
@@ -53,8 +52,8 @@ impl<B: ListBackend> Mach<B> {
         }
     }
 
-    pub fn reader(&self, id: SeriesId) -> Result<Snapshot, Error> {
-        Ok(self.series_table.get(&id).unwrap().snapshot()?)
+    pub async fn read(&self, id: SeriesId) -> ReadResponse {
+        self.read_server.read_request(id).await
     }
 
     pub fn new_writer(&mut self) -> Result<Writer, Error> {
