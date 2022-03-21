@@ -1,5 +1,5 @@
 [package]
-name = "bin"
+name = "bench"
 version = "0.1.0"
 edition = "2021"
 
@@ -22,16 +22,12 @@ serde_json = "1.0.66"
 rtrb = "0.2.0"
 
 [[bin]]
-name = "tsdb"
-path = "src/tsdb.rs"
+name = "microbench"
+path = "src/microbench.rs"
 
 [[bin]]
-name = "tsdb-client"
-path = "src/tsdb_client.rs"
-
-[[bin]]
-name = "writer-client"
-path = "src/writer_client.rs"
+name = "microbench-logs"
+path = "src/microbench_logs.rs"
 
 [build-dependencies]
 tonic-build = { version = "0.6.2", features = ["prost", "compression"] }
