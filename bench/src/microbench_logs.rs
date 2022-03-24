@@ -53,19 +53,13 @@ use std::{
 use zipf::*;
 use config::*;
 use num_format::{Locale, ToFormattedString};
+include!(concat!(env!("OUT_DIR"), "/item.rs"));
 
 lazy_static! {
     //static ref TOTAL_RATE: Arc<Mutex<f64>> = Arc::new(Mutex::new(0.0f64));
     static ref SAMPLE_COUNTER: AtomicUsize = AtomicUsize::new(0);
     static ref BARRIERS: Arc<Barrier> = Arc::new(Barrier::new(CONF.threads));
     static ref CONF: Config = load_conf();
-}
-
-fn load_conf() -> Config {
-    let conf_path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default-conf.yaml");
-    let conf_string = std::fs::read_to_string(conf_path).unwrap();
-    let c = serde_yaml::from_str(&conf_string).unwrap();
-    c
 }
 
 fn clean_outdir() {
@@ -128,18 +122,19 @@ impl ZipfianPicker {
         selected
     }
 }
-#[derive(Serialize, Deserialize)]
-struct Item {
-    timestamp: u64,
-    value: String,
-}
 
-impl Item {
-    fn from_str(s: &String) -> Item {
-        let item: Item = serde_json::from_str(s).expect("cannot parse data item");
-        item
-    }
-}
+//#[derive(Serialize, Deserialize)]
+//struct Item {
+//    timestamp: u64,
+//    value: String,
+//}
+//
+//impl Item {
+//    fn from_str(s: &String) -> Item {
+//        let item: Item = serde_json::from_str(s).expect("cannot parse data item");
+//        item
+//    }
+//}
 
 struct IngestionSample {
     timestamp: u64,

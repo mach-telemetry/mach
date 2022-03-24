@@ -33,4 +33,6 @@ name = "microbench-logs"
 path = "src/microbench_logs.rs"
 
 [build-dependencies]
-tonic-build = { version = "0.6.2", features = ["prost", "compression"] }
+serde_yaml = "0.8.23"
+serde = { version = "1.0.127", features = ["derive"] }
+
