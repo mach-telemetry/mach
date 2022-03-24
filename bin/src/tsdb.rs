@@ -21,7 +21,7 @@ use mach::{
     persistent_list::VectorBackend,
     series::{SeriesConfig, Types},
     tags::Tags,
-    tsdb::Mach,
+    tsdb::{Config, Mach},
 };
 use std::{
     collections::HashMap,
@@ -35,7 +35,8 @@ pub struct MachTSDB {
 
 impl MachTSDB {
     fn new() -> Self {
-        let mut mach = Mach::new();
+        let conf = Config::default();
+        let mut mach = Mach::new(conf);
 
         let mut writers = HashMap::new();
         for i in 0..1 {
