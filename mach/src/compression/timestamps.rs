@@ -25,6 +25,11 @@ pub fn compress(timestamps: &[u64], buf: &mut ByteBuffer) {
         let diff = timestamps[i] - timestamps[i - 1];
 
         // we don't expect this to fail
+        let x: Result<i64, _> = diff.try_into();
+        match x {
+            Err(_) => println!("diff: {} timestamps[i]: {}, timestamps[i-1]:: {}", diff, timestamps[i], timestamps[i-1]),
+            Ok(_) => {},
+        }
         let (a, b): (i64, i64) = (diff.try_into().unwrap(), last_diff.try_into().unwrap());
         let zz = to_zigzag(a - b);
 

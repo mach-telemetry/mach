@@ -138,7 +138,7 @@ impl ZipfianPicker {
 
 struct IngestionSample {
     timestamp: u64,
-    value: Type,
+    value: Vec<Type>,
     serid: SeriesId,
     refid: SeriesRef,
 }
@@ -248,7 +248,7 @@ impl IngestionWorker {
                 Ok(sample) => {
                     let r = self
                         .writer
-                        .push_type(sample.refid, sample.timestamp, &[sample.value]);
+                        .push_type(sample.refid, sample.timestamp, &sample.value);
                     if r.is_ok() {
                         c += 1;
                         SAMPLE_COUNTER.fetch_add(1, SeqCst);
@@ -360,9 +360,10 @@ impl DataLoader {
                 _ => item.timestamp + (ts_max[picked] - ts_min[picked] + ts_shift) * nwraps[picked],
             };
 
+            let value = item.value_types();
             match self.s.push(IngestionSample {
                 timestamp,
-                value: Type::Bytes(Bytes::from_slice(item.value.as_bytes())),
+                value,
                 serid: self.series_ids[picked],
                 refid: self.series_refs[picked],
             }) {
