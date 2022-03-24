@@ -11,9 +11,10 @@
 #![feature(proc_macro_hygiene)]
 #![feature(trait_alias)]
 
-mod zipf;
 mod config;
+mod zipf;
 
+use config::*;
 use lazy_static::lazy_static;
 use mach::{
     compression::{CompressFn, Compression},
@@ -26,6 +27,7 @@ use mach::{
     utils::bytes::Bytes,
     writer::Writer,
 };
+use num_format::{Locale, ToFormattedString};
 use rand::Rng;
 use rtrb::{Consumer, Producer, RingBuffer};
 use serde::*;
@@ -51,8 +53,6 @@ use std::{
     time::{Duration, Instant},
 };
 use zipf::*;
-use config::*;
-use num_format::{Locale, ToFormattedString};
 include!(concat!(env!("OUT_DIR"), "/item.rs"));
 
 lazy_static! {
@@ -496,7 +496,11 @@ fn main() {
             current_count += count;
             let completion = current_count as f64 / total as f64;
             //let m = (count - last_count) as f64 / 1_000_000.0;
-            println!("{} samples per second {}", count.to_formatted_string(&Locale::en), completion);
+            println!(
+                "{} samples per second {}",
+                count.to_formatted_string(&Locale::en),
+                completion
+            );
         }
     });
 

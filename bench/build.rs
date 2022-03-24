@@ -11,10 +11,10 @@ fn main() {
     let out_dir = env::var_os("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("item.rs");
     let item_string = std::fs::read_to_string(&conf.item_definition_path).unwrap();
-    fs::write(
-        &dest_path,
-        item_string
-    ).unwrap();
+    fs::write(&dest_path, item_string).unwrap();
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed={}", conf.item_definition_path.clone().to_str().unwrap());
+    println!(
+        "cargo:rerun-if-changed={}",
+        conf.item_definition_path.clone().to_str().unwrap()
+    );
 }

@@ -184,8 +184,8 @@ impl ReadServer {
         let mut write_guard = self.snapshotters.write().await;
 
         // If there already is one, must have been another request that called this method and we
-        // don't insert. Otherwise, init a new snapshotter. This will NOT content with an existing
-        // snapshotter in that is on the way to closing because initialize is only called when
+        // don't insert. Otherwise, init a new snapshotter. This will NOT contend with an existing
+        // snapshotter  that is on the way to closing because initialize is only called when
         // there are no snapshotters in the map in the current read request
         write_guard.entry(series_id).or_insert({
             let (worker, rx) = mpsc::unbounded_channel();
@@ -283,6 +283,6 @@ mod test {
             }
         }
 
-        let reader = mach.reader(series_id).unwrap();
+        let reader = mach.read(series_id).unwrap();
     }
 }
