@@ -11,20 +11,40 @@
 #![feature(proc_macro_hygiene)]
 #![feature(trait_alias)]
 
+mod config;
 mod zipf;
 
-use dashmap::DashMap;
+use config::*;
 use lazy_static::lazy_static;
+use mach::{
+    compression::{CompressFn, Compression},
+    id::{SeriesId, SeriesRef, WriterId},
+    persistent_list::{FileBackend, PersistentListBackend},
+    sample::Type,
+    series::{SeriesConfig, Types},
+    tags::Tags,
+    tsdb::{self, Mach},
+    utils::bytes::Bytes,
+    writer::Writer,
+};
+use num_format::{Locale, ToFormattedString};
 use rand::Rng;
-use seq_macro::seq;
+use rtrb::{Consumer, Producer, RingBuffer};
 use serde::*;
+use serde_json::*;
+use std::fs;
+use std::io;
 use std::marker::PhantomData;
 use std::{
     collections::HashMap,
     convert::TryInto,
+    fs::File,
     fs::OpenOptions,
     io::prelude::*,
-    path::PathBuf,
+    io::BufReader,
+    io::SeekFrom,
+    iter,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc, Barrier, Mutex,
@@ -32,90 +52,50 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-
 use zipf::*;
-
-use mach::{
-    compression::*,
-    constants::*,
-    id::*,
-    persistent_list::*,
-    sample::*,
-    series::{SeriesConfig, Types},
-    tags::*,
-    tsdb::Mach,
-    writer::*,
-};
-
-const ZIPF: f64 = 0.99;
-const UNIVARIATE: bool = true;
-const NTHREADS: usize = 1;
-const NSERIES: usize = 10_000;
-const NSEGMENTS: usize = 1;
-const NUM_INGESTS_PER_THR: usize = 100_000_000;
+include!(concat!(env!("OUT_DIR"), "/item.rs"));
 
 lazy_static! {
-    static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
-    static ref BENCHPATH: PathBuf = DATAPATH.join("bench_data");
-    static ref METRICSPATH: PathBuf = BENCHPATH.join("metrics");
-    static ref LOGSPATH: PathBuf = BENCHPATH.join("logs");
-    static ref OUTDIR: PathBuf = DATAPATH.join("out");
-    static ref DATA: Vec<Vec<RawSample>> = read_data();
-    static ref TOTAL_RATE: Arc<Mutex<f64>> = Arc::new(Mutex::new(0.0f64));
-    static ref BARRIERS: Arc<Barrier> = Arc::new(Barrier::new(NTHREADS));
+    //static ref TOTAL_RATE: Arc<Mutex<f64>> = Arc::new(Mutex::new(0.0f64));
+    static ref SAMPLE_COUNTER: AtomicUsize = AtomicUsize::new(0);
+    static ref BARRIERS: Arc<Barrier> = Arc::new(Barrier::new(CONF.threads));
+    static ref CONF: Config = load_conf();
 }
 
-struct RawSample(
-    u64,         // timestamp
-    Box<[Type]>, // data
-);
-
-#[derive(Serialize, Deserialize)]
-struct DataEntry {
-    timestamps: Vec<u64>,
-    values: HashMap<String, Vec<f64>>,
+fn clean_outdir() {
+    std::fs::remove_dir_all(&CONF.out_path);
+    std::fs::create_dir_all(&CONF.out_path).unwrap();
 }
 
-impl DataEntry {
-    fn to_series(self) -> Vec<RawSample> {
-        let mut res = Vec::new();
-        for i in 0..self.timestamps.len() {
-            let ts = self.timestamps[i];
-            let mut values: Vec<Type> = Vec::new();
-            for (_, var) in self.values.iter() {
-                values.push(Type::F64(var[i]));
-            }
-            res.push(RawSample(ts, values.into_boxed_slice()));
-        }
-        res
+type DataSrcName = String;
+
+struct DataSrc {
+    src_names: Vec<DataSrcName>,
+}
+
+impl DataSrc {
+    fn new(data_path: &Path) -> Self {
+        let src_names = fs::read_dir(data_path)
+            .expect("Could not read from data path")
+            .flat_map(|res| {
+                res.map(|e| {
+                    e.file_name()
+                        .into_string()
+                        .expect("datasrc file name not a valid string")
+                })
+            })
+            .collect();
+
+        Self { src_names }
     }
-}
 
-fn load_data() -> HashMap<String, DataEntry> {
-    println!("LOADING DATA");
-    let file_path = if UNIVARIATE {
-        METRICSPATH.join("univariate.json")
-    } else {
-        METRICSPATH.join("multivariate.json")
-    };
-    let mut file = OpenOptions::new().read(true).open(file_path).unwrap();
-    let mut json = String::new();
-    file.read_to_string(&mut json).unwrap();
-    let dict: HashMap<String, DataEntry> = serde_json::from_str(json.as_str()).unwrap();
-    dict
-}
+    fn pick_from_series_id(&self, series_id: SeriesId) -> &DataSrcName {
+        &self.src_names[*series_id as usize % self.src_names.len()]
+    }
 
-fn read_data() -> Vec<Vec<RawSample>> {
-    let mut dict = load_data();
-    println!("MAKING DATA");
-    dict.drain()
-        .filter(|(_, d)| d.timestamps.len() >= 30_000)
-        .map(|(_, d)| d.to_series())
-        .collect()
-}
-
-fn make_uniform_compression(scheme: CompressFn, nvars: usize) -> Compression {
-    Compression::from((0..nvars).map(|_| scheme).collect::<Vec<CompressFn>>())
+    fn len(&self) -> usize {
+        self.src_names.len()
+    }
 }
 
 struct ZipfianPicker {
@@ -125,7 +105,7 @@ struct ZipfianPicker {
 
 impl ZipfianPicker {
     fn new(size: u64) -> Self {
-        let mut z = Zipfian::new(size, ZIPF);
+        let mut z = Zipfian::new(size, CONF.zipf);
 
         ZipfianPicker {
             selection_pool: (0..1000).map(|_| z.next_item() as usize).collect(),
@@ -143,185 +123,401 @@ impl ZipfianPicker {
     }
 }
 
+//#[derive(Serialize, Deserialize)]
+//struct Item {
+//    timestamp: u64,
+//    value: String,
+//}
+//
+//impl Item {
+//    fn from_str(s: &String) -> Item {
+//        let item: Item = serde_json::from_str(s).expect("cannot parse data item");
+//        item
+//    }
+//}
+
+struct IngestionSample {
+    timestamp: u64,
+    value: Vec<Type>,
+    serid: SeriesId,
+    refid: SeriesRef,
+}
+
+/// BufReader with seek_set capability.
+struct SeekableBufReader<R> {
+    reader: BufReader<R>,
+    /// Seek location.
+    offset: i64,
+}
+
+impl<R: Read + Seek> SeekableBufReader<R> {
+    fn new(inner: R) -> Self {
+        Self {
+            reader: BufReader::new(inner),
+            offset: 0,
+        }
+    }
+
+    fn read_line(&mut self, buf: &mut String) -> io::Result<usize> {
+        let nread = self.reader.read_line(buf)?;
+        self.offset += nread as i64;
+        Ok(nread)
+    }
+
+    fn seek_relative(&mut self, offset: i64) -> io::Result<()> {
+        match self.reader.seek_relative(offset) {
+            Ok(_) => {
+                self.offset += offset;
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    fn seek_set(&mut self, offset: i64) -> io::Result<()> {
+        let offset_relative = offset - self.offset;
+        self.seek_relative(offset_relative)
+    }
+}
+
+/// Manages one file reader per file for a list of files, with potentially
+/// duplicated file entries.
+struct ReaderSet {
+    readers: Vec<SeekableBufReader<File>>,
+    refs: Vec<usize>,
+}
+
+impl ReaderSet {
+    fn new(filenames: &Vec<DataSrcName>) -> Self {
+        let mut readers = Vec::new();
+        let mut refs = Vec::<usize>::new();
+        let mut file_reader_map = HashMap::new();
+
+        for name in filenames {
+            match file_reader_map.get(name) {
+                Some(idx) => refs.push(*idx),
+                None => {
+                    let file = OpenOptions::new()
+                        .read(true)
+                        .open(CONF.data_path.join(name))
+                        .expect("could not open data file");
+                    let mut reader = SeekableBufReader::new(file);
+                    readers.push(reader);
+                    refs.push(readers.len() - 1);
+                    file_reader_map.insert(name, readers.len() - 1);
+                }
+            }
+        }
+
+        Self { readers, refs }
+    }
+
+    /// Gets a reader for a file, using the file's index in the `filenames`
+    /// vector provided during this struct's construction.
+    fn get(&mut self, refid: usize) -> &mut SeekableBufReader<File> {
+        &mut self.readers[self.refs[refid]]
+    }
+}
+
 struct IngestionWorker {
     writer: Writer,
-    num_pushed: usize,
-
-    // Vectors below are index-aligned; items at the same index correspond to
-    // the same time series.
-    //
-    /// SeriesIds for each time series
-    seriesids: Vec<u64>,
-    /// RefIDs for each time series
-    refids: Vec<usize>,
-    /// Ingestion source data. Samples are reused during ingestion.
-    series: Vec<&'static [RawSample]>,
-    /// Offset pointing to current ingestion progress for each time series.
-    next: Vec<usize>,
-    /// Number of times each series's circular buffer has been wrapped around.
-    wraparounds: Vec<usize>,
+    r: Consumer<IngestionSample>,
+    c: Producer<()>,
 }
 
 impl IngestionWorker {
-    fn new(writer: Writer) -> Self {
+    fn new(writer: Writer, recv: Consumer<IngestionSample>, completed: Producer<()>) -> Self {
         IngestionWorker {
             writer,
-            seriesids: Vec::new(),
-            refids: Vec::new(),
-            series: Vec::new(),
-            next: Vec::new(),
-            wraparounds: Vec::new(),
-            num_pushed: 0,
+            r: recv,
+            c: completed,
         }
-    }
-
-    fn register_series(&mut self, series_id: SeriesId, series_data: &'static Vec<RawSample>) {
-        let refid = self.writer.get_reference(series_id);
-
-        self.seriesids.push(*series_id);
-        self.refids.push(*refid);
-        self.series.push(series_data);
-        self.next.push(0);
-        self.wraparounds.push(0);
     }
 
     fn ingest(&mut self) {
-        if self.did_ingest() {
-            panic!("ingest() cannot be invoked multiple times on an ingestion worker.")
-        }
+        let mut c = 0;
+        //let mut i: u64 = 0;
 
-        let mut zipf_picker = ZipfianPicker::new(self.series.len() as u64);
+        while c < CONF.samples_per_thread {
+            //i += 1;
+            //if i % 2_000_000_000 == 0 {
+            //    println!("progress: {}/{}", c, CONF.samples_per_thread);
+            //}
 
-        let now = Instant::now();
-
-        let mut interval = Instant::now();
-        let mut last_num_pushed = 0;
-        while self.num_pushed < NUM_INGESTS_PER_THR {
-            if self.num_pushed > last_num_pushed && self.num_pushed % 1_000_000 == 0 {
-                last_num_pushed = self.num_pushed;
-                let elapsed = interval.elapsed();
-                println!("Rate: {}", 1_000_000. / elapsed.as_secs_f64());
-                interval = Instant::now();
+            match self.r.pop() {
+                Ok(sample) => {
+                    let r = self
+                        .writer
+                        .push_type(sample.refid, sample.timestamp, &sample.value);
+                    if r.is_ok() {
+                        c += 1;
+                        SAMPLE_COUNTER.fetch_add(1, SeqCst);
+                    }
+                }
+                Err(..) => (),
             }
-            match self._ingest_sample(&mut zipf_picker) {
-                Ok(..) => self.num_pushed += 1,
-                Err(..) => continue,
-            }
         }
-
-        let elapsed = now.elapsed().as_secs_f64();
-
-        println!("Elapsed seconds: {}", elapsed);
-        println!(
-            "Number of samples per second: {}",
-            NUM_INGESTS_PER_THR as f64 / elapsed
-        );
+        self.notify_completed()
     }
 
-    fn _ingest_sample(
-        &mut self,
-        mut zipf_picker: &mut ZipfianPicker,
-    ) -> Result<(), mach::writer::Error> {
-        let victim = zipf_picker.next();
-        let series = self.series[victim];
-        let seriesid = self.seriesids[victim];
-        let refid = self.refids[victim];
-        let raw_sample = &series[self.next[victim]];
-
-        // shift each sample's timestamp forward in time to avoid duplicated timestamps.
-        let ts_offset = series.last().unwrap().0 - series[0].0 + series[1].0 - series[0].0;
-        let timestamp = raw_sample.0 + ts_offset * self.wraparounds[victim] as u64;
-
-        self.writer
-            .push_type(SeriesRef(refid), timestamp, &raw_sample.1[..])?;
-
-        match self.next[victim] {
-            _ if self.next[victim] == series.len() - 1 => {
-                self.next[victim] = 0;
-                self.wraparounds[victim] += 1;
-            }
-            _ => self.next[victim] += 1,
-        }
-        Ok(())
-    }
-
-    fn did_ingest(&self) -> bool {
-        self.num_pushed != 0
+    fn notify_completed(&mut self) {
+        self.c.push(()).expect("cannot notify complete twice");
     }
 }
 
-struct IngestionMetadata<'a, B: PersistentListBackend + 'static> {
-    writer_data_map: HashMap<WriterId, IngestionWorker>,
-    data_src: &'static Vec<Vec<RawSample>>,
-    mach: &'a mut Mach<B>,
+struct DataLoader {
+    s: Producer<IngestionSample>,
+    terminated: Consumer<()>,
+    series_refs: Vec<SeriesRef>,
+    series_ids: Vec<SeriesId>,
+    datasrc_names: Vec<DataSrcName>,
 }
 
-impl<'a, B: PersistentListBackend> IngestionMetadata<'a, B> {
+impl DataLoader {
     fn new(
-        mach: &'a mut Mach<B>,
-        n_writers: usize,
-        data_src: &'static Vec<Vec<RawSample>>,
+        s: Producer<IngestionSample>,
+        terminated: Consumer<()>,
+        series_refs: Vec<SeriesRef>,
+        series_ids: Vec<SeriesId>,
+        datasrc_names: Vec<DataSrcName>,
     ) -> Self {
-        let mut writer_data_map = HashMap::new();
-
-        for _ in 0..n_writers {
-            let writer = mach.new_writer().expect("should be able to add new writer");
-            writer_data_map.insert(writer.id(), IngestionWorker::new(writer));
-        }
-
-        IngestionMetadata {
-            writer_data_map,
-            data_src,
-            mach,
+        DataLoader {
+            s,
+            terminated,
+            series_refs,
+            series_ids,
+            datasrc_names,
         }
     }
 
-    fn add_series(&mut self) {
-        let idx: usize = rand::thread_rng().gen_range(0..DATA.len());
-        let series_data = &DATA[idx];
-        let nvars = series_data[0].1.len();
-        let compression = make_uniform_compression(CompressFn::Decimal(3), nvars);
+    fn num_series(&self) -> usize {
+        self.series_refs.len()
+    }
 
-        let series_config = SeriesConfig {
-            tags: Tags::from(HashMap::new()),
-            compression,
-            seg_count: NSEGMENTS,
-            nvars,
-            types: vec![Types::F64; nvars],
-        };
+    fn load(&mut self) {
+        let mut zipf = ZipfianPicker::new(self.num_series() as u64);
 
-        let (writer_id, series_id) = self
-            .mach
-            .add_series(series_config)
-            .expect("should add new series without error.");
+        let mut readers = ReaderSet::new(&self.datasrc_names);
 
-        self.writer_data_map
-            .get_mut(&writer_id)
-            .expect("found writer id for nonexistent writer")
-            .register_series(series_id, series_data);
+        let mut ts_min = Vec::new();
+        let mut ts_max = Vec::new();
+        let mut nwraps: Vec<u64> = iter::repeat(0).take(self.num_series()).collect();
+        let mut offsets: Vec<i64> = iter::repeat(0).take(self.num_series()).collect();
+        let mut line_bufs: Vec<String> = iter::repeat_with(String::new)
+            .take(self.num_series())
+            .collect();
+
+        // get min timestamp in all files (assume data items are sorted chronologically)
+        for i in 0..self.num_series() {
+            let reader = readers.get(i);
+            reader.seek_set(0);
+            let nread = reader
+                .read_line(&mut line_bufs[i])
+                .expect("empty data file");
+            offsets[i] += nread as i64;
+
+            let item = Item::from_str(&line_bufs[i]);
+            ts_min.push(item.timestamp);
+            ts_max.push(item.timestamp);
+        }
+
+        loop {
+            let picked = zipf.next();
+
+            let mut reader = &mut readers.get(picked);
+            let offset = offsets[picked];
+            reader.seek_set(offset).expect("data file seek failed");
+
+            line_bufs[picked].clear();
+            let nread = reader
+                .read_line(&mut line_bufs[picked])
+                .expect("read line failed") as i64;
+            if nread == 0 {
+                nwraps[picked] += 1;
+                reader.seek_set(0).unwrap();
+                offsets[picked] = reader
+                    .read_line(&mut line_bufs[picked])
+                    .expect("read line failed unexpectedly")
+                    as i64;
+                if offsets[picked] == 0 {
+                    panic!("unexpected empty file")
+                }
+            } else {
+                offsets[picked] += nread;
+            }
+
+            let item = Item::from_str(&line_bufs[picked]);
+
+            if nwraps[picked] == 0 {
+                ts_max[picked] = item.timestamp;
+            }
+
+            // amount of time to shift a timestamp during wraparounds, to avoid
+            // duplicated timestamps.
+            let ts_shift = 100;
+            let timestamp = match nwraps[picked] {
+                0 => item.timestamp,
+                _ => item.timestamp + (ts_max[picked] - ts_min[picked] + ts_shift) * nwraps[picked],
+            };
+
+            let value = item.value_types();
+            match self.s.push(IngestionSample {
+                timestamp,
+                value,
+                serid: self.series_ids[picked],
+                refid: self.series_refs[picked],
+            }) {
+                Ok(_) => (),
+                Err(_) => {
+                    if !self.terminated.is_empty() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct BenchWriterMeta {
+    writer: Writer,
+    series_refs: Vec<SeriesRef>,
+    series_ids: Vec<SeriesId>,
+    datasrc_names: Vec<DataSrcName>,
+}
+
+impl BenchWriterMeta {
+    fn new(mut writer: Writer) -> Self {
+        Self {
+            writer,
+            series_refs: Vec::new(),
+            series_ids: Vec::new(),
+            datasrc_names: Vec::new(),
+        }
+    }
+
+    fn register_series(&mut self, series_id: SeriesId, datasrc_name: DataSrcName) {
+        let series_ref = self.writer.get_reference(series_id);
+        self.series_refs.push(series_ref);
+        self.series_ids.push(series_id);
+        self.datasrc_names.push(datasrc_name);
+    }
+
+    fn spawn(self) -> (IngestionWorker, DataLoader) {
+        let (s, r) = RingBuffer::<IngestionSample>::new(1);
+        let (completed, terminated) = RingBuffer::<()>::new(1);
+
+        (
+            IngestionWorker::new(self.writer, r, completed),
+            DataLoader::new(
+                s,
+                terminated,
+                self.series_refs,
+                self.series_ids,
+                self.datasrc_names,
+            ),
+        )
+    }
+}
+
+struct Microbench<B: PersistentListBackend> {
+    mach: Mach<B>,
+    data_src: DataSrc,
+    writer_map: HashMap<WriterId, BenchWriterMeta>,
+}
+
+impl<B: PersistentListBackend> Microbench<B> {
+    fn new(mut mach: Mach<B>, data_src: DataSrc, nthreads: usize) -> Self {
+        let mut writer_map = HashMap::new();
+        for _ in 0..nthreads {
+            let writer = mach.new_writer().expect("writer creation failed");
+            writer_map.insert(writer.id(), BenchWriterMeta::new(writer));
+        }
+
+        Self {
+            mach,
+            data_src,
+            writer_map,
+        }
+    }
+
+    fn with_n_series(&mut self, n_series: usize) {
+        for _ in 0..n_series {
+            let config = SeriesConfig {
+                tags: Tags::from(HashMap::new()),
+                compression: Compression::from(vec![CompressFn::BytesLZ4]),
+                seg_count: CONF.segments,
+                nvars: 1,
+                types: vec![Types::Bytes],
+            };
+
+            let (writer_id, series_id) = self
+                .mach
+                .add_series(config)
+                .expect("add new series failed unexpectedly");
+
+            let bench_writer = self
+                .writer_map
+                .get_mut(&writer_id)
+                .expect("writer_map is incomplete");
+
+            bench_writer.register_series(
+                series_id,
+                self.data_src.pick_from_series_id(series_id).clone(),
+            );
+        }
+    }
+
+    fn run(&mut self) {
+        let mut handles = Vec::new();
+
+        for (id, writer_meta) in self.writer_map.drain() {
+            let (mut writer, mut loader) = writer_meta.spawn();
+            handles.push(thread::spawn(move || writer.ingest()));
+            handles.push(thread::spawn(move || loader.load()));
+        }
+
+        println!("Waiting for ingestion to finish");
+        handles.drain(..).for_each(|h| h.join().unwrap());
+        println!("Finished!");
     }
 }
 
 fn main() {
-    let outdir = &*OUTDIR;
-    std::fs::remove_dir_all(outdir);
-    std::fs::create_dir_all(outdir).unwrap();
+    clean_outdir();
+    //&*CONF;
 
-    //let backend = FileBackend::new();
-    let mut mach = Mach::<FileBackend>::new();
+    std::thread::spawn(|| {
+        let mut current_count = 0;
+        let dur = std::time::Duration::from_secs(1);
+        let total = CONF.samples_per_thread * CONF.threads;
+        loop {
+            std::thread::sleep(dur);
+            let count = SAMPLE_COUNTER.swap(0, SeqCst);
+            current_count += count;
+            let completion = current_count as f64 / total as f64;
+            //let m = (count - last_count) as f64 / 1_000_000.0;
+            println!(
+                "{} samples per second {}",
+                count.to_formatted_string(&Locale::en),
+                completion
+            );
+        }
+    });
 
-    let mut ingestion_meta = IngestionMetadata::new(&mut mach, NTHREADS, &DATA);
+    let conf = tsdb::Config::default().with_directory(CONF.out_path.clone());
+    let mut mach = Mach::<FileBackend>::new(conf);
+    let datasrc = DataSrc::new(CONF.data_path.as_path());
 
-    for _ in 0..NSERIES * NTHREADS {
-        ingestion_meta.add_series();
-    }
+    let mut bench = Microbench::new(mach, datasrc, CONF.threads);
+    bench.with_n_series(CONF.threads * CONF.series_per_thread);
 
-    let mut handles = Vec::new();
-    for (writer_id, mut ingestion_worker) in ingestion_meta.writer_data_map {
-        handles.push(thread::spawn(move || ingestion_worker.ingest()));
-    }
+    let now = Instant::now();
+    bench.run();
+    let dur = now.elapsed();
 
-    println!("Waiting for ingestion to finish");
-    handles.drain(..).for_each(|h| h.join().unwrap());
-    println!("Finished!");
+    println!(
+        "Elapsed: {:.2?}, {:.2} samples/sec for 1 thread",
+        dur,
+        CONF.samples_per_thread as f32 / dur.as_secs_f32()
+    );
 }

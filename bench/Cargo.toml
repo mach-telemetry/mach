@@ -28,10 +28,6 @@ uuid = "0.8.2"
 name = "microbench"
 path = "src/microbench.rs"
 
-[[bin]]
-name = "microbench-logs"
-path = "src/microbench_logs.rs"
-
 [build-dependencies]
 serde_yaml = "0.8.23"
 serde = { version = "1.0.127", features = ["derive"] }
