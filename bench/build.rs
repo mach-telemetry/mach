@@ -2,10 +2,12 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
-include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/config.rs"));
+mod config {
+    include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/config.rs"));
+}
 
 fn main() {
-    let conf: Config = load_conf();
+    let conf: config::Config = config::load_conf();
     let out_dir = env::var_os("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("item.rs");
     let mut item_string = format!("

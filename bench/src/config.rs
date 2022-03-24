@@ -1,5 +1,6 @@
 use serde::*;
 use std::path::PathBuf;
+use std::env;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Variate {
@@ -37,7 +38,10 @@ impl Default for Config {
 }
 
 pub fn load_conf() -> Config {
-    let conf_path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default-conf.yaml");
+    let conf_path = match env::var("CONFIG") {
+        Ok(val) => PathBuf::from(val),
+        Err(_) => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default-conf.yaml")
+    };
     let conf_string = std::fs::read_to_string(conf_path).unwrap();
     let c = serde_yaml::from_str(&conf_string).unwrap();
     c
