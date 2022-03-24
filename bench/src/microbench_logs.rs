@@ -53,7 +53,7 @@ use std::{
     time::{Duration, Instant},
 };
 use zipf::*;
-include!(concat!(env!("OUT_DIR"), "/item.rs"));
+include!(concat!(env!("OUT_DIR"), "/type_defs.rs"));
 
 lazy_static! {
     //static ref TOTAL_RATE: Arc<Mutex<f64>> = Arc::new(Mutex::new(0.0f64));
@@ -442,12 +442,14 @@ impl<B: PersistentListBackend> Microbench<B> {
 
     fn with_n_series(&mut self, n_series: usize) {
         for _ in 0..n_series {
+
+            let (types, compression) = schema();
             let config = SeriesConfig {
                 tags: Tags::from(HashMap::new()),
-                compression: Compression::from(vec![CompressFn::BytesLZ4]),
+                compression: Compression::from(compression),
                 seg_count: CONF.segments,
-                nvars: 1,
-                types: vec![Types::Bytes],
+                nvars: types.len(),
+                types,
             };
 
             let (writer_id, series_id) = self
