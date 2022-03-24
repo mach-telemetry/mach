@@ -22,7 +22,7 @@ use mach::{
     sample::Type,
     series::{SeriesConfig, Types},
     tags::Tags,
-    tsdb::Mach,
+    tsdb::{self, Mach},
     utils::bytes::Bytes,
     writer::Writer,
 };
@@ -500,11 +500,12 @@ fn main() {
             current_count += count;
             let completion = current_count as f64 / total as f64;
             //let m = (count - last_count) as f64 / 1_000_000.0;
-            println!("{} million samples per second {}", count.to_formatted_string(&Locale::en), completion);
+            println!("{} samples per second {}", count.to_formatted_string(&Locale::en), completion);
         }
     });
 
-    let mut mach = Mach::<FileBackend>::new();
+    let conf = tsdb::Config::default().with_directory(CONF.out_path.clone());
+    let mut mach = Mach::<FileBackend>::new(conf);
     let datasrc = DataSrc::new(CONF.data_path.as_path());
 
     let mut bench = Microbench::new(mach, datasrc, CONF.threads);

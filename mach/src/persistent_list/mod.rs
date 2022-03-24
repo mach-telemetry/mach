@@ -3,6 +3,33 @@ mod inner;
 mod kafka_backend;
 mod vector_backend;
 use rdkafka::{error::KafkaError, types::RDKafkaErrorCode};
+use std::path::PathBuf;
+
+#[derive(Default, Debug, Clone)]
+pub struct Config {
+    kafka_bootstrap: Option<String>,
+    directory: Option<PathBuf>,
+}
+
+impl Config {
+    pub fn with_kafka_bootstrap(mut self, bootstrap: String) -> Self {
+        self.kafka_bootstrap = Some(bootstrap);
+        self
+    }
+
+    pub fn with_directory(mut self, dir: PathBuf) -> Self {
+        self.directory = Some(dir);
+        self
+    }
+
+    pub fn kafka_bootstrap(&self) -> &Option<String> {
+        &self.kafka_bootstrap
+    }
+
+    pub fn directory(&self) -> &Option<PathBuf> {
+        &self.directory
+    }
+}
 
 #[derive(Debug)]
 pub enum Error {
@@ -12,6 +39,7 @@ pub enum Error {
     IO(std::io::Error),
     FactoryError,
     MultipleWriters,
+    InvalidConfig(Config),
 }
 
 impl From<KafkaError> for Error {
@@ -39,6 +67,7 @@ pub trait PersistentListBackend: Sized {
     type Reader: inner::ChunkReader + 'static;
     fn id(&self) -> &str;
     fn default_backend() -> Result<Self, Error>;
+    fn with_config(conf: Config) -> Result<Self, Error>;
     fn writer(&self) -> Result<Self::Writer, Error>;
     fn reader(&self) -> Result<Self::Reader, Error>;
 }

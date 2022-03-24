@@ -1,7 +1,7 @@
 use crate::{
     id::SeriesId,
     //metadata::METADATA,
-    persistent_list::{inner, Error, PersistentListBackend},
+    persistent_list::{inner, Config, Error, PersistentListBackend},
     tags::Tags,
 };
 use std::collections::HashMap;
@@ -118,6 +118,9 @@ impl PersistentListBackend for VectorBackend {
     }
 
     fn default_backend() -> Result<Self, Error> {
+        Ok(Self::new())
+    }
+    fn with_config(conf: Config) -> Result<Self, Error> {
         Ok(Self::new())
     }
     fn writer(&self) -> Result<Self::Writer, Error> {

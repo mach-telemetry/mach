@@ -10,7 +10,7 @@ use crate::{
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
-use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+use std::{collections::HashMap, marker::PhantomData, sync::Arc, path::PathBuf};
 
 #[derive(Debug)]
 pub enum Error {
@@ -32,15 +32,33 @@ impl From<series::Error> for Error {
     }
 }
 
+#[derive(Default, Debug)]
+pub struct Config {
+    backend: persistent_list::Config,
+}
+
+impl Config {
+    pub fn with_kafka_bootstrap(mut self, bootstrap: String) -> Self {
+        self.backend = self.backend.with_kafka_bootstrap(bootstrap);
+        self
+    }
+
+    pub fn with_directory(mut self, dir: PathBuf) -> Self {
+        self.backend = self.backend.with_directory(dir);
+        self
+    }
+}
+
 pub struct Mach<B: ListBackend> {
     writers: Vec<WriterId>,
     writer_table: HashMap<WriterId, (ListBuffer, B, DurabilityHandle)>,
     series_table: Arc<DashMap<SeriesId, Series>>,
     read_server: ReadServer,
+    config: Config,
 }
 
 impl<B: ListBackend> Mach<B> {
-    pub fn new() -> Self {
+    pub fn new(config: Config) -> Self {
         let series_table = Arc::new(DashMap::new());
         let read_server = ReadServer::new(series_table.clone());
 
@@ -49,6 +67,7 @@ impl<B: ListBackend> Mach<B> {
             writer_table: HashMap::new(),
             series_table,
             read_server,
+            config,
         }
     }
 
@@ -57,7 +76,7 @@ impl<B: ListBackend> Mach<B> {
     }
 
     pub fn make_backend(&self) -> B {
-        B::default_backend().unwrap()
+        B::with_config(self.config.backend.clone()).unwrap()
     }
 
     pub fn new_writer_with_backend(&mut self, backend: B) -> Result<Writer, Error> {

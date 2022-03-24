@@ -1,7 +1,7 @@
 use crate::{
     constants::*,
     id::SeriesId,
-    persistent_list::{inner, Error, PersistentListBackend},
+    persistent_list::{inner, Config, Error, PersistentListBackend},
     runtime::RUNTIME,
     utils::random_id,
 };
@@ -197,6 +197,12 @@ impl PersistentListBackend for KafkaBackend {
     }
     fn default_backend() -> Result<Self, Error> {
         Self::new(KAFKA_BOOTSTRAP, random_id().as_str())
+    }
+    fn with_config(conf: Config) -> Result<Self, Error> {
+        match conf.kafka_bootstrap() {
+            Some(x) => Self::new(x, random_id().as_str()),
+            None => Err(Error::InvalidConfig(conf))
+        }
     }
     fn writer(&self) -> Result<Self::Writer, Error> {
         self.make_writer()

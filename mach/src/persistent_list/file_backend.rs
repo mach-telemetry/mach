@@ -1,5 +1,5 @@
 use crate::id::SeriesId;
-use crate::persistent_list::{inner, Error, PersistentListBackend};
+use crate::persistent_list::{inner, Config, Error, PersistentListBackend};
 use crate::utils::random_id;
 use crate::constants::*;
 //use crate::metadata::METADATA;
@@ -98,6 +98,13 @@ impl PersistentListBackend for FileBackend {
         let dir = PathBuf::from(FILEBACKEND_DIR);
         let id = random_id();
         Self::new(dir, id)
+    }
+
+    fn with_config(conf: Config) -> Result<Self, Error> {
+        match conf.directory() {
+            Some(x) => Self::new(x.clone(), random_id()),
+            None => Err(Error::InvalidConfig(conf))
+        }
     }
 
     fn writer(&self) -> Result<FileWriter, Error> {
