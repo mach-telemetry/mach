@@ -1,6 +1,7 @@
 use crate::id::SeriesId;
 use crate::persistent_list::{inner, Error, PersistentListBackend};
 use crate::utils::random_id;
+use crate::constants::*;
 //use crate::metadata::METADATA;
 use std::{
     convert::AsRef,
@@ -94,9 +95,7 @@ impl PersistentListBackend for FileBackend {
     }
 
     fn default_backend() -> Result<Self, Error> {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("default");
+        let dir = PathBuf::from(FILEBACKEND_DIR);
         let id = random_id();
         Self::new(dir, id)
     }

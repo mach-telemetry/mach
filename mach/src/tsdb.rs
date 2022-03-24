@@ -56,11 +56,14 @@ impl<B: ListBackend> Mach<B> {
         self.read_server.read_request(id).await
     }
 
-    pub fn new_writer(&mut self) -> Result<Writer, Error> {
+    pub fn make_backend(&self) -> B {
+        B::default_backend().unwrap()
+    }
+
+    pub fn new_writer_with_backend(&mut self, backend: B) -> Result<Writer, Error> {
         let writer_id = WriterId::random();
 
         // Setup persistent list backend for this writer
-        let backend: B = B::default_backend()?;
         let backend_writer = backend.writer()?;
         let backend_id: String = backend.id().into();
 
@@ -77,6 +80,11 @@ impl<B: ListBackend> Mach<B> {
             .insert(writer_id.clone(), (buffer, backend, durability_handle));
         self.writers.push(writer_id);
         Ok(writer)
+    }
+
+    pub fn new_writer(&mut self) -> Result<Writer, Error> {
+        let backend: B = self.make_backend();
+        self.new_writer_with_backend(backend)
     }
 
     pub fn add_series(&mut self, config: SeriesConfig) -> Result<(WriterId, SeriesId), Error> {

@@ -8,3 +8,4 @@ pub const REDIS_ADDR: &str = "redis://127.0.0.1/";
 
 pub const KUBE_NAMESPACE: &str = "mach-daemon";
 pub const KUBE_PORT: u16 = 21822;
+pub const FILEBACKEND_DIR: &str = "/home/fsolleza/data/mach/out";

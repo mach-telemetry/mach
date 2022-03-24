@@ -7,6 +7,9 @@ pub enum Variate {
     Multivariate
 }
 
+pub enum Backend {
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub zipf: f64,
