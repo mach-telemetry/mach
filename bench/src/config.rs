@@ -1,5 +1,6 @@
 use serde::*;
 use std::path::PathBuf;
+use mach::persistent_list::FileBackend;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Variate {
@@ -7,8 +8,21 @@ pub enum Variate {
     Multivariate
 }
 
-pub enum Backend {
-}
+//pub enum Backend {
+//    Vector,
+//    File(PathBuf),
+//}
+//
+//impl Backend {
+//    pub fn make_file_backend<B>(&self) -> B {
+//        match self {
+//            Self::Vector => panic!("Vector backend generating File backend"),
+//            Self::File(x) => {
+//                FileBackend::new(x.clone(), uuid::Uuid::new_v4().to_hyphenated().to_string()).unwrap()
+//            }
+//        }
+//    }
+//}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
