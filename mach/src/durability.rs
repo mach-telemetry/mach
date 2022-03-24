@@ -8,6 +8,7 @@ use crate::{
     series::{self, Series},
 };
 use dashmap::DashMap;
+use lzzzz::lz4;
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
@@ -29,7 +30,6 @@ use tokio::{
     },
     time::{sleep, timeout},
 };
-use lzzzz::lz4;
 
 pub struct DurabilityHandle {
     chan: UnboundedSender<Series>,

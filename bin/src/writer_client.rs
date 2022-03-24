@@ -11,13 +11,13 @@ use mach_rpc::{
     PushRequest, PushResponse, Sample, Value,
 };
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
 };
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-use std::net::SocketAddr;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;

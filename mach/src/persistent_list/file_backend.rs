@@ -1,7 +1,7 @@
+use crate::constants::*;
 use crate::id::SeriesId;
 use crate::persistent_list::{inner, Config, Error, PersistentListBackend};
 use crate::utils::random_id;
-use crate::constants::*;
 //use crate::metadata::METADATA;
 use std::{
     convert::AsRef,
@@ -103,7 +103,7 @@ impl PersistentListBackend for FileBackend {
     fn with_config(conf: Config) -> Result<Self, Error> {
         match conf.directory() {
             Some(x) => Self::new(x.clone(), random_id()),
-            None => Err(Error::InvalidConfig(conf))
+            None => Err(Error::InvalidConfig(conf)),
         }
     }
 

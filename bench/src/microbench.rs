@@ -442,7 +442,6 @@ impl<B: PersistentListBackend> Microbench<B> {
 
     fn with_n_series(&mut self, n_series: usize) {
         for _ in 0..n_series {
-
             let (types, compression) = schema();
             let config = SeriesConfig {
                 tags: Tags::from(HashMap::new()),

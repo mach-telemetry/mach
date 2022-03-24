@@ -61,9 +61,7 @@ impl ListBuffer {
     }
 
     pub fn copy_buffer(&self) -> Result<Box<[u8]>, Error> {
-        unsafe {
-            self.0.unprotected_read().copy_buffer()
-        }
+        unsafe { self.0.unprotected_read().copy_buffer() }
     }
 }
 

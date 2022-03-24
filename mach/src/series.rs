@@ -3,7 +3,9 @@ use crate::{
     id::SeriesId,
     persistent_list::{self, List, ListBuffer},
     reader::Snapshot,
-    segment::{self, FlushSegment, FullSegment, ReadSegment, Segment, WriteSegment, SegmentSnapshot},
+    segment::{
+        self, FlushSegment, FullSegment, ReadSegment, Segment, SegmentSnapshot, WriteSegment,
+    },
     tags::Tags,
 };
 use std::sync::Arc;

@@ -15,6 +15,7 @@ pub enum Error {
     MultipleFlushers,
 }
 
+use crate::sample::Type;
 pub use buffer::*;
 pub use serde::*;
 use std::ops::Deref;
@@ -22,7 +23,6 @@ use std::sync::{
     atomic::{AtomicBool, Ordering::SeqCst},
     Arc,
 };
-use crate::sample::Type;
 //use crate::reader::SampleIterator;
 
 //pub use wrapper::Segment;
@@ -201,7 +201,6 @@ impl WriteSegment {
             InnerPushStatus::Flush => PushStatus::Flush(self.flush()),
         })
     }
-
 
     pub fn flush(&self) -> FlushSegment {
         FlushSegment { inner: self.inner }

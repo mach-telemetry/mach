@@ -207,9 +207,9 @@ mod test {
     use super::*;
     use crate::compression::*;
     use crate::constants::*;
+    use crate::id::*;
     use crate::tags::*;
     use crate::test_utils::*;
-    use crate::id::*;
     use rand::prelude::*;
     use std::{
         env,

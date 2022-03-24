@@ -10,7 +10,7 @@ use crate::{
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
-use std::{collections::HashMap, marker::PhantomData, sync::Arc, path::PathBuf};
+use std::{collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc};
 
 #[derive(Debug)]
 pub enum Error {
