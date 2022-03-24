@@ -29,6 +29,7 @@ use tokio::{
     },
     time::{sleep, timeout},
 };
+use lzzzz::lz4;
 
 pub struct DurabilityHandle {
     chan: UnboundedSender<Series>,
@@ -67,7 +68,7 @@ async fn durability_worker(writer_id: String, series: Arc<Mutex<Vec<Series>>>, l
     //create_topic(KAFKA_BOOTSTRAP, topic.as_str()).await;
     let producer: FutureProducer = ClientConfig::new()
         .set("bootstrap.servers", KAFKA_BOOTSTRAP)
-        .set("message.max.bytes", "100000000")
+        .set("message.max.bytes", "1000000000")
         .set("linger.ms", "0")
         .set("message.copy.max.bytes", "5000000")
         .set("batch.num.messages", "1")
@@ -77,6 +78,7 @@ async fn durability_worker(writer_id: String, series: Arc<Mutex<Vec<Series>>>, l
         .unwrap();
 
     let mut encoded = Vec::new();
+    let mut compressed = Vec::new();
     loop {
         sleep(Duration::from_secs(1)).await;
         let guard = series.lock().await;
@@ -94,13 +96,16 @@ async fn durability_worker(writer_id: String, series: Arc<Mutex<Vec<Series>>>, l
         };
         let data: (Vec<SegmentSnapshot>, Box<[u8]>) = (snapshots, buffer);
         bincode::serialize_into(&mut encoded, &data).unwrap();
-        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&topic).payload(&encoded[..]);
+        lz4::compress_to_vec(&encoded, &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
+        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&topic).payload(&compressed[..]);
         match producer.send(to_send, Duration::from_secs(0)).await {
             Ok((p, o)) => {}
             Err((e, m)) => println!("DURABILITY ERROR {:?}", e),
         }
+        println!("Durability success {}", compressed.len());
         //let (partition, offset) = producer.send(to_send, Duration::from_secs(0)).await.unwrap();
         encoded.clear();
+        compressed.clear();
     }
 }
 

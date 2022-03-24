@@ -241,13 +241,13 @@ impl IngestionWorker {
 
     fn ingest(&mut self) {
         let mut c = 0;
-        let mut i: u64 = 0;
+        //let mut i: u64 = 0;
 
         while c < CONF.samples_per_thread {
-            i += 1;
-            if i % 2_000_000_000 == 0 {
-                println!("progress: {}/{}", c, CONF.samples_per_thread);
-            }
+            //i += 1;
+            //if i % 2_000_000_000 == 0 {
+            //    println!("progress: {}/{}", c, CONF.samples_per_thread);
+            //}
 
             match self.r.pop() {
                 Ok(sample) => {
@@ -491,13 +491,16 @@ fn main() {
     //&*CONF;
 
     std::thread::spawn(|| {
-        let mut last_count = 0;
+        let mut current_count = 0;
         let dur = std::time::Duration::from_secs(1);
+        let total = CONF.samples_per_thread * CONF.threads;
         loop {
             std::thread::sleep(dur);
             let count = SAMPLE_COUNTER.swap(0, SeqCst);
+            current_count += count;
+            let completion = current_count as f64 / total as f64;
             //let m = (count - last_count) as f64 / 1_000_000.0;
-            println!("{} million samples per second", count.to_formatted_string(&Locale::en));
+            println!("{} million samples per second {}", count.to_formatted_string(&Locale::en), completion);
         }
     });
 
