@@ -1,0 +1,10 @@
+---
+zipf: 0.99
+univariate: Univariate
+threads: 1
+segments: 1
+series_per_thread: 100000
+samples_per_thread: 10000000
+data_path: /home/sli/dev/mach-private/data_logs
+out_path: /home/fsolleza/Projects/mach-bench-private/rust/mach/bench/out
+

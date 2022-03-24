@@ -12,6 +12,7 @@
 #![feature(trait_alias)]
 
 mod zipf;
+mod config;
 
 use lazy_static::lazy_static;
 use mach::{
@@ -50,30 +51,26 @@ use std::{
     time::{Duration, Instant},
 };
 use zipf::*;
-
-const ZIPF: f64 = 0.99;
-const UNIVARIATE: bool = true;
-const NTHREADS: usize = 1;
-const NSEGMENTS: usize = 1;
-const NSERIES_PER_THR: usize = 100_000;
-const NSAMPLES_PER_THR: usize = 10_000_000;
+use config::*;
+use num_format::{Locale, ToFormattedString};
 
 lazy_static! {
-    static ref DATAPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
-    static ref BENCHPATH: PathBuf = DATAPATH.join("bench_data");
-    static ref METRICSPATH: PathBuf = BENCHPATH.join("metrics");
-    static ref LOGSPATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("data_logs");
-    static ref OUTDIR: PathBuf = DATAPATH.join("out");
-    static ref TOTAL_RATE: Arc<Mutex<f64>> = Arc::new(Mutex::new(0.0f64));
-    static ref BARRIERS: Arc<Barrier> = Arc::new(Barrier::new(NTHREADS));
+    //static ref TOTAL_RATE: Arc<Mutex<f64>> = Arc::new(Mutex::new(0.0f64));
+    static ref SAMPLE_COUNTER: AtomicUsize = AtomicUsize::new(0);
+    static ref BARRIERS: Arc<Barrier> = Arc::new(Barrier::new(CONF.threads));
+    static ref CONF: Config = load_conf();
+}
+
+fn load_conf() -> Config {
+    let conf_path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default-conf.yaml");
+    let conf_string = std::fs::read_to_string(conf_path).unwrap();
+    let c = serde_yaml::from_str(&conf_string).unwrap();
+    c
 }
 
 fn clean_outdir() {
-    let outdir = &*OUTDIR;
-    std::fs::remove_dir_all(outdir);
-    std::fs::create_dir_all(outdir).unwrap();
+    std::fs::remove_dir_all(&CONF.out_path);
+    std::fs::create_dir_all(&CONF.out_path).unwrap();
 }
 
 type DataSrcName = String;
@@ -114,7 +111,7 @@ struct ZipfianPicker {
 
 impl ZipfianPicker {
     fn new(size: u64) -> Self {
-        let mut z = Zipfian::new(size, ZIPF);
+        let mut z = Zipfian::new(size, CONF.zipf);
 
         ZipfianPicker {
             selection_pool: (0..1000).map(|_| z.next_item() as usize).collect(),
@@ -207,7 +204,7 @@ impl ReaderSet {
                 None => {
                     let file = OpenOptions::new()
                         .read(true)
-                        .open(&*LOGSPATH.join(name))
+                        .open(CONF.data_path.join(name))
                         .expect("could not open data file");
                     let mut reader = SeekableBufReader::new(file);
                     readers.push(reader);
@@ -246,10 +243,10 @@ impl IngestionWorker {
         let mut c = 0;
         let mut i: u64 = 0;
 
-        while c < NSAMPLES_PER_THR {
+        while c < CONF.samples_per_thread {
             i += 1;
             if i % 2_000_000_000 == 0 {
-                println!("progress: {}/{}", c, NSAMPLES_PER_THR);
+                println!("progress: {}/{}", c, CONF.samples_per_thread);
             }
 
             match self.r.pop() {
@@ -259,6 +256,7 @@ impl IngestionWorker {
                         .push_type(sample.refid, sample.timestamp, &[sample.value]);
                     if r.is_ok() {
                         c += 1;
+                        SAMPLE_COUNTER.fetch_add(1, SeqCst);
                     }
                 }
                 Err(..) => (),
@@ -451,7 +449,7 @@ impl<B: PersistentListBackend> Microbench<B> {
             let config = SeriesConfig {
                 tags: Tags::from(HashMap::new()),
                 compression: Compression::from(vec![CompressFn::BytesLZ4]),
-                seg_count: NSEGMENTS,
+                seg_count: CONF.segments,
                 nvars: 1,
                 types: vec![Types::Bytes],
             };
@@ -490,12 +488,24 @@ impl<B: PersistentListBackend> Microbench<B> {
 
 fn main() {
     clean_outdir();
+    //&*CONF;
+
+    std::thread::spawn(|| {
+        let mut last_count = 0;
+        let dur = std::time::Duration::from_secs(1);
+        loop {
+            std::thread::sleep(dur);
+            let count = SAMPLE_COUNTER.swap(0, SeqCst);
+            //let m = (count - last_count) as f64 / 1_000_000.0;
+            println!("{} million samples per second", count.to_formatted_string(&Locale::en));
+        }
+    });
 
     let mut mach = Mach::<FileBackend>::new();
-    let datasrc = DataSrc::new(LOGSPATH.as_path());
+    let datasrc = DataSrc::new(CONF.data_path.as_path());
 
-    let mut bench = Microbench::new(mach, datasrc, NTHREADS);
-    bench.with_n_series(NTHREADS * NSERIES_PER_THR);
+    let mut bench = Microbench::new(mach, datasrc, CONF.threads);
+    bench.with_n_series(CONF.threads * CONF.series_per_thread);
 
     let now = Instant::now();
     bench.run();
@@ -504,6 +514,6 @@ fn main() {
     println!(
         "Elapsed: {:.2?}, {:.2} samples/sec for 1 thread",
         dur,
-        NSAMPLES_PER_THR as f32 / dur.as_secs_f32()
+        CONF.samples_per_thread as f32 / dur.as_secs_f32()
     );
 }
