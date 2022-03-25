@@ -1,5 +1,6 @@
 use crate::constants::*;
 use crate::sample::Type;
+use crate::series::Types;
 use crate::segment::{buffer::*, Error};
 use std::{
     mem,
@@ -110,7 +111,7 @@ impl Segment {
         Ok(copies)
     }
 
-    pub fn new(nbuffers: usize, heap_pointers: &[bool]) -> Self {
+    pub fn new(nbuffers: usize, heap_pointers: &[Types]) -> Self {
         let mut buffers: Vec<Buffer> = (0..nbuffers).map(|_| Buffer::new(heap_pointers)).collect();
         Segment {
             local_head: 0,

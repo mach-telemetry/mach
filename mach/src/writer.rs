@@ -325,7 +325,7 @@ mod test {
         exp_values
             .iter()
             .enumerate()
-            .for_each(|(i, v)| assert_eq!(ss[0].variable(i), v));
+            .for_each(|(i, v)| assert_eq!(ss[0].variable(i), (Types::F64, v.as_slice())));
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
 
@@ -346,7 +346,7 @@ mod test {
         exp_values
             .iter()
             .enumerate()
-            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
+            .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
 
@@ -365,7 +365,7 @@ mod test {
         exp_values
             .iter()
             .enumerate()
-            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
+            .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
 
@@ -384,7 +384,7 @@ mod test {
         exp_values
             .iter()
             .enumerate()
-            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
+            .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
     }

@@ -9,6 +9,7 @@ use crate::{
     tags::Tags,
 };
 use std::sync::Arc;
+use serde::*;
 
 #[derive(Debug)]
 pub enum Error {
@@ -28,11 +29,26 @@ impl From<segment::Error> for Error {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum Types {
-    U64,
-    F64,
-    Bytes,
+    U64 = 0,
+    F64 = 1,
+    Bytes = 2,
+}
+
+impl Types {
+    pub fn to_u8(self) -> u8 {
+        self as u8
+    }
+
+    pub fn from_u8(v: u8) -> Self {
+        match v {
+            0 => Self::U64,
+            1 => Self::F64,
+            2 => Self::Bytes,
+            _ => unimplemented!(),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -64,15 +80,15 @@ impl Series {
         } = conf;
         assert_eq!(nvars, compression.len());
 
-        let mut heap_pointers: Vec<bool> = types
-            .iter()
-            .map(|x| match x {
-                Types::Bytes => true,
-                _ => false,
-            })
-            .collect();
+        //let mut heap_pointers: Vec<bool> = types
+        //    .iter()
+        //    .map(|x| match x {
+        //        Types::Bytes => true,
+        //        _ => false,
+        //    })
+        //    .collect();
         Self {
-            segment: segment::Segment::new(seg_count, nvars, heap_pointers.as_slice()),
+            segment: segment::Segment::new(seg_count, nvars, types.as_slice()),
             tags,
             compression,
             list: List::new(buffer),

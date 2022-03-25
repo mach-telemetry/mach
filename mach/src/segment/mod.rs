@@ -16,6 +16,7 @@ pub enum Error {
 }
 
 use crate::sample::Type;
+use crate::series::Types;
 pub use buffer::*;
 pub use serde::*;
 use std::ops::Deref;
@@ -125,7 +126,7 @@ unsafe impl Send for WriteSegment {}
 unsafe impl Sync for WriteSegment {}
 
 impl Segment {
-    pub fn new(b: usize, v: usize, heap: &[bool]) -> Self {
+    pub fn new(b: usize, v: usize, heap: &[Types]) -> Self {
         Self {
             has_writer: Arc::new(AtomicBool::new(false)),
             inner: Box::into_raw(Box::new(segment::Segment::new(b, heap))),
@@ -236,7 +237,7 @@ mod test {
     fn test_push_flush_behavior() {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
-        let heap_pointers = vec![false; nvars];
+        let heap_pointers = vec![Types::F64; nvars];
         let segment = Segment::new(3, nvars, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
         //let mut flusher = segment.flusher().unwrap();
@@ -327,7 +328,7 @@ mod test {
     fn test_push_flush_data() {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
-        let heap_pointers = vec![false; nvars];
+        let heap_pointers = vec![Types::F64; nvars];
         let segment = Segment::new(3, nvars, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
 
@@ -387,7 +388,7 @@ mod test {
     fn test_push_snapshot() {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
-        let heap_pointers = vec![false; nvars];
+        let heap_pointers = vec![Types::F64; nvars];
         let segment = Segment::new(3, nvars, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
         //let mut flusher = segment.flusher().unwrap();

@@ -36,6 +36,7 @@ pub mod utils;
 pub mod writer;
 //pub mod wal;
 pub mod durability;
+pub mod snapshot;
 //pub mod segment2;
 
 #[cfg(test)]

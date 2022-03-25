@@ -79,7 +79,7 @@ mod test {
     use super::*;
     use crate::{
         compression::*, constants::*, id::SeriesId, persistent_list::vector_backend::*, segment::*,
-        tags::*, test_utils::*, utils::wp_lock::WpLock,
+        tags::*, test_utils::*, utils::wp_lock::WpLock, series::Types,
     };
     use dashmap::DashMap;
     use rand::prelude::*;
@@ -188,7 +188,7 @@ mod test {
         let l = inner::List::new(buffer.clone());
         let mut list = l.writer();
 
-        let segment = Segment::new(1, nvars, vec![false; nvars].as_slice());
+        let segment = Segment::new(1, nvars, vec![Types::F64; nvars].as_slice());
         let mut writer = segment.writer().unwrap();
 
         let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
@@ -254,7 +254,7 @@ mod test {
         exp_values
             .iter()
             .enumerate()
-            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
+            .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
 
@@ -273,7 +273,7 @@ mod test {
         exp_values
             .iter()
             .enumerate()
-            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
+            .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
 
@@ -292,7 +292,7 @@ mod test {
         exp_values
             .iter()
             .enumerate()
-            .for_each(|(i, v)| assert_eq!(res.variable(i), v));
+            .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
         exp_ts.clear();
         exp_values.iter_mut().for_each(|e| e.clear());
     }
