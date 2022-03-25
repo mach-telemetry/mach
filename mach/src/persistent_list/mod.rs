@@ -56,7 +56,7 @@ impl From<std::io::Error> for Error {
 
 pub use file_backend::{FileBackend, FileReader, FileWriter};
 pub use inner::{
-    ChunkReader, ChunkWriter, List, ListBuffer, ListSnapshot, ListSnapshotReader, ListWriter,
+    ChunkReader, ChunkWriter, List, ListBuffer, ListSnapshot, ListSnapshotReader, ListWriter, ReadNode
 };
 pub use kafka_backend::{KafkaBackend, KafkaReader, KafkaWriter};
 pub use vector_backend::{VectorBackend, VectorReader, VectorWriter};
