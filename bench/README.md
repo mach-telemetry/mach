@@ -4,6 +4,12 @@
 
 Control things using the config file. Can use the default config, or make a new one
 
+To modify default-config without needing to deal with adding changes to the files:
+
+```
+git update-index --assume-unchanged bench/default-config
+```
+
 ## Run
 
 ```

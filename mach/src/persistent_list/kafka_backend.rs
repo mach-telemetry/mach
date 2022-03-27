@@ -201,7 +201,7 @@ impl PersistentListBackend for KafkaBackend {
     fn with_config(conf: Config) -> Result<Self, Error> {
         match conf.kafka_bootstrap() {
             Some(x) => Self::new(x, random_id().as_str()),
-            None => Err(Error::InvalidConfig(conf))
+            None => Err(Error::InvalidConfig(conf)),
         }
     }
     fn writer(&self) -> Result<Self::Writer, Error> {

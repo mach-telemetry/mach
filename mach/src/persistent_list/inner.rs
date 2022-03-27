@@ -61,9 +61,7 @@ impl ListBuffer {
     }
 
     pub fn copy_buffer(&self) -> Result<Box<[u8]>, Error> {
-        unsafe {
-            self.0.unprotected_read().copy_buffer()
-        }
+        unsafe { self.0.unprotected_read().copy_buffer() }
     }
 }
 
@@ -237,8 +235,8 @@ impl ListWriter {
 
 #[derive(Serialize, Deserialize)]
 pub struct ListSnapshot {
-    buffer_copy: Vec<Box<[u8]>>,
-    persistent: ReadNode,
+    pub buffer_copy: Vec<Box<[u8]>>,
+    pub persistent: ReadNode,
 }
 
 impl ListSnapshot {
@@ -311,12 +309,14 @@ impl ListSnapshotReader {
     }
 }
 
+
+
 #[derive(Serialize, Deserialize, Clone)]
-struct ReadNode {
-    chunk_id: u64,
-    offset: usize,
-    size: usize,
-    buffer_id: usize,
+pub struct ReadNode {
+    pub chunk_id: u64,
+    pub offset: usize,
+    pub size: usize,
+    pub buffer_id: usize,
 }
 
 impl ReadNode {

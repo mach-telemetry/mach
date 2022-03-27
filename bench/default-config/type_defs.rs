@@ -2,6 +2,11 @@
 
 use serde::*;
 
+fn schema() -> (Vec<Types>, Vec<CompressFn>) {
+    /// Change to reflect the series schema
+    (vec![Types::Bytes], vec![CompressFn::BytesLZ4])
+}
+
 #[derive(Serialize, Deserialize)]
 struct Item {
     timestamp: u64,

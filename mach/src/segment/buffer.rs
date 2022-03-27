@@ -5,6 +5,7 @@ use crate::runtime::RUNTIME;
 use crate::sample::{Bytes, Type};
 use crate::segment::Error;
 use crate::utils::wp_lock::*;
+use crate::series::Types;
 //use crate::reader::SampleIterator;
 use lazy_static::*;
 use serde::*;
@@ -33,18 +34,18 @@ struct InnerBuffer {
     ts: [u64; SEGSZ],
     data: Vec<[[u8; 8]; SEGSZ]>,
     heap: Vec<Option<Vec<u8>>>,
-    heap_flags: Vec<bool>,
+    heap_flags: Vec<Types>,
 }
 
 impl InnerBuffer {
-    fn new(heap_pointers: &[bool]) -> Self {
+    fn new(heap_pointers: &[Types]) -> Self {
         let nvars = heap_pointers.len();
         //let heap_count = heap_pointers.iter().map(|x| *x as usize).sum();
 
         // Heap
         let mut heap = Vec::new();
         for in_heap in heap_pointers {
-            if *in_heap {
+            if *in_heap == Types::Bytes {
                 heap.push(Some(Vec::with_capacity(HEAP_SZ)));
             } else {
                 heap.push(None);
@@ -79,7 +80,7 @@ impl InnerBuffer {
         let mut heap_offset = 0;
         for (i, heap) in self.heap_flags.iter().enumerate() {
             let mut item = item[i];
-            if *heap {
+            if *heap == Types::Bytes {
                 let b = unsafe { Bytes::from_sample_entry(item) };
                 let bytes = b.as_raw_bytes();
                 let heap = self.heap[heap_offset].as_mut().unwrap();
@@ -193,7 +194,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new(heap_pointers: &[bool]) -> Self {
+    pub fn new(heap_pointers: &[Types]) -> Self {
         Self {
             inner: WpLock::new(InnerBuffer::new(heap_pointers)),
         }
@@ -249,6 +250,10 @@ impl<'a> FlushBuffer<'a> {
         &self.inner.data[i][..self.len]
     }
 
+    pub fn types(&self) -> &[Types] {
+        self.inner.heap_flags.as_slice()
+    }
+
     pub fn get_variable(&self, i: usize) -> Variable {
         match &self.inner.heap[i] {
             Some(x) => Variable::Heap(x.as_slice()),
@@ -277,7 +282,7 @@ pub struct ReadBuffer {
     ts: Vec<u64>,
     data: Vec<Vec<[u8; 8]>>,
     heap: Vec<Option<Vec<u8>>>,
-    heap_flags: Vec<bool>,
+    heap_flags: Vec<Types>,
 }
 
 impl ReadBuffer {
@@ -285,8 +290,8 @@ impl ReadBuffer {
         self.len
     }
 
-    pub fn variable(&self, i: usize) -> &[[u8; 8]] {
-        &self.data[i][..self.len]
+    pub fn variable(&self, i: usize) -> (Types, &[[u8; 8]]) {
+        (self.heap_flags[i], &self.data[i][..self.len])
     }
 
     pub fn get_timestamp_at(&self, i: usize) -> u64 {
@@ -294,9 +299,10 @@ impl ReadBuffer {
         self.ts[i]
     }
 
-    pub fn get_value_at(&self, var: usize, i: usize) -> [u8; 8] {
+    pub fn get_value_at(&self, var: usize, i: usize) -> (Types, [u8; 8]) {
         let i = self.len - i - 1;
-        self.variable(var)[i]
+        let (t, v) = self.variable(var);
+        (t, v[i])
     }
 
     pub fn timestamps(&self) -> &[u64] {

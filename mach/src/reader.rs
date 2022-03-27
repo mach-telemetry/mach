@@ -228,7 +228,7 @@ mod test {
     use crate::series::*;
     use crate::tags::*;
     use crate::test_utils::*;
-    use crate::tsdb::Mach;
+    use crate::tsdb::{Mach, Config};
     use rand::prelude::*;
     use std::{
         collections::HashMap,
@@ -262,7 +262,7 @@ mod test {
         let series_id = series_conf.tags.id();
 
         // Setup Mach and writers
-        let mut mach = Mach::<VectorBackend>::new();
+        let mut mach = Mach::<VectorBackend>::new(Config::default());
         let mut writer = mach.new_writer().unwrap();
         let _writer_id = mach.add_series(series_conf).unwrap();
         let ref_id = writer.get_reference(series_id);
@@ -283,6 +283,6 @@ mod test {
             }
         }
 
-        let reader = mach.read(series_id).unwrap();
+        //let reader = mach.read(series_id).unwrap();
     }
 }

@@ -7,6 +7,7 @@ mod utils;
 mod xor;
 
 use crate::segment::*;
+use crate::series::Types;
 use crate::utils::byte_buffer::ByteBuffer;
 use lzzzz::lz4;
 use std::convert::TryInto;
@@ -24,6 +25,7 @@ pub enum Error {
 const MAGIC: &[u8; 12] = b"202107280428";
 
 pub struct DecompressBuffer {
+    header: Header,
     ts: Vec<u64>,
     values: Vec<Vec<[u8; 8]>>,
     heap: Vec<u8>,
@@ -33,6 +35,7 @@ pub struct DecompressBuffer {
 
 impl DecompressBuffer {
     fn clear(&mut self) {
+        self.header = Header::new();
         self.ts.clear();
         self.heap.clear();
         self.values.iter_mut().for_each(|x| x.clear());
@@ -54,6 +57,7 @@ impl DecompressBuffer {
 
     pub fn new() -> Self {
         Self {
+            header: Header::new(),
             ts: Vec::new(),
             values: Vec::new(),
             heap: Vec::new(),
@@ -78,8 +82,8 @@ impl DecompressBuffer {
         &self.ts[..self.len]
     }
 
-    pub fn variable(&self, var: usize) -> &[[u8; 8]] {
-        &self.values[var][..self.len]
+    pub fn variable(&self, var: usize) -> (Types, &[[u8; 8]]) {
+        (self.header.types[var], &self.values[var][..self.len])
     }
 }
 
@@ -132,8 +136,19 @@ impl CompressFn {
 }
 
 struct Header {
+    types: Vec<Types>,
     codes: Vec<u64>,
     len: usize,
+}
+
+impl Header {
+    fn new() -> Self {
+        Self {
+            types: Vec::new(),
+            codes: Vec::new(),
+            len: 0
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -159,8 +174,12 @@ impl Compression {
 
     fn set_header(&self, segment: &FullSegment, buf: &mut ByteBuffer) {
         buf.extend_from_slice(&MAGIC[..]);
-        buf.extend_from_slice(&self.0.len().to_be_bytes()[..]);
-        buf.extend_from_slice(&segment.len().to_be_bytes()[..]);
+        buf.extend_from_slice(&segment.nvars().to_be_bytes()[..]); // n variables
+        buf.extend_from_slice(&segment.len().to_be_bytes()[..]); // number of samples
+        for t in segment.types() {
+            buf.push(t.to_u8());
+        }
+
         for c in self.0.iter() {
             buf.extend_from_slice(&c.id().to_be_bytes()[..]);
         }
@@ -222,13 +241,19 @@ impl Compression {
         let len = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
         off += 8;
 
+        let mut types = Vec::new();
+        for i in 0..nvars {
+            types.push(Types::from_u8(data[off]));
+            off += 1;
+        }
+
         let mut codes = Vec::new();
         for _ in 0..nvars {
             codes.push(u64::from_be_bytes(data[off..off + 8].try_into().unwrap()));
             off += 8;
         }
 
-        Ok((Header { codes, len }, off))
+        Ok((Header { types, codes, len }, off))
     }
 
     pub fn decompress(data: &[u8], buf: &mut DecompressBuffer) -> Result<usize, Error> {
@@ -262,6 +287,9 @@ impl Compression {
             }
             off += sz;
         }
+
+        buf.header = header;
+        //std::mem::swap(&mut buf.header, &mut header);
         Ok(off)
     }
 }
@@ -271,13 +299,14 @@ mod test {
     use super::*;
     use crate::segment::Buffer;
     use crate::test_utils::*;
+    use crate::series::Types;
 
     #[test]
     fn test_decimal() {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
 
-        let heaps = vec![false; nvars];
+        let heaps = vec![Types::F64; nvars];
         let mut buf = Buffer::new(heaps.as_slice());
 
         let mut item = vec![[0u8; 8]; nvars];
@@ -310,12 +339,13 @@ mod test {
         Compression::decompress(&compressed[..len], &mut buf).unwrap();
 
         assert_eq!(&buf.ts[..], &timestamps[..]);
+        assert_eq!(buf.header.types.as_slice(), heaps.as_slice());
         for i in 0..nvars {
             let exp = segment.variable(i);
             let res = buf.variable(i);
             let diff = exp
                 .iter()
-                .zip(res.iter())
+                .zip(res.1.iter())
                 .map(|(x, y)| (f64::from_be_bytes(*x) - f64::from_be_bytes(*y)).abs())
                 .fold(f64::NAN, f64::max);
 
@@ -328,7 +358,7 @@ mod test {
         use crate::sample::Bytes;
         let data = &*LOG_DATA;
 
-        let heaps = vec![true; 1];
+        let heaps = vec![Types::Bytes; 1];
         let mut buf = Buffer::new(heaps.as_slice());
 
         let mut item = vec![[0u8; 8]; 1];
@@ -358,7 +388,7 @@ mod test {
         assert_eq!(&buf.ts[..], &timestamps[..]);
         let exp = &data[0..256];
         let res = buf.variable(0);
-        for (r, e) in res.iter().zip(exp.iter()) {
+        for (r, e) in res.1.iter().zip(exp.iter()) {
             let ptr = usize::from_be_bytes(*r) as *const u8;
             let bytes = unsafe { Bytes::from_raw(ptr) };
             let s = std::str::from_utf8(bytes.bytes()).unwrap();
