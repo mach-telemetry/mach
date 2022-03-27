@@ -239,19 +239,25 @@ impl IngestionWorker {
 
     fn ingest(&mut self) {
         let mut c = 0;
-        let mut idle_cycles = 0;
-        let mut idle_start = None;
+        //let mut idle_cycles = 0;
+        //let mut idle_start = None;
 
         let start = rdtsc!();
 
+        let mut counter: usize = 0;
+        let mut miss: usize = 0;
+        let start = Instant::now();
+        let mut busy: u64 = 0;
         while c < CONF.samples_per_thread {
             match self.r.pop() {
                 Ok(sample) => {
-                    if idle_start.is_some() {
-                        let idle_end = rdtsc!();
-                        idle_cycles += idle_end - idle_start.unwrap();
-                        idle_start = None;
-                    }
+                    counter += 1;
+                    let now = rdtsc!();
+                    //if idle_start.is_some() {
+                    //    let idle_end = rdtsc!();
+                    //    idle_cycles += idle_end - idle_start.unwrap();
+                    //    idle_start = None;
+                    //}
 
                     let r = self
                         .writer
@@ -260,24 +266,26 @@ impl IngestionWorker {
                         c += 1;
                         SAMPLE_COUNTER.fetch_add(1, SeqCst);
                     }
+                    busy += rdtsc!() - now;
+                    //busy = busy + now.elapsed();
                 }
                 Err(..) => {
-                    if idle_start.is_none() {
-                        idle_start = Some(rdtsc!());
-                    }
+                    counter += 1;
+                    miss += 1;
+                    //if idle_start.is_none() {
+                    //    idle_start = Some(rdtsc!());
+                    //}
                 }
             }
         }
+        let dur = start.elapsed().as_secs_f64();
+        let busy = rdtsc::cycles_to_seconds(busy);
 
-        let end = rdtsc!();
-        let dur = end - start;
 
-        println!(
-            "overall: {}, idle: {}, % idle {}",
-            dur,
-            idle_cycles,
-            idle_cycles as f64 / dur as f64
-        );
+        //let end = rdtsc!();
+        //let dur = end - start;
+        println!( "overall: {}, miss: {}", counter, miss);
+        println!( "overall time: {:?}, busy: {:?}", dur, busy);
 
         self.notify_completed()
     }

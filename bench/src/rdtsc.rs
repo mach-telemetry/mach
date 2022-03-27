@@ -12,7 +12,7 @@ use raw_cpuid::CpuId;
 //        hz
 //    };
 //}
-pub const TSC_HZ: &f64 = &(2499.998f64 * 1_000_000.0f64);
+pub const TSC_HZ: &f64 = &(2693.672 * 1_000_000.0f64);
 
 macro_rules! rdtsc {
     () => {
