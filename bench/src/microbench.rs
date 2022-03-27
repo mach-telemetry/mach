@@ -246,10 +246,17 @@ impl IngestionWorker {
 
         let mut counter: usize = 0;
         let mut miss: usize = 0;
-        let start = Instant::now();
+        let start = rdtsc!();
         let mut busy: u64 = 0;
+        let mut pop_busy: u64 = 0;
+        let mut idle: u64 = 0;
         while c < CONF.samples_per_thread {
-            match self.r.pop() {
+            let now = rdtsc!();
+            let r = self.r.pop();
+            pop_busy += rdtsc!() - now;
+
+            match r {
+            //match self.r.pop() {
                 Ok(sample) => {
                     counter += 1;
                     let now = rdtsc!();
@@ -278,14 +285,18 @@ impl IngestionWorker {
                 }
             }
         }
-        let dur = start.elapsed().as_secs_f64();
+        let dur = rdtsc::cycles_to_seconds(rdtsc!() - start);
         let busy = rdtsc::cycles_to_seconds(busy);
+        let pop_busy = rdtsc::cycles_to_seconds(pop_busy);
 
 
         //let end = rdtsc!();
         //let dur = end - start;
-        println!( "overall: {}, miss: {}", counter, miss);
-        println!( "overall time: {:?}, busy: {:?}", dur, busy);
+        println!("overall loops: {}", counter.to_formatted_string(&Locale::en));
+        println!("loops that missed: {}", miss.to_formatted_string(&Locale::en));
+        println!("overall time: {:.2}s", dur);
+        println!("time doing push: {:.2}s", busy);
+        println!("time doing pop: {:.2}s", pop_busy);
 
         self.notify_completed()
     }
@@ -528,9 +539,9 @@ fn main() {
             let completion = current_count as f64 / total as f64;
             //let m = (count - last_count) as f64 / 1_000_000.0;
             println!(
-                "{} samples per second {}",
+                "{} samples per second, completed {:.2}%",
                 count.to_formatted_string(&Locale::en),
-                completion
+                completion * 100.
             );
         }
     });
