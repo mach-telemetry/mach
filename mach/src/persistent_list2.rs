@@ -2,7 +2,7 @@ use std::{
     sync::Arc,
 };
 use crate::{
-    persistent_list2::active_block::{self, ActiveBlock, ActiveNode, StaticNode},
+    active_block::{self, ActiveBlock, ActiveNode, StaticNode},
     durable_queue::{self, DurableQueueWriter},
     compression::{Compression, DecompressBuffer},
     constants::BUFSZ,

@@ -39,6 +39,7 @@ pub mod durability;
 pub mod snapshot;
 pub mod durable_queue;
 pub mod persistent_list2;
+pub mod active_block;
 //pub mod segment2;
 
 #[cfg(test)]
