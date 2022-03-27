@@ -8,10 +8,13 @@
 #![allow(clippy::len_without_is_empty)]
 #![allow(unused)]
 #![allow(private_in_public)]
+#![feature(llvm_asm)]
 #![feature(proc_macro_hygiene)]
 #![feature(trait_alias)]
 
 mod config;
+#[macro_use]
+mod rdtsc;
 mod zipf;
 
 use config::*;
@@ -236,16 +239,20 @@ impl IngestionWorker {
 
     fn ingest(&mut self) {
         let mut c = 0;
-        //let mut i: u64 = 0;
+        let mut idle_cycles = 0;
+        let mut idle_start = None;
+
+        let start = rdtsc!();
 
         while c < CONF.samples_per_thread {
-            //i += 1;
-            //if i % 2_000_000_000 == 0 {
-            //    println!("progress: {}/{}", c, CONF.samples_per_thread);
-            //}
-
             match self.r.pop() {
                 Ok(sample) => {
+                    if idle_start.is_some() {
+                        let idle_end = rdtsc!();
+                        idle_cycles += idle_end - idle_start.unwrap();
+                        idle_start = None;
+                    }
+
                     let r = self
                         .writer
                         .push_type(sample.refid, sample.timestamp, &sample.value);
@@ -254,9 +261,24 @@ impl IngestionWorker {
                         SAMPLE_COUNTER.fetch_add(1, SeqCst);
                     }
                 }
-                Err(..) => (),
+                Err(..) => {
+                    if idle_start.is_none() {
+                        idle_start = Some(rdtsc!());
+                    }
+                }
             }
         }
+
+        let end = rdtsc!();
+        let dur = end - start;
+
+        println!(
+            "overall: {}, idle: {}, % idle {}",
+            dur,
+            idle_cycles,
+            idle_cycles as f64 / dur as f64
+        );
+
         self.notify_completed()
     }
 
