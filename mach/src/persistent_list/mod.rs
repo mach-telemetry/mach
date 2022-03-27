@@ -4,6 +4,7 @@ mod kafka_backend;
 mod vector_backend;
 use rdkafka::{error::KafkaError, types::RDKafkaErrorCode};
 use std::path::PathBuf;
+use serde::*;
 
 #[derive(Default, Debug, Clone)]
 pub struct Config {

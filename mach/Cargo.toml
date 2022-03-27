@@ -27,6 +27,7 @@ flame = "0.2.2"
 flamer = "0.4"
 tonic = "0.6.2"
 rtrb = "0.2.0"
+enum_dispatch = "0.3.8"
 
 [dev-dependencies]
 tempfile = "3.2.0"

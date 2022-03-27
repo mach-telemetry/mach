@@ -2,7 +2,7 @@ use std::{
     sync::Arc,
 };
 use crate::{
-    persistent_list2::active_block::{self, ActiveBlock, ActiveNode},
+    persistent_list2::active_block::{self, ActiveBlock, ActiveNode, StaticNode},
     durable_queue::{self, DurableQueueWriter},
     compression::{Compression, DecompressBuffer},
     constants::BUFSZ,
@@ -14,9 +14,11 @@ use crate::{
         wp_lock::{NoDealloc, WpLock},
     },
 };
+use serde::*;
 
 pub enum Error {
     ActiveBlock(active_block::Error),
+    InconsistentHeadRead,
 }
 
 impl From<active_block::Error> for Error {
@@ -37,26 +39,31 @@ impl List {
         ListWriter(self.clone())
     }
 
-    //pub fn snapshot(&self) -> ListSnapshot {
+    pub fn snapshot(&self) -> Result<ListSnapshot, Error> {
 
-    //    loop {
-    //        let guard = self.head.protected_read();
-    //        let head = guard.static_node();
-    //        if guard.release().is_err() {
-    //            continue;
-    //        }
+        let guard = self.head.protected_read();
+        let head = guard.static_node();
+        if guard.release().is_err() {
+            return Err(Error::InconsistentHeadRead);
+        }
 
-    //        // There are two cases: copied before flush and after flush
-    //        if head.queue_offset == u64::MAX {
-    //            let active_block = 
-    //        } else {
-    //            return ListSnapshot {
-    //                head,
-    //                active_block: None
-    //            };
-    //        }
-    //    }
-    //}
+        // There are two cases: copied before flush and after flush
+        if head.queue_offset == u64::MAX {
+            // Safety: the read operation keeps track of its own version so we don't need the
+            // version incremented by the WPLock
+            let active_block = unsafe { self.active_block.unprotected_read() };
+            let x = active_block.read(head)?;
+            Ok(ListSnapshot {
+                active_block: Some(x.0),
+                next_node: x.1,
+            })
+        } else {
+            Ok(ListSnapshot {
+                active_block: None,
+                next_node: head
+            })
+        }
+    }
 }
 
 pub struct ListWriter(List);
@@ -99,15 +106,14 @@ impl ListWriter {
             let mut guard = self.0.active_block.protected_write();
             guard.reset();
         }
-
         Ok(())
-
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ListSnapshot {
-    head: StaticNode,
     active_block: Option<Vec<Box<[u8]>>>,
+    next_node: StaticNode,
 }
 
 impl ListSnapshot {

@@ -37,6 +37,8 @@ pub mod writer;
 //pub mod wal;
 pub mod durability;
 pub mod snapshot;
+pub mod durable_queue;
+pub mod persistent_list2;
 //pub mod segment2;
 
 #[cfg(test)]

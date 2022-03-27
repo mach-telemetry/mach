@@ -20,13 +20,13 @@ use std::{
 use serde::*;
 
 pub enum Error {
-    FlushError(durable_queue::Error),
-    InconsistentRead,
+    Flush(durable_queue::Error),
+    BlockVersion,
 }
 
 impl From<durable_queue::Error> for Error {
     fn from(item: durable_queue::Error) -> Self {
-        Error::FlushError(item)
+        Error::Flush(item)
     }
 }
 
@@ -46,6 +46,7 @@ impl ActiveNode {
             queue_offset: Arc::new(AtomicU64::new(u64::MAX)),
             offset: usize::MAX,
             size: usize::MAX,
+            block_version: usize::MAX
         }
     }
 
@@ -54,16 +55,42 @@ impl ActiveNode {
             queue_offset: self.queue_offset.load(SeqCst),
             offset: self.offset,
             size: self.size,
+            block_version: self.block_version
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct StaticNode {
     pub queue_offset: u64,
     pub offset: usize,
     pub size: usize,
     pub block_version: usize,
+}
+
+impl StaticNode {
+    fn to_bytes(self) -> [u8; 32] {
+        let mut buf = [0u8; 32];
+        buf[0..8].copy_from_slice(&self.queue_offset.to_be_bytes());
+        buf[8..16].copy_from_slice(&self.offset.to_be_bytes());
+        buf[16..24].copy_from_slice(&self.size.to_be_bytes());
+        buf[24..32].copy_from_slice(&self.block_version.to_be_bytes());
+        buf
+    }
+
+    pub fn from_bytes(data: [u8; 32]) -> Self {
+        let queue_offset = u64::from_be_bytes(data[0..8].try_into().unwrap());
+        let offset = usize::from_be_bytes(data[8..16].try_into().unwrap());
+        let size = usize::from_be_bytes(data[16..24].try_into().unwrap());
+        let block_version = usize::from_be_bytes(data[24..32].try_into().unwrap());
+
+        StaticNode {
+            queue_offset,
+            offset,
+            size,
+            block_version
+        }
+    }
 }
 
 struct Bytes<T> {
@@ -91,26 +118,20 @@ impl<T: AsRef<[u8]>> Bytes<T> {
     }
 
     fn read(&self, last_offset: usize, last_size: usize) -> (Vec<Box<[u8]>>, StaticNode) {
-        let mut queue_offset = u64::MAX;
-        let mut offset = last_offset;
-        let mut size = last_size;
+        let mut node = StaticNode {
+            queue_offset: u64::MAX,
+            offset: last_offset,
+            size: last_size,
+            block_version: usize::MAX,
+        };
         let mut copies = Vec::new();
 
-        while queue_offset == u64::MAX && offset != usize::MAX {
-            let bytes = &self[offset..offset + size];
+        while node.queue_offset == u64::MAX && node.offset != usize::MAX {
+            let bytes = &self[node.offset..node.offset + node.size];
             //let _series_id = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
-            queue_offset = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
-            offset = usize::from_be_bytes(bytes[16..24].try_into().unwrap());
-            size = usize::from_be_bytes(bytes[24..32].try_into().unwrap());
+            node = StaticNode::from_bytes(bytes[8..40].try_into().unwrap());
             copies.push(bytes[32..].into());
         }
-
-        let node = StaticNode {
-            queue_offset,
-            offset,
-            size,
-        };
-
         (copies, node)
     }
 
@@ -150,16 +171,8 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         self[offset..end].copy_from_slice(&series_id.0.to_be_bytes());
         offset = end;
 
-        let end = offset + size_of::<u64>();
-        self[offset..end].copy_from_slice(&prev_node.queue_offset.to_be_bytes());
-        offset = end;
-
-        let end = offset + size_of::<usize>();
-        self[offset..end].copy_from_slice(&prev_node.offset.to_be_bytes());
-        offset = end;
-
-        let end = offset + size_of::<usize>();
-        self[offset..end].copy_from_slice(&prev_node.size.to_be_bytes());
+        let end = offset + 32;
+        self[offset..end].copy_from_slice(&prev_node.to_bytes());
         offset = end;
 
         // Compress the data into the buffer
@@ -217,6 +230,7 @@ impl ActiveBlock {
             queue_offset: self.queue_offset.clone(),
             offset,
             size,
+            block_version: self.block_version.load(SeqCst),
         }
     }
 
@@ -242,10 +256,20 @@ impl ActiveBlock {
 
     pub fn read(
         &self,
-        last_offset: usize,
-        last_size: usize,
-    ) -> (Vec<Box<[u8]>>, StaticNode) {
-        self.bytes.read(last_offset, last_size)
+        node: StaticNode,
+    ) -> Result<(Vec<Box<[u8]>>, StaticNode), Error> {
+        // Need to keep track of own version because of argument. StaticNode can be for another
+        // version of the node. Without this argument, WpLock would have been enough but alas, no
+        // dice
+        let block_version = self.block_version.load(SeqCst);
+        if block_version == node.block_version {
+            let result = self.bytes.read(node.offset, node.size);
+            let block_version_check = self.block_version.load(SeqCst);
+            if block_version == block_version_check {
+                return Ok(result)
+            }
+        }
+        Err(Error::BlockVersion)
     }
 }
 
