@@ -6,12 +6,10 @@ pub mod mach_rpc {
 }
 
 use mach_rpc::tsdb_service_server::{TsdbService, TsdbServiceServer};
-use mach_rpc::writer_service_server::{WriterService, WriterServiceServer};
 use mach_rpc::{
     AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse,
     ReadSeriesRequest, ReadSeriesResponse,
 };
-use std::{error::Error, io::ErrorKind, net::ToSocketAddrs, pin::Pin, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
