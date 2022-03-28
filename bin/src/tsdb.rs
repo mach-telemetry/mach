@@ -131,13 +131,11 @@ impl TsdbService for MachTSDB {
     ) -> Result<Response<ReadSeriesResponse>, Status> {
         let req = req.into_inner();
         let serid = SeriesId(req.series_id);
-        let tsdb_locked = self.tsdb.lock().await;
-        let resp = tsdb_locked.read(serid).await;
 
-        Ok(Response::new(ReadSeriesResponse {
-            partition: resp.partition,
-            offset: resp.offset,
-        }))
+        let tsdb_locked = self.tsdb.lock().await;
+        let ReadResponse { partition, offset } = tsdb_locked.read(serid).await;
+
+        Ok(Response::new(ReadSeriesResponse { partition, offset }))
     }
 
     type EchoStreamStream = ReceiverStream<Result<EchoResponse, Status>>;
