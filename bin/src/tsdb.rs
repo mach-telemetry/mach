@@ -1,3 +1,4 @@
+use tokio::sync::Mutex;
 use tonic::{transport::Server, Request, Response, Status};
 
 pub mod mach_rpc {
@@ -8,25 +9,22 @@ use mach_rpc::tsdb_service_server::{TsdbService, TsdbServiceServer};
 use mach_rpc::writer_service_server::{WriterService, WriterServiceServer};
 use mach_rpc::{
     AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse,
+    ReadSeriesRequest, ReadSeriesResponse,
 };
 use std::{error::Error, io::ErrorKind, net::ToSocketAddrs, pin::Pin, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
-//use futures::Stream;
-
 mod writer;
 use mach::{
     compression::{CompressFn, Compression},
+    id::SeriesId,
     persistent_list::VectorBackend,
     series::{SeriesConfig, Types},
     tags::Tags,
     tsdb::{Config, Mach},
 };
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, sync::Arc};
 
 pub struct MachTSDB {
     tsdb: Arc<Mutex<Mach<VectorBackend>>>,
@@ -116,14 +114,29 @@ impl TsdbService for MachTSDB {
             seg_count,
             nvars,
         };
-
-        let (writer_id, series_id) = self.tsdb.lock().unwrap().add_series(conf).unwrap();
+        let mut tsdb_locked = self.tsdb.lock().await;
+        let (writer_id, series_id) = tsdb_locked.add_series(conf).unwrap();
         let writer_address = self.writers.get(&writer_id.0).unwrap().clone();
         let series_id = series_id.0;
 
         Ok(Response::new(AddSeriesResponse {
             writer_address,
             series_id,
+        }))
+    }
+
+    async fn read(
+        &self,
+        req: Request<ReadSeriesRequest>,
+    ) -> Result<Response<ReadSeriesResponse>, Status> {
+        let req = req.into_inner();
+        let serid = SeriesId(req.series_id);
+        let tsdb_locked = self.tsdb.lock().await;
+        let resp = tsdb_locked.read(serid).await;
+
+        Ok(Response::new(ReadSeriesResponse {
+            partition: resp.partition,
+            offset: resp.offset,
         }))
     }
 

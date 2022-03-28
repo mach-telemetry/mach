@@ -48,8 +48,8 @@ impl Snapshot {
 
 #[derive(Debug)]
 pub struct ReadResponse {
-    partition: i32,
-    offset: i64,
+    pub partition: i32,
+    pub offset: i64,
 }
 
 pub enum SnapshotterRequest {
@@ -228,7 +228,7 @@ mod test {
     use crate::series::*;
     use crate::tags::*;
     use crate::test_utils::*;
-    use crate::tsdb::{Mach, Config};
+    use crate::tsdb::{Config, Mach};
     use rand::prelude::*;
     use std::{
         collections::HashMap,
