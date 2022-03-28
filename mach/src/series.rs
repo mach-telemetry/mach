@@ -1,12 +1,15 @@
 use crate::{
     compression::Compression,
     id::SeriesId,
-    persistent_list::{self, List, ListBuffer},
-    reader::Snapshot,
+    //persistent_list::{self, List, ListBuffer},
+    persistent_list::{self, List, ListSnapshot},
+    //reader::Snapshot,
     segment::{
         self, FlushSegment, FullSegment, ReadSegment, Segment, SegmentSnapshot, WriteSegment,
     },
     tags::Tags,
+    utils::wp_lock::WpLock,
+    active_block::*,
 };
 use std::sync::Arc;
 use serde::*;
@@ -70,7 +73,7 @@ pub struct Series {
 }
 
 impl Series {
-    pub fn new(conf: SeriesConfig, buffer: ListBuffer) -> Self {
+    pub fn new(conf: SeriesConfig, list: List) -> Self {
         let SeriesConfig {
             tags,
             compression,
@@ -91,20 +94,26 @@ impl Series {
             segment: segment::Segment::new(seg_count, nvars, types.as_slice()),
             tags,
             compression,
-            list: List::new(buffer),
+            list,
             types,
         }
     }
 
-    pub fn segment_snapshot(&self) -> Result<SegmentSnapshot, Error> {
-        Ok(self.segment.snapshot()?)
-    }
+    //pub fn segment_snapshot(&self) -> Result<SegmentSnapshot, Error> {
+    //    Ok(self.segment.snapshot()?)
+    //}
 
-    pub fn snapshot(&self) -> Result<Snapshot, Error> {
-        let segment = self.segment.snapshot()?;
-        let list = self.list.read()?;
-        Ok(Snapshot::new(segment, list))
-    }
+    //pub fn snapshot(&self) -> Result<Snapshot, Error> {
+    //    let segment = self.segment.snapshot()?;
+    //    let list = self.list.read()?;
+    //    Ok(Snapshot::new(segment, list))
+    //}
+
+    //pub fn snapshot(&self) -> Result<Snapshot, Error> {
+    //    let segment = self.segment.snapshot()?;
+    //    let list = self.list.snapshot()?;
+    //    Ok(Snapshot::new(segment, list))
+    //}
 
     pub fn compression(&self) -> &Compression {
         &self.compression

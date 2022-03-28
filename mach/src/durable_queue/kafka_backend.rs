@@ -23,6 +23,7 @@ use std::{
 };
 use serde::*;
 
+#[derive(Debug)]
 pub enum Error {
     Kafka(RdKafkaError),
     KafkaErrorCode((String, RDKafkaErrorCode)),

@@ -4,7 +4,9 @@ mod file_backend;
 use serde::*;
 use enum_dispatch::*;
 use std::path::PathBuf;
+use std::ops::{Deref,DerefMut};
 
+#[derive(Debug)]
 pub enum Error {
     Kafka(kafka_backend::Error),
     File(file_backend::Error),
@@ -22,34 +24,86 @@ impl From<file_backend::Error> for Error {
     }
 }
 
-#[derive(Default, Debug, Clone)]
-pub struct Config {
-    pub kafka_bootstrap: Option<String>,
-    pub directory: Option<PathBuf>,
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct KafkaConfig {
+    pub bootstrap: String,
+    pub topic: String,
 }
 
-impl Config {
+impl KafkaConfig {
+    fn make(&self) -> Result<InnerDurableQueue, Error> {
+        Ok(InnerDurableQueue::Kafka(kafka_backend::Kafka::new(&self.bootstrap, &self.topic)?))
+    }
+    pub fn config(self) -> QueueConfig {
+        QueueConfig::Kafka(self)
+    }
 }
 
-pub enum DurableQueue {
-    Kafka(kafka_backend::Kafka),
-    File(file_backend::FileBackend)
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FileConfig {
+    pub dir: PathBuf,
+    pub file: String
+}
+
+impl FileConfig {
+    fn make(&self) -> Result<InnerDurableQueue, Error> {
+        Ok(InnerDurableQueue::File(file_backend::FileBackend::new(&self.dir, &self.file)?))
+    }
+    pub fn config(self) -> QueueConfig {
+        QueueConfig::File(self)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum QueueConfig {
+    Kafka(KafkaConfig),
+    File(FileConfig),
+}
+
+impl QueueConfig {
+    pub fn make(self) -> Result<DurableQueue, Error> {
+        let config = self.clone();
+        let d = match self {
+            Self::Kafka(x) => DurableQueue {
+                config,
+                inner: x.make()?,
+            },
+            Self::File(x) => DurableQueue {
+                config,
+                inner: x.make()?,
+            },
+        };
+        Ok(d)
+    }
+}
+
+pub struct DurableQueue {
+    config: QueueConfig,
+    inner: InnerDurableQueue,
 }
 
 impl DurableQueue {
+    pub fn config(&self) -> QueueConfig {
+        self.config.clone()
+    }
     pub fn writer(&self) -> Result<DurableQueueWriter, Error> {
-        match self {
-            Self::Kafka(x) => Ok(DurableQueueWriter::Kafka(x.make_writer()?)),
-            Self::File(x) => Ok(DurableQueueWriter::File(x.make_writer()?)),
+        match &self.inner {
+            InnerDurableQueue::Kafka(x) => Ok(DurableQueueWriter::Kafka(x.make_writer()?)),
+            InnerDurableQueue::File(x) => Ok(DurableQueueWriter::File(x.make_writer()?)),
         }
     }
 
     pub fn reader(&self) -> Result<DurableQueueReader, Error> {
-        match self {
-            Self::Kafka(x) => Ok(DurableQueueReader::Kafka(x.make_reader()?)),
-            Self::File(x) => Ok(DurableQueueReader::File(x.make_reader()?)),
+        match &self.inner {
+            InnerDurableQueue::Kafka(x) => Ok(DurableQueueReader::Kafka(x.make_reader()?)),
+            InnerDurableQueue::File(x) => Ok(DurableQueueReader::File(x.make_reader()?)),
         }
     }
+}
+
+enum InnerDurableQueue {
+    Kafka(kafka_backend::Kafka),
+    File(file_backend::FileBackend)
 }
 
 pub enum DurableQueueWriter {

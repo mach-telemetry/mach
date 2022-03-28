@@ -19,6 +19,7 @@ use std::{
 };
 use serde::*;
 
+#[derive(Debug)]
 pub enum Error {
     Flush(durable_queue::Error),
     BlockVersion,

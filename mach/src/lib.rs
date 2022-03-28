@@ -24,24 +24,24 @@
 pub mod compression;
 pub mod constants;
 pub mod id;
-pub mod persistent_list;
-pub mod reader;
+//pub mod persistent_list;
+//pub mod reader;
 pub mod runtime;
 pub mod sample;
 pub mod segment;
 pub mod series;
 pub mod tags;
-pub mod tsdb;
+//pub mod tsdb;
 pub mod utils;
-pub mod writer;
+//pub mod writer;
 //pub mod wal;
-pub mod durability;
-pub mod snapshot;
+//pub mod durability;
 
 // new shit
 pub mod durable_queue;
-pub mod persistent_list2;
+pub mod persistent_list;
 pub mod active_block;
+pub mod writer;
 //pub mod segment2;
 
 #[cfg(test)]

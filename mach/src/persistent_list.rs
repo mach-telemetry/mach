@@ -16,6 +16,7 @@ use crate::{
 };
 use serde::*;
 
+#[derive(Debug)]
 pub enum Error {
     ActiveBlock(active_block::Error),
     InconsistentHeadRead,
