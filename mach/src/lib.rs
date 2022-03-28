@@ -38,10 +38,11 @@ pub mod utils;
 //pub mod durability;
 
 // new shit
+pub mod active_block;
 pub mod durable_queue;
 pub mod persistent_list;
-pub mod active_block;
 pub mod writer;
+pub mod snapshot;
 //pub mod segment2;
 
 #[cfg(test)]

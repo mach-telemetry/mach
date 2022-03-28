@@ -1,27 +1,22 @@
-use crate::{
-    constants::*,
-    id::SeriesId,
-    runtime::RUNTIME,
-    utils::random_id,
-};
+use crate::{constants::*, id::SeriesId, runtime::RUNTIME, utils::random_id};
 pub use rdkafka::consumer::{base_consumer::BaseConsumer, Consumer};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
     config::ClientConfig,
+    error::KafkaError as RdKafkaError,
     producer::{FutureProducer, FutureRecord},
     topic_partition_list::{Offset, TopicPartitionList},
+    types::RDKafkaErrorCode,
     util::Timeout,
     Message,
-    error::KafkaError as RdKafkaError,
-    types::RDKafkaErrorCode
 };
+use serde::*;
 use std::{
     convert::TryInto,
     sync::Arc,
     time::{Duration, Instant},
 };
-use serde::*;
 
 #[derive(Debug)]
 pub enum Error {

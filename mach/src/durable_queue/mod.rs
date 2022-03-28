@@ -1,10 +1,10 @@
-mod kafka_backend;
 mod file_backend;
+mod kafka_backend;
 
-use serde::*;
 use enum_dispatch::*;
+use serde::*;
+use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
-use std::ops::{Deref,DerefMut};
 
 #[derive(Debug)]
 pub enum Error {
@@ -32,7 +32,10 @@ pub struct KafkaConfig {
 
 impl KafkaConfig {
     fn make(&self) -> Result<InnerDurableQueue, Error> {
-        Ok(InnerDurableQueue::Kafka(kafka_backend::Kafka::new(&self.bootstrap, &self.topic)?))
+        Ok(InnerDurableQueue::Kafka(kafka_backend::Kafka::new(
+            &self.bootstrap,
+            &self.topic,
+        )?))
     }
     pub fn config(self) -> QueueConfig {
         QueueConfig::Kafka(self)
@@ -42,12 +45,14 @@ impl KafkaConfig {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FileConfig {
     pub dir: PathBuf,
-    pub file: String
+    pub file: String,
 }
 
 impl FileConfig {
     fn make(&self) -> Result<InnerDurableQueue, Error> {
-        Ok(InnerDurableQueue::File(file_backend::FileBackend::new(&self.dir, &self.file)?))
+        Ok(InnerDurableQueue::File(file_backend::FileBackend::new(
+            &self.dir, &self.file,
+        )?))
     }
     pub fn config(self) -> QueueConfig {
         QueueConfig::File(self)
@@ -103,12 +108,12 @@ impl DurableQueue {
 
 enum InnerDurableQueue {
     Kafka(kafka_backend::Kafka),
-    File(file_backend::FileBackend)
+    File(file_backend::FileBackend),
 }
 
 pub enum DurableQueueWriter {
     Kafka(kafka_backend::KafkaWriter),
-    File(file_backend::FileWriter)
+    File(file_backend::FileWriter),
 }
 
 impl DurableQueueWriter {
@@ -122,7 +127,7 @@ impl DurableQueueWriter {
 
 pub enum DurableQueueReader {
     Kafka(kafka_backend::KafkaReader),
-    File(file_backend::FileReader)
+    File(file_backend::FileReader),
 }
 
 impl DurableQueueReader {

@@ -1,18 +1,19 @@
 use crate::{
+    active_block::*,
     compression::Compression,
     id::SeriesId,
     //persistent_list::{self, List, ListBuffer},
     persistent_list::{self, List, ListSnapshot},
+    snapshot::Snapshot,
     //reader::Snapshot,
     segment::{
-        self, FlushSegment, FullSegment, ReadSegment, Segment, SegmentSnapshot, WriteSegment,
+        self, FlushSegment, FullSegment, Segment, SegmentSnapshot, WriteSegment,
     },
     tags::Tags,
     utils::wp_lock::WpLock,
-    active_block::*,
 };
-use std::sync::Arc;
 use serde::*;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum Error {
@@ -103,11 +104,11 @@ impl Series {
     //    Ok(self.segment.snapshot()?)
     //}
 
-    //pub fn snapshot(&self) -> Result<Snapshot, Error> {
-    //    let segment = self.segment.snapshot()?;
-    //    let list = self.list.read()?;
-    //    Ok(Snapshot::new(segment, list))
-    //}
+    pub fn snapshot(&self) -> Result<Snapshot, Error> {
+        let segment = self.segment.snapshot()?;
+        let list = self.list.snapshot()?;
+        Ok(Snapshot::new(segment, list))
+    }
 
     //pub fn snapshot(&self) -> Result<Snapshot, Error> {
     //    let segment = self.segment.snapshot()?;

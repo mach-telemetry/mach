@@ -1,6 +1,7 @@
 use crate::{
     compression::{Compression, DecompressBuffer},
     constants::BUFSZ,
+    durable_queue::{self, DurableQueueReader, DurableQueueWriter},
     id::SeriesId,
     segment::FullSegment,
     tags::Tags,
@@ -8,26 +9,29 @@ use crate::{
         byte_buffer::ByteBuffer,
         wp_lock::{NoDealloc, WpLock},
     },
-    durable_queue::{self, DurableQueueWriter},
-};
-use std::{
-    sync::{Arc, atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst}},
-    ops::{Deref, DerefMut},
-    mem::size_of,
-    collections::HashMap,
-    convert::TryInto,
 };
 use serde::*;
+use std::{
+    collections::HashMap,
+    convert::TryInto,
+    mem::size_of,
+    ops::{Deref, DerefMut},
+    sync::{
+        atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst},
+        Arc,
+    },
+};
 
 #[derive(Debug)]
 pub enum Error {
-    Flush(durable_queue::Error),
+    DurableQueue(durable_queue::Error),
     BlockVersion,
+    EndOfQueue,
 }
 
 impl From<durable_queue::Error> for Error {
     fn from(item: durable_queue::Error) -> Self {
-        Error::Flush(item)
+        Error::DurableQueue(item)
     }
 }
 
@@ -47,7 +51,7 @@ impl ActiveNode {
             queue_offset: Arc::new(AtomicU64::new(u64::MAX)),
             offset: usize::MAX,
             size: usize::MAX,
-            block_version: usize::MAX
+            block_version: usize::MAX,
         }
     }
 
@@ -56,7 +60,7 @@ impl ActiveNode {
             queue_offset: self.queue_offset.load(SeqCst),
             offset: self.offset,
             size: self.size,
-            block_version: self.block_version
+            block_version: self.block_version,
         }
     }
 }
@@ -89,7 +93,18 @@ impl StaticNode {
             queue_offset,
             offset,
             size,
-            block_version
+            block_version,
+        }
+    }
+
+    pub fn read_from_queue(
+        &self,
+        queue: &mut DurableQueueReader,
+    ) -> Result<(Vec<Box<[u8]>>, StaticNode), Error> {
+        if self.queue_offset == u64::MAX {
+            Err(Error::EndOfQueue)
+        } else {
+            Ok(Bytes::new(queue.read(self.queue_offset)?).read(self.offset, self.size))
         }
     }
 }
@@ -131,7 +146,7 @@ impl<T: AsRef<[u8]>> Bytes<T> {
             let bytes = &self[node.offset..node.offset + node.size];
             //let _series_id = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
             node = StaticNode::from_bytes(bytes[8..40].try_into().unwrap());
-            copies.push(bytes[32..].into());
+            copies.push(bytes[40..].into());
         }
         (copies, node)
     }
@@ -163,7 +178,7 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         series_id: SeriesId,
         segment: &FullSegment,
         compression: &Compression,
-        prev_node: StaticNode
+        prev_node: StaticNode,
     ) -> (usize, usize) {
         let len = self.len.load(SeqCst);
         let mut offset = len;
@@ -186,6 +201,22 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         let result = (len, offset - len);
         self.len.store(offset, SeqCst);
         result
+    }
+}
+
+pub struct StaticBlock<T> {
+    bytes: Bytes<T>,
+}
+
+impl<T: AsRef<[u8]>> StaticBlock<T> {
+    pub fn new(bytes: T) -> Self {
+        StaticBlock {
+            bytes: Bytes::new(bytes),
+        }
+    }
+
+    pub fn read(&self, node: StaticNode) -> Result<(Vec<Box<[u8]>>, StaticNode), Error> {
+        Ok(self.bytes.read(node.offset, node.size))
     }
 }
 
@@ -221,9 +252,7 @@ impl ActiveBlock {
         compression: &Compression,
         prev_node: StaticNode,
     ) -> ActiveNode {
-        let (offset, size) =
-            self.bytes
-                .push(id, segment, compression, prev_node);
+        let (offset, size) = self.bytes.push(id, segment, compression, prev_node);
 
         self.series.insert(id, (offset, size));
 
@@ -236,9 +265,9 @@ impl ActiveBlock {
     }
 
     pub fn flush(&mut self, flusher: &mut DurableQueueWriter) -> Result<(), Error> {
+        println!("FLUSHING ACTIVE BLOCK");
         self.bytes.set_tail(&self.series);
-        let queue_offset = flusher
-            .write(&self.bytes[..self.bytes.len.load(SeqCst)])?;
+        let queue_offset = flusher.write(&self.bytes[..self.bytes.len.load(SeqCst)])?;
         // Boradcast the queue offset to everyone who pushed
         self.queue_offset.store(queue_offset, SeqCst);
         Ok(())
@@ -255,10 +284,7 @@ impl ActiveBlock {
         self.bytes.copy_buffer()
     }
 
-    pub fn read(
-        &self,
-        node: StaticNode,
-    ) -> Result<(Vec<Box<[u8]>>, StaticNode), Error> {
+    pub fn read(&self, node: StaticNode) -> Result<(Vec<Box<[u8]>>, StaticNode), Error> {
         // Need to keep track of own version because of argument. StaticNode can be for another
         // version of the node. Without this argument, WpLock would have been enough but alas, no
         // dice
@@ -267,10 +293,9 @@ impl ActiveBlock {
             let result = self.bytes.read(node.offset, node.size);
             let block_version_check = self.block_version.load(SeqCst);
             if block_version == block_version_check {
-                return Ok(result)
+                return Ok(result);
             }
         }
         Err(Error::BlockVersion)
     }
 }
-

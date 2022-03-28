@@ -1,14 +1,25 @@
 use crate::{
-    constants::*, id::SeriesId, compression::DecompressBuffer, persistent_list::{self, ListSnapshot, ListSnapshotReader, ChunkReader}, runtime::RUNTIME, sample::Type,
-    segment::{SegmentSnapshot, ReadBuffer}, series::{Types, Series},
+    compression::{self, Compression, DecompressBuffer},
+    constants::*,
+    id::SeriesId,
+    persistent_list::{self, ListSnapshot, ListSnapshotReader},
+    runtime::RUNTIME,
+    sample::Type,
+    segment::{ReadBuffer, SegmentSnapshot, SegmentSnapshotReader},
+    series::{Series, Types},
     utils::bytes::Bytes,
+    durable_queue::DurableQueueReader,
 };
+use bincode::{deserialize_from, serialize_into};
 use serde::*;
-use bincode::{serialize_into, deserialize_from};
 use std::convert::TryInto;
+use std::slice;
+use std::iter::Rev;
 
+#[derive(Debug)]
 pub enum Error {
-    PersistentList(persistent_list::Error)
+    PersistentList(persistent_list::Error),
+    Compression(compression::Error),
 }
 
 impl From<persistent_list::Error> for Error {
@@ -17,24 +28,32 @@ impl From<persistent_list::Error> for Error {
     }
 }
 
+impl From<compression::Error> for Error {
+    fn from(item: compression::Error) -> Self {
+        Error::Compression(item)
+    }
+}
+
+
+pub type TimestampIterator<'a> = Rev<slice::Iter<'a, u64>>;
 
 pub enum SnapshotItem<'a> {
-    Buffer(&'a ReadBuffer),
+    Active(&'a ReadBuffer),
     Compressed(&'a DecompressBuffer),
 }
 
 impl<'a> SnapshotItem<'a> {
-    fn get_timestamps(&self) -> &[u64] {
+    pub fn get_timestamps(&self) -> TimestampIterator {
         match self {
-            Self::Buffer(x) => x.timestamps(),
-            Self::Compressed(x) => x.timestamps()
+            Self::Active(x) => x.timestamps().iter().rev(),
+            Self::Compressed(x) => x.timestamps().iter().rev(),
         }
     }
 
-    fn get_field(&self, i: usize) -> (Types, &[[u8; 8]]) {
+    pub fn get_field(&self, i: usize) -> (Types, &[[u8; 8]]) {
         match self {
-            Self::Buffer(x) => x.variable(i),
-            Self::Compressed(x) => x.variable(i)
+            Self::Active(x) => x.variable(i),
+            Self::Compressed(x) => x.variable(i),
         }
     }
 }
@@ -59,43 +78,35 @@ impl Snapshot {
     pub fn from_bytes(bytes: &[u8]) -> Self {
         deserialize_from(bytes).unwrap()
     }
+
+    pub fn reader(&self, durable_queue: DurableQueueReader) -> Result<SnapshotReader, Error> {
+        SnapshotReader::new(self, durable_queue)
+    }
 }
 
-pub struct SnapshotReader<R: ChunkReader> {
-    segments: SegmentSnapshot,
+pub struct SnapshotReader {
+    segments: SegmentSnapshotReader,
     list: ListSnapshotReader,
-    current_buffer: usize,
-    current_compressed: usize,
-    local_buffer: Vec<u8>,
     decompress_buf: DecompressBuffer,
-    reader: R,
 }
 
-impl<R: ChunkReader> SnapshotReader<R> {
-    pub fn new(snapshot: Snapshot, reader: R) -> Self {
-        Self {
-            segments: snapshot.segments,
-            list: ListSnapshotReader::new(snapshot.list),
-            current_buffer: 0,
-            current_compressed: 0,
-            local_buffer: Vec::new(),
+impl SnapshotReader {
+    pub fn new(snapshot: &Snapshot, durable_queue: DurableQueueReader) -> Result<Self, Error> {
+        Ok(SnapshotReader {
+            segments: snapshot.segments.reader(),
+            list: snapshot.list.reader(durable_queue)?,
             decompress_buf: DecompressBuffer::new(),
-            reader,
-        }
+        })
     }
 
-    pub fn next_segment(&mut self) -> Result<Option<SnapshotItem>, Error> {
-        if self.current_buffer < self.segments.len() {
-            let idx = self.current_buffer;
-            self.current_buffer += 1;
-            Ok(Some(SnapshotItem::Buffer(&self.segments[idx])))
+    pub fn next_item(&mut self) -> Result<Option<SnapshotItem>, Error> {
+        if let Some(r) = self.segments.next_item() {
+            Ok(Some(SnapshotItem::Active(r)))
+        } else if let Some(r) = self.list.next_item()? {
+            let _ = Compression::decompress(r, &mut self.decompress_buf)?;
+            Ok(Some(SnapshotItem::Compressed(&self.decompress_buf)))
         } else {
-            let res = match self.list.next_segment(&mut self.reader)? {
-                Some(x) => Some(SnapshotItem::Compressed(x)),
-                None => None
-            };
-            Ok(res)
+            Ok(None)
         }
     }
 }
-

@@ -84,7 +84,10 @@ pub struct FileBackend {
 impl FileBackend {
     pub fn new<P: AsRef<Path>>(dir: P, id: &str) -> Result<Self, Error> {
         create_dir_all(&dir)?;
-        Ok(FileBackend { dir: PathBuf::from(dir.as_ref()), id: String::from(id) })
+        Ok(FileBackend {
+            dir: PathBuf::from(dir.as_ref()),
+            id: String::from(id),
+        })
     }
 
     pub fn make_writer(&self) -> Result<FileWriter, Error> {

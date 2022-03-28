@@ -1,7 +1,7 @@
 use crate::constants::*;
 use crate::sample::Type;
-use crate::series::Types;
 use crate::segment::{buffer::*, Error};
+use crate::series::Types;
 use std::{
     mem,
     sync::atomic::{AtomicIsize, AtomicUsize, Ordering::SeqCst},

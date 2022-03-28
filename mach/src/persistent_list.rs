@@ -1,11 +1,8 @@
-use std::{
-    sync::Arc,
-};
 use crate::{
     active_block::{self, ActiveBlock, ActiveNode, StaticNode},
-    durable_queue::{self, DurableQueueWriter},
     compression::{Compression, DecompressBuffer},
     constants::BUFSZ,
+    durable_queue::{self, DurableQueueReader, DurableQueueWriter},
     id::SeriesId,
     segment::FullSegment,
     tags::Tags,
@@ -15,6 +12,7 @@ use crate::{
     },
 };
 use serde::*;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum Error {
@@ -27,7 +25,6 @@ impl From<active_block::Error> for Error {
         Error::ActiveBlock(item)
     }
 }
-
 
 #[derive(Clone)]
 pub struct List {
@@ -48,7 +45,6 @@ impl List {
     }
 
     pub fn snapshot(&self) -> Result<ListSnapshot, Error> {
-
         let guard = self.head.protected_read();
         let head = guard.static_node();
         if guard.release().is_err() {
@@ -68,7 +64,7 @@ impl List {
         } else {
             Ok(ListSnapshot {
                 active_block: None,
-                next_node: head
+                next_node: head,
             })
         }
     }
@@ -90,8 +86,7 @@ impl ListWriter {
         let (new_head, to_flush) = unsafe {
             let prev_node = self.0.head.unprotected_read().static_node();
             let buf = self.0.active_block.unprotected_write();
-            let new_head =
-                buf.push(id, segment, compression, prev_node);
+            let new_head = buf.push(id, segment, compression, prev_node);
             let to_flush = buf.is_full();
             (new_head, to_flush)
         };
@@ -105,10 +100,11 @@ impl ListWriter {
         // head. When making a copy of the buffer information, will fail if the buffer reset
         // concurrently.
         if to_flush {
-
             // Safety, the flush doesn't race with ListReader since the data the listreader will
             // access is always valid and will be correct
-            unsafe { self.0.active_block.unprotected_write().flush(w)?; }
+            unsafe {
+                self.0.active_block.unprotected_write().flush(w)?;
+            }
 
             // Now we guard because the listreader might be copying during this reset
             let mut guard = self.0.active_block.protected_write();
@@ -125,4 +121,55 @@ pub struct ListSnapshot {
 }
 
 impl ListSnapshot {
+    pub fn reader(&self, durable_queue: DurableQueueReader) -> Result<ListSnapshotReader, Error> {
+        ListSnapshotReader::new(self, durable_queue)
+    }
+}
+
+pub struct ListSnapshotReader {
+    block: Vec<Box<[u8]>>,
+    block_idx: usize,
+    next_node: StaticNode,
+    durable_queue: DurableQueueReader,
+}
+
+impl ListSnapshotReader {
+    pub fn new(
+        list_snapshot: &ListSnapshot,
+        mut durable_queue: DurableQueueReader,
+    ) -> Result<Self, Error> {
+        if list_snapshot.active_block.is_some() {
+            let block = list_snapshot.active_block.as_ref().unwrap().clone();
+            Ok(ListSnapshotReader {
+                block,
+                block_idx: 0,
+                next_node: list_snapshot.next_node.clone(),
+                durable_queue,
+            })
+        } else {
+            let (block, next_node) = list_snapshot
+                .next_node
+                .read_from_queue(&mut durable_queue)?;
+            Ok(ListSnapshotReader {
+                block,
+                block_idx: 0,
+                next_node,
+                durable_queue,
+            })
+        }
+    }
+
+    pub fn next_item(&mut self) -> Result<Option<&[u8]>, Error> {
+        if self.block_idx < self.block.len() {
+            let idx = self.block_idx;
+            self.block_idx += 1;
+            Ok(Some(&self.block[idx]))
+        } else {
+            let (block, next_node) = self.next_node.read_from_queue(&mut self.durable_queue)?;
+            self.block = block;
+            self.next_node = next_node;
+            self.block_idx = 1;
+            Ok(Some(&self.block[0]))
+        }
+    }
 }

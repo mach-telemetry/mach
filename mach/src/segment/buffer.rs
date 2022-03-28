@@ -4,8 +4,8 @@ use crate::constants::*;
 use crate::runtime::RUNTIME;
 use crate::sample::{Bytes, Type};
 use crate::segment::Error;
-use crate::utils::wp_lock::*;
 use crate::series::Types;
+use crate::utils::wp_lock::*;
 //use crate::reader::SampleIterator;
 use lazy_static::*;
 use serde::*;
@@ -276,7 +276,7 @@ impl<'a> FlushBuffer<'a> {
 
 pub type BufferSnapshot = ReadBuffer;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ReadBuffer {
     len: usize,
     ts: Vec<u64>,

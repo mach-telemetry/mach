@@ -23,6 +23,13 @@ pub enum Error {
 }
 
 const MAGIC: &[u8; 12] = b"202107280428";
+//pub struct ReadBuffer {
+//    len: usize,
+//    ts: Vec<u64>,
+//    data: Vec<Vec<[u8; 8]>>,
+//    heap: Vec<Option<Vec<u8>>>,
+//    heap_flags: Vec<Types>,
+//}
 
 pub struct DecompressBuffer {
     header: Header,
@@ -146,7 +153,7 @@ impl Header {
         Self {
             types: Vec::new(),
             codes: Vec::new(),
-            len: 0
+            len: 0,
         }
     }
 }
@@ -298,8 +305,8 @@ impl Compression {
 mod test {
     use super::*;
     use crate::segment::Buffer;
-    use crate::test_utils::*;
     use crate::series::Types;
+    use crate::test_utils::*;
 
     #[test]
     fn test_decimal() {

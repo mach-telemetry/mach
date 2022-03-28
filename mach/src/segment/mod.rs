@@ -74,21 +74,43 @@ pub struct FlushSegment {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ReadSegment {
-    inner: Vec<buffer::ReadBuffer>,
+pub struct SegmentSnapshot {
+    inner: Vec<buffer::BufferSnapshot>,
 }
 
-pub type SegmentSnapshot = ReadSegment;
+impl SegmentSnapshot {
+    pub fn reader(&self) -> SegmentSnapshotReader {
+        SegmentSnapshotReader::new(self)
+    }
+}
 
-impl Deref for ReadSegment {
-    type Target = [buffer::ReadBuffer];
-    fn deref(&self) -> &Self::Target {
-        self.inner.as_slice()
+pub struct SegmentSnapshotReader {
+    inner: Vec<buffer::BufferSnapshot>,
+    idx: usize
+}
+
+impl SegmentSnapshotReader {
+    pub fn new(snapshot: &SegmentSnapshot) -> Self {
+        Self {
+            inner: snapshot.inner.clone(),
+            idx: 0
+        }
+    }
+
+    pub fn next_item(&mut self) -> Option<&buffer::BufferSnapshot> {
+        //println!("segment len: {}", self.inner.len());
+        if self.idx < self.inner.len() {
+            let idx = self.idx;
+            self.idx += 1;
+            Some(&self.inner[idx])
+        } else {
+            None
+        }
     }
 }
 
 //pub struct ReadSegmentIterator<'a> {
-//    inner: &'a mut [buffer::ReadBuffer],
+//    inner: &'a mut [buffer::BufferSnapshot],
 //    iterator: ReadSegmentIterator<'a>,
 //    idx: usize
 //}
@@ -155,13 +177,13 @@ impl Segment {
     //    }
     //}
 
-    pub fn snapshot(&self) -> Result<ReadSegment, Error> {
+    pub fn snapshot(&self) -> Result<SegmentSnapshot, Error> {
         // Safety: Safe because a reader and a flusher do not race (see to_flush), and a reader and
         // writer can race but the reader checks the version number before returning
         let inner: &segment::Segment = unsafe { self.inner.as_ref().unwrap() };
         let inner_information = inner.read()?;
         unsafe {
-            Ok(ReadSegment {
+            Ok(SegmentSnapshot {
                 inner: inner_information,
             })
         }
