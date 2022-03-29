@@ -1,4 +1,4 @@
-use crate::{constants::*, id::SeriesId, runtime::RUNTIME, utils::random_id};
+use crate::{constants::*, id::SeriesId, runtime::*, utils::random_id};
 pub use rdkafka::consumer::{base_consumer::BaseConsumer, Consumer};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
@@ -63,6 +63,7 @@ pub struct KafkaWriter {
 }
 
 fn default_producer(bootstraps: String) -> Result<FutureProducer, Error> {
+    println!("making producer to bootstraps: {}", bootstraps);
     let producer: FutureProducer = ClientConfig::new()
         .set("bootstrap.servers", bootstraps)
         .set("message.max.bytes", "1000000000")
@@ -87,10 +88,10 @@ impl KafkaWriter {
     }
 
     pub fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
+        println!("writing");
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&self.topic).payload(bytes);
-        let (partition, offset) = RUNTIME
-            .block_on(self.producer.send(to_send, self.dur))
-            .unwrap();
+        let (partition, offset) = futures::executor::block_on(self.producer.send(to_send, self.dur)).unwrap();
+        println!("done writing");
         assert_eq!(partition, 0);
         Ok(offset.try_into().unwrap())
     }
@@ -124,9 +125,10 @@ impl KafkaReader {
         let mut tp_list = TopicPartitionList::new();
         let offset = Offset::Offset(offset);
         tp_list
-            .add_partition_offset(&self.topic, 0, offset)
+            .add_partition_offset(&self.topic, 0, offset.clone())
             .unwrap();
         self.consumer.assign(&tp_list)?;
+        //println!("CONSUMING {:?}", offset);
         let msg = loop {
             match self.consumer.poll(self.timeout) {
                 Some(Ok(x)) => break x,

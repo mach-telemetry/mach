@@ -3,7 +3,7 @@ use crate::{
     constants::*,
     id::SeriesId,
     persistent_list::{self, ListSnapshot, ListSnapshotReader},
-    runtime::RUNTIME,
+    //runtime::RUNTIME,
     sample::Type,
     segment::{ReadBuffer, SegmentSnapshot, SegmentSnapshotReader},
     series::{Series, Types},

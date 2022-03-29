@@ -6,7 +6,7 @@ use crate::{
     durable_queue::{DurableQueue, DurableQueueWriter, QueueConfig},
     id::{SeriesId, SeriesRef, WriterId},
     persistent_list::*,
-    runtime::RUNTIME,
+    runtime::*,
     sample::{Sample, Type},
     segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
     series::*,

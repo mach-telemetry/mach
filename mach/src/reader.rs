@@ -1,5 +1,5 @@
 use crate::{
-    constants::*, id::SeriesId, persistent_list::ListSnapshot, runtime::RUNTIME, sample::Type,
+    constants::*, id::SeriesId, persistent_list::ListSnapshot, runtime::*, sample::Type,
     segment::SegmentSnapshot, series::Series, durable_queue::{KafkaConfig, QueueConfig}, utils::*,
 };
 use bincode::{deserialize_from, serialize_into};
