@@ -11,6 +11,7 @@ use crate::{
     },
     tags::Tags,
     utils::wp_lock::WpLock,
+    durable_queue::QueueConfig,
 };
 use serde::*;
 use std::sync::Arc;
@@ -62,41 +63,23 @@ pub struct SeriesConfig {
     pub compression: Compression,
     pub seg_count: usize,
     pub nvars: usize,
+    pub queue_config: QueueConfig,
 }
 
 #[derive(Clone)]
 pub struct Series {
-    tags: Tags,
+    config: SeriesConfig,
     segment: Segment,
     list: List,
-    compression: Compression,
-    types: Vec<Types>,
 }
 
 impl Series {
-    pub fn new(conf: SeriesConfig, list: List) -> Self {
-        let SeriesConfig {
-            tags,
-            compression,
-            nvars,
-            seg_count,
-            types,
-        } = conf;
-        assert_eq!(nvars, compression.len());
-
-        //let mut heap_pointers: Vec<bool> = types
-        //    .iter()
-        //    .map(|x| match x {
-        //        Types::Bytes => true,
-        //        _ => false,
-        //    })
-        //    .collect();
+    pub fn new(config: SeriesConfig, list: List) -> Self {
+        assert_eq!(config.nvars, config.compression.len());
         Self {
-            segment: segment::Segment::new(seg_count, nvars, types.as_slice()),
-            tags,
-            compression,
-            list,
-            types,
+            segment: segment::Segment::new(config.seg_count, config.nvars, config.types.as_slice()),
+            config,
+            list
         }
     }
 
@@ -116,8 +99,12 @@ impl Series {
     //    Ok(Snapshot::new(segment, list))
     //}
 
+    pub fn config(&self) -> &SeriesConfig {
+        &self.config
+    }
+
     pub fn compression(&self) -> &Compression {
-        &self.compression
+        &self.config.compression
     }
 
     pub fn segment(&self) -> &Segment {

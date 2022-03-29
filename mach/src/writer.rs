@@ -223,6 +223,7 @@ mod test {
         sync::{Arc, Mutex},
     };
     use tempfile::tempdir;
+    use crate::utils::*;
 
     //#[test]
     //fn test_vec_writer() {
@@ -238,6 +239,15 @@ mod test {
         let dir = tempdir().unwrap().into_path();
         let file = String::from("test");
         let queue_config = FileConfig { dir, file };
+        sample_data(queue_config.config());
+    }
+
+    #[test]
+    fn test_kafka_writer() {
+        use crate::durable_queue::KafkaConfig;
+        let bootstrap = String::from(KAFKA_BOOTSTRAP);
+        let topic = random_id();
+        let queue_config = KafkaConfig { bootstrap, topic };
         sample_data(queue_config.config());
     }
 
@@ -291,6 +301,7 @@ mod test {
             seg_count: 1,
             nvars,
             types: vec![Types::F64; nvars],
+            queue_config: queue_config.clone(),
         };
         let list = List::new(write_meta.active_block.clone());
         let series_meta = Series::new(series_conf, list);
