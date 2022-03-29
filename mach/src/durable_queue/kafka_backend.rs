@@ -102,6 +102,7 @@ pub struct KafkaReader {
     timeout: Timeout,
     local_buffer: Vec<u8>,
     topic: String,
+    last_offset: u64
 }
 
 impl KafkaReader {
@@ -116,6 +117,7 @@ impl KafkaReader {
             topic,
             timeout: Timeout::After(Duration::from_secs(0)),
             local_buffer: Vec::new(),
+            last_offset: u64::MAX,
         })
     }
 
@@ -128,7 +130,8 @@ impl KafkaReader {
             .add_partition_offset(&self.topic, 0, offset.clone())
             .unwrap();
         self.consumer.assign(&tp_list)?;
-        //println!("CONSUMING {:?}", offset);
+        //self.consumer.seek(&self.topic, 0, offset.clone(), Duration::from_secs(0))?;
+        println!("CONSUMING {:?}", offset);
         let msg = loop {
             match self.consumer.poll(self.timeout) {
                 Some(Ok(x)) => break x,
