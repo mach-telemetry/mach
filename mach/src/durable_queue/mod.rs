@@ -117,9 +117,9 @@ pub enum DurableQueueWriter {
 }
 
 impl DurableQueueWriter {
-    pub fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
+    pub async fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
         match self {
-            Self::Kafka(x) => Ok(x.write(bytes)?),
+            Self::Kafka(x) => Ok(x.write(bytes).await?),
             Self::File(x) => Ok(x.write(bytes)?),
         }
     }

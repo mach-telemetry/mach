@@ -4,7 +4,7 @@ use crate::{
     constants::BUFSZ,
     durable_queue::{self, DurableQueueReader, DurableQueueWriter},
     id::SeriesId,
-    segment::FullSegment,
+    segment::FlushSegment,
     tags::Tags,
     utils::{
         byte_buffer::ByteBuffer,
@@ -73,20 +73,22 @@ impl List {
 pub struct ListWriter(List);
 
 impl ListWriter {
-    pub fn push(
+    pub async fn push(
         &mut self,
         id: SeriesId,
-        segment: &FullSegment,
+        segment: FlushSegment,
         compression: &Compression,
         w: &mut DurableQueueWriter,
     ) -> Result<(), Error> {
+
+        let full_segment = segment.to_flush().unwrap();
         // SAFETY:
         // the head is modified only by this method,
         // push_bytes doesn't race with a concurrent ListReader.
         let (new_head, to_flush) = unsafe {
             let prev_node = self.0.head.unprotected_read().static_node();
             let buf = self.0.active_block.unprotected_write();
-            let new_head = buf.push(id, segment, compression, prev_node);
+            let new_head = buf.push(id, &full_segment, compression, prev_node);
             let to_flush = buf.is_full();
             (new_head, to_flush)
         };
@@ -103,7 +105,7 @@ impl ListWriter {
             // Safety, the flush doesn't race with ListReader since the data the listreader will
             // access is always valid and will be correct
             unsafe {
-                self.0.active_block.unprotected_write().flush(w)?;
+                self.0.active_block.unprotected_write().flush(w).await?;
             }
 
             // Now we guard because the listreader might be copying during this reset

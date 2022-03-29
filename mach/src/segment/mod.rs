@@ -69,6 +69,7 @@ impl Drop for WriteSegment {
     }
 }
 
+#[derive(Clone)]
 pub struct FlushSegment {
     inner: *mut segment::Segment,
 }
@@ -144,6 +145,8 @@ unsafe impl Send for Segment {}
 unsafe impl Sync for Segment {}
 
 unsafe impl Send for FlushSegment {}
+unsafe impl Sync  for FlushSegment {}
+
 unsafe impl Send for WriteSegment {}
 unsafe impl Sync for WriteSegment {}
 
@@ -242,11 +245,11 @@ impl FlushSegment {
         }
     }
 
-    pub fn flushed(&self) {
-        unsafe {
-            let inner = self.inner.as_ref().unwrap();
-            inner.flushed()
-        }
+    // Safety: Unsafe because flush could be called concurrently. Make sure it is only be called
+    // from a single instance
+    pub unsafe fn flushed(&self) {
+        let inner = self.inner.as_ref().unwrap();
+        inner.flushed()
     }
 }
 
@@ -314,7 +317,7 @@ mod test {
         }
 
         println!("FLUSHING");
-        writer.flush().flushed();
+        unsafe { writer.flush().flushed(); }
         println!("FLUSHED");
 
         for item in &data[768..1023] {
@@ -337,7 +340,7 @@ mod test {
         }
 
         //flusher.flushed();
-        writer.flush().flushed();
+        unsafe { writer.flush().flushed(); }
 
         {
             let item = &data[1024];
@@ -392,7 +395,7 @@ mod test {
         for i in 0..nvars {
             assert_eq!(seg.variable(i), &exp_values[i][..256]);
         }
-        flusher.flushed();
+        unsafe { flusher.flushed(); }
 
         let flusher = writer.flush();
         let seg = flusher.to_flush().unwrap();
@@ -401,7 +404,7 @@ mod test {
         for i in 0..nvars {
             assert_eq!(seg.variable(i), &exp_values[i][256..512]);
         }
-        flusher.flushed();
+        unsafe { flusher.flushed(); }
 
         assert!(writer.flush().to_flush().is_some()) // the current buffer may be flushed
     }

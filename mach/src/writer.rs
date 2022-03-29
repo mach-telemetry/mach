@@ -139,13 +139,17 @@ struct ListMakerMeta {
 }
 
 impl ListMakerMeta {
-    fn write(&mut self, w: &mut DurableQueueWriter) {
+    async fn write(&mut self, w: &mut DurableQueueWriter) {
         println!("WRITING TO ACTIVE BLOCK");
-        let seg: FullSegment = self.segment.to_flush().unwrap();
-        if self.list.push(self.id, &seg, &self.compression, w).is_err() {
+        if self.list.push(self.id, self.segment.clone(), &self.compression, w).await.is_err() {
             println!("Error writing to list");
         }
-        self.segment.flushed();
+
+        // Safety: self.list.push call above that contains a clone doesn't mark the segment as
+        // flushed
+        unsafe {
+            self.segment.flushed();
+        }
     }
 }
 
@@ -204,7 +208,7 @@ async fn worker(mut w: DurableQueueWriter, mut queue: UnboundedReceiver<ListMake
     while let Some(item) = queue.recv().await {
         match item {
             ListMakerRequest::Register(meta) => metadata.push(meta),
-            ListMakerRequest::Flush(id) => metadata[id].write(&mut w),
+            ListMakerRequest::Flush(id) => metadata[id].write(&mut w).await,
         }
     }
 }

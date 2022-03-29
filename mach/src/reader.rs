@@ -73,7 +73,7 @@ async fn snapshot_worker(
 
                 // If the snapshot is not durable, send to kafka topic for durability
                 if !durable {
-                    response.offset = queue_writer.write(&snapshot[..]).unwrap();
+                    response.offset = queue_writer.write(&snapshot[..]).await.unwrap();
                     durable = true;
                 }
 
