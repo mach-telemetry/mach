@@ -83,9 +83,9 @@ impl Series {
         }
     }
 
-    //pub fn segment_snapshot(&self) -> Result<SegmentSnapshot, Error> {
-    //    Ok(self.segment.snapshot()?)
-    //}
+    pub fn segment_snapshot(&self) -> Result<SegmentSnapshot, Error> {
+        Ok(self.segment.snapshot()?)
+    }
 
     pub fn snapshot(&self) -> Result<Snapshot, Error> {
         let segment = self.segment.snapshot()?;

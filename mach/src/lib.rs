@@ -35,7 +35,7 @@ pub mod tags;
 pub mod utils;
 //pub mod writer;
 //pub mod wal;
-//pub mod durability;
+pub mod durability;
 
 // new shit
 pub mod active_block;
