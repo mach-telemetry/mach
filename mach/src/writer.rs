@@ -139,7 +139,7 @@ struct ListMakerMeta {
 
 impl ListMakerMeta {
     async fn write(&mut self, w: &mut DurableQueueWriter) {
-        println!("WRITING TO ACTIVE BLOCK");
+        //println!("WRITING TO ACTIVE BLOCK");
         if self
             .list
             .push(self.id, self.segment.clone(), &self.compression, w)

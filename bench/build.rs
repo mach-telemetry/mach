@@ -12,9 +12,5 @@ fn main() {
     let dest_path = Path::new(&out_dir).join("type_defs.rs");
     let item_string = std::fs::read_to_string(&conf.item_definition_path).unwrap();
     fs::write(&dest_path, item_string).unwrap();
-    println!("cargo:rerun-if-changed=build.rs");
-    println!(
-        "cargo:rerun-if-changed={}",
-        conf.item_definition_path.clone().to_str().unwrap()
-    );
+    println!("HELLO WORLD");
 }

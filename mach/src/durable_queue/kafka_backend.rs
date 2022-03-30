@@ -82,10 +82,8 @@ impl KafkaWriter {
     }
 
     pub async fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
-        println!("writing");
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&self.topic).payload(bytes);
         let (partition, offset) = self.producer.send(to_send, self.dur).await.unwrap();
-        println!("done writing");
         assert_eq!(partition, 0);
         Ok(offset.try_into().unwrap())
     }

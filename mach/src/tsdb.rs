@@ -54,6 +54,7 @@ impl Mach {
         let global_meta = self.series_table.clone();
         let (writer, meta) = Writer::new(global_meta, writer_config);
         let durability = DurabilityWorker::new(meta.id.clone(), meta.active_block.clone());
+        self.writers.push(meta.id.clone());
         self.writer_table
             .insert(meta.id.clone(), (meta, durability));
         Ok(writer)
