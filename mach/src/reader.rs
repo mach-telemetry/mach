@@ -99,13 +99,13 @@ pub struct Snapshotter {
 impl Snapshotter {
     async fn request(&self) -> ReadResponse {
         let (tx, rx) = sync::oneshot::channel();
-        if let Err(_) = self.worker.send(SnapshotterRequest::Read(tx)) {
+        if self.worker.send(SnapshotterRequest::Read(tx)).is_err() {
             panic!("Requesting to non-existent snapshot worker");
         }
         rx.await.unwrap()
     }
     async fn close(&self) {
-        if let Err(_) = self.worker.send(SnapshotterRequest::Close) {
+        if self.worker.send(SnapshotterRequest::Close).is_err() {
             panic!("Requesting to non-existent snapshot worker");
         }
     }

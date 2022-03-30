@@ -139,7 +139,7 @@ impl ListSnapshotReader {
             Ok(ListSnapshotReader {
                 block,
                 block_idx: 0,
-                next_node: list_snapshot.next_node.clone(),
+                next_node: list_snapshot.next_node,
                 durable_queue,
             })
         } else {

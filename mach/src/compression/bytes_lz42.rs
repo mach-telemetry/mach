@@ -17,8 +17,8 @@ pub fn compress(len: usize, to_compress: &[u8], buf: &mut ByteBuffer) {
 
     // Reserve the first 8 bytes for the sz
     let b = buf.unused();
-    let csz = lz4::compress(to_compress, &mut b[..], 1).unwrap();
-    drop(b);
+    let csz = lz4::compress(to_compress, &mut *b, 1).unwrap();
+    //drop(b);
     buf.add_len(csz);
 
     // Fill the place holder
@@ -61,7 +61,6 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>, bytes: &mut Vec<u8>) {
 mod test {
     use super::*;
     use crate::test_utils::LOG_DATA;
-    use std::convert::TryInto;
 
     fn compress_decompress(data: &[String]) {
         let mut v = Vec::new();
@@ -88,7 +87,7 @@ mod test {
     #[test]
     fn test_logs() {
         let logs = &*LOG_DATA;
-        for (idx, chunk) in logs.as_slice().chunks(256).enumerate() {
+        for (_idx, chunk) in logs.as_slice().chunks(256).enumerate() {
             compress_decompress(chunk);
             //println!("{}", chunk.len());
         }

@@ -53,11 +53,11 @@ fn gen_synthetic() -> Vec<Sample> {
 
 pub fn load_logs() -> Vec<String> {
     println!("Loading log data");
-    let mut file = OpenOptions::new()
+    let file = OpenOptions::new()
         .read(true)
         .open(Path::new(TEST_DATA_PATH.as_path()).join(LOGS))
         .unwrap();
-    let mut reader = BufReader::new(file);
+    let reader = BufReader::new(file);
     reader.lines().map(|x| x.unwrap()).collect()
 }
 

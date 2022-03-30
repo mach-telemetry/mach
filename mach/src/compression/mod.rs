@@ -49,6 +49,7 @@ impl DecompressBuffer {
     }
 
     pub fn set_nvars(&mut self, nvars: usize) {
+        #[allow(clippy::comparison_chain)]
         if self.nvars < nvars {
             for _ in 0..nvars - self.nvars {
                 self.values.push(Vec::new());
@@ -162,7 +163,7 @@ pub struct Compression(Arc<Vec<CompressFn>>);
 impl std::ops::Deref for Compression {
     type Target = [CompressFn];
     fn deref(&self) -> &Self::Target {
-        &self.0.as_slice()
+        self.0.as_slice()
     }
 }
 
@@ -235,7 +236,7 @@ impl Compression {
 
     fn get_header(data: &[u8]) -> Result<(Header, usize), Error> {
         let mut off = 0;
-        if &data[off..MAGIC.len()] != &MAGIC[..] {
+        if data[off..MAGIC.len()] != MAGIC[..] {
             return Err(Error::UnrecognizedMagic);
         }
         off += MAGIC.len();
@@ -366,7 +367,7 @@ mod test {
         let heaps = vec![Types::Bytes; 1];
         let mut buf = Buffer::new(heaps.as_slice());
 
-        let mut item = vec![[0u8; 8]; 1];
+        //let item = vec![[0u8; 8]; 1];
         let mut timestamps = [0; 256];
         for (idx, sample) in data[0..256].iter().enumerate() {
             timestamps[idx] = idx as u64;

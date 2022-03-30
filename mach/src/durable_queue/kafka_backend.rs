@@ -105,7 +105,6 @@ impl KafkaReader {
             .set("bootstrap.servers", bootstrap_servers)
             .set("group.id", random_id())
             .create()?;
-        let topic = topic.into();
         Ok(KafkaReader {
             consumer,
             topic,
@@ -121,7 +120,7 @@ impl KafkaReader {
         let mut tp_list = TopicPartitionList::new();
         let offset = Offset::Offset(offset);
         tp_list
-            .add_partition_offset(&self.topic, 0, offset.clone())
+            .add_partition_offset(&self.topic, 0, offset)
             .unwrap();
         self.consumer.assign(&tp_list)?;
         //self.consumer.seek(&self.topic, 0, offset.clone(), Duration::from_secs(0))?;

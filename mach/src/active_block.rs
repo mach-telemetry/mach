@@ -95,7 +95,7 @@ impl StaticNode {
     pub fn read_from_queue(
         &self,
         queue: &mut DurableQueueReader,
-    ) -> Result<(Vec<Box<[u8]>>, StaticNode), Error> {
+    ) -> Result<(BlockEntries, StaticNode), Error> {
         if self.queue_offset == u64::MAX {
             Err(Error::EndOfQueue)
         } else {
@@ -112,13 +112,13 @@ struct Bytes<T> {
 impl<T: AsRef<[u8]>> Deref for Bytes<T> {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        &self.bytes.as_ref()[..]
+        &*self.bytes.as_ref()
     }
 }
 
 impl<T: AsRef<[u8]> + AsMut<[u8]>> DerefMut for Bytes<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.bytes.as_mut()[..]
+        &mut *self.bytes.as_mut()
     }
 }
 
@@ -128,7 +128,7 @@ impl<T: AsRef<[u8]>> Bytes<T> {
         self.bytes.as_ref()[..len].into()
     }
 
-    fn read(&self, last_offset: usize, last_size: usize) -> (Vec<Box<[u8]>>, StaticNode) {
+    fn read(&self, last_offset: usize, last_size: usize) -> (BlockEntries, StaticNode) {
         let mut node = StaticNode {
             queue_offset: u64::MAX,
             offset: last_offset,
@@ -199,6 +199,8 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
     }
 }
 
+pub type BlockEntries = Vec<Box<[u8]>>;
+
 pub struct StaticBlock<T> {
     bytes: Bytes<T>,
 }
@@ -210,7 +212,7 @@ impl<T: AsRef<[u8]>> StaticBlock<T> {
         }
     }
 
-    pub fn read(&self, node: StaticNode) -> Result<(Vec<Box<[u8]>>, StaticNode), Error> {
+    pub fn read(&self, node: StaticNode) -> Result<(BlockEntries, StaticNode), Error> {
         Ok(self.bytes.read(node.offset, node.size))
     }
 }
@@ -281,7 +283,7 @@ impl ActiveBlock {
         self.bytes.copy_buffer()
     }
 
-    pub fn read(&self, node: StaticNode) -> Result<(Vec<Box<[u8]>>, StaticNode), Error> {
+    pub fn read(&self, node: StaticNode) -> Result<(BlockEntries, StaticNode), Error> {
         // Need to keep track of own version because of argument. StaticNode can be for another
         // version of the node. Without this argument, WpLock would have been enough but alas, no
         // dice

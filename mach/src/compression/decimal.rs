@@ -109,6 +109,7 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
     // Finally, perform the unrolling
     let mut last = first_int;
     let mut last_diff = 0;
+    #[allow(clippy::needless_range_loop)]
     for i in 1..len {
         let dd = from_zigzag(zigzagged[i]);
         let cur_diff = dd + last_diff;
@@ -125,7 +126,6 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
 mod test {
     use super::*;
     use crate::test_utils::*;
-    use fixed::types::extra::U10;
 
     fn compress_decompress(data: &[f64]) {
         let mut buf = vec![0u8; 4096];

@@ -65,9 +65,9 @@ impl Writer {
 
         let meta = WriterMetadata {
             id: id.clone(),
-            queue_config: queue_config.clone(),
-            active_block: active_block.clone(),
-            durable_queue: durable_queue.clone(),
+            queue_config,
+            active_block,
+            durable_queue,
         };
 
         let writer = Self {
@@ -226,10 +226,8 @@ mod test {
     use crate::tags::*;
     use crate::test_utils::*;
     use crate::utils::*;
-    use rand::prelude::*;
     use std::{
-        env,
-        sync::{Arc, Mutex},
+        sync::{Arc},
     };
     use tempfile::tempdir;
 
@@ -299,7 +297,7 @@ mod test {
             compression.push(CompressFn::XOR);
         }
         let compression = Compression::from(compression);
-        let id = SeriesId(thread_rng().gen());
+        //let _id = SeriesId(thread_rng().gen());
         let mut tags = HashMap::new();
         tags.insert(String::from("attrib"), String::from("a"));
 
@@ -318,9 +316,9 @@ mod test {
         dict.insert(serid, series_meta.clone());
         let series_ref = write_thread.get_reference(serid);
 
-        let mut to_values = |items: &[f64]| -> Vec<Type> {
+        let to_values = |items: &[f64]| -> Vec<Type> {
             let mut values = Vec::with_capacity(nvars);
-            for (i, v) in items.iter().enumerate() {
+            for v in items.iter() {
                 values.push(Type::F64(*v));
             }
             values
@@ -344,10 +342,10 @@ mod test {
         let durable_queue_reader = durable_queue.reader().unwrap();
         let mut reader = snapshot.reader(durable_queue_reader).unwrap();
 
-        let mut count = 0;
+        //let count = 0;
         //let buf = reader.next_item().unwrap().unwrap();
         let mut timestamps: Vec<u64> = Vec::new();
-        let mut r = reader.next_item();
+        //let r = reader.next_item();
         loop {
             match reader.next_item() {
                 Ok(Some(item)) => item.get_timestamps().for_each(|x| timestamps.push(*x)),

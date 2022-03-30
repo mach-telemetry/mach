@@ -207,10 +207,7 @@ pub fn bitpack_256_decompress(out: &mut [u32; 256], data: &[u8]) -> usize {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test_utils::*;
-    use fixed::prelude::*;
-    use fixed::traits::{FromFixed, LossyFrom};
-    use fixed::{types::extra::*, FixedI16, FixedI64};
+    use fixed::{types::extra::*, FixedI64};
     use rand::prelude::*;
 
     //#[test]

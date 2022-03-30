@@ -39,6 +39,7 @@ impl<const V: usize> Sample<V> {
     pub fn from_bytes(timestamp: u64, data: [Bytes; V]) -> Self {
         let mut values = [[0; 8]; V];
         let mut counter = 0;
+        #[allow(clippy::explicit_counter_loop)]
         for item in data {
             values[counter] = item.into_sample_entry();
             counter += 1;

@@ -28,7 +28,7 @@ impl DurabilityWorker {
     }
 
     pub fn register_series(&self, series: Series) {
-        if let Err(_) = self.chan.send(series) {
+        if self.chan.send(series).is_err() {
             panic!("Can't send series to durability task");
         }
     }
@@ -71,9 +71,8 @@ async fn durability_worker(
         let guard = series.lock().await;
         let mut snapshots = Vec::new();
         for series in guard.iter() {
-            match series.segment_snapshot() {
-                Ok(x) => snapshots.push(x),
-                _ => {}
+            if let Ok(x) = series.segment_snapshot() {
+                snapshots.push(x);
             }
         }
         drop(guard);

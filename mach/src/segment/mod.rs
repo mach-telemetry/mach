@@ -1,5 +1,6 @@
 mod buffer;
 //mod full_segment;
+#[allow(clippy::module_inception)]
 mod segment;
 //mod wrapper;
 
@@ -37,17 +38,19 @@ pub enum PushStatus {
 
 impl PushStatus {
     pub fn is_done(&self) -> bool {
-        match self {
-            PushStatus::Done => true,
-            _ => false,
-        }
+        //match self {
+        //    PushStatus::Done => true,
+        //    _ => false,
+        //}
+        matches!(self, PushStatus::Done)
     }
 
     pub fn is_flush(&self) -> bool {
-        match self {
-            PushStatus::Flush(_) => true,
-            _ => false,
-        }
+        matches!(self, PushStatus::Flush(_))
+        //match self {
+        //    PushStatus::Flush(_) => true,
+        //    _ => false,
+        //}
     }
 }
 
@@ -234,7 +237,8 @@ impl WriteSegment {
 
 impl FlushSegment {
     pub fn to_flush(&self) -> Option<FlushBuffer> {
-        // Safety: Safe because there is only one flusher, one writer, and many concurrent readers.
+        // # Safety
+        // Safe because there is only one flusher, one writer, and many concurrent readers.
         // Readers don't race with the flusher because the flusher does not modify the segments.
         // Writer and flusher do not race because the writer is bounded by the flush_counter,
         // incremented by this struct using the flushed method
@@ -244,8 +248,9 @@ impl FlushSegment {
         }
     }
 
-    // Safety: Unsafe because flush could be called concurrently. Make sure it is only be called
-    // from a single instance
+    /// # Safety
+    /// Unsafe because flush could be called concurrently. Make sure it is only be called
+    /// from a single instance
     pub unsafe fn flushed(&self) {
         let inner = self.inner.as_ref().unwrap();
         inner.flushed()
@@ -262,11 +267,11 @@ mod test {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
         let heap_pointers = vec![Types::F64; nvars];
-        let segment = Segment::new(3, nvars, heap_pointers.as_slice());
+        let segment = Segment::new(3, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
         //let mut flusher = segment.flusher().unwrap();
 
-        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+        let to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];
             for (i, v) in items.iter().enumerate() {
                 values[i] = v.to_be_bytes();
@@ -357,10 +362,10 @@ mod test {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
         let heap_pointers = vec![Types::F64; nvars];
-        let segment = Segment::new(3, nvars, heap_pointers.as_slice());
+        let segment = Segment::new(3, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
 
-        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+        let to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];
             for (i, v) in items.iter().enumerate() {
                 values[i] = v.to_be_bytes();
@@ -421,11 +426,11 @@ mod test {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
         let heap_pointers = vec![Types::F64; nvars];
-        let segment = Segment::new(3, nvars, heap_pointers.as_slice());
+        let segment = Segment::new(3, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
         //let mut flusher = segment.flusher().unwrap();
 
-        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+        let to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];
             for (i, v) in items.iter().enumerate() {
                 values[i] = v.to_be_bytes();

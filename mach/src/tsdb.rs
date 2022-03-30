@@ -75,7 +75,7 @@ impl Mach {
         let queue_config = writer_meta.queue_config.clone();
         let list = List::new(writer_meta.active_block.clone());
         let series_id = config.tags.id();
-        let series = Series::new(config, queue_config.clone(), list);
+        let series = Series::new(config, queue_config, list);
         durability.register_series(series.clone());
         self.series_table.insert(series_id, series);
 

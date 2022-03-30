@@ -4,7 +4,8 @@ use std::{
     sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
 };
 
-/// SAFETY: Impl only if the struct has ZERO deallocations during &mut T that are accessible to
+/// # Safety
+/// Impl only if the struct has ZERO deallocations during &mut T that are accessible to
 /// the reader. For example, Vec CANNOT impl this trait because Vec may dealloc when growing.
 /// However, if the Vec isn't accessible to the reader, this should be safe.
 pub unsafe trait NoDealloc {}
@@ -54,14 +55,17 @@ impl<T: NoDealloc> WpLock<T> {
         }
     }
 
-    /// Safety: Ensure that access to T does not race with write or get_mut_ref
+    /// # Safety
+    /// Ensure that access to T does not race with write or get_mut_ref
     #[inline]
     pub unsafe fn unprotected_read(&self) -> &T {
         self.item.get().as_ref().unwrap()
     }
 
-    /// Safety: Ensure that access to T does not race with any other method call
+    /// # Safety
+    /// Ensure that access to T does not race with any other method call
     #[inline]
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn unprotected_write(&self) -> &mut T {
         self.item.get().as_mut().unwrap()
     }
@@ -115,8 +119,8 @@ impl<'lock, T: NoDealloc> Deref for ReadGuard<'lock, T> {
     }
 }
 
-unsafe impl<T: NoDealloc> Sync for WpLock<T> {}
-unsafe impl<T: NoDealloc> Send for WpLock<T> {}
+unsafe impl<T: NoDealloc + Sync> Sync for WpLock<T> {}
+unsafe impl<T: NoDealloc + Send> Send for WpLock<T> {}
 
 #[cfg(test)]
 mod tests {
@@ -159,8 +163,8 @@ mod tests {
     #[should_panic]
     fn test_only_single_writer() {
         let locked_data = WpLock::new(TestData::new());
-        let guard1 = locked_data.protected_write();
-        let guard2 = locked_data.protected_write(); // should panic
+        let _guard1 = locked_data.protected_write();
+        let _guard2 = locked_data.protected_write(); // should panic
     }
 
     #[test]
@@ -241,7 +245,7 @@ mod tests {
     #[test]
     #[ignore = "test implemented wrong"]
     fn test_writer_prioritized_access() {
-        const N_WRITER: usize = 1;
+        //const N_WRITER: usize = 1;
         const N_READER: usize = 9;
 
         let locked_data = Arc::new(WpLock::new(TestData::new()));

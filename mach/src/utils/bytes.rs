@@ -67,6 +67,8 @@ impl Bytes {
         me.0
     }
 
+    /// # Safety
+    /// make sure entry is a valid pointer from into_raw
     pub unsafe fn from_raw(p: *const u8) -> Self {
         Self(p)
     }
@@ -75,6 +77,8 @@ impl Bytes {
         (self.into_raw() as u64).to_be_bytes()
     }
 
+    /// # Safety
+    /// make sure entry is a valid pointer from into_sample_entry
     pub unsafe fn from_sample_entry(entry: [u8; 8]) -> Self {
         Self::from_raw(u64::from_be_bytes(entry) as *const u8)
     }
@@ -85,6 +89,11 @@ impl Bytes {
         (Self::from_slice(&bytes[usz..len + usz]), usz + len)
     }
 }
+
+/// # Safety
+/// Bytes is safe to send so long as the location is valid. Bytes should not be copy or clone to
+/// prevent a copy from being made and any of the &mut methods being used
+unsafe impl Send for Bytes{}
 
 impl Drop for Bytes {
     fn drop(&mut self) {
