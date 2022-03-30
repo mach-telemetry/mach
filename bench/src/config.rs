@@ -30,6 +30,5 @@ pub fn load_conf() -> Config {
             .join("config.yaml"),
     };
     let conf_string = std::fs::read_to_string(conf_path).unwrap();
-    let c = serde_yaml::from_str(&conf_string).unwrap();
-    c
+    serde_yaml::from_str(&conf_string).unwrap()
 }

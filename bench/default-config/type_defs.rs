@@ -17,7 +17,7 @@ struct Item {
 }
 
 impl Item {
-    fn from_str(s: &String) -> Item {
+    fn from_str(s: &str) -> Item {
         let item: Item = serde_json::from_str(s).expect("cannot parse data item");
         item
     }

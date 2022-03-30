@@ -7,4 +7,4 @@ series_per_thread: 100000
 samples_per_thread: 10000000
 data_path: /home/fsolleza/data/mach/github
 out_path: /home/fsolleza/Sandbox/data/mach/out
-item_definition_path: /home/fsolleza/Projects/mach-bench-private/rust/mach/bench/default-config/type_defs.rs
+item_definition_path: default-config/type_defs.rs

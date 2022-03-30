@@ -25,32 +25,28 @@ use mach::{
     sample::Type,
     series::{SeriesConfig, Types},
     tags::Tags,
-    tsdb::{self, Mach},
+    tsdb::{Mach},
     utils::{random_id, bytes::Bytes},
     writer::{Writer, WriterConfig},
-    durable_queue::{KafkaConfig, FileConfig, QueueConfig}
 };
+#[allow(unused_imports)]
+use mach::durable_queue::{KafkaConfig, FileConfig};
 use num_format::{Locale, ToFormattedString};
-use rand::Rng;
 use rtrb::{Consumer, Producer, RingBuffer};
 use serde::*;
-use serde_json::*;
 use std::fs;
 use std::io;
-use std::marker::PhantomData;
 use std::{
     collections::HashMap,
-    convert::TryInto,
     fs::File,
     fs::OpenOptions,
     io::prelude::*,
     io::BufReader,
-    io::SeekFrom,
     iter,
-    path::{Path, PathBuf},
+    path::{Path},
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
-        Arc, Barrier, Mutex,
+        Arc, Barrier,
     },
     thread,
     time::{Duration, Instant},
@@ -191,7 +187,7 @@ struct ReaderSet {
 }
 
 impl ReaderSet {
-    fn new(filenames: &Vec<DataSrcName>) -> Self {
+    fn new(filenames: &[DataSrcName]) -> Self {
         let mut readers = Vec::new();
         let mut refs = Vec::<usize>::new();
         let mut file_reader_map = HashMap::new();
