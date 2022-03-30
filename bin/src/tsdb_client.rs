@@ -2,74 +2,70 @@ pub mod mach_rpc {
     tonic::include_proto!("mach_rpc"); // The string specified here must match the proto package name
 }
 
-use futures::stream::Stream;
 use mach_rpc::tsdb_service_client::TsdbServiceClient;
-use mach_rpc::{
-    AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse,
-};
+use mach_rpc::MapRequest;
 use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
 };
-use std::thread::sleep;
 use std::time::{Duration, Instant};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
 
-fn echo_requests_iter() -> impl Stream<Item = EchoRequest> {
-    tokio_stream::iter(1..usize::MAX).map(|i| EchoRequest {
-        msg: format!("msg {:02}", i),
-    })
-}
+//fn echo_requests_iter() -> impl Stream<Item = EchoRequest> {
+//    tokio_stream::iter(1..usize::MAX).map(|i| EchoRequest {
+//        msg: format!("msg {:02}", i),
+//    })
+//}
 
-async fn echo_stream(
-    client: &mut TsdbServiceClient<Channel>,
-    counter: Arc<AtomicUsize>,
-    num: usize,
-) {
-    let in_stream = echo_requests_iter().take(num);
+//async fn echo_stream(
+//    client: &mut TsdbServiceClient<Channel>,
+//    counter: Arc<AtomicUsize>,
+//    num: usize,
+//) {
+//    let in_stream = echo_requests_iter().take(num);
+//
+//    let response = client.echo_stream(in_stream).await.unwrap();
+//
+//    let mut resp_stream = response.into_inner();
+//
+//    let mut instant = Instant::now();
+//    while let Some(recieved) = resp_stream.next().await {
+//        let received = recieved.unwrap();
+//        let count = counter.fetch_add(1, SeqCst);
+//        //if count > 0 && count % 1_000_000 == 0 {
+//        //    let elapsed = instant.elapsed();
+//        //    println!("received 1,000,000 responses in {:?}", elapsed);
+//        //    instant = Instant::now();
+//        //}
+//    }
+//}
 
-    let response = client.echo_stream(in_stream).await.unwrap();
-
-    let mut resp_stream = response.into_inner();
-
-    let mut instant = Instant::now();
-    while let Some(recieved) = resp_stream.next().await {
-        let received = recieved.unwrap();
-        let count = counter.fetch_add(1, SeqCst);
-        //if count > 0 && count % 1_000_000 == 0 {
-        //    let elapsed = instant.elapsed();
-        //    println!("received 1,000,000 responses in {:?}", elapsed);
-        //    instant = Instant::now();
-        //}
-    }
-}
-
-async fn map(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
-    let (tx, mut rx) = channel(1);
-    tokio::spawn(map_maker(tx));
-
-    loop {
-        client.map(rx.recv().await.unwrap()).await.unwrap();
-        counter.fetch_add(100_000, SeqCst);
-    }
-}
+//async fn map(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
+//    let (tx, mut rx) = channel(1);
+//    tokio::spawn(map_maker(tx));
+//
+//    loop {
+//        client.map(rx.recv().await.unwrap()).await.unwrap();
+//        counter.fetch_add(100_000, SeqCst);
+//    }
+//}
 
 async fn map_stream(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
     let (tx, rx) = channel(1);
-    tokio::spawn(map_maker(tx));
 
     let in_stream = ReceiverStream::new(rx);
     let response = client.map_stream(in_stream).await.unwrap();
+    tokio::spawn(map_maker(tx));
 
     let mut resp_stream = response.into_inner();
 
-    let mut instant = Instant::now();
+    let mut _instant = Instant::now();
     while let Some(recieved) = resp_stream.next().await {
-        let received = recieved.unwrap();
-        let count = counter.fetch_add(100_000, SeqCst);
+        let _received = recieved.unwrap();
+        let _count = counter.fetch_add(100_000, SeqCst);
         //if count > 0 && count % 1_000_000 == 0 {
         //    let elapsed = instant.elapsed();
         //    println!("received 1,000,000 responses in {:?}", elapsed);
@@ -80,7 +76,7 @@ async fn map_stream(client: &mut TsdbServiceClient<Channel>, counter: Arc<Atomic
 
 async fn map_maker(sender: Sender<MapRequest>) {
     let mut map = HashMap::new();
-    for i in 0..100_000 {
+    for i in 0..1 {
         map.insert(i, i);
     }
     loop {
@@ -97,12 +93,12 @@ async fn map_maker(sender: Sender<MapRequest>) {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicUsize::new(0));
 
-    let clients = 4;
+    let clients = 1;
     let mut v = Vec::new();
-    for i in 0..clients {
+    for _ in 0..clients {
         let counter = counter.clone();
         v.push(tokio::spawn(async move {
-            let mut client = TsdbServiceClient::connect("http://[::1]:50051")
+            let mut client = TsdbServiceClient::connect("http://127.0.0.1:50050")
                 .await
                 .unwrap();
             map_stream(&mut client, counter.clone()).await;
@@ -132,5 +128,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //    }
     //    //sleep(Duration::from_secs(1));
     //}
-    Ok(())
 }

@@ -2,32 +2,29 @@ pub mod mach_rpc {
     tonic::include_proto!("mach_rpc"); // The string specified here must match the proto package name
 }
 
-use futures::stream::Stream;
 use mach_rpc::tsdb_service_client::TsdbServiceClient;
 use mach_rpc::writer_service_client::WriterServiceClient;
 use mach_rpc::{
-    add_series_request::ValueType, value::PbType, AddSeriesRequest, AddSeriesResponse, EchoRequest,
-    EchoResponse, GetSeriesReferenceRequest, GetSeriesReferenceResponse, MapRequest, MapResponse,
-    PushRequest, PushResponse, Sample, Value,
+    add_series_request::ValueType, value::PbType, AddSeriesRequest, AddSeriesResponse,
+    GetSeriesReferenceRequest, GetSeriesReferenceResponse, MapRequest, PushRequest, Sample, Value,
 };
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
 };
-use std::thread::sleep;
-use std::time::{Duration, Instant};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use std::time::Duration;
+use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
 
-fn echo_requests_iter() -> impl Stream<Item = EchoRequest> {
-    tokio_stream::iter(1..usize::MAX).map(|i| EchoRequest {
-        msg: format!("msg {:02}", i),
-    })
-}
+//fn echo_requests_iter() -> impl Stream<Item = EchoRequest> {
+//    tokio_stream::iter(1..usize::MAX).map(|i| EchoRequest {
+//        msg: format!("msg {:02}", i),
+//    })
+//}
 
+#[allow(dead_code)]
 async fn map_stream(client: &mut WriterServiceClient<Channel>, counter: Arc<AtomicUsize>) {
     let (tx, rx) = channel(1);
     tokio::spawn(map_maker(tx));
@@ -37,10 +34,10 @@ async fn map_stream(client: &mut WriterServiceClient<Channel>, counter: Arc<Atom
 
     let mut resp_stream = response.into_inner();
 
-    let mut instant = Instant::now();
+    //let mut instant = Instant::now();
     while let Some(recieved) = resp_stream.next().await {
-        let received = recieved.unwrap();
-        let count = counter.fetch_add(100_000, SeqCst);
+        let _received = recieved.unwrap();
+        let _count = counter.fetch_add(100_000, SeqCst);
         //if count > 0 && count % 1_000_000 == 0 {
         //    let elapsed = instant.elapsed();
         //    println!("received 1,000,000 responses in {:?}", elapsed);
@@ -49,6 +46,7 @@ async fn map_stream(client: &mut WriterServiceClient<Channel>, counter: Arc<Atom
     }
 }
 
+#[allow(dead_code)]
 async fn map_maker(sender: Sender<MapRequest>) {
     let mut map = HashMap::new();
     for i in 0..100_000 {
@@ -64,9 +62,23 @@ async fn map_maker(sender: Sender<MapRequest>) {
     }
 }
 
+async fn counter_watcher(counter: Arc<AtomicUsize>) {
+    tokio::spawn(async move {
+        let mut last = 0;
+        loop {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let cur = counter.load(SeqCst);
+            println!("received {} / sec", cur - last);
+            last = cur;
+        }
+    });
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicUsize::new(0));
+    let counter_clone = counter.clone();
+    tokio::task::spawn(counter_watcher(counter_clone));
     let mut client = TsdbServiceClient::connect("http://127.0.0.1:50050")
         .await
         .unwrap();

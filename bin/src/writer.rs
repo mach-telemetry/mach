@@ -5,29 +5,24 @@ pub mod mach_rpc {
 }
 
 use mach::{
-    compression::{CompressFn, Compression},
     id::{SeriesId, SeriesRef},
-    persistent_list::VectorBackend,
     sample::Type,
-    series::{SeriesConfig, Types},
-    tags::Tags,
-    tsdb::Mach,
     utils::bytes::Bytes,
     writer::Writer,
 };
 use mach_rpc::writer_service_server::{WriterService, WriterServiceServer};
 use mach_rpc::{
     value::PbType, EchoRequest, EchoResponse, GetSeriesReferenceRequest,
-    GetSeriesReferenceResponse, MapRequest, MapResponse, PushRequest, PushResponse, Sample, Value,
+    GetSeriesReferenceResponse, MapRequest, MapResponse, PushRequest, PushResponse, Sample,
 };
+use std::time::Duration;
 use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
-        Arc, Mutex,
+        Arc,
     },
 };
-use std::{error::Error, io::ErrorKind, net::ToSocketAddrs, pin::Pin, time::Duration};
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
@@ -79,7 +74,7 @@ async fn counter_watcher(counter: Arc<AtomicUsize>) {
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;
             let cur = counter.load(SeqCst);
-            //println!("received {} / sec", cur - last);
+            println!("received {} / sec", cur - last);
             last = cur;
         }
     });
@@ -93,20 +88,20 @@ async fn writer_worker(mut writer: Writer, mut channel: mpsc::UnboundedReceiver<
         match item {
             WriteRequest::GetReferenceId(x) => {
                 let reference = writer.get_reference(SeriesId(x.series_id)).0 as u64;
-                x.resp.send(reference);
+                x.resp.send(reference).unwrap();
             }
             WriteRequest::MapTest(x) => {
                 let response: HashMap<u64, bool> =
                     x.samples.iter().map(|(k, _)| (*k, true)).collect();
                 let len = response.len();
-                x.resp.send(response);
+                x.resp.send(response).unwrap();
                 counter.fetch_add(len, SeqCst);
             }
             WriteRequest::Push(mut x) => {
                 let mut hashmap = HashMap::new();
                 for (series_ref, pb_sample) in x.samples.drain() {
                     let sample = pb_sample_to_mach_sample(pb_sample);
-                    match writer.push_type(
+                    match writer.push(
                         SeriesRef(series_ref as usize),
                         sample.timestamp,
                         &sample.values,
@@ -116,18 +111,19 @@ async fn writer_worker(mut writer: Writer, mut channel: mpsc::UnboundedReceiver<
                     };
                 }
                 let len = hashmap.len();
-                x.resp.send(hashmap);
+                x.resp.send(hashmap).unwrap();
                 counter.fetch_add(len, SeqCst);
             }
         }
     }
 }
 
-async fn map_test_worker(
+fn map_test_worker(
     mut in_stream: tonic::Streaming<MapRequest>,
     client: mpsc::Sender<Result<MapResponse, Status>>,
     writer: mpsc::UnboundedSender<WriteRequest>,
 ) {
+    println!("SETTING UP MAP TEST WORKER");
     tokio::spawn(async move {
         while let Some(result) = in_stream.next().await {
             match result {
@@ -138,14 +134,12 @@ async fn map_test_worker(
                         samples: v.samples,
                         resp: resp_tx,
                     });
-                    if let Err(_) = writer.send(request) {
+                    if writer.send(request).is_err() {
                         panic!("Writer thread is dead");
                     }
                     let response = resp_rx.await.unwrap();
                     client
-                        .send(Ok(MapResponse {
-                            samples: response.into(),
-                        }))
+                        .send(Ok(MapResponse { samples: response }))
                         .await
                         .expect("working rx")
                 }
@@ -161,7 +155,7 @@ async fn map_test_worker(
     });
 }
 
-async fn push_worker(
+fn push_worker(
     mut in_stream: tonic::Streaming<PushRequest>,
     client: mpsc::Sender<Result<PushResponse, Status>>,
     writer: mpsc::UnboundedSender<WriteRequest>,
@@ -176,14 +170,12 @@ async fn push_worker(
                         samples: v.samples,
                         resp: resp_tx,
                     });
-                    if let Err(_) = writer.send(request) {
+                    if writer.send(request).is_err() {
                         panic!("Writer thread is dead");
                     }
                     let response = resp_rx.await.unwrap();
                     client
-                        .send(Ok(PushResponse {
-                            results: response.into(),
-                        }))
+                        .send(Ok(PushResponse { results: response }))
                         .await
                         .expect("working rx")
                 }
@@ -225,7 +217,7 @@ impl MachWriter {
 impl WriterService for MachWriter {
     async fn echo(&self, msg: Request<EchoRequest>) -> Result<Response<EchoResponse>, Status> {
         let reply = EchoResponse {
-            msg: format!("Echo: {}", msg.into_inner().msg).into(),
+            msg: format!("Echo: {}", msg.into_inner().msg),
         };
         Ok(Response::new(reply))
     }
@@ -235,7 +227,7 @@ impl WriterService for MachWriter {
         &self,
         request: Request<tonic::Streaming<MapRequest>>,
     ) -> Result<Response<Self::MapStreamStream>, Status> {
-        let (mut tx, rx) = mpsc::channel(4);
+        let (tx, rx) = mpsc::channel(4);
         map_test_worker(request.into_inner(), tx, self.sender.clone());
         Ok(Response::new(ReceiverStream::new(rx)))
     }
@@ -245,7 +237,7 @@ impl WriterService for MachWriter {
         &self,
         request: Request<tonic::Streaming<PushRequest>>,
     ) -> Result<Response<Self::PushStreamStream>, Status> {
-        let (mut tx, rx) = mpsc::channel(4);
+        let (tx, rx) = mpsc::channel(4);
         push_worker(request.into_inner(), tx, self.sender.clone());
         Ok(Response::new(ReceiverStream::new(rx)))
     }
@@ -257,7 +249,7 @@ impl WriterService for MachWriter {
             samples: request.samples,
             resp: resp_tx,
         });
-        if let Err(_) = self.sender.send(request) {
+        if self.sender.send(request).is_err() {
             panic!("Writer thread is dead");
         }
         let results = resp_rx.await.unwrap();
@@ -274,7 +266,7 @@ impl WriterService for MachWriter {
             series_id: request.series_id,
             resp: resp_tx,
         });
-        if let Err(_) = self.sender.send(request) {
+        if self.sender.send(request).is_err() {
             panic!("Writer thread is dead");
         }
         let response = resp_rx.await.unwrap();
