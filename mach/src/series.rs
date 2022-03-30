@@ -63,23 +63,24 @@ pub struct SeriesConfig {
     pub compression: Compression,
     pub seg_count: usize,
     pub nvars: usize,
-    pub queue_config: QueueConfig,
 }
 
 #[derive(Clone)]
 pub struct Series {
     config: SeriesConfig,
+    queue: QueueConfig,
     segment: Segment,
     list: List,
 }
 
 impl Series {
-    pub fn new(config: SeriesConfig, list: List) -> Self {
+    pub fn new(config: SeriesConfig, queue: QueueConfig, list: List) -> Self {
         assert_eq!(config.nvars, config.compression.len());
         Self {
             segment: segment::Segment::new(config.seg_count, config.nvars, config.types.as_slice()),
             config,
-            list
+            list,
+            queue,
         }
     }
 
@@ -101,6 +102,10 @@ impl Series {
 
     pub fn config(&self) -> &SeriesConfig {
         &self.config
+    }
+
+    pub fn queue(&self) -> &QueueConfig {
+        &self.queue
     }
 
     pub fn compression(&self) -> &Compression {

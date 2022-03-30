@@ -2,11 +2,12 @@ use crate::{
     compression::*,
     constants::BUFSZ,
     durability::*,
+    durable_queue::QueueConfig,
     id::*,
-    persistent_list::{self, ListBackend, ListBuffer},
-    reader::{ReadResponse, ReadServer, Snapshot},
+    persistent_list::{self, List},
+    reader::{ReadResponse, ReadServer},
     series::{self, *},
-    writer::Writer,
+    writer::{WriterConfig, Writer, WriterMetadata},
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
@@ -32,33 +33,15 @@ impl From<series::Error> for Error {
     }
 }
 
-#[derive(Default, Debug)]
-pub struct Config {
-    backend: persistent_list::Config,
-}
-
-impl Config {
-    pub fn with_kafka_bootstrap(mut self, bootstrap: String) -> Self {
-        self.backend = self.backend.with_kafka_bootstrap(bootstrap);
-        self
-    }
-
-    pub fn with_directory(mut self, dir: PathBuf) -> Self {
-        self.backend = self.backend.with_directory(dir);
-        self
-    }
-}
-
-pub struct Mach<B: ListBackend> {
+pub struct Mach {
     writers: Vec<WriterId>,
-    writer_table: HashMap<WriterId, (ListBuffer, B, DurabilityHandle)>,
+    writer_table: HashMap<WriterId, (WriterMetadata, DurabilityWorker)>,
     series_table: Arc<DashMap<SeriesId, Series>>,
     read_server: ReadServer,
-    config: Config,
 }
 
-impl<B: ListBackend> Mach<B> {
-    pub fn new(config: Config) -> Self {
+impl Mach {
+    pub fn new() -> Self {
         let series_table = Arc::new(DashMap::new());
         let read_server = ReadServer::new(series_table.clone());
 
@@ -67,43 +50,19 @@ impl<B: ListBackend> Mach<B> {
             writer_table: HashMap::new(),
             series_table,
             read_server,
-            config,
         }
+    }
+
+    pub fn add_writer(&mut self, writer_config: WriterConfig) -> Result<Writer, Error> {
+        let global_meta = self.series_table.clone();
+        let (writer, meta) = Writer::new(global_meta, writer_config);
+        let durability = DurabilityWorker::new(meta.id.clone(), meta.active_block.clone());
+        self.writer_table.insert(meta.id.clone(), (meta, durability));
+        Ok(writer)
     }
 
     pub async fn read(&self, id: SeriesId) -> ReadResponse {
         self.read_server.read_request(id).await
-    }
-
-    pub fn make_backend(&self) -> B {
-        B::with_config(self.config.backend.clone()).unwrap()
-    }
-
-    pub fn new_writer_with_backend(&mut self, backend: B) -> Result<Writer, Error> {
-        let writer_id = WriterId::random();
-
-        // Setup persistent list backend for this writer
-        let backend_writer = backend.writer()?;
-        let backend_id: String = backend.id().into();
-
-        // Send metadata to metadata store
-        //Metadata::WriterTopic(writer_id.inner().into(), backend_id).send()?;
-
-        //  Setup ListBuffer for this writer
-        let buffer = ListBuffer::new(BUFSZ);
-        let writer = Writer::new(writer_id.clone(), self.series_table.clone(), backend_writer);
-        let durability_handle = DurabilityHandle::new(writer_id.as_str(), buffer.clone());
-
-        // Store writer information
-        self.writer_table
-            .insert(writer_id.clone(), (buffer, backend, durability_handle));
-        self.writers.push(writer_id);
-        Ok(writer)
-    }
-
-    pub fn new_writer(&mut self) -> Result<Writer, Error> {
-        let backend: B = self.make_backend();
-        self.new_writer_with_backend(backend)
     }
 
     pub fn add_series(&mut self, config: SeriesConfig) -> Result<(WriterId, SeriesId), Error> {
@@ -113,16 +72,15 @@ impl<B: ListBackend> Mach<B> {
             .choose(&mut rand::thread_rng())
             .unwrap()
             .clone();
+        let (writer_meta, durability) = self.writer_table.get(&writer).unwrap();
 
-        // Get the ListBuffer for this series from the writer this series will be assigned to
-        let writer_meta = self.writer_table.get(&writer).unwrap();
-        let buffer = writer_meta.0.clone();
-
-        // Initialize the series using the listbuffer for the assigned writer
+        let queue_config = writer_meta.queue_config.clone();
+        let list = List::new(writer_meta.active_block.clone());
         let series_id = config.tags.id();
-        let series = Series::new(config, buffer);
-        writer_meta.2.register_series(series.clone());
+        let series = Series::new(config, queue_config.clone(), list);
+        durability.register_series(series.clone());
         self.series_table.insert(series_id, series);
+
         Ok((writer, series_id))
     }
 }

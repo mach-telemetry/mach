@@ -54,7 +54,7 @@ async fn snapshot_worker(
 
     let mut response = ReadResponse {
         response_queue: queue_config,
-        data_queue: series.config().queue_config.clone(),
+        data_queue: series.queue().clone(),
         offset: 0,
     };
 

@@ -305,10 +305,9 @@ mod test {
             seg_count: 1,
             nvars,
             types: vec![Types::F64; nvars],
-            queue_config: queue_config.clone(),
         };
         let list = List::new(write_meta.active_block.clone());
-        let series_meta = Series::new(series_conf, list);
+        let series_meta = Series::new(series_conf, queue_config.clone(), list);
         let serid = SeriesId(0);
 
         // Register series
@@ -359,89 +358,5 @@ mod test {
         }
         println!("expected: {:?}", expected_timestamps.len());
         println!("result: {:?}", timestamps.len());
-        //assert_eq!(expected_timestamps, timestamps);
-
-        //println!("COUNT {}", count);
-
-        //let mut exp_ts: Vec<u64> = Vec::new();
-        //let mut exp_values: Vec<Vec<[u8; 8]>> = Vec::new();
-        //for _ in 0..nvars {
-        //    exp_values.push(Vec::new());
-        //}
-
-        //let ss = series_meta.segment().snapshot().unwrap();
-        //for item in &data[768..782] {
-        //    let v = to_values(&item.values[..]);
-        //    exp_ts.push(item.ts);
-        //    v.iter()
-        //        .zip(exp_values.iter_mut())
-        //        .for_each(|(v, e)| e.push(*v));
-        //}
-        //assert_eq!(ss[0].timestamps(), exp_ts.as_slice());
-        //exp_values
-        //    .iter()
-        //    .enumerate()
-        //    .for_each(|(i, v)| assert_eq!(ss[0].variable(i), (Types::F64, v.as_slice())));
-        //exp_ts.clear();
-        //exp_values.iter_mut().for_each(|e| e.clear());
-
-        //let snapshot = series_meta.list().read().unwrap();
-        //let mut reader = ListSnapshotReader::new(snapshot);
-        //let res: &DecompressBuffer = reader
-        //    .next_segment(&mut persistent_reader)
-        //    .unwrap()
-        //    .unwrap();
-        //for item in &data[512..768] {
-        //    let v = to_values(&item.values[..]);
-        //    exp_ts.push(item.ts);
-        //    v.iter()
-        //        .zip(exp_values.iter_mut())
-        //        .for_each(|(v, e)| e.push(*v));
-        //}
-        //assert_eq!(res.timestamps(), exp_ts.as_slice());
-        //exp_values
-        //    .iter()
-        //    .enumerate()
-        //    .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
-        //exp_ts.clear();
-        //exp_values.iter_mut().for_each(|e| e.clear());
-
-        //let res: &DecompressBuffer = reader
-        //    .next_segment(&mut persistent_reader)
-        //    .unwrap()
-        //    .unwrap();
-        //for item in &data[256..512] {
-        //    let v = to_values(&item.values[..]);
-        //    exp_ts.push(item.ts);
-        //    v.iter()
-        //        .zip(exp_values.iter_mut())
-        //        .for_each(|(v, e)| e.push(*v));
-        //}
-        //assert_eq!(res.timestamps(), exp_ts.as_slice());
-        //exp_values
-        //    .iter()
-        //    .enumerate()
-        //    .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
-        //exp_ts.clear();
-        //exp_values.iter_mut().for_each(|e| e.clear());
-
-        //let res: &DecompressBuffer = reader
-        //    .next_segment(&mut persistent_reader)
-        //    .unwrap()
-        //    .unwrap();
-        //for item in &data[0..256] {
-        //    let v = to_values(&item.values[..]);
-        //    exp_ts.push(item.ts);
-        //    v.iter()
-        //        .zip(exp_values.iter_mut())
-        //        .for_each(|(v, e)| e.push(*v));
-        //}
-        //assert_eq!(res.timestamps(), exp_ts.as_slice());
-        //exp_values
-        //    .iter()
-        //    .enumerate()
-        //    .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
-        //exp_ts.clear();
-        //exp_values.iter_mut().for_each(|e| e.clear());
     }
 }

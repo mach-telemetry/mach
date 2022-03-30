@@ -1,6 +1,6 @@
 use crate::{
     constants::*,
-    id::SeriesId,
+    id::{WriterId, SeriesId},
     durable_queue::KafkaConfig,
     runtime::RUNTIME,
     segment::SegmentSnapshot,
@@ -32,12 +32,12 @@ use tokio::{
     time::{sleep, timeout},
 };
 
-pub struct DurabilityHandle {
+pub struct DurabilityWorker {
     chan: UnboundedSender<Series>,
 }
 
-impl DurabilityHandle {
-    pub fn new(writer_id: &str, active_block: Arc<WpLock<ActiveBlock>>) -> Self {
+impl DurabilityWorker {
+    pub fn new(writer_id: WriterId, active_block: Arc<WpLock<ActiveBlock>>) -> Self {
         init(writer_id, active_block)
     }
 
@@ -48,14 +48,14 @@ impl DurabilityHandle {
     }
 }
 
-fn init(writer_id: &str, active_block: Arc<WpLock<ActiveBlock>>) -> DurabilityHandle {
-    let writer_id: String = writer_id.into();
+fn init(writer_id: WriterId, active_block: Arc<WpLock<ActiveBlock>>) -> DurabilityWorker {
+    let writer_id: String = writer_id.inner().into();
     let (tx, rx) = unbounded_channel();
     let series = Arc::new(Mutex::new(Vec::<Series>::new()));
     let series2 = series.clone();
     RUNTIME.spawn(durability_receiver(rx, series2));
     RUNTIME.spawn(durability_worker(writer_id, series, active_block));
-    DurabilityHandle { chan: tx }
+    DurabilityWorker { chan: tx }
 }
 
 async fn durability_receiver(mut recv: UnboundedReceiver<Series>, series: Arc<Mutex<Vec<Series>>>) {
