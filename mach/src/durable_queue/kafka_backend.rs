@@ -102,7 +102,7 @@ pub struct KafkaReader {
     timeout: Timeout,
     local_buffer: Vec<u8>,
     topic: String,
-    last_offset: u64
+    last_offset: u64,
 }
 
 impl KafkaReader {

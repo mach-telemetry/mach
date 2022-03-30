@@ -41,8 +41,8 @@ pub mod durability;
 pub mod active_block;
 pub mod durable_queue;
 pub mod persistent_list;
-pub mod writer;
 pub mod snapshot;
+pub mod writer;
 //pub mod segment2;
 
 #[cfg(test)]

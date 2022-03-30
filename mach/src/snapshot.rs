@@ -1,6 +1,7 @@
 use crate::{
     compression::{self, Compression, DecompressBuffer},
     constants::*,
+    durable_queue::DurableQueueReader,
     id::SeriesId,
     persistent_list::{self, ListSnapshot, ListSnapshotReader},
     //runtime::RUNTIME,
@@ -8,13 +9,12 @@ use crate::{
     segment::{ReadBuffer, SegmentSnapshot, SegmentSnapshotReader},
     series::{Series, Types},
     utils::bytes::Bytes,
-    durable_queue::DurableQueueReader,
 };
 use bincode::{deserialize_from, serialize_into};
 use serde::*;
 use std::convert::TryInto;
-use std::slice;
 use std::iter::Rev;
+use std::slice;
 
 #[derive(Debug)]
 pub enum Error {
@@ -33,7 +33,6 @@ impl From<compression::Error> for Error {
         Error::Compression(item)
     }
 }
-
 
 pub type TimestampIterator<'a> = Rev<slice::Iter<'a, u64>>;
 

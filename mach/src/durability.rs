@@ -1,11 +1,11 @@
 use crate::{
+    active_block::ActiveBlock,
     constants::*,
-    id::{WriterId, SeriesId},
     durable_queue::KafkaConfig,
+    id::{SeriesId, WriterId},
     runtime::RUNTIME,
     segment::SegmentSnapshot,
     series::{self, Series},
-    active_block::ActiveBlock,
     utils::{random_id, wp_lock::WpLock},
 };
 use dashmap::DashMap;
@@ -64,7 +64,11 @@ async fn durability_receiver(mut recv: UnboundedReceiver<Series>, series: Arc<Mu
     }
 }
 
-async fn durability_worker(writer_id: String, series: Arc<Mutex<Vec<Series>>>, active_block: Arc<WpLock<ActiveBlock>>) {
+async fn durability_worker(
+    writer_id: String,
+    series: Arc<Mutex<Vec<Series>>>,
+    active_block: Arc<WpLock<ActiveBlock>>,
+) {
     let k_config = KafkaConfig {
         bootstrap: String::from(KAFKA_BOOTSTRAP),
         topic: random_id(),
@@ -96,7 +100,11 @@ async fn durability_worker(writer_id: String, series: Arc<Mutex<Vec<Series>>>, a
         bincode::serialize_into(&mut encoded, &data).unwrap();
         lz4::compress_to_vec(&encoded, &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
         match queue_writer.write(&compressed[..]).await {
-            Ok(offset) => println!("Durability at offset {}, data size: {}", offset, compressed.len()),
+            Ok(offset) => println!(
+                "Durability at offset {}, data size: {}",
+                offset,
+                compressed.len()
+            ),
             Err(x) => println!("Durablity error {:?}", x),
         }
         //let (partition, offset) = producer.send(to_send, Duration::from_secs(0)).await.unwrap();

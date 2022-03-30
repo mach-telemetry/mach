@@ -267,7 +267,9 @@ impl ActiveBlock {
     pub async fn flush(&mut self, flusher: &mut DurableQueueWriter) -> Result<(), Error> {
         println!("FLUSHING ACTIVE BLOCK");
         self.bytes.set_tail(&self.series);
-        let queue_offset = flusher.write(&self.bytes[..self.bytes.len.load(SeqCst)]).await?;
+        let queue_offset = flusher
+            .write(&self.bytes[..self.bytes.len.load(SeqCst)])
+            .await?;
         // Boradcast the queue offset to everyone who pushed
         self.queue_offset.store(queue_offset, SeqCst);
         Ok(())

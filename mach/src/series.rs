@@ -1,17 +1,15 @@
 use crate::{
     active_block::*,
     compression::Compression,
+    durable_queue::QueueConfig,
     id::SeriesId,
     //persistent_list::{self, List, ListBuffer},
     persistent_list::{self, List, ListSnapshot},
-    snapshot::Snapshot,
     //reader::Snapshot,
-    segment::{
-        self, FlushSegment, FullSegment, Segment, SegmentSnapshot, WriteSegment,
-    },
+    segment::{self, FlushSegment, FullSegment, Segment, SegmentSnapshot, WriteSegment},
+    snapshot::Snapshot,
     tags::Tags,
     utils::wp_lock::WpLock,
-    durable_queue::QueueConfig,
 };
 use serde::*;
 use std::sync::Arc;

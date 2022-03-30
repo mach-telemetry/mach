@@ -7,7 +7,7 @@ use crate::{
     persistent_list::{self, List},
     reader::{ReadResponse, ReadServer},
     series::{self, *},
-    writer::{WriterConfig, Writer, WriterMetadata},
+    writer::{Writer, WriterConfig, WriterMetadata},
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
@@ -57,7 +57,8 @@ impl Mach {
         let global_meta = self.series_table.clone();
         let (writer, meta) = Writer::new(global_meta, writer_config);
         let durability = DurabilityWorker::new(meta.id.clone(), meta.active_block.clone());
-        self.writer_table.insert(meta.id.clone(), (meta, durability));
+        self.writer_table
+            .insert(meta.id.clone(), (meta, durability));
         Ok(writer)
     }
 

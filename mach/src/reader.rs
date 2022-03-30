@@ -1,6 +1,13 @@
 use crate::{
-    constants::*, id::SeriesId, persistent_list::ListSnapshot, runtime::*, sample::Type,
-    segment::SegmentSnapshot, series::Series, durable_queue::{KafkaConfig, QueueConfig}, utils::*,
+    constants::*,
+    durable_queue::{KafkaConfig, QueueConfig},
+    id::SeriesId,
+    persistent_list::ListSnapshot,
+    runtime::*,
+    sample::Type,
+    segment::SegmentSnapshot,
+    series::Series,
+    utils::*,
 };
 use bincode::{deserialize_from, serialize_into};
 use dashmap::DashMap;

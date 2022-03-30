@@ -141,7 +141,12 @@ struct ListMakerMeta {
 impl ListMakerMeta {
     async fn write(&mut self, w: &mut DurableQueueWriter) {
         println!("WRITING TO ACTIVE BLOCK");
-        if self.list.push(self.id, self.segment.clone(), &self.compression, w).await.is_err() {
+        if self
+            .list
+            .push(self.id, self.segment.clone(), &self.compression, w)
+            .await
+            .is_err()
+        {
             println!("Error writing to list");
         }
 
@@ -221,13 +226,13 @@ mod test {
     use crate::id::*;
     use crate::tags::*;
     use crate::test_utils::*;
+    use crate::utils::*;
     use rand::prelude::*;
     use std::{
         env,
         sync::{Arc, Mutex},
     };
     use tempfile::tempdir;
-    use crate::utils::*;
 
     //#[test]
     //fn test_vec_writer() {
@@ -282,7 +287,7 @@ mod test {
         //let active_block = Arc::new(WpLock::new(ActiveBlock::new(6000)));
         let writer_config = WriterConfig {
             queue_config: queue_config.clone(),
-            active_block_flush_sz: 6000
+            active_block_flush_sz: 6000,
         };
         let dict = Arc::new(DashMap::new());
         let (mut write_thread, write_meta) = Writer::new(dict.clone(), writer_config);
@@ -349,7 +354,7 @@ mod test {
                 Ok(Some(item)) => item.get_timestamps().for_each(|x| timestamps.push(*x)),
                 Ok(None) => {
                     println!("OK NONE PROBLEM");
-                },
+                }
                 Err(x) => {
                     println!("{:?}", x);
                     break;

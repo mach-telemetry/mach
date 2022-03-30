@@ -80,7 +80,6 @@ impl ListWriter {
         compression: &Compression,
         w: &mut DurableQueueWriter,
     ) -> Result<(), Error> {
-
         let full_segment = segment.to_flush().unwrap();
         // SAFETY:
         // the head is modified only by this method,
