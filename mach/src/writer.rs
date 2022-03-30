@@ -228,6 +228,7 @@ mod test {
     use crate::utils::*;
     use std::sync::Arc;
     use tempfile::tempdir;
+    use rand::*;
 
     //#[test]
     //fn test_vec_writer() {
@@ -288,11 +289,17 @@ mod test {
         let (mut write_thread, write_meta) = Writer::new(dict.clone(), writer_config);
 
         // Setup series
-        let data = &MULTIVARIATE_DATA[0].1;
+        let mut data = (*MULTIVARIATE_DATA[0].1).clone();
+        let mut rng = thread_rng();
+        for item in data.iter_mut() {
+            for val in item.values.iter_mut() {
+                *val = rng.gen::<f64>() * 100.0f64;
+            }
+        }
         let nvars = data[0].values.len();
         let mut compression = Vec::new();
         for _ in 0..nvars {
-            compression.push(CompressFn::XOR);
+            compression.push(CompressFn::Decimal(3));
         }
         let compression = Compression::from(compression);
         //let _id = SeriesId(thread_rng().gen());
@@ -323,9 +330,11 @@ mod test {
         };
 
         let mut expected_timestamps = Vec::new();
+        let mut expected_field0 = Vec::new();
         for item in data.iter() {
             let v = to_values(&item.values[..]);
             expected_timestamps.push(item.ts);
+            expected_field0.push(item.values[0]);
             loop {
                 match write_thread.push(series_ref, item.ts, &v[..]) {
                     Ok(_) => break,
@@ -334,6 +343,7 @@ mod test {
             }
         }
         expected_timestamps.reverse();
+        expected_field0.reverse();
 
         let snapshot = dict.get(&serid).unwrap().snapshot().unwrap();
         let durable_queue = queue_config.make().unwrap();
@@ -343,20 +353,24 @@ mod test {
         //let count = 0;
         //let buf = reader.next_item().unwrap().unwrap();
         let mut timestamps: Vec<u64> = Vec::new();
+        let mut field0: Vec<f64> = Vec::new();
         //let r = reader.next_item();
         loop {
             match reader.next_item() {
-                Ok(Some(item)) => item.get_timestamps().for_each(|x| timestamps.push(*x)),
-                Ok(None) => {
-                    println!("OK NONE PROBLEM");
+                Ok(Some(item)) => {
+                    item.get_timestamps().for_each(|x| timestamps.push(*x));
+                    item.get_field(0).1.for_each(|x| field0.push(f64::from_be_bytes(*x)));
                 }
+                Ok(None) => println!("OK NONE PROBLEM"),
                 Err(x) => {
                     println!("{:?}", x);
                     break;
                 }
             }
         }
-        println!("expected: {:?}", expected_timestamps.len());
-        println!("result: {:?}", timestamps.len());
+        assert_eq!(expected_timestamps, timestamps);
+        for (e, r) in expected_field0.iter().zip(field0.iter()) {
+            assert!((*e - *r).abs() < 0.001);
+        }
     }
 }

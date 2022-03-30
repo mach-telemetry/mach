@@ -196,10 +196,6 @@ impl Segment {
 }
 
 impl WriteSegment {
-    pub fn push(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<PushStatus, Error> {
-        self.push_item(ts, val)
-    }
-
     pub fn push_item(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<PushStatus, Error> {
         // Safety: Safe because there is only one writer, one flusher, and many concurrent readers.
         // Readers don't race with the writer because of the atomic counter. Writer and flusher do
@@ -281,42 +277,42 @@ mod test {
 
         for item in &data[..255] {
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_done());
         }
 
         {
             let item = &data[255];
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_flush());
         }
 
         for item in &data[256..511] {
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_done());
         }
 
         {
             let item = &data[511];
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_flush());
         }
 
         for item in &data[512..767] {
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_done());
         }
 
         {
             let item = &data[767];
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_flush());
         }
 
         println!("PUSH HERE");
         {
             let item = &data[768];
             let v = to_values(&item.values[..]);
-            let res = writer.push(item.ts, &v[..]);
+            let res = writer.push_item(item.ts, &v[..]);
             assert_eq!(res.err(), Some(Error::PushIntoFull));
         }
 
@@ -328,20 +324,20 @@ mod test {
 
         for item in &data[768..1023] {
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_done());
         }
         println!("PUSH DOESNT REACH HERE");
 
         {
             let item = &data[1023];
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_flush());
         }
 
         {
             let item = &data[1024];
             let v = to_values(&item.values[..]);
-            let res = writer.push(item.ts, &v[..]);
+            let res = writer.push_item(item.ts, &v[..]);
             assert_eq!(res.err(), Some(Error::PushIntoFull));
         }
 
@@ -353,7 +349,7 @@ mod test {
         {
             let item = &data[1024];
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_done());
         }
     }
 
@@ -382,7 +378,7 @@ mod test {
         // 767 = 256 * 3 buffers - 1;
         for (id, item) in data[..767].iter().enumerate() {
             let v = to_values(&item.values[..]);
-            let res = writer.push(item.ts, &v[..]);
+            let res = writer.push_item(item.ts, &v[..]);
             match res {
                 Ok(_) => {}
                 Err(x) => {
@@ -446,7 +442,7 @@ mod test {
 
         for item in &data[..636] {
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).is_ok());
+            assert!(writer.push_item(item.ts, &v[..]).is_ok());
             exp_ts.push(item.ts);
             for (e, i) in exp_values.iter_mut().zip(v.iter()) {
                 e.push(*i)

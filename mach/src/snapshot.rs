@@ -30,6 +30,7 @@ impl From<compression::Error> for Error {
 }
 
 pub type TimestampIterator<'a> = Rev<slice::Iter<'a, u64>>;
+pub type FieldIterator<'a> = Rev<slice::Iter<'a, [u8; 8]>>;
 
 pub enum SnapshotItem<'a> {
     Active(&'a ReadBuffer),
@@ -44,10 +45,16 @@ impl<'a> SnapshotItem<'a> {
         }
     }
 
-    pub fn get_field(&self, i: usize) -> (Types, &[[u8; 8]]) {
+    pub fn get_field(&self, i: usize) -> (Types, FieldIterator) {
         match self {
-            Self::Active(x) => x.variable(i),
-            Self::Compressed(x) => x.variable(i),
+            Self::Active(x) => {
+                let (t, v) = x.variable(i);
+                (t, v.iter().rev())
+            },
+            Self::Compressed(x) => {
+                let (t, v) = x.variable(i);
+                (t, v.iter().rev())
+            },
         }
     }
 }

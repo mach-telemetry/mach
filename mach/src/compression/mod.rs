@@ -305,6 +305,7 @@ mod test {
     use super::*;
     use crate::segment::Buffer;
     use crate::series::Types;
+    use crate::sample::Type;
     use crate::test_utils::*;
 
     #[test]
@@ -315,14 +316,16 @@ mod test {
         let heaps = vec![Types::F64; nvars];
         let mut buf = Buffer::new(heaps.as_slice());
 
-        let mut item = vec![[0u8; 8]; nvars];
+        let _item = vec![[0u8; 8]; nvars];
         let mut timestamps = [0; 256];
         for (idx, sample) in data[0..256].iter().enumerate() {
-            for (i, val) in sample.values.iter().enumerate() {
-                item[i] = val.to_be_bytes();
+            let mut item = Vec::new();
+            for (_i, val) in sample.values.iter().enumerate() {
+                item.push(Type::F64(*val));
+                //item[i] = val.to_be_bytes();
             }
             timestamps[idx] = sample.ts;
-            buf.push_item(sample.ts, item.as_slice()).unwrap();
+            buf.push_type(sample.ts, item.as_slice()).unwrap();
         }
         let segment = buf.to_flush().unwrap();
 
@@ -371,8 +374,8 @@ mod test {
         let mut timestamps = [0; 256];
         for (idx, sample) in data[0..256].iter().enumerate() {
             timestamps[idx] = idx as u64;
-            let ptr = Bytes::from_slice(sample.as_bytes()).into_raw();
-            buf.push_item(idx as u64, &[(ptr as u64).to_be_bytes()])
+            let v = Type::Bytes(Bytes::from_slice(sample.as_bytes()));
+            buf.push_type(idx as u64, &[v])
                 .unwrap();
         }
         let segment = buf.to_flush().unwrap();
