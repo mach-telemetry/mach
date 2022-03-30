@@ -226,9 +226,7 @@ mod test {
     use crate::tags::*;
     use crate::test_utils::*;
     use crate::utils::*;
-    use std::{
-        sync::{Arc},
-    };
+    use std::sync::Arc;
     use tempfile::tempdir;
 
     //#[test]

@@ -93,7 +93,7 @@ impl Bytes {
 /// # Safety
 /// Bytes is safe to send so long as the location is valid. Bytes should not be copy or clone to
 /// prevent a copy from being made and any of the &mut methods being used
-unsafe impl Send for Bytes{}
+unsafe impl Send for Bytes {}
 
 impl Drop for Bytes {
     fn drop(&mut self) {
