@@ -3,8 +3,6 @@ use crate::compression::utils::{
     to_zigzag,
 };
 use crate::utils::byte_buffer::ByteBuffer;
-use fixed::types::extra::*;
-use fixed::types::extra::{LeEqU64, Unsigned};
 use std::convert::{TryFrom, TryInto};
 use std::mem::size_of;
 

@@ -1,12 +1,10 @@
-use crate::compression::Error;
 use crate::sample::Bytes;
-use crate::segment::FullSegment;
 use crate::utils::byte_buffer::ByteBuffer;
-use lzzzz::{lz4, lz4_hc};
+use lzzzz::lz4;
 use std::convert::TryInto;
 
 pub fn compress(len: usize, to_compress: &[u8], buf: &mut ByteBuffer) {
-    let start = buf.len();
+    //let start = buf.len();
     // Write in the length of the segment
     buf.extend_from_slice(&len.to_be_bytes());
 
@@ -18,7 +16,7 @@ pub fn compress(len: usize, to_compress: &[u8], buf: &mut ByteBuffer) {
     buf.extend_from_slice(&0u64.to_be_bytes());
 
     // Reserve the first 8 bytes for the sz
-    let mut b = buf.unused();
+    let b = buf.unused();
     let csz = lz4::compress(to_compress, &mut b[..], 1).unwrap();
     drop(b);
     buf.add_len(csz);
@@ -47,6 +45,7 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>, bytes: &mut Vec<u8>) {
     bytes.resize(bytes_sz, 0u8);
     lz4::decompress(&data[off..off + raw_sz], &mut bytes[..]).unwrap();
     off += raw_sz;
+    let _off = off;
 
     let mut start = 0;
     for _ in 0..len {

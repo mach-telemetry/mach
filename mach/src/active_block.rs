@@ -1,14 +1,9 @@
 use crate::{
-    compression::{Compression, DecompressBuffer},
-    constants::BUFSZ,
+    compression::Compression,
     durable_queue::{self, DurableQueueReader, DurableQueueWriter},
     id::SeriesId,
     segment::FullSegment,
-    tags::Tags,
-    utils::{
-        byte_buffer::ByteBuffer,
-        wp_lock::{NoDealloc, WpLock},
-    },
+    utils::{byte_buffer::ByteBuffer, wp_lock::NoDealloc},
 };
 use serde::*;
 use std::{

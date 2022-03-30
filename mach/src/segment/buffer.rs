@@ -7,16 +7,8 @@ use crate::segment::Error;
 use crate::series::Types;
 use crate::utils::wp_lock::*;
 //use crate::reader::SampleIterator;
-use lazy_static::*;
 use serde::*;
-use std::cell::UnsafeCell;
-use std::convert::TryInto;
-use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering::SeqCst},
-    Arc,
-};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 const HEAP_SZ: usize = 1_000_000;
 const HEAP_TH: usize = 3 * (HEAP_SZ / 4);

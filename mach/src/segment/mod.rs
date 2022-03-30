@@ -19,7 +19,6 @@ use crate::sample::Type;
 use crate::series::Types;
 pub use buffer::*;
 pub use serde::*;
-use std::ops::Deref;
 use std::sync::{
     atomic::{AtomicBool, Ordering::SeqCst},
     Arc,
@@ -151,7 +150,7 @@ unsafe impl Send for WriteSegment {}
 unsafe impl Sync for WriteSegment {}
 
 impl Segment {
-    pub fn new(b: usize, v: usize, heap: &[Types]) -> Self {
+    pub fn new(b: usize, heap: &[Types]) -> Self {
         Self {
             has_writer: Arc::new(AtomicBool::new(false)),
             inner: Box::into_raw(Box::new(segment::Segment::new(b, heap))),
@@ -185,11 +184,11 @@ impl Segment {
         // writer can race but the reader checks the version number before returning
         let inner: &segment::Segment = unsafe { self.inner.as_ref().unwrap() };
         let inner_information = inner.read()?;
-        unsafe {
-            Ok(SegmentSnapshot {
-                inner: inner_information,
-            })
-        }
+        //unsafe {
+        Ok(SegmentSnapshot {
+            inner: inner_information,
+        })
+        //}
     }
 }
 

@@ -7,11 +7,10 @@ pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) {
     // https://github.com/jeromefroe/tsz-rs
 
     let mut buf: BitWriter<&mut ByteBuffer, BigEndian> = BitWriter::new(buf);
-    let mut written = 0;
+    let mut written = 64;
 
     // Store the length
-    buf.write(64, data.len() as u64).unwrap();
-    written += 64;
+    buf.write(written, data.len() as u64).unwrap();
 
     // Store the first value
     let mut bits = unsafe { transmute::<f64, u64>(f64::from_be_bytes(data[0])) };
@@ -89,11 +88,10 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
 
     let mut data: BitReader<&[u8], BigEndian> = BitReader::new(data);
     //let mut idx = 0;
-    let mut read = 0;
+    let mut read = 64;
 
     // Read the length
-    let len = data.read::<u64>(64).unwrap() as usize;
-    read += 64;
+    let len = data.read::<u64>(read).unwrap() as usize;
 
     // Read first value
     let mut bits = data.read::<u64>(64).unwrap();

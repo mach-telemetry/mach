@@ -1,9 +1,7 @@
 mod file_backend;
 mod kafka_backend;
 
-use enum_dispatch::*;
 use serde::*;
-use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 
 #[derive(Debug)]

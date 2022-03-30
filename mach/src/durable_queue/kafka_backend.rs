@@ -1,8 +1,6 @@
-use crate::{constants::*, id::SeriesId, runtime::*, utils::random_id};
+use crate::utils::random_id;
 pub use rdkafka::consumer::{base_consumer::BaseConsumer, Consumer};
 use rdkafka::{
-    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
-    client::DefaultClientContext,
     config::ClientConfig,
     error::KafkaError as RdKafkaError,
     producer::{FutureProducer, FutureRecord},
@@ -12,11 +10,7 @@ use rdkafka::{
     Message,
 };
 use serde::*;
-use std::{
-    convert::TryInto,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{convert::TryInto, time::Duration};
 
 #[derive(Debug)]
 pub enum Error {
@@ -102,7 +96,7 @@ pub struct KafkaReader {
     timeout: Timeout,
     local_buffer: Vec<u8>,
     topic: String,
-    last_offset: u64,
+    //last_offset: u64,
 }
 
 impl KafkaReader {
@@ -117,7 +111,7 @@ impl KafkaReader {
             topic,
             timeout: Timeout::After(Duration::from_secs(0)),
             local_buffer: Vec::new(),
-            last_offset: u64::MAX,
+            //last_offset: u64::MAX,
         })
     }
 

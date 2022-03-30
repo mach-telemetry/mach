@@ -1,8 +1,5 @@
 use crate::{
-    compression::*,
-    constants::BUFSZ,
     durability::*,
-    durable_queue::QueueConfig,
     id::*,
     persistent_list::{self, List},
     reader::{ReadResponse, ReadServer},
@@ -11,7 +8,7 @@ use crate::{
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
-use std::{collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Debug)]
 pub enum Error {

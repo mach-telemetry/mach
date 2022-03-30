@@ -1,5 +1,5 @@
 use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
-use std::convert::{AsRef, TryInto};
+use std::convert::TryInto;
 use std::mem::{align_of, size_of, ManuallyDrop};
 
 /// This is a workaround to Box<[u8]> that stores the size of the slice in the heap.

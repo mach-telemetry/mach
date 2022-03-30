@@ -1,15 +1,10 @@
 use crate::{
     active_block::{self, ActiveBlock, ActiveNode, StaticNode},
-    compression::{Compression, DecompressBuffer},
-    constants::BUFSZ,
-    durable_queue::{self, DurableQueueReader, DurableQueueWriter},
+    compression::Compression,
+    durable_queue::{DurableQueueReader, DurableQueueWriter},
     id::SeriesId,
     segment::FlushSegment,
-    tags::Tags,
-    utils::{
-        byte_buffer::ByteBuffer,
-        wp_lock::{NoDealloc, WpLock},
-    },
+    utils::wp_lock::WpLock,
 };
 use serde::*;
 use std::sync::Arc;

@@ -9,7 +9,7 @@
 #![feature(trait_alias)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
-#![allow(warnings)]
+//#![allow(warnings)]
 
 //mod backend;
 //mod chunk;

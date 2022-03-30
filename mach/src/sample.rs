@@ -1,7 +1,4 @@
 pub use crate::utils::bytes::*;
-use std::alloc::{alloc, alloc_zeroed, dealloc, Layout};
-use std::convert::{AsRef, TryInto};
-use std::mem::{align_of, size_of, ManuallyDrop};
 
 pub enum Type {
     U64(u64),
@@ -39,7 +36,7 @@ impl<const V: usize> Sample<V> {
         Sample { timestamp, values }
     }
 
-    pub fn from_bytes(timestamp: u64, mut data: [Bytes; V]) -> Self {
+    pub fn from_bytes(timestamp: u64, data: [Bytes; V]) -> Self {
         let mut values = [[0; 8]; V];
         let mut counter = 0;
         for item in data {

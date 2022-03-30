@@ -2,34 +2,20 @@ use crate::{
     active_block::ActiveBlock,
     constants::*,
     durable_queue::KafkaConfig,
-    id::{SeriesId, WriterId},
+    id::WriterId,
     runtime::RUNTIME,
     segment::SegmentSnapshot,
-    series::{self, Series},
+    series::Series,
     utils::{random_id, wp_lock::WpLock},
 };
-use dashmap::DashMap;
 use lzzzz::lz4;
-use rdkafka::{
-    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
-    client::DefaultClientContext,
-    config::ClientConfig,
-    producer::{FutureProducer, FutureRecord},
-    topic_partition_list::{Offset, TopicPartitionList},
-    types::RDKafkaErrorCode,
-    util::Timeout,
-    Message,
-};
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 use tokio::{
     sync::{
         mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
         Mutex,
     },
-    time::{sleep, timeout},
+    time::sleep,
 };
 
 pub struct DurabilityWorker {
@@ -65,7 +51,7 @@ async fn durability_receiver(mut recv: UnboundedReceiver<Series>, series: Arc<Mu
 }
 
 async fn durability_worker(
-    writer_id: String,
+    _writer_id: String,
     series: Arc<Mutex<Vec<Series>>>,
     active_block: Arc<WpLock<ActiveBlock>>,
 ) {

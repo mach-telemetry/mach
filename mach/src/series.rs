@@ -1,18 +1,14 @@
 use crate::{
-    active_block::*,
     compression::Compression,
     durable_queue::QueueConfig,
-    id::SeriesId,
     //persistent_list::{self, List, ListBuffer},
-    persistent_list::{self, List, ListSnapshot},
+    persistent_list::{self, List},
     //reader::Snapshot,
-    segment::{self, FlushSegment, FullSegment, Segment, SegmentSnapshot, WriteSegment},
+    segment::{self, Segment, SegmentSnapshot},
     snapshot::Snapshot,
     tags::Tags,
-    utils::wp_lock::WpLock,
 };
 use serde::*;
-use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum Error {
@@ -75,7 +71,7 @@ impl Series {
     pub fn new(config: SeriesConfig, queue: QueueConfig, list: List) -> Self {
         assert_eq!(config.nvars, config.compression.len());
         Self {
-            segment: segment::Segment::new(config.seg_count, config.nvars, config.types.as_slice()),
+            segment: segment::Segment::new(config.seg_count, config.types.as_slice()),
             config,
             list,
             queue,

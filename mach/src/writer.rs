@@ -1,14 +1,13 @@
 use crate::{
     active_block::*,
     compression::Compression,
-    constants::*,
     //wal::Wal,
     durable_queue::{DurableQueue, DurableQueueWriter, QueueConfig},
     id::{SeriesId, SeriesRef, WriterId},
     persistent_list::*,
     runtime::*,
-    sample::{Sample, Type},
-    segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
+    sample::Type,
+    segment::{self, FlushSegment, WriteSegment},
     series::*,
     utils::wp_lock::WpLock,
 };
@@ -44,8 +43,8 @@ pub struct Writer {
     local_meta: HashMap<SeriesId, Series>,
     references: HashMap<SeriesId, usize>,
     writers: Vec<WriteSegment>,
-    active_block: Arc<WpLock<ActiveBlock>>,
-    durable_queue: Arc<DurableQueue>,
+    //active_block: Arc<WpLock<ActiveBlock>>,
+    //durable_queue: Arc<DurableQueue>,
     lists: Vec<List>,
     list_maker_id: Vec<usize>,
     list_maker: ListMaker,
@@ -80,8 +79,8 @@ impl Writer {
             lists: Vec::new(),
             list_maker,
             id,
-            active_block,
-            durable_queue,
+            //active_block,
+            //durable_queue,
         };
 
         (writer, meta)
@@ -196,7 +195,7 @@ impl ListMaker {
     fn register(&mut self, meta: ListMakerMeta) -> usize {
         let id = self.register_counter;
         self.register_counter += 1;
-        let e = "failed to send to flush worker";
+        //let e = "failed to send to flush worker";
         self.sender.send(ListMakerRequest::Register(meta)).unwrap();
         id
     }

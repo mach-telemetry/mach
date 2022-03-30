@@ -1,8 +1,6 @@
 use lazy_static::*;
 use tokio::runtime::{Builder, Runtime};
 
-use futures::executor::ThreadPool;
-
 lazy_static! {
     //pub static ref POOL: ThreadPool = ThreadPool::new().unwrap();
     pub static ref RUNTIME: Runtime = Builder::new_multi_thread()

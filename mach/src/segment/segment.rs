@@ -1,11 +1,7 @@
-use crate::constants::*;
 use crate::sample::Type;
 use crate::segment::{buffer::*, Error};
 use crate::series::Types;
-use std::{
-    mem,
-    sync::atomic::{AtomicIsize, AtomicUsize, Ordering::SeqCst},
-};
+use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering::SeqCst};
 
 pub struct Segment {
     local_head: usize, // always tracks the atomic head
@@ -44,11 +40,11 @@ impl Segment {
         }
     }
 
-    #[inline]
-    fn current_buffer(&mut self) -> &mut Buffer {
-        let b = self.buffers.len();
-        &mut self.buffers[self.local_head % b]
-    }
+    //#[inline]
+    //fn current_buffer(&mut self) -> &mut Buffer {
+    //    let b = self.buffers.len();
+    //    &mut self.buffers[self.local_head % b]
+    //}
 
     fn try_next_buffer(&mut self) -> bool {
         let b = self.buffers.len();

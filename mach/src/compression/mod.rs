@@ -1,4 +1,4 @@
-mod bytes_lz4;
+//mod bytes_lz4;
 mod bytes_lz42;
 mod decimal;
 //mod fixed;
@@ -9,7 +9,6 @@ mod xor;
 use crate::segment::*;
 use crate::series::Types;
 use crate::utils::byte_buffer::ByteBuffer;
-use lzzzz::lz4;
 use std::convert::TryInto;
 use std::sync::Arc;
 
@@ -105,7 +104,6 @@ impl CompressFn {
     pub fn compress(&self, segment: &[[u8; 8]], buf: &mut ByteBuffer) {
         match self {
             CompressFn::Decimal(precision) => decimal::compress(segment, buf, *precision),
-            //CompressFn::BytesLZ4 => bytes_lz4::compress(segment, buf),
             CompressFn::XOR => xor::compress(segment, buf),
             _ => unimplemented!(),
         };
@@ -249,7 +247,7 @@ impl Compression {
         off += 8;
 
         let mut types = Vec::new();
-        for i in 0..nvars {
+        for _ in 0..nvars {
             types.push(Types::from_u8(data[off]));
             off += 1;
         }

@@ -2,25 +2,11 @@ use crate::{
     constants::*,
     durable_queue::{KafkaConfig, QueueConfig},
     id::SeriesId,
-    persistent_list::ListSnapshot,
     runtime::*,
-    sample::Type,
-    segment::SegmentSnapshot,
     series::Series,
     utils::*,
 };
-use bincode::{deserialize_from, serialize_into};
 use dashmap::DashMap;
-use rdkafka::{
-    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
-    client::DefaultClientContext,
-    config::ClientConfig,
-    producer::{FutureProducer, FutureRecord},
-    topic_partition_list::{Offset, TopicPartitionList},
-    types::RDKafkaErrorCode,
-    util::Timeout,
-    Message,
-};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::From;
@@ -76,6 +62,7 @@ async fn snapshot_worker(
                 if last_snapshot.elapsed() >= duration {
                     snapshot = series.snapshot().unwrap().to_bytes().into();
                     durable = false;
+                    last_snapshot = Instant::now();
                 }
 
                 // If the snapshot is not durable, send to kafka topic for durability
@@ -88,7 +75,7 @@ async fn snapshot_worker(
             }
 
             // Got a close signal from the timeout match below in a prior loop
-            Ok(Some(Close)) => break,
+            Ok(Some(SnapshotterRequest::Close)) => break,
 
             // This should be unreachable, panic if we get a None, but this is only when the
             // snapshotter was removed from the snapshotters map
