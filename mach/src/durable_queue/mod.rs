@@ -1,6 +1,8 @@
 mod file_backend;
 mod kafka_backend;
 
+use file_backend::FileReader;
+use kafka_backend::KafkaReader;
 use serde::*;
 use std::path::PathBuf;
 
@@ -129,6 +131,19 @@ pub enum DurableQueueReader {
 }
 
 impl DurableQueueReader {
+    pub fn from_config(config: QueueConfig) -> Result<Self, Error> {
+        match config {
+            QueueConfig::Kafka(cfg) => Ok(DurableQueueReader::Kafka(KafkaReader::new(
+                cfg.bootstrap.clone(),
+                cfg.topic.clone(),
+            )?)),
+            QueueConfig::File(cfg) => {
+                let file = cfg.dir.join(cfg.file);
+                Ok(DurableQueueReader::File(FileReader::new(&file)?))
+            }
+        }
+    }
+
     pub fn read(&mut self, id: u64) -> Result<&[u8], Error> {
         match self {
             Self::Kafka(x) => Ok(x.read(id)?),
