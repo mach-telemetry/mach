@@ -1,7 +1,6 @@
-use crate::{id::SeriesId, utils::byte_buffer::ByteBuffer};
+use crate::id::SeriesId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::convert::From;
 use std::hash::{Hash, Hasher};
 

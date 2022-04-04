@@ -1,12 +1,15 @@
 use crate::{
+    active_block::*,
     compression::Compression,
+    //wal::Wal,
+    durable_queue::{DurableQueue, DurableQueueWriter, QueueConfig},
     id::{SeriesId, SeriesRef, WriterId},
     persistent_list::*,
-    runtime::RUNTIME,
-    sample::{Sample, Type},
-    segment::{self, FlushSegment, FullSegment, Segment, WriteSegment},
+    runtime::*,
+    sample::Type,
+    segment::{self, FlushSegment, WriteSegment},
     series::*,
-    //wal::Wal,
+    utils::wp_lock::WpLock,
 };
 use dashmap::DashMap;
 use std::{collections::HashMap, sync::Arc};
@@ -23,34 +26,64 @@ impl From<segment::Error> for Error {
     }
 }
 
+pub struct WriterConfig {
+    pub queue_config: QueueConfig,
+    pub active_block_flush_sz: usize,
+}
+
+pub struct WriterMetadata {
+    pub id: WriterId,
+    pub queue_config: QueueConfig,
+    pub active_block: Arc<WpLock<ActiveBlock>>,
+    pub durable_queue: Arc<DurableQueue>,
+}
+
 pub struct Writer {
     global_meta: Arc<DashMap<SeriesId, Series>>,
     local_meta: HashMap<SeriesId, Series>,
     references: HashMap<SeriesId, usize>,
     writers: Vec<WriteSegment>,
+    //active_block: Arc<WpLock<ActiveBlock>>,
+    //durable_queue: Arc<DurableQueue>,
     lists: Vec<List>,
-    flush_id: Vec<usize>,
-    flush_worker: FlushWorker,
+    list_maker_id: Vec<usize>,
+    list_maker: ListMaker,
     id: WriterId,
 }
 
 impl Writer {
-    pub fn new<W: ChunkWriter + 'static>(
-        id: WriterId,
+    pub fn new(
         global_meta: Arc<DashMap<SeriesId, Series>>,
-        w: W,
-    ) -> Self {
-        let flush_worker = FlushWorker::new(w);
-        Self {
+        writer_config: WriterConfig,
+    ) -> (Self, WriterMetadata) {
+        let block_flush_sz = writer_config.active_block_flush_sz;
+        let queue_config = writer_config.queue_config;
+        let id = WriterId::random();
+        let active_block = Arc::new(WpLock::new(ActiveBlock::new(block_flush_sz)));
+        let durable_queue = Arc::new(queue_config.clone().make().unwrap());
+        let list_maker = ListMaker::new(durable_queue.writer().unwrap());
+
+        let meta = WriterMetadata {
+            id: id.clone(),
+            queue_config,
+            active_block,
+            durable_queue,
+        };
+
+        let writer = Self {
             global_meta,
             local_meta: HashMap::new(),
             references: HashMap::new(),
-            flush_id: Vec::new(),
+            list_maker_id: Vec::new(),
             writers: Vec::new(),
             lists: Vec::new(),
-            flush_worker,
+            list_maker,
             id,
-        }
+            //active_block,
+            //durable_queue,
+        };
+
+        (writer, meta)
     }
 
     pub fn id(&self) -> WriterId {
@@ -62,9 +95,9 @@ impl Writer {
         let writer = meta.segment().writer().unwrap();
         let list = meta.list().clone();
 
-        let flush_id = self.flush_worker.register(FlushMeta {
+        let list_maker_id = self.list_maker.register(ListMakerMeta {
             segment: writer.flush(),
-            list: meta.list().clone(),
+            list: meta.list().writer(),
             id,
             compression: meta.compression().clone(),
         });
@@ -74,82 +107,64 @@ impl Writer {
         self.local_meta.insert(id, meta);
         self.writers.push(writer);
         self.lists.push(list);
-        self.flush_id.push(flush_id);
+        self.list_maker_id.push(list_maker_id);
         SeriesRef(len)
     }
 
-    pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
-        let reference = *reference;
-        match self.writers[reference].push(ts, data)? {
-            segment::PushStatus::Done => {}
-            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
-        }
-        Ok(())
-    }
+    //pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
+    //    let reference = *reference;
+    //    match self.writers[reference].push(ts, data)? {
+    //        segment::PushStatus::Done => {}
+    //        segment::PushStatus::Flush(_) => self.list_maker.flush(self.list_maker_id[reference]),
+    //    }
+    //    Ok(())
+    //}
 
-    pub fn push_type(&mut self, reference: SeriesRef, ts: u64, data: &[Type]) -> Result<(), Error> {
-        //self.wal.write(series_id.0, ts, data);
+    pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[Type]) -> Result<(), Error> {
         let reference = *reference;
         match self.writers[reference].push_type(ts, data)? {
             segment::PushStatus::Done => {}
-            segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
+            segment::PushStatus::Flush(_) => self.list_maker.flush(self.list_maker_id[reference]),
         }
         Ok(())
     }
-
-    //pub fn push_sample<const V: usize>(
-    //    &mut self,
-    //    reference: SeriesRef,
-    //    sample: Sample<V>,
-    //) -> Result<(), Error> {
-    //    let reference = *reference;
-    //    match self.writers[reference].push_item(sample.timestamp, &sample.values[..])? {
-    //        segment::PushStatus::Done => {}
-    //        segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
-    //    }
-    //    Ok(())
-    //}
-
-    //pub fn push_univariate(
-    //    &mut self,
-    //    reference: SeriesRef,
-    //    ts: u64,
-    //    data: [u8; 8],
-    //) -> Result<(), Error> {
-    //    let reference = *reference;
-    //    match self.writers[reference].push_univariate(ts, data)? {
-    //        segment::PushStatus::Done => {}
-    //        segment::PushStatus::Flush(_) => self.flush_worker.flush(self.flush_id[reference]),
-    //    }
-    //    Ok(())
-    //}
 }
 
-struct FlushMeta {
+struct ListMakerMeta {
     segment: FlushSegment,
-    list: List,
+    list: ListWriter,
     id: SeriesId,
     compression: Compression,
 }
 
-impl FlushMeta {
-    fn flush<W: ChunkWriter>(&self, w: &mut W) {
-        let seg: FullSegment = self.segment.to_flush().unwrap();
-        self.list
-            .writer()
-            .push_segment(self.id, &seg, &self.compression, w);
-        self.segment.flushed();
+impl ListMakerMeta {
+    async fn write(&mut self, w: &mut DurableQueueWriter) {
+        //println!("WRITING TO ACTIVE BLOCK");
+        if self
+            .list
+            .push(self.id, self.segment.clone(), &self.compression, w)
+            .await
+            .is_err()
+        {
+            println!("Error writing to list");
+        }
+
+        // Safety: self.list.push call above that contains a clone doesn't mark the segment as
+        // flushed
+        unsafe {
+            self.segment.flushed();
+        }
     }
 }
 
-enum FlushRequest {
-    Register(FlushMeta),
+enum ListMakerRequest {
+    Register(ListMakerMeta),
     Flush(usize),
 }
 
-impl std::fmt::Debug for FlushRequest {
+impl std::fmt::Debug for ListMakerRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("FlushRequest");
+        let mut ds = f.debug_struct("ListMakerRequest");
         match self {
             Self::Register(_) => {
                 ds.field("Register", &"");
@@ -162,42 +177,42 @@ impl std::fmt::Debug for FlushRequest {
     }
 }
 
-struct FlushWorker {
-    sender: UnboundedSender<FlushRequest>,
+struct ListMaker {
+    sender: UnboundedSender<ListMakerRequest>,
     register_counter: usize,
 }
 
-impl FlushWorker {
-    fn new<W: ChunkWriter + 'static>(w: W) -> Self {
+impl ListMaker {
+    fn new(durable_queue_writer: DurableQueueWriter) -> Self {
         let (sender, receiver) = unbounded_channel();
-        RUNTIME.spawn(worker(w, receiver));
-        FlushWorker {
+        RUNTIME.spawn(worker(durable_queue_writer, receiver));
+        ListMaker {
             sender,
             register_counter: 0,
         }
     }
 
-    fn register(&mut self, meta: FlushMeta) -> usize {
+    fn register(&mut self, meta: ListMakerMeta) -> usize {
         let id = self.register_counter;
         self.register_counter += 1;
-        let e = "failed to send to flush worker";
-        self.sender.send(FlushRequest::Register(meta)).unwrap();
+        //let e = "failed to send to flush worker";
+        self.sender.send(ListMakerRequest::Register(meta)).unwrap();
         id
     }
 
     fn flush(&self, id: usize) {
         self.sender
-            .send(FlushRequest::Flush(id))
+            .send(ListMakerRequest::Flush(id))
             .expect("failed to send to flush worker");
     }
 }
 
-async fn worker<W: ChunkWriter + 'static>(mut w: W, mut queue: UnboundedReceiver<FlushRequest>) {
-    let mut metadata: Vec<FlushMeta> = Vec::new();
+async fn worker(mut w: DurableQueueWriter, mut queue: UnboundedReceiver<ListMakerRequest>) {
+    let mut metadata: Vec<ListMakerMeta> = Vec::new();
     while let Some(item) = queue.recv().await {
         match item {
-            FlushRequest::Register(meta) => metadata.push(meta),
-            FlushRequest::Flush(id) => metadata[id].flush(&mut w),
+            ListMakerRequest::Register(meta) => metadata.push(meta),
+            ListMakerRequest::Flush(id) => metadata[id].write(&mut w).await,
         }
     }
 }
@@ -210,29 +225,36 @@ mod test {
     use crate::id::*;
     use crate::tags::*;
     use crate::test_utils::*;
-    use rand::prelude::*;
-    use std::{
-        env,
-        sync::{Arc, Mutex},
-    };
+    use crate::utils::*;
+    use std::sync::Arc;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_vec_writer() {
-        let vec = Arc::new(Mutex::new(Vec::new()));
-        let mut persistent_writer = VectorWriter::new(vec.clone());
-        let mut persistent_reader = VectorReader::new(vec.clone());
-        sample_data(persistent_reader, persistent_writer);
-    }
+    use rand::*;
 
     //#[test]
-    //fn test_file_writer() {
-    //    let dir = tempdir().unwrap();
-    //    let file_path = dir.path().join("test_path");
-    //    let mut persistent_writer = FileWriter::new(&file_path).unwrap();
-    //    let mut persistent_reader = FileReader::new(&file_path).unwrap();
+    //fn test_vec_writer() {
+    //    let vec = Arc::new(Mutex::new(Vec::new()));
+    //    let mut persistent_writer = VectorWriter::new(vec.clone());
+    //    let mut persistent_reader = VectorReader::new(vec.clone());
     //    sample_data(persistent_reader, persistent_writer);
     //}
+
+    #[test]
+    fn test_file_writer() {
+        use crate::durable_queue::FileConfig;
+        let dir = tempdir().unwrap().into_path();
+        let file = String::from("test");
+        let queue_config = FileConfig { dir, file };
+        sample_data(queue_config.config());
+    }
+
+    #[test]
+    fn test_kafka_writer() {
+        use crate::durable_queue::KafkaConfig;
+        let bootstrap = String::from(KAFKA_BOOTSTRAP);
+        let topic = random_id();
+        let queue_config = KafkaConfig { bootstrap, topic };
+        sample_data(queue_config.config());
+    }
 
     //#[cfg(feature = "kafka-backend")]
     //#[test]
@@ -256,19 +278,31 @@ mod test {
     //    sample_data(persistent_reader, persistent_writer);
     //}
 
-    fn sample_data<R: ChunkReader, W: ChunkWriter + 'static>(
-        mut persistent_reader: R,
-        mut persistent_writer: W,
-    ) {
-        let data = &MULTIVARIATE_DATA[0].1;
+    fn sample_data(queue_config: QueueConfig) {
+        // Setup writer
+        //let active_block = Arc::new(WpLock::new(ActiveBlock::new(6000)));
+        let writer_config = WriterConfig {
+            queue_config: queue_config.clone(),
+            active_block_flush_sz: 6000,
+        };
+        let dict = Arc::new(DashMap::new());
+        let (mut write_thread, write_meta) = Writer::new(dict.clone(), writer_config);
+
+        // Setup series
+        let mut data = (*MULTIVARIATE_DATA[0].1).clone();
+        let mut rng = thread_rng();
+        for item in data.iter_mut() {
+            for val in item.values.iter_mut() {
+                *val = rng.gen::<f64>() * 100.0f64;
+            }
+        }
         let nvars = data[0].values.len();
         let mut compression = Vec::new();
         for _ in 0..nvars {
-            compression.push(CompressFn::XOR);
+            compression.push(CompressFn::Decimal(3));
         }
         let compression = Compression::from(compression);
-        let buffer = ListBuffer::new(6000);
-        let id = SeriesId(thread_rng().gen());
+        //let _id = SeriesId(thread_rng().gen());
         let mut tags = HashMap::new();
         tags.insert(String::from("attrib"), String::from("a"));
 
@@ -279,26 +313,28 @@ mod test {
             nvars,
             types: vec![Types::F64; nvars],
         };
-
-        let series_meta = Series::new(series_conf, buffer.clone());
+        let list = List::new(write_meta.active_block.clone());
+        let series_meta = Series::new(series_conf, queue_config.clone(), list);
         let serid = SeriesId(0);
-        let dict = Arc::new(DashMap::new());
+
+        // Register series
         dict.insert(serid, series_meta.clone());
-        let writer_id = WriterId::random();
-        let mut write_thread = Writer::new(writer_id, dict.clone(), persistent_writer);
         let series_ref = write_thread.get_reference(serid);
 
-        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
-            let mut values = vec![[0u8; 8]; nvars];
-            for (i, v) in items.iter().enumerate() {
-                values[i] = v.to_be_bytes();
+        let to_values = |items: &[f64]| -> Vec<Type> {
+            let mut values = Vec::with_capacity(nvars);
+            for v in items.iter() {
+                values.push(Type::F64(*v));
             }
             values
         };
 
-        // Enough for three flushes to list
-        for item in &data[..782] {
+        let mut expected_timestamps = Vec::new();
+        let mut expected_field0 = Vec::new();
+        for item in data.iter() {
             let v = to_values(&item.values[..]);
+            expected_timestamps.push(item.ts);
+            expected_field0.push(item.values[0]);
             loop {
                 match write_thread.push(series_ref, item.ts, &v[..]) {
                     Ok(_) => break,
@@ -306,86 +342,35 @@ mod test {
                 }
             }
         }
+        expected_timestamps.reverse();
+        expected_field0.reverse();
 
-        let mut exp_ts: Vec<u64> = Vec::new();
-        let mut exp_values: Vec<Vec<[u8; 8]>> = Vec::new();
-        for _ in 0..nvars {
-            exp_values.push(Vec::new());
-        }
+        let snapshot = dict.get(&serid).unwrap().snapshot().unwrap();
+        let durable_queue = queue_config.make().unwrap();
+        let durable_queue_reader = durable_queue.reader().unwrap();
+        let mut reader = snapshot.reader(durable_queue_reader).unwrap();
 
-        let ss = series_meta.segment().snapshot().unwrap();
-        for item in &data[768..782] {
-            let v = to_values(&item.values[..]);
-            exp_ts.push(item.ts);
-            v.iter()
-                .zip(exp_values.iter_mut())
-                .for_each(|(v, e)| e.push(*v));
+        //let count = 0;
+        //let buf = reader.next_item().unwrap().unwrap();
+        let mut timestamps: Vec<u64> = Vec::new();
+        let mut field0: Vec<f64> = Vec::new();
+        //let r = reader.next_item();
+        loop {
+            match reader.next_item() {
+                Ok(Some(item)) => {
+                    item.get_timestamps().for_each(|x| timestamps.push(*x));
+                    item.get_field(0).1.for_each(|x| field0.push(f64::from_be_bytes(*x)));
+                }
+                Ok(None) => println!("OK NONE PROBLEM"),
+                Err(x) => {
+                    println!("{:?}", x);
+                    break;
+                }
+            }
         }
-        assert_eq!(ss[0].timestamps(), exp_ts.as_slice());
-        exp_values
-            .iter()
-            .enumerate()
-            .for_each(|(i, v)| assert_eq!(ss[0].variable(i), (Types::F64, v.as_slice())));
-        exp_ts.clear();
-        exp_values.iter_mut().for_each(|e| e.clear());
-
-        let snapshot = series_meta.list().read().unwrap();
-        let mut reader = ListSnapshotReader::new(snapshot);
-        let res: &DecompressBuffer = reader
-            .next_segment(&mut persistent_reader)
-            .unwrap()
-            .unwrap();
-        for item in &data[512..768] {
-            let v = to_values(&item.values[..]);
-            exp_ts.push(item.ts);
-            v.iter()
-                .zip(exp_values.iter_mut())
-                .for_each(|(v, e)| e.push(*v));
+        assert_eq!(expected_timestamps, timestamps);
+        for (e, r) in expected_field0.iter().zip(field0.iter()) {
+            assert!((*e - *r).abs() < 0.001);
         }
-        assert_eq!(res.timestamps(), exp_ts.as_slice());
-        exp_values
-            .iter()
-            .enumerate()
-            .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
-        exp_ts.clear();
-        exp_values.iter_mut().for_each(|e| e.clear());
-
-        let res: &DecompressBuffer = reader
-            .next_segment(&mut persistent_reader)
-            .unwrap()
-            .unwrap();
-        for item in &data[256..512] {
-            let v = to_values(&item.values[..]);
-            exp_ts.push(item.ts);
-            v.iter()
-                .zip(exp_values.iter_mut())
-                .for_each(|(v, e)| e.push(*v));
-        }
-        assert_eq!(res.timestamps(), exp_ts.as_slice());
-        exp_values
-            .iter()
-            .enumerate()
-            .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
-        exp_ts.clear();
-        exp_values.iter_mut().for_each(|e| e.clear());
-
-        let res: &DecompressBuffer = reader
-            .next_segment(&mut persistent_reader)
-            .unwrap()
-            .unwrap();
-        for item in &data[0..256] {
-            let v = to_values(&item.values[..]);
-            exp_ts.push(item.ts);
-            v.iter()
-                .zip(exp_values.iter_mut())
-                .for_each(|(v, e)| e.push(*v));
-        }
-        assert_eq!(res.timestamps(), exp_ts.as_slice());
-        exp_values
-            .iter()
-            .enumerate()
-            .for_each(|(i, v)| assert_eq!(res.variable(i), (Types::F64, v.as_slice())));
-        exp_ts.clear();
-        exp_values.iter_mut().for_each(|e| e.clear());
     }
 }

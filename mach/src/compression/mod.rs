@@ -1,4 +1,4 @@
-mod bytes_lz4;
+//mod bytes_lz4;
 mod bytes_lz42;
 mod decimal;
 //mod fixed;
@@ -9,7 +9,6 @@ mod xor;
 use crate::segment::*;
 use crate::series::Types;
 use crate::utils::byte_buffer::ByteBuffer;
-use lzzzz::lz4;
 use std::convert::TryInto;
 use std::sync::Arc;
 
@@ -23,6 +22,13 @@ pub enum Error {
 }
 
 const MAGIC: &[u8; 12] = b"202107280428";
+//pub struct ReadBuffer {
+//    len: usize,
+//    ts: Vec<u64>,
+//    data: Vec<Vec<[u8; 8]>>,
+//    heap: Vec<Option<Vec<u8>>>,
+//    heap_flags: Vec<Types>,
+//}
 
 pub struct DecompressBuffer {
     header: Header,
@@ -43,6 +49,7 @@ impl DecompressBuffer {
     }
 
     pub fn set_nvars(&mut self, nvars: usize) {
+        #[allow(clippy::comparison_chain)]
         if self.nvars < nvars {
             for _ in 0..nvars - self.nvars {
                 self.values.push(Vec::new());
@@ -98,7 +105,6 @@ impl CompressFn {
     pub fn compress(&self, segment: &[[u8; 8]], buf: &mut ByteBuffer) {
         match self {
             CompressFn::Decimal(precision) => decimal::compress(segment, buf, *precision),
-            //CompressFn::BytesLZ4 => bytes_lz4::compress(segment, buf),
             CompressFn::XOR => xor::compress(segment, buf),
             _ => unimplemented!(),
         };
@@ -146,7 +152,7 @@ impl Header {
         Self {
             types: Vec::new(),
             codes: Vec::new(),
-            len: 0
+            len: 0,
         }
     }
 }
@@ -157,7 +163,7 @@ pub struct Compression(Arc<Vec<CompressFn>>);
 impl std::ops::Deref for Compression {
     type Target = [CompressFn];
     fn deref(&self) -> &Self::Target {
-        &self.0.as_slice()
+        self.0.as_slice()
     }
 }
 
@@ -230,7 +236,7 @@ impl Compression {
 
     fn get_header(data: &[u8]) -> Result<(Header, usize), Error> {
         let mut off = 0;
-        if &data[off..MAGIC.len()] != &MAGIC[..] {
+        if data[off..MAGIC.len()] != MAGIC[..] {
             return Err(Error::UnrecognizedMagic);
         }
         off += MAGIC.len();
@@ -242,7 +248,7 @@ impl Compression {
         off += 8;
 
         let mut types = Vec::new();
-        for i in 0..nvars {
+        for _ in 0..nvars {
             types.push(Types::from_u8(data[off]));
             off += 1;
         }
@@ -298,8 +304,9 @@ impl Compression {
 mod test {
     use super::*;
     use crate::segment::Buffer;
-    use crate::test_utils::*;
     use crate::series::Types;
+    use crate::sample::Type;
+    use crate::test_utils::*;
 
     #[test]
     fn test_decimal() {
@@ -309,14 +316,16 @@ mod test {
         let heaps = vec![Types::F64; nvars];
         let mut buf = Buffer::new(heaps.as_slice());
 
-        let mut item = vec![[0u8; 8]; nvars];
+        let _item = vec![[0u8; 8]; nvars];
         let mut timestamps = [0; 256];
         for (idx, sample) in data[0..256].iter().enumerate() {
-            for (i, val) in sample.values.iter().enumerate() {
-                item[i] = val.to_be_bytes();
+            let mut item = Vec::new();
+            for (_i, val) in sample.values.iter().enumerate() {
+                item.push(Type::F64(*val));
+                //item[i] = val.to_be_bytes();
             }
             timestamps[idx] = sample.ts;
-            buf.push_item(sample.ts, item.as_slice()).unwrap();
+            buf.push_type(sample.ts, item.as_slice()).unwrap();
         }
         let segment = buf.to_flush().unwrap();
 
@@ -361,12 +370,12 @@ mod test {
         let heaps = vec![Types::Bytes; 1];
         let mut buf = Buffer::new(heaps.as_slice());
 
-        let mut item = vec![[0u8; 8]; 1];
+        //let item = vec![[0u8; 8]; 1];
         let mut timestamps = [0; 256];
         for (idx, sample) in data[0..256].iter().enumerate() {
             timestamps[idx] = idx as u64;
-            let ptr = Bytes::from_slice(sample.as_bytes()).into_raw();
-            buf.push_item(idx as u64, &[(ptr as u64).to_be_bytes()])
+            let v = Type::Bytes(Bytes::from_slice(sample.as_bytes()));
+            buf.push_type(idx as u64, &[v])
                 .unwrap();
         }
         let segment = buf.to_flush().unwrap();

@@ -14,30 +14,46 @@ use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
 mod writer;
+#[allow(unused_imports)]
+use mach::durable_queue::{FileConfig, KafkaConfig};
 use mach::{
     compression::{CompressFn, Compression},
     id::SeriesId,
-    persistent_list::VectorBackend,
     reader::ReadResponse,
     series::{SeriesConfig, Types},
     tags::Tags,
-    tsdb::{Config, Mach},
+    tsdb::Mach,
+    utils::random_id,
+    writer::WriterConfig,
 };
 use std::{collections::HashMap, sync::Arc};
 
 pub struct MachTSDB {
-    tsdb: Arc<Mutex<Mach<VectorBackend>>>,
+    tsdb: Arc<Mutex<Mach>>,
     writers: HashMap<String, String>,
 }
 
 impl MachTSDB {
     fn new() -> Self {
-        let conf = Config::default();
-        let mut mach = Mach::new(conf);
-
+        let mut mach = Mach::new();
         let mut writers = HashMap::new();
         for i in 0..1 {
-            let writer = mach.new_writer().unwrap();
+            //let queue_config = FileConfig {
+            //    dir: CONF.out_path.clone(),
+            //    file: random_id(),
+            //}.config();
+            let queue_config = KafkaConfig {
+                bootstrap: String::from("localhost:9093,localhost:9094,localhost:9095"),
+                topic: random_id(),
+            }
+            .config();
+
+            let writer_config = WriterConfig {
+                queue_config,
+                active_block_flush_sz: 1_000_000,
+            };
+
+            let writer = mach.add_writer(writer_config).unwrap();
             let id = writer.id().0;
             let addr = format!("127.0.0.1:500{}", 51 + i);
             writer::serve_writer(writer, &addr);
@@ -55,7 +71,7 @@ impl TsdbService for MachTSDB {
     async fn echo(&self, msg: Request<EchoRequest>) -> Result<Response<EchoResponse>, Status> {
         //println!("Got a request: {:?}", msg);
         let reply = EchoResponse {
-            msg: format!("Echo: {}", msg.into_inner().msg).into(),
+            msg: format!("Echo: {}", msg.into_inner().msg),
         };
         Ok(Response::new(reply))
     }
@@ -68,9 +84,7 @@ impl TsdbService for MachTSDB {
             .iter()
             .map(|(k, _)| (*k, true))
             .collect();
-        let reply = MapResponse {
-            samples: response.into(),
-        };
+        let reply = MapResponse { samples: response };
         Ok(Response::new(reply))
     }
 
@@ -78,7 +92,7 @@ impl TsdbService for MachTSDB {
         &self,
         msg: Request<AddSeriesRequest>,
     ) -> Result<Response<AddSeriesResponse>, Status> {
-        let mut req = msg.into_inner();
+        let req = msg.into_inner();
         let types: Vec<Types> = req
             .types
             .iter()
@@ -143,7 +157,7 @@ impl TsdbService for MachTSDB {
         request: Request<tonic::Streaming<EchoRequest>>,
     ) -> Result<Response<Self::EchoStreamStream>, Status> {
         let mut in_stream = request.into_inner();
-        let (mut tx, rx) = mpsc::channel(4);
+        let (tx, rx) = mpsc::channel(4);
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
                 match result {
@@ -169,19 +183,18 @@ impl TsdbService for MachTSDB {
         &self,
         request: Request<tonic::Streaming<MapRequest>>,
     ) -> Result<Response<Self::MapStreamStream>, Status> {
+        println!("Setting up stream");
         let mut in_stream = request.into_inner();
-        let (mut tx, rx) = mpsc::channel(4);
+        let (tx, rx) = mpsc::channel(4);
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
                 match result {
                     Ok(v) => {
                         let response: HashMap<u64, bool> =
                             v.samples.iter().map(|(k, _)| (*k, true)).collect();
-                        tx.send(Ok(MapResponse {
-                            samples: response.into(),
-                        }))
-                        .await
-                        .expect("working rx")
+                        tx.send(Ok(MapResponse { samples: response }))
+                            .await
+                            .expect("working rx")
                     }
                     Err(err) => {
                         eprintln!("Error {:?}", err);

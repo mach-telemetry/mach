@@ -7,13 +7,13 @@ pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) {
     // https://github.com/jeromefroe/tsz-rs
 
     let mut buf: BitWriter<&mut ByteBuffer, BigEndian> = BitWriter::new(buf);
-    let mut written = 0;
+    let mut written = 64;
 
     // Store the length
-    buf.write(64, data.len() as u64).unwrap();
-    written += 64;
+    buf.write(written, data.len() as u64).unwrap();
 
     // Store the first value
+    #[allow(clippy::transmute_float_to_int)]
     let mut bits = unsafe { transmute::<f64, u64>(f64::from_be_bytes(data[0])) };
     buf.write(64, bits).unwrap();
     written += 64;
@@ -23,6 +23,7 @@ pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) {
     let mut trailing: u32 = 64;
 
     for v in data[1..].iter() {
+        #[allow(clippy::transmute_float_to_int)]
         let cur_bits = unsafe { transmute::<f64, u64>(f64::from_be_bytes(*v)) };
         let xor = cur_bits ^ bits;
 
@@ -89,14 +90,14 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
 
     let mut data: BitReader<&[u8], BigEndian> = BitReader::new(data);
     //let mut idx = 0;
-    let mut read = 0;
+    let mut read = 64;
 
     // Read the length
-    let len = data.read::<u64>(64).unwrap() as usize;
-    read += 64;
+    let len = data.read::<u64>(read).unwrap() as usize;
 
     // Read first value
     let mut bits = data.read::<u64>(64).unwrap();
+    #[allow(clippy::transmute_int_to_float)]
     buf.push(unsafe { transmute::<u64, f64>(bits).to_be_bytes() });
     //idx += 1;
     read += 64;
@@ -140,6 +141,7 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
             //               [ 18  ]   [  43 ]
             // 6 << 43 = actual value
             bits ^= cur_bits << trailing;
+            #[allow(clippy::transmute_int_to_float)]
             buf.push(unsafe { transmute::<u64, f64>(bits) }.to_be_bytes());
         }
     }
@@ -161,7 +163,7 @@ mod test {
                 let hi = raw.len().min(lo + 256);
                 let exp: Vec<[u8; 8]> = raw[lo..hi].iter().map(|x| x.to_be_bytes()).collect();
                 let mut res = Vec::new();
-                let bytes = compress(exp.as_slice(), &mut byte_buf);
+                let _bytes = compress(exp.as_slice(), &mut byte_buf);
                 let sz = byte_buf.len();
                 decompress(&buf[..sz], &mut res);
                 assert_eq!(res, exp);

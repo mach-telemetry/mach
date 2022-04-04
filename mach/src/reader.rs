@@ -1,19 +1,12 @@
 use crate::{
-    constants::*, id::SeriesId, persistent_list::ListSnapshot, runtime::RUNTIME, sample::Type,
-    segment::SegmentSnapshot, series::Series,
+    constants::*,
+    durable_queue::{KafkaConfig, QueueConfig},
+    id::SeriesId,
+    runtime::*,
+    series::Series,
+    utils::*,
 };
-use bincode::{deserialize_from, serialize_into};
 use dashmap::DashMap;
-use rdkafka::{
-    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
-    client::DefaultClientContext,
-    config::ClientConfig,
-    producer::{FutureProducer, FutureRecord},
-    topic_partition_list::{Offset, TopicPartitionList},
-    types::RDKafkaErrorCode,
-    util::Timeout,
-    Message,
-};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::From;
@@ -24,32 +17,11 @@ use tokio::{
     time,
 };
 
-#[derive(Serialize, Deserialize)]
-pub struct Snapshot {
-    segments: SegmentSnapshot,
-    list: ListSnapshot,
-}
-
-impl Snapshot {
-    pub fn new(segments: SegmentSnapshot, list: ListSnapshot) -> Self {
-        Snapshot { segments, list }
-    }
-
-    pub fn to_bytes(self) -> Vec<u8> {
-        let mut v = Vec::new();
-        serialize_into(&mut v, &self).unwrap();
-        v
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        deserialize_from(bytes).unwrap()
-    }
-}
-
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReadResponse {
-    pub partition: i32,
-    pub offset: i64,
+    response_queue: QueueConfig,
+    data_queue: QueueConfig,
+    offset: u64,
 }
 
 pub enum SnapshotterRequest {
@@ -64,22 +36,23 @@ async fn snapshot_worker(
     snapshotters: Arc<RwLock<HashMap<SeriesId, Snapshotter>>>,
     mut receiver: mpsc::UnboundedReceiver<SnapshotterRequest>,
 ) {
-    let topic = format!("read_ahead_log_{}", series_id.0);
-    //create_topic(KAFKA_BOOTSTRAP, topic.as_str()).await;
-    let producer: FutureProducer = ClientConfig::new()
-        .set("bootstrap.servers", KAFKA_BOOTSTRAP)
-        .set("message.max.bytes", "2000000")
-        .set("linger.ms", "0")
-        .set("message.copy.max.bytes", "5000000")
-        .set("batch.num.messages", "1")
-        .set("compression.type", "none")
-        .set("acks", "all")
-        .create()
-        .unwrap();
+    let response_config = KafkaConfig {
+        bootstrap: String::from(KAFKA_BOOTSTRAP),
+        topic: random_id(),
+    };
+
+    let queue_config = response_config.config();
+    let queue = queue_config.clone().make().unwrap();
+    let mut queue_writer = queue.writer().unwrap();
+
+    let mut response = ReadResponse {
+        response_queue: queue_config,
+        data_queue: series.queue().clone(),
+        offset: 0,
+    };
+
     let mut snapshot: Arc<[u8]> = series.snapshot().unwrap().to_bytes().into();
     let mut durable = false;
-    let mut partition = 0;
-    let mut offset = 0;
     let mut last_snapshot = Instant::now();
     loop {
         match time::timeout(Duration::from_secs(30), receiver.recv()).await {
@@ -89,26 +62,20 @@ async fn snapshot_worker(
                 if last_snapshot.elapsed() >= duration {
                     snapshot = series.snapshot().unwrap().to_bytes().into();
                     durable = false;
+                    last_snapshot = Instant::now();
                 }
 
                 // If the snapshot is not durable, send to kafka topic for durability
                 if !durable {
-                    let to_send: FutureRecord<str, [u8]> =
-                        FutureRecord::to(&topic).payload(&snapshot[..]);
-                    let r = producer
-                        .send(to_send, Duration::from_secs(0))
-                        .await
-                        .unwrap();
-                    partition = r.0;
-                    offset = r.1;
+                    response.offset = queue_writer.write(&snapshot[..]).await.unwrap();
                     durable = true;
                 }
 
-                sender.send(ReadResponse { partition, offset }).unwrap();
+                sender.send(response.clone()).unwrap();
             }
 
             // Got a close signal from the timeout match below in a prior loop
-            Ok(Some(Close)) => break,
+            Ok(Some(SnapshotterRequest::Close)) => break,
 
             // This should be unreachable, panic if we get a None, but this is only when the
             // snapshotter was removed from the snapshotters map
@@ -125,25 +92,6 @@ async fn snapshot_worker(
     }
 }
 
-//async fn create_topic(bootstrap: &str, topic: &str) {
-//    let admin: AdminClient<DefaultClientContext> = ClientConfig::new()
-//        .set("bootstrap.servers", bootstrap)
-//        .create().unwrap();
-//    let topic = [NewTopic {
-//        name: topic,
-//        num_partitions: 1,
-//        replication: TopicReplication::Fixed(3),
-//        config: Vec::new(),
-//    }];
-//    let opts = AdminOptions::new();
-//    let result = admin.create_topics(&topic, &opts).await.unwrap();
-//    match result[0].as_ref() {
-//        Ok(_) => {},
-//        Err((_, RDKafkaErrorCode::TopicAlreadyExists)) => {}, // Ok if topic already exists
-//        Err(_) => panic!("Can't create topic"),
-//    };
-//}
-
 pub struct Snapshotter {
     worker: mpsc::UnboundedSender<SnapshotterRequest>,
 }
@@ -151,13 +99,13 @@ pub struct Snapshotter {
 impl Snapshotter {
     async fn request(&self) -> ReadResponse {
         let (tx, rx) = sync::oneshot::channel();
-        if let Err(_) = self.worker.send(SnapshotterRequest::Read(tx)) {
+        if self.worker.send(SnapshotterRequest::Read(tx)).is_err() {
             panic!("Requesting to non-existent snapshot worker");
         }
         rx.await.unwrap()
     }
     async fn close(&self) {
-        if let Err(_) = self.worker.send(SnapshotterRequest::Close) {
+        if self.worker.send(SnapshotterRequest::Close).is_err() {
             panic!("Requesting to non-existent snapshot worker");
         }
     }
@@ -222,67 +170,67 @@ impl ReadServer {
 
 #[cfg(test)]
 mod test {
-    use crate::compression::*;
-    use crate::constants::*;
-    use crate::persistent_list::*;
-    use crate::series::*;
-    use crate::tags::*;
-    use crate::test_utils::*;
-    use crate::tsdb::{Config, Mach};
-    use rand::prelude::*;
-    use std::{
-        collections::HashMap,
-        env,
-        sync::{Arc, Mutex},
-    };
-    use tempfile::tempdir;
+    //use crate::compression::*;
+    //use crate::constants::*;
+    //use crate::persistent_list::*;
+    //use crate::series::*;
+    //use crate::tags::*;
+    //use crate::test_utils::*;
+    //use crate::tsdb::{Mach, Config};
+    //use rand::prelude::*;
+    //use std::{
+    //    collections::HashMap,
+    //    env,
+    //    sync::{Arc, Mutex},
+    //};
+    //use tempfile::tempdir;
 
-    #[test]
-    fn read_test() {
-        let data = &MULTIVARIATE_DATA[0].1;
-        let nvars = data[0].values.len();
-        let mut compression = Vec::new();
-        for _ in 0..nvars {
-            compression.push(CompressFn::XOR);
-        }
-        let compression = Compression::from(compression);
-        let buffer = ListBuffer::new(BUFSZ);
-        let tags = {
-            let mut map = HashMap::new();
-            map.insert(String::from("foo"), String::from("bar"));
-            Tags::from(map)
-        };
-        let series_conf = SeriesConfig {
-            tags: Tags::from(tags),
-            compression,
-            seg_count: 1,
-            nvars,
-            types: vec![Types::F64; nvars],
-        };
-        let series_id = series_conf.tags.id();
+    //#[test]
+    //fn read_test() {
+    //    let data = &MULTIVARIATE_DATA[0].1;
+    //    let nvars = data[0].values.len();
+    //    let mut compression = Vec::new();
+    //    for _ in 0..nvars {
+    //        compression.push(CompressFn::XOR);
+    //    }
+    //    let compression = Compression::from(compression);
+    //    let buffer = ListBuffer::new(BUFSZ);
+    //    let tags = {
+    //        let mut map = HashMap::new();
+    //        map.insert(String::from("foo"), String::from("bar"));
+    //        Tags::from(map)
+    //    };
+    //    let series_conf = SeriesConfig {
+    //        tags: Tags::from(tags),
+    //        compression,
+    //        seg_count: 1,
+    //        nvars,
+    //        types: vec![Types::F64; nvars],
+    //    };
+    //    let series_id = series_conf.tags.id();
 
-        // Setup Mach and writers
-        let mut mach = Mach::<VectorBackend>::new(Config::default());
-        let mut writer = mach.new_writer().unwrap();
-        let _writer_id = mach.add_series(series_conf).unwrap();
-        let ref_id = writer.get_reference(series_id);
+    //    // Setup Mach and writers
+    //    let mut mach = Mach::<VectorBackend>::new(Config::default());
+    //    let mut writer = mach.new_writer().unwrap();
+    //    let _writer_id = mach.add_series(series_conf).unwrap();
+    //    let ref_id = writer.get_reference(series_id);
 
-        let mut values = vec![[0u8; 8]; nvars];
-        for sample in data.iter() {
-            'inner: loop {
-                for (i, v) in sample.values.iter().enumerate() {
-                    values[i] = v.to_be_bytes();
-                }
-                let res = writer.push(ref_id, sample.ts, &values);
-                match res {
-                    Ok(_) => {
-                        break 'inner;
-                    }
-                    Err(_) => {}
-                }
-            }
-        }
+    //    let mut values = vec![[0u8; 8]; nvars];
+    //    for sample in data.iter() {
+    //        'inner: loop {
+    //            for (i, v) in sample.values.iter().enumerate() {
+    //                values[i] = v.to_be_bytes();
+    //            }
+    //            let res = writer.push(ref_id, sample.ts, &values);
+    //            match res {
+    //                Ok(_) => {
+    //                    break 'inner;
+    //                }
+    //                Err(_) => {}
+    //            }
+    //        }
+    //    }
 
-        //let reader = mach.read(series_id).unwrap();
-    }
+    //    //let reader = mach.read(series_id).unwrap();
+    //}
 }

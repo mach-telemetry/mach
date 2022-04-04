@@ -1,5 +1,6 @@
 mod buffer;
 //mod full_segment;
+#[allow(clippy::module_inception)]
 mod segment;
 //mod wrapper;
 
@@ -19,7 +20,6 @@ use crate::sample::Type;
 use crate::series::Types;
 pub use buffer::*;
 pub use serde::*;
-use std::ops::Deref;
 use std::sync::{
     atomic::{AtomicBool, Ordering::SeqCst},
     Arc,
@@ -38,17 +38,19 @@ pub enum PushStatus {
 
 impl PushStatus {
     pub fn is_done(&self) -> bool {
-        match self {
-            PushStatus::Done => true,
-            _ => false,
-        }
+        //match self {
+        //    PushStatus::Done => true,
+        //    _ => false,
+        //}
+        matches!(self, PushStatus::Done)
     }
 
     pub fn is_flush(&self) -> bool {
-        match self {
-            PushStatus::Flush(_) => true,
-            _ => false,
-        }
+        matches!(self, PushStatus::Flush(_))
+        //match self {
+        //    PushStatus::Flush(_) => true,
+        //    _ => false,
+        //}
     }
 }
 
@@ -69,26 +71,49 @@ impl Drop for WriteSegment {
     }
 }
 
+#[derive(Clone)]
 pub struct FlushSegment {
     inner: *mut segment::Segment,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ReadSegment {
-    inner: Vec<buffer::ReadBuffer>,
+pub struct SegmentSnapshot {
+    inner: Vec<buffer::BufferSnapshot>,
 }
 
-pub type SegmentSnapshot = ReadSegment;
+impl SegmentSnapshot {
+    pub fn reader(&self) -> SegmentSnapshotReader {
+        SegmentSnapshotReader::new(self)
+    }
+}
 
-impl Deref for ReadSegment {
-    type Target = [buffer::ReadBuffer];
-    fn deref(&self) -> &Self::Target {
-        self.inner.as_slice()
+pub struct SegmentSnapshotReader {
+    inner: Vec<buffer::BufferSnapshot>,
+    idx: usize,
+}
+
+impl SegmentSnapshotReader {
+    pub fn new(snapshot: &SegmentSnapshot) -> Self {
+        Self {
+            inner: snapshot.inner.clone(),
+            idx: 0,
+        }
+    }
+
+    pub fn next_item(&mut self) -> Option<&buffer::BufferSnapshot> {
+        //println!("segment len: {}", self.inner.len());
+        if self.idx < self.inner.len() {
+            let idx = self.idx;
+            self.idx += 1;
+            Some(&self.inner[idx])
+        } else {
+            None
+        }
     }
 }
 
 //pub struct ReadSegmentIterator<'a> {
-//    inner: &'a mut [buffer::ReadBuffer],
+//    inner: &'a mut [buffer::BufferSnapshot],
 //    iterator: ReadSegmentIterator<'a>,
 //    idx: usize
 //}
@@ -122,11 +147,13 @@ unsafe impl Send for Segment {}
 unsafe impl Sync for Segment {}
 
 unsafe impl Send for FlushSegment {}
+unsafe impl Sync for FlushSegment {}
+
 unsafe impl Send for WriteSegment {}
 unsafe impl Sync for WriteSegment {}
 
 impl Segment {
-    pub fn new(b: usize, v: usize, heap: &[Types]) -> Self {
+    pub fn new(b: usize, heap: &[Types]) -> Self {
         Self {
             has_writer: Arc::new(AtomicBool::new(false)),
             inner: Box::into_raw(Box::new(segment::Segment::new(b, heap))),
@@ -155,24 +182,20 @@ impl Segment {
     //    }
     //}
 
-    pub fn snapshot(&self) -> Result<ReadSegment, Error> {
+    pub fn snapshot(&self) -> Result<SegmentSnapshot, Error> {
         // Safety: Safe because a reader and a flusher do not race (see to_flush), and a reader and
         // writer can race but the reader checks the version number before returning
         let inner: &segment::Segment = unsafe { self.inner.as_ref().unwrap() };
         let inner_information = inner.read()?;
-        unsafe {
-            Ok(ReadSegment {
-                inner: inner_information,
-            })
-        }
+        //unsafe {
+        Ok(SegmentSnapshot {
+            inner: inner_information,
+        })
+        //}
     }
 }
 
 impl WriteSegment {
-    pub fn push(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<PushStatus, Error> {
-        self.push_item(ts, val)
-    }
-
     pub fn push_item(&mut self, ts: u64, val: &[[u8; 8]]) -> Result<PushStatus, Error> {
         // Safety: Safe because there is only one writer, one flusher, and many concurrent readers.
         // Readers don't race with the writer because of the atomic counter. Writer and flusher do
@@ -210,7 +233,8 @@ impl WriteSegment {
 
 impl FlushSegment {
     pub fn to_flush(&self) -> Option<FlushBuffer> {
-        // Safety: Safe because there is only one flusher, one writer, and many concurrent readers.
+        // # Safety
+        // Safe because there is only one flusher, one writer, and many concurrent readers.
         // Readers don't race with the flusher because the flusher does not modify the segments.
         // Writer and flusher do not race because the writer is bounded by the flush_counter,
         // incremented by this struct using the flushed method
@@ -220,11 +244,12 @@ impl FlushSegment {
         }
     }
 
-    pub fn flushed(&self) {
-        unsafe {
-            let inner = self.inner.as_ref().unwrap();
-            inner.flushed()
-        }
+    /// # Safety
+    /// Unsafe because flush could be called concurrently. Make sure it is only be called
+    /// from a single instance
+    pub unsafe fn flushed(&self) {
+        let inner = self.inner.as_ref().unwrap();
+        inner.flushed()
     }
 }
 
@@ -238,11 +263,11 @@ mod test {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
         let heap_pointers = vec![Types::F64; nvars];
-        let segment = Segment::new(3, nvars, heap_pointers.as_slice());
+        let segment = Segment::new(3, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
         //let mut flusher = segment.flusher().unwrap();
 
-        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+        let to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];
             for (i, v) in items.iter().enumerate() {
                 values[i] = v.to_be_bytes();
@@ -252,75 +277,79 @@ mod test {
 
         for item in &data[..255] {
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_done());
         }
 
         {
             let item = &data[255];
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_flush());
         }
 
         for item in &data[256..511] {
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_done());
         }
 
         {
             let item = &data[511];
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_flush());
         }
 
         for item in &data[512..767] {
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_done());
         }
 
         {
             let item = &data[767];
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_flush());
         }
 
         println!("PUSH HERE");
         {
             let item = &data[768];
             let v = to_values(&item.values[..]);
-            let res = writer.push(item.ts, &v[..]);
+            let res = writer.push_item(item.ts, &v[..]);
             assert_eq!(res.err(), Some(Error::PushIntoFull));
         }
 
         println!("FLUSHING");
-        writer.flush().flushed();
+        unsafe {
+            writer.flush().flushed();
+        }
         println!("FLUSHED");
 
         for item in &data[768..1023] {
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_done());
         }
         println!("PUSH DOESNT REACH HERE");
 
         {
             let item = &data[1023];
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_flush());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_flush());
         }
 
         {
             let item = &data[1024];
             let v = to_values(&item.values[..]);
-            let res = writer.push(item.ts, &v[..]);
+            let res = writer.push_item(item.ts, &v[..]);
             assert_eq!(res.err(), Some(Error::PushIntoFull));
         }
 
         //flusher.flushed();
-        writer.flush().flushed();
+        unsafe {
+            writer.flush().flushed();
+        }
 
         {
             let item = &data[1024];
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).unwrap().is_done());
+            assert!(writer.push_item(item.ts, &v[..]).unwrap().is_done());
         }
     }
 
@@ -329,10 +358,10 @@ mod test {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
         let heap_pointers = vec![Types::F64; nvars];
-        let segment = Segment::new(3, nvars, heap_pointers.as_slice());
+        let segment = Segment::new(3, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
 
-        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+        let to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];
             for (i, v) in items.iter().enumerate() {
                 values[i] = v.to_be_bytes();
@@ -349,7 +378,7 @@ mod test {
         // 767 = 256 * 3 buffers - 1;
         for (id, item) in data[..767].iter().enumerate() {
             let v = to_values(&item.values[..]);
-            let res = writer.push(item.ts, &v[..]);
+            let res = writer.push_item(item.ts, &v[..]);
             match res {
                 Ok(_) => {}
                 Err(x) => {
@@ -370,7 +399,9 @@ mod test {
         for i in 0..nvars {
             assert_eq!(seg.variable(i), &exp_values[i][..256]);
         }
-        flusher.flushed();
+        unsafe {
+            flusher.flushed();
+        }
 
         let flusher = writer.flush();
         let seg = flusher.to_flush().unwrap();
@@ -379,7 +410,9 @@ mod test {
         for i in 0..nvars {
             assert_eq!(seg.variable(i), &exp_values[i][256..512]);
         }
-        flusher.flushed();
+        unsafe {
+            flusher.flushed();
+        }
 
         assert!(writer.flush().to_flush().is_some()) // the current buffer may be flushed
     }
@@ -389,11 +422,11 @@ mod test {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
         let heap_pointers = vec![Types::F64; nvars];
-        let segment = Segment::new(3, nvars, heap_pointers.as_slice());
+        let segment = Segment::new(3, heap_pointers.as_slice());
         let mut writer = segment.writer().unwrap();
         //let mut flusher = segment.flusher().unwrap();
 
-        let mut to_values = |items: &[f64]| -> Vec<[u8; 8]> {
+        let to_values = |items: &[f64]| -> Vec<[u8; 8]> {
             let mut values = vec![[0u8; 8]; nvars];
             for (i, v) in items.iter().enumerate() {
                 values[i] = v.to_be_bytes();
@@ -409,7 +442,7 @@ mod test {
 
         for item in &data[..636] {
             let v = to_values(&item.values[..]);
-            assert!(writer.push(item.ts, &v[..]).is_ok());
+            assert!(writer.push_item(item.ts, &v[..]).is_ok());
             exp_ts.push(item.ts);
             for (e, i) in exp_values.iter_mut().zip(v.iter()) {
                 e.push(*i)

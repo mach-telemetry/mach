@@ -1,14 +1,11 @@
-use crate::constants::*;
-use crate::id::SeriesId;
-use crate::utils::random_id;
 use std::{
     convert::AsRef,
-    convert::TryInto,
     fs::{create_dir_all, File, OpenOptions},
     io::{prelude::*, SeekFrom},
     path::{Path, PathBuf},
 };
 
+#[derive(Debug)]
 pub enum Error {
     IO(std::io::Error),
 }
@@ -81,9 +78,12 @@ pub struct FileBackend {
 }
 
 impl FileBackend {
-    pub fn new(dir: PathBuf, id: String) -> Result<Self, Error> {
+    pub fn new<P: AsRef<Path>>(dir: P, id: &str) -> Result<Self, Error> {
         create_dir_all(&dir)?;
-        Ok(FileBackend { dir, id })
+        Ok(FileBackend {
+            dir: PathBuf::from(dir.as_ref()),
+            id: String::from(id),
+        })
     }
 
     pub fn make_writer(&self) -> Result<FileWriter, Error> {

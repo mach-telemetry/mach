@@ -9,7 +9,7 @@
 #![feature(trait_alias)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
-#![allow(warnings)]
+//#![allow(warnings)]
 
 //mod backend;
 //mod chunk;
@@ -24,7 +24,7 @@
 pub mod compression;
 pub mod constants;
 pub mod id;
-pub mod persistent_list;
+//pub mod persistent_list;
 pub mod reader;
 pub mod runtime;
 pub mod sample;
@@ -33,15 +33,16 @@ pub mod series;
 pub mod tags;
 pub mod tsdb;
 pub mod utils;
-pub mod writer;
+//pub mod writer;
 //pub mod wal;
 pub mod durability;
-pub mod snapshot;
 
 // new shit
-pub mod durable_queue;
-pub mod persistent_list2;
 pub mod active_block;
+pub mod durable_queue;
+pub mod persistent_list;
+pub mod snapshot;
+pub mod writer;
 //pub mod segment2;
 
 #[cfg(test)]

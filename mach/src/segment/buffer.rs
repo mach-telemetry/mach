@@ -1,22 +1,14 @@
 use crate::constants::*;
 //use crate::segment::{full_segment::FullSegment, Error};
-use crate::reader;
-use crate::runtime::RUNTIME;
+//use crate::reader;
+//use crate::runtime::RUNTIME;
 use crate::sample::{Bytes, Type};
 use crate::segment::Error;
-use crate::utils::wp_lock::*;
 use crate::series::Types;
+use crate::utils::wp_lock::*;
 //use crate::reader::SampleIterator;
-use lazy_static::*;
 use serde::*;
-use std::cell::UnsafeCell;
-use std::convert::TryInto;
-use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering::SeqCst},
-    Arc,
-};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 const HEAP_SZ: usize = 1_000_000;
 const HEAP_TH: usize = 3 * (HEAP_SZ / 4);
@@ -276,7 +268,7 @@ impl<'a> FlushBuffer<'a> {
 
 pub type BufferSnapshot = ReadBuffer;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ReadBuffer {
     len: usize,
     ts: Vec<u64>,
@@ -351,6 +343,51 @@ impl ReadBuffer {
     //        heap_flags: self.heap_flags.clone(),
     //    }
     //}
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::series::Types;
+    use crate::test_utils::*;
+    use rand::*;
+
+    #[test]
+    fn test() {
+        // Setup series
+        let mut data = (*MULTIVARIATE_DATA[0].1).clone();
+        let mut rng = thread_rng();
+        for item in data.iter_mut() {
+            for val in item.values.iter_mut() {
+                *val = rng.gen::<f64>() * 100.0f64;
+            }
+        }
+        let nvars = data[0].values.len();
+        let types = vec![Types::F64; nvars];
+
+        let mut buf = Buffer::new(types.as_slice());
+
+        let mut exp_ts = Vec::new();
+        let mut exp_f0 = Vec::new();
+        for (idx, item) in data[..255].iter().enumerate() {
+            let mut vals = Vec::new();
+            item.values.iter().for_each(|x| vals.push(Type::F64(*x)));
+            exp_ts.push(item.ts);
+            exp_f0.push(item.values[0]);
+            if idx < 255 {
+                assert_eq!(buf.push_type(item.ts, vals.as_slice()), Ok(InnerPushStatus::Done));
+            } else {
+                assert_eq!(buf.push_type(item.ts, vals.as_slice()), Ok(InnerPushStatus::Flush));
+            }
+        }
+
+        let read = buf.read().unwrap();
+        assert_eq!(read.timestamps(), exp_ts.as_slice());
+        let (t, v) = read.variable(0);
+        let v: Vec<f64> = v.iter().map(|x| f64::from_be_bytes(*x)).collect();
+        assert_eq!(t, Types::F64);
+        assert_eq!(v.as_slice(), exp_f0.as_slice());
+    }
 }
 
 //impl From<ReadBuffer> for reader::Segment {

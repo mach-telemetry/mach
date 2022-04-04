@@ -62,5 +62,5 @@ fn zeta(n: u64, theta: f64) -> f64 {
         let denom: f64 = NumCast::from(i + 1).unwrap();
         sum += 1.0_f64 / denom.powf(theta);
     }
-    return sum;
+    sum
 }

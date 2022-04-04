@@ -1,14 +1,13 @@
 use crate::{
     compression::Compression,
-    id::SeriesId,
-    persistent_list::{self, List, ListBuffer},
-    reader::Snapshot,
-    segment::{
-        self, FlushSegment, FullSegment, ReadSegment, Segment, SegmentSnapshot, WriteSegment,
-    },
+    durable_queue::QueueConfig,
+    //persistent_list::{self, List, ListBuffer},
+    persistent_list::{self, List},
+    //reader::Snapshot,
+    segment::{self, Segment, SegmentSnapshot},
+    snapshot::Snapshot,
     tags::Tags,
 };
-use std::sync::Arc;
 use serde::*;
 
 #[derive(Debug)]
@@ -62,37 +61,20 @@ pub struct SeriesConfig {
 
 #[derive(Clone)]
 pub struct Series {
-    tags: Tags,
+    config: SeriesConfig,
+    queue: QueueConfig,
     segment: Segment,
     list: List,
-    compression: Compression,
-    types: Vec<Types>,
 }
 
 impl Series {
-    pub fn new(conf: SeriesConfig, buffer: ListBuffer) -> Self {
-        let SeriesConfig {
-            tags,
-            compression,
-            nvars,
-            seg_count,
-            types,
-        } = conf;
-        assert_eq!(nvars, compression.len());
-
-        //let mut heap_pointers: Vec<bool> = types
-        //    .iter()
-        //    .map(|x| match x {
-        //        Types::Bytes => true,
-        //        _ => false,
-        //    })
-        //    .collect();
+    pub fn new(config: SeriesConfig, queue: QueueConfig, list: List) -> Self {
+        assert_eq!(config.nvars, config.compression.len());
         Self {
-            segment: segment::Segment::new(seg_count, nvars, types.as_slice()),
-            tags,
-            compression,
-            list: List::new(buffer),
-            types,
+            segment: segment::Segment::new(config.seg_count, config.types.as_slice()),
+            config,
+            list,
+            queue,
         }
     }
 
@@ -102,12 +84,26 @@ impl Series {
 
     pub fn snapshot(&self) -> Result<Snapshot, Error> {
         let segment = self.segment.snapshot()?;
-        let list = self.list.read()?;
+        let list = self.list.snapshot()?;
         Ok(Snapshot::new(segment, list))
     }
 
+    //pub fn snapshot(&self) -> Result<Snapshot, Error> {
+    //    let segment = self.segment.snapshot()?;
+    //    let list = self.list.snapshot()?;
+    //    Ok(Snapshot::new(segment, list))
+    //}
+
+    pub fn config(&self) -> &SeriesConfig {
+        &self.config
+    }
+
+    pub fn queue(&self) -> &QueueConfig {
+        &self.queue
+    }
+
     pub fn compression(&self) -> &Compression {
-        &self.compression
+        &self.config.compression
     }
 
     pub fn segment(&self) -> &Segment {

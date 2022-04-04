@@ -16,17 +16,17 @@ pub fn from_zigzag(v: u64) -> i64 {
 }
 
 // p is the number of decimals to round to
-pub fn float_to_parts(v: f64, p: u8) -> (i64, u64) {
-    let integral = v.abs().trunc();
-    let part = ((v - integral) * 10f64.powi(p as i32 + 1)).trunc();
-    (integral as i64, part as u64)
-}
-
-pub fn float_from_parts(i: i64, d: u64, p: u8) -> f64 {
-    let i = i as f64;
-    let d = d as f64;
-    i + (d / 10f64.powi(p as i32 + 1))
-}
+//pub fn float_to_parts(v: f64, p: u8) -> (i64, u64) {
+//    let integral = v.abs().trunc();
+//    let part = ((v - integral) * 10f64.powi(p as i32 + 1)).trunc();
+//    (integral as i64, part as u64)
+//}
+//
+//pub fn float_from_parts(i: i64, d: u64, p: u8) -> f64 {
+//    let i = i as f64;
+//    let d = d as f64;
+//    i + (d / 10f64.powi(p as i32 + 1))
+//}
 
 #[allow(clippy::many_single_char_names)]
 pub fn float_to_int(p: u8, a: f64) -> Result<i64, ()> {
@@ -207,10 +207,7 @@ pub fn bitpack_256_decompress(out: &mut [u32; 256], data: &[u8]) -> usize {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test_utils::*;
-    use fixed::prelude::*;
-    use fixed::traits::{FromFixed, LossyFrom};
-    use fixed::{types::extra::*, FixedI16, FixedI64};
+    use fixed::{types::extra::*, FixedI64};
     use rand::prelude::*;
 
     //#[test]

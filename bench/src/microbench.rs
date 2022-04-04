@@ -6,15 +6,14 @@
 #![feature(thread_id_value)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
-#![allow(unused)]
 #![allow(private_in_public)]
 #![feature(llvm_asm)]
 #![feature(proc_macro_hygiene)]
 #![feature(trait_alias)]
 
 mod config;
-#[macro_use]
-mod rdtsc;
+//#[macro_use]
+//mod rdtsc;
 mod zipf;
 
 use config::*;
@@ -22,35 +21,32 @@ use lazy_static::lazy_static;
 use mach::{
     compression::{CompressFn, Compression},
     id::{SeriesId, SeriesRef, WriterId},
-    persistent_list::{FileBackend, PersistentListBackend},
+    //persistent_list::{FileBackend, PersistentListBackend},
     sample::Type,
     series::{SeriesConfig, Types},
     tags::Tags,
-    tsdb::{self, Mach},
-    utils::bytes::Bytes,
-    writer::Writer,
+    tsdb::{Mach},
+    utils::{random_id, bytes::Bytes},
+    writer::{Writer, WriterConfig},
 };
+#[allow(unused_imports)]
+use mach::durable_queue::{KafkaConfig, FileConfig};
 use num_format::{Locale, ToFormattedString};
-use rand::Rng;
 use rtrb::{Consumer, Producer, RingBuffer};
 use serde::*;
-use serde_json::*;
 use std::fs;
 use std::io;
-use std::marker::PhantomData;
 use std::{
     collections::HashMap,
-    convert::TryInto,
     fs::File,
     fs::OpenOptions,
     io::prelude::*,
     io::BufReader,
-    io::SeekFrom,
     iter,
-    path::{Path, PathBuf},
+    path::{Path},
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
-        Arc, Barrier, Mutex,
+        Arc, Barrier,
     },
     thread,
     time::{Duration, Instant},
@@ -66,7 +62,7 @@ lazy_static! {
 }
 
 fn clean_outdir() {
-    std::fs::remove_dir_all(&CONF.out_path);
+    if std::fs::remove_dir_all(&CONF.out_path).is_err() {};
     std::fs::create_dir_all(&CONF.out_path).unwrap();
 }
 
@@ -96,7 +92,7 @@ impl DataSrc {
         &self.src_names[*series_id as usize % self.src_names.len()]
     }
 
-    fn len(&self) -> usize {
+    fn _len(&self) -> usize {
         self.src_names.len()
     }
 }
@@ -142,7 +138,7 @@ impl ZipfianPicker {
 struct IngestionSample {
     timestamp: u64,
     value: Vec<Type>,
-    serid: SeriesId,
+    //serid: SeriesId,
     refid: SeriesRef,
 }
 
@@ -191,7 +187,7 @@ struct ReaderSet {
 }
 
 impl ReaderSet {
-    fn new(filenames: &Vec<DataSrcName>) -> Self {
+    fn new(filenames: &[DataSrcName]) -> Self {
         let mut readers = Vec::new();
         let mut refs = Vec::<usize>::new();
         let mut file_reader_map = HashMap::new();
@@ -204,7 +200,7 @@ impl ReaderSet {
                         .read(true)
                         .open(CONF.data_path.join(name))
                         .expect("could not open data file");
-                    let mut reader = SeekableBufReader::new(file);
+                    let reader = SeekableBufReader::new(file);
                     readers.push(reader);
                     refs.push(readers.len() - 1);
                     file_reader_map.insert(name, readers.len() - 1);
@@ -242,24 +238,24 @@ impl IngestionWorker {
         //let mut idle_cycles = 0;
         //let mut idle_start = None;
 
-        let start = rdtsc!();
+        //let _start = rdtsc!();
 
         let mut counter: usize = 0;
         let mut miss: usize = 0;
-        let start = rdtsc!();
-        let mut busy: u64 = 0;
-        let mut pop_busy: u64 = 0;
-        let mut idle: u64 = 0;
+        let start = Instant::now();
+        let mut busy: Duration = Duration::from_secs(0);
+        let mut pop_busy: Duration = Duration::from_secs(0);
+        //let mut idle: u64 = 0;
         while c < CONF.samples_per_thread {
-            let now = rdtsc!();
+            let now = Instant::now();
             let r = self.r.pop();
-            pop_busy += rdtsc!() - now;
+            pop_busy += now.elapsed();
 
             match r {
             //match self.r.pop() {
                 Ok(sample) => {
                     counter += 1;
-                    let now = rdtsc!();
+                    let now = Instant::now();
                     //if idle_start.is_some() {
                     //    let idle_end = rdtsc!();
                     //    idle_cycles += idle_end - idle_start.unwrap();
@@ -268,12 +264,12 @@ impl IngestionWorker {
 
                     let r = self
                         .writer
-                        .push_type(sample.refid, sample.timestamp, &sample.value);
+                        .push(sample.refid, sample.timestamp, &sample.value);
                     if r.is_ok() {
                         c += 1;
                         SAMPLE_COUNTER.fetch_add(1, SeqCst);
                     }
-                    busy += rdtsc!() - now;
+                    busy += now.elapsed();
                     //busy = busy + now.elapsed();
                 }
                 Err(..) => {
@@ -285,18 +281,16 @@ impl IngestionWorker {
                 }
             }
         }
-        let dur = rdtsc::cycles_to_seconds(rdtsc!() - start);
-        let busy = rdtsc::cycles_to_seconds(busy);
-        let pop_busy = rdtsc::cycles_to_seconds(pop_busy);
+        let dur = start.elapsed();
 
 
         //let end = rdtsc!();
         //let dur = end - start;
         println!("overall loops: {}", counter.to_formatted_string(&Locale::en));
         println!("loops that missed: {}", miss.to_formatted_string(&Locale::en));
-        println!("overall time: {:.2}s", dur);
-        println!("time doing push: {:.2}s", busy);
-        println!("time doing pop: {:.2}s", pop_busy);
+        println!("overall time: {:.2}s", dur.as_secs_f64());
+        println!("time doing push: {:.2}s", busy.as_secs_f64());
+        println!("time doing pop: {:.2}s", pop_busy.as_secs_f64());
 
         self.notify_completed()
     }
@@ -310,7 +304,7 @@ struct DataLoader {
     s: Producer<IngestionSample>,
     terminated: Consumer<()>,
     series_refs: Vec<SeriesRef>,
-    series_ids: Vec<SeriesId>,
+    //series_ids: Vec<SeriesId>,
     datasrc_names: Vec<DataSrcName>,
 }
 
@@ -319,14 +313,14 @@ impl DataLoader {
         s: Producer<IngestionSample>,
         terminated: Consumer<()>,
         series_refs: Vec<SeriesRef>,
-        series_ids: Vec<SeriesId>,
+        //series_ids: Vec<SeriesId>,
         datasrc_names: Vec<DataSrcName>,
     ) -> Self {
         DataLoader {
             s,
             terminated,
             series_refs,
-            series_ids,
+            //series_ids,
             datasrc_names,
         }
     }
@@ -351,7 +345,7 @@ impl DataLoader {
         // get min timestamp in all files (assume data items are sorted chronologically)
         for i in 0..self.num_series() {
             let reader = readers.get(i);
-            reader.seek_set(0);
+            reader.seek_set(0).unwrap();
             let nread = reader
                 .read_line(&mut line_bufs[i])
                 .expect("empty data file");
@@ -365,7 +359,7 @@ impl DataLoader {
         loop {
             let picked = zipf.next();
 
-            let mut reader = &mut readers.get(picked);
+            let reader = &mut readers.get(picked);
             let offset = offsets[picked];
             reader.seek_set(offset).expect("data file seek failed");
 
@@ -405,7 +399,7 @@ impl DataLoader {
             match self.s.push(IngestionSample {
                 timestamp,
                 value,
-                serid: self.series_ids[picked],
+                //serid: self.series_ids[picked],
                 refid: self.series_refs[picked],
             }) {
                 Ok(_) => (),
@@ -427,7 +421,7 @@ struct BenchWriterMeta {
 }
 
 impl BenchWriterMeta {
-    fn new(mut writer: Writer) -> Self {
+    fn new(writer: Writer) -> Self {
         Self {
             writer,
             series_refs: Vec::new(),
@@ -453,24 +447,36 @@ impl BenchWriterMeta {
                 s,
                 terminated,
                 self.series_refs,
-                self.series_ids,
+                //self.series_ids,
                 self.datasrc_names,
             ),
         )
     }
 }
 
-struct Microbench<B: PersistentListBackend> {
-    mach: Mach<B>,
+struct Microbench {
+    mach: Mach,
     data_src: DataSrc,
     writer_map: HashMap<WriterId, BenchWriterMeta>,
 }
 
-impl<B: PersistentListBackend> Microbench<B> {
-    fn new(mut mach: Mach<B>, data_src: DataSrc, nthreads: usize) -> Self {
+impl Microbench {
+    fn new(mut mach: Mach, data_src: DataSrc, nthreads: usize) -> Self {
         let mut writer_map = HashMap::new();
         for _ in 0..nthreads {
-            let writer = mach.new_writer().expect("writer creation failed");
+            //let queue_config = FileConfig {
+            //    dir: CONF.out_path.clone(),
+            //    file: random_id(),
+            //}.config();
+            let queue_config = KafkaConfig {
+                bootstrap: String::from("localhost:9093,localhost:9094,localhost:9095"),
+                topic: random_id(),
+            }.config();
+            let writer_config = WriterConfig {
+                queue_config,
+                active_block_flush_sz: 1_000_000,
+            };
+            let writer = mach.add_writer(writer_config).expect("writer creation failed");
             writer_map.insert(writer.id(), BenchWriterMeta::new(writer));
         }
 
@@ -512,7 +518,7 @@ impl<B: PersistentListBackend> Microbench<B> {
     fn run(&mut self) {
         let mut handles = Vec::new();
 
-        for (id, writer_meta) in self.writer_map.drain() {
+        for (_id, writer_meta) in self.writer_map.drain() {
             let (mut writer, mut loader) = writer_meta.spawn();
             handles.push(thread::spawn(move || writer.ingest()));
             handles.push(thread::spawn(move || loader.load()));
@@ -546,8 +552,9 @@ fn main() {
         }
     });
 
-    let conf = tsdb::Config::default().with_directory(CONF.out_path.clone());
-    let mut mach = Mach::<FileBackend>::new(conf);
+    //let conf = tsdb::Config::default().with_directory(CONF.out_path.clone());
+
+    let mach = Mach::new();
     let datasrc = DataSrc::new(CONF.data_path.as_path());
 
     let mut bench = Microbench::new(mach, datasrc, CONF.threads);

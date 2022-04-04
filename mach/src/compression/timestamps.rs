@@ -26,14 +26,13 @@ pub fn compress(timestamps: &[u64], buf: &mut ByteBuffer) {
 
         // we don't expect this to fail
         let x: Result<i64, _> = diff.try_into();
-        match x {
-            Err(_) => println!(
+        if x.is_err() {
+            println!(
                 "diff: {} timestamps[i]: {}, timestamps[i-1]:: {}",
                 diff,
                 timestamps[i],
                 timestamps[i - 1]
-            ),
-            Ok(_) => {}
+            );
         }
         let (a, b): (i64, i64) = (diff.try_into().unwrap(), last_diff.try_into().unwrap());
         let zz = to_zigzag(a - b);
@@ -161,7 +160,7 @@ mod test {
     #[test]
     fn test_compress_decompress() {
         for (_, data) in UNIVARIATE_DATA.iter() {
-            let mut v = data.iter().map(|x| x.ts).collect::<Vec<u64>>();
+            let v = data.iter().map(|x| x.ts).collect::<Vec<u64>>();
             for i in 0..v.len() - 256 {
                 compress_decompress(&v[i..i + 256]);
             }
@@ -176,7 +175,7 @@ mod test {
         compress(&data[..], &mut byte_buf);
         let sz = byte_buf.len();
         let mut res = Vec::new();
-        let (b, l) = decompress(&buf[..sz], &mut res);
+        let (_b, l) = decompress(&buf[..sz], &mut res);
         assert_eq!(&res[..l], &data[..]);
     }
 }
