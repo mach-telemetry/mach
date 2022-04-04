@@ -8,7 +8,7 @@ use mach_rpc::writer_service_client::WriterServiceClient;
 use mach_rpc::{
     add_series_request::ValueType, value::PbType, AddSeriesRequest, AddSeriesResponse, EchoRequest,
     EchoResponse, GetSeriesReferenceRequest, GetSeriesReferenceResponse, MapRequest, MapResponse,
-    PushRequest, PushResponse, Sample, Value,
+    PushRequest, PushResponse, ReadSeriesRequest, ReadSeriesResponse, Sample, Value,
 };
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -17,13 +17,10 @@ use std::sync::{
     Arc,
 };
 use std::thread::sleep;
-use std::time::Duration;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
-
-const exp_duration: Duration = Duration::from_secs(30);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let req = AddSeriesRequest {
         types: vec![ValueType::F64.into(), ValueType::Bytes.into()],
-        tags: [(String::from("hello"), String::from("world"))
+        tags: [(String::from("hello"), String::from("world"))]
             .into_iter()
             .collect(),
     };
@@ -45,6 +42,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let writer_address = format!("http://{}", writer_address);
     let mut writer_client = WriterServiceClient::connect(writer_address).await.unwrap();
 
-    thread::spawn(push_data);
-    thread::spawn(pull_data);
+    let series_ref_request = GetSeriesReferenceRequest { series_id };
+    let GetSeriesReferenceResponse { series_reference } = writer_client
+        .get_series_reference(series_ref_request)
+        .await
+        .unwrap()
+        .into_inner();
+    println!("Series reference: {:?}", series_reference);
+
+    // Samples
+    let mut samples = HashMap::new();
+    let sample = Sample {
+        timestamp: 12345,
+        values: vec![
+            Value {
+                pb_type: Some(PbType::F64(123.4)),
+            },
+            Value {
+                pb_type: Some(PbType::Str("hello world".into())),
+            },
+        ],
+    };
+    samples.insert(series_reference, sample);
+    let request = PushRequest { samples };
+
+    let results = writer_client
+        .push(request)
+        .await
+        .unwrap()
+        .into_inner()
+        .results;
+    println!("{:?}", results);
+
+    // Read snapshot
+    let r = client.read(ReadSeriesRequest { series_id }).await.unwrap();
+
+    Ok(())
 }

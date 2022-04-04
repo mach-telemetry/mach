@@ -18,6 +18,7 @@ use mach::{
     compression::{CompressFn, Compression},
     id::SeriesId,
     persistent_list::VectorBackend,
+    reader::ReadResponse,
     series::{SeriesConfig, Types},
     tags::Tags,
     tsdb::{Config, Mach},
