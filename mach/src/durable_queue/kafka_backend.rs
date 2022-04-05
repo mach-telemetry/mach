@@ -89,6 +89,9 @@ impl KafkaWriter {
     }
 }
 
+pub struct KafkaReaderStream {
+}
+
 pub struct KafkaReader {
     consumer: BaseConsumer,
     timeout: Timeout,

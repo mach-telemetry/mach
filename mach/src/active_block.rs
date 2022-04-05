@@ -68,6 +68,17 @@ pub struct StaticNode {
     pub block_version: usize,
 }
 
+impl Default for StaticNode {
+    fn default() -> Self {
+        StaticNode {
+            queue_offset: u64::MAX,
+            offset: usize::MAX,
+            size: usize::MAX,
+            block_version: usize::MAX,
+        }
+    }
+}
+
 impl StaticNode {
     fn to_bytes(self) -> [u8; 32] {
         let mut buf = [0u8; 32];
