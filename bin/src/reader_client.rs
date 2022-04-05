@@ -2,29 +2,17 @@ pub mod mach_rpc {
     tonic::include_proto!("mach_rpc"); // The string specified here must match the proto package name
 }
 
-use futures::stream::Stream;
 use mach::durable_queue::{DurableQueueReader, FileConfig, KafkaConfig, QueueConfig};
 use mach::snapshot::{Snapshot, SnapshotItem, SnapshotReader};
 use mach_rpc::tsdb_service_client::TsdbServiceClient;
 use mach_rpc::writer_service_client::WriterServiceClient;
 use mach_rpc::{
     add_series_request::ValueType, queue_config, value::PbType, AddSeriesRequest,
-    AddSeriesResponse, EchoRequest, EchoResponse, GetSeriesReferenceRequest,
-    GetSeriesReferenceResponse, MapRequest, MapResponse, PushRequest, PushResponse,
-    ReadSeriesRequest, ReadSeriesResponse, Sample, Value,
+    AddSeriesResponse, GetSeriesReferenceRequest, GetSeriesReferenceResponse, PushRequest,
+    ReadSeriesRequest, Sample, Value,
 };
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering::SeqCst},
-    Arc,
-};
-use std::thread::sleep;
-use std::time::{Duration, Instant};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio_stream::{wrappers::ReceiverStream, StreamExt};
-use tonic::transport::Channel;
 
 impl queue_config::Configs {
     fn to_mach_config(&self) -> QueueConfig {
@@ -99,6 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await
         .unwrap()
         .into_inner();
+
     let resp_queue_cfg = r.response_queue.unwrap().configs.unwrap().to_mach_config();
     let data_queue_cfg = r.data_queue.unwrap().configs.unwrap().to_mach_config();
 
