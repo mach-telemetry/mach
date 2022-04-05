@@ -47,7 +47,7 @@ impl List {
         }
 
         // There are two cases: copied before flush and after flush
-        if head.queue_offset == u64::MAX {
+        if head.queue_offset == u64::MAX && head.block_version != usize::MAX {
             // Safety: the read operation keeps track of its own version so we don't need the
             // version incremented by the WPLock
             let active_block = unsafe { self.active_block.unprotected_read() };
