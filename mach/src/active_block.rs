@@ -60,7 +60,7 @@ impl ActiveNode {
     }
 }
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct StaticNode {
     pub queue_offset: u64,
     pub offset: usize,
@@ -94,7 +94,6 @@ impl StaticNode {
         let offset = usize::from_be_bytes(data[8..16].try_into().unwrap());
         let size = usize::from_be_bytes(data[16..24].try_into().unwrap());
         let block_version = usize::from_be_bytes(data[24..32].try_into().unwrap());
-
         StaticNode {
             queue_offset,
             offset,

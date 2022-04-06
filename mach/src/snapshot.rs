@@ -80,34 +80,39 @@ impl Snapshot {
         deserialize_from(bytes).unwrap()
     }
 
-    pub fn reader(&self, durable_queue: DurableQueueReader) -> Result<SnapshotReader, Error> {
+    pub fn reader(&self, durable_queue: DurableQueueReader) -> SnapshotReader {
         SnapshotReader::new(self, durable_queue)
     }
 }
 
 pub struct SnapshotReader {
     segments: SegmentSnapshotReader,
-    list: ListSnapshotReader,
+    list: Option<ListSnapshotReader>,
     decompress_buf: DecompressBuffer,
 }
 
 impl SnapshotReader {
-    pub fn new(snapshot: &Snapshot, durable_queue: DurableQueueReader) -> Result<Self, Error> {
-        Ok(SnapshotReader {
+    pub fn new(snapshot: &Snapshot, durable_queue: DurableQueueReader) -> Self {
+        SnapshotReader {
             segments: snapshot.segments.reader(),
-            list: snapshot.list.reader(durable_queue)?,
+            list: snapshot.list.reader(durable_queue).ok(),
             decompress_buf: DecompressBuffer::new(),
-        })
+        }
     }
 
     pub fn next_item(&mut self) -> Result<Option<SnapshotItem>, Error> {
+
         if let Some(r) = self.segments.next_item() {
-            Ok(Some(SnapshotItem::Active(r)))
-        } else if let Some(r) = self.list.next_item()? {
-            let _ = Compression::decompress(r, &mut self.decompress_buf)?;
-            Ok(Some(SnapshotItem::Compressed(&self.decompress_buf)))
-        } else {
-            Ok(None)
+            return Ok(Some(SnapshotItem::Active(r)))
         }
+
+        if self.list.is_some() {
+            if let Some(r) = self.list.as_mut().unwrap().next_item()? {
+                let _ = Compression::decompress(r, &mut self.decompress_buf)?;
+                return Ok(Some(SnapshotItem::Compressed(&self.decompress_buf)))
+            }
+        }
+
+        Ok(None)
     }
 }

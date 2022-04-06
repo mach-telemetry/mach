@@ -46,8 +46,16 @@ impl List {
             return Err(Error::InconsistentHeadRead);
         }
 
+        // If the head block version is usize::MAX, there's nothing coming after
+        if head.block_version == usize::MAX {
+            return Ok(ListSnapshot {
+                active_block: None,
+                next_node: head,
+            })
+        }
+
         // There are two cases: copied before flush and after flush
-        if head.queue_offset == u64::MAX && head.block_version != usize::MAX {
+        if head.queue_offset == u64::MAX {
             // Safety: the read operation keeps track of its own version so we don't need the
             // version incremented by the WPLock
             let active_block = unsafe { self.active_block.unprotected_read() };
@@ -162,6 +170,7 @@ impl ListSnapshotReader {
             Ok(Some(&self.block[idx]))
         } else {
             let (block, next_node) = self.next_node.read_from_queue(&mut self.durable_queue)?;
+            //println!("NEXT NODE: {:?}", next_node);
             self.block = block;
             self.next_node = next_node;
             self.block_idx = 1;

@@ -348,7 +348,7 @@ mod test {
         let snapshot = dict.get(&serid).unwrap().snapshot().unwrap();
         let durable_queue = queue_config.make().unwrap();
         let durable_queue_reader = durable_queue.reader().unwrap();
-        let mut reader = snapshot.reader(durable_queue_reader).unwrap();
+        let mut reader = snapshot.reader(durable_queue_reader);
 
         //let count = 0;
         //let buf = reader.next_item().unwrap().unwrap();
