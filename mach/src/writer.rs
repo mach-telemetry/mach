@@ -226,9 +226,9 @@ mod test {
     use crate::tags::*;
     use crate::test_utils::*;
     use crate::utils::*;
+    use rand::*;
     use std::sync::Arc;
     use tempfile::tempdir;
-    use rand::*;
 
     //#[test]
     //fn test_vec_writer() {
@@ -359,7 +359,9 @@ mod test {
             match reader.next_item() {
                 Ok(Some(item)) => {
                     item.get_timestamps().for_each(|x| timestamps.push(*x));
-                    item.get_field(0).1.for_each(|x| field0.push(f64::from_be_bytes(*x)));
+                    item.get_field(0)
+                        .1
+                        .for_each(|x| field0.push(f64::from_be_bytes(*x)));
                 }
                 Ok(None) => println!("OK NONE PROBLEM"),
                 Err(x) => {

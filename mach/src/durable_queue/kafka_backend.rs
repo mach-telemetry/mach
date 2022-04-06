@@ -1,19 +1,21 @@
-use crate::utils::random_id;
 use crate::runtime::RUNTIME;
-pub use rdkafka::consumer::{base_consumer::BaseConsumer, stream_consumer::StreamConsumer, Consumer};
+use crate::utils::random_id;
+pub use rdkafka::consumer::{
+    base_consumer::BaseConsumer, stream_consumer::StreamConsumer, Consumer,
+};
 use rdkafka::{
     config::ClientConfig,
     error::KafkaError as RdKafkaError,
     producer::{FutureProducer, FutureRecord},
     topic_partition_list::{Offset, TopicPartitionList},
     types::RDKafkaErrorCode,
-    util::Timeout,
+    //util::Timeout,
     Message,
 };
-use std::sync::mpsc::{SyncSender, Receiver, sync_channel};
-//use tokio::sync::mpsc::{Sender, Receiver, channel, error::TryRecvError};
+//use std::sync::mpsc::{SyncSender, Receiver, sync_channel};
 use serde::*;
 use std::{convert::TryInto, time::Duration};
+use tokio::sync::mpsc::{channel, error::TryRecvError, Receiver, Sender};
 
 #[derive(Debug)]
 pub enum Error {
@@ -93,23 +95,27 @@ impl KafkaWriter {
     }
 }
 
-async fn stream_consumer(offset_request: Receiver<(u64, u64)>, sender: SyncSender<Vec<Vec<u8>>>, bootstrap_servers: String, topic: String) -> () {
+async fn stream_consumer(
+    mut offset_request: Receiver<(u64, u64)>,
+    sender: Sender<Vec<Vec<u8>>>,
+    bootstrap_servers: String,
+    topic: String,
+) {
     let consumer: StreamConsumer = ClientConfig::new()
         .set("bootstrap.servers", bootstrap_servers)
         .set("group.id", random_id())
-        .create().unwrap();
+        .create()
+        .unwrap();
 
     loop {
-        let (first, last) = if let Ok(offset) = offset_request.recv() {
+        let (first, last) = if let Some(offset) = offset_request.recv().await {
             offset
         } else {
             break;
         };
         let mut tp_list = TopicPartitionList::new();
         let offset = Offset::Offset(first as i64);
-        tp_list
-            .add_partition_offset(&topic, 0, offset)
-            .unwrap();
+        tp_list.add_partition_offset(&topic, 0, offset).unwrap();
         consumer.assign(&tp_list).unwrap();
         let mut v = Vec::new();
         let lim = last - first + 1;
@@ -118,31 +124,36 @@ async fn stream_consumer(offset_request: Receiver<(u64, u64)>, sender: SyncSende
                 Ok(msg) => {
                     let data: Vec<u8> = msg.payload().unwrap().into();
                     v.push(data);
-                },
-                Err(x) => break,
+                }
+                Err(_) => break,
             }
         }
-        sender.send(v).unwrap();
+        sender.send(v).await.unwrap();
     }
 }
 
-pub struct KafkaStreamReader {
+pub struct KafkaReader {
     local_buffer: Vec<Vec<u8>>,
     kafka_stream: Receiver<Vec<Vec<u8>>>,
-    kafka_request: SyncSender<(u64, u64)>,
+    kafka_request: Sender<(u64, u64)>,
     offsets: (u64, u64),
 }
 
-impl KafkaStreamReader {
+impl KafkaReader {
     pub fn new(bootstrap_servers: String, topic: String) -> Result<Self, Error> {
-        let (stream_sender, stream_receiver) = sync_channel(1);
-        let (request_sender, request_receiver) = sync_channel(1);
-        RUNTIME.spawn(stream_consumer(request_receiver, stream_sender, bootstrap_servers, topic));
-        Ok(KafkaStreamReader {
+        let (stream_sender, stream_receiver) = channel(1);
+        let (request_sender, request_receiver) = channel(1);
+        RUNTIME.spawn(stream_consumer(
+            request_receiver,
+            stream_sender,
+            bootstrap_servers,
+            topic,
+        ));
+        Ok(Self {
             local_buffer: Vec::new(),
             kafka_stream: stream_receiver,
             kafka_request: request_sender,
-            offsets: (u64::MAX, u64::MAX)
+            offsets: (u64::MAX, u64::MAX),
         })
     }
 
@@ -151,8 +162,17 @@ impl KafkaStreamReader {
         if at < self.offsets.0 || at > self.offsets.1 {
             let first_offset = if at < 10 { 0 } else { at - 10 };
             //println!("Loading: {:?}", (first_offset, at));
-            self.kafka_request.send((first_offset, at)).unwrap();
-            self.local_buffer = self.kafka_stream.recv().unwrap();
+            self.kafka_request.try_send((first_offset, at)).unwrap();
+            loop {
+                match self.kafka_stream.try_recv() {
+                    Ok(x) => {
+                        self.local_buffer = x;
+                        break;
+                    }
+                    Err(TryRecvError::Empty) => {}
+                    Err(TryRecvError::Disconnected) => panic!("worker failed"),
+                }
+            }
             self.offsets = (first_offset, at);
         }
         //println!("offset: {:?}", self.offsets);
@@ -160,8 +180,6 @@ impl KafkaStreamReader {
         Ok(self.local_buffer[offset as usize].as_slice())
     }
 }
-
-pub type KafkaReader = KafkaStreamReader;
 
 //pub struct KafkaReader {
 //    consumer: BaseConsumer,

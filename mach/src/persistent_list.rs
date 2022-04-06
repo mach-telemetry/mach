@@ -51,7 +51,7 @@ impl List {
             return Ok(ListSnapshot {
                 active_block: None,
                 next_node: head,
-            })
+            });
         }
 
         // There are two cases: copied before flush and after flush

@@ -50,11 +50,11 @@ impl<'a> SnapshotItem<'a> {
             Self::Active(x) => {
                 let (t, v) = x.variable(i);
                 (t, v.iter().rev())
-            },
+            }
             Self::Compressed(x) => {
                 let (t, v) = x.variable(i);
                 (t, v.iter().rev())
-            },
+            }
         }
     }
 }
@@ -101,15 +101,14 @@ impl SnapshotReader {
     }
 
     pub fn next_item(&mut self) -> Result<Option<SnapshotItem>, Error> {
-
         if let Some(r) = self.segments.next_item() {
-            return Ok(Some(SnapshotItem::Active(r)))
+            return Ok(Some(SnapshotItem::Active(r)));
         }
 
         if self.list.is_some() {
             if let Some(r) = self.list.as_mut().unwrap().next_item()? {
                 let _ = Compression::decompress(r, &mut self.decompress_buf)?;
-                return Ok(Some(SnapshotItem::Compressed(&self.decompress_buf)))
+                return Ok(Some(SnapshotItem::Compressed(&self.decompress_buf)));
             }
         }
 

@@ -303,9 +303,9 @@ impl Compression {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::sample::Type;
     use crate::segment::Buffer;
     use crate::series::Types;
-    use crate::sample::Type;
     use crate::test_utils::*;
 
     #[test]
@@ -375,8 +375,7 @@ mod test {
         for (idx, sample) in data[0..256].iter().enumerate() {
             timestamps[idx] = idx as u64;
             let v = Type::Bytes(Bytes::from_slice(sample.as_bytes()));
-            buf.push_type(idx as u64, &[v])
-                .unwrap();
+            buf.push_type(idx as u64, &[v]).unwrap();
         }
         let segment = buf.to_flush().unwrap();
 
