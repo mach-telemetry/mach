@@ -1,5 +1,7 @@
 use crate::utils::random_id;
-pub use rdkafka::consumer::{base_consumer::BaseConsumer, Consumer};
+pub use rdkafka::consumer::{
+    base_consumer::BaseConsumer, stream_consumer::StreamConsumer, Consumer,
+};
 use rdkafka::{
     config::ClientConfig,
     error::KafkaError as RdKafkaError,
@@ -9,13 +11,16 @@ use rdkafka::{
     util::Timeout,
     Message,
 };
+//use std::sync::mpsc::{SyncSender, Receiver, sync_channel};
 use serde::*;
 use std::{convert::TryInto, time::Duration};
+//use tokio::sync::mpsc::{channel, error::TryRecvError, Receiver, Sender};
 
 #[derive(Debug)]
 pub enum Error {
     Kafka(RdKafkaError),
     KafkaErrorCode((String, RDKafkaErrorCode)),
+    ReadInvalidOffset,
 }
 
 impl From<RdKafkaError> for Error {
@@ -89,15 +94,98 @@ impl KafkaWriter {
     }
 }
 
-pub struct KafkaReaderStream {
-}
+//async fn stream_consumer(
+//    mut offset_request: Receiver<(u64, u64)>,
+//    sender: Sender<Vec<Vec<u8>>>,
+//    bootstrap_servers: String,
+//    topic: String,
+//) {
+//    let consumer: StreamConsumer = ClientConfig::new()
+//        .set("bootstrap.servers", bootstrap_servers)
+//        .set("group.id", random_id())
+//        .create()
+//        .unwrap();
+//
+//    loop {
+//        let (first, last) = if let Some(offset) = offset_request.recv().await {
+//            offset
+//        } else {
+//            break;
+//        };
+//        let mut tp_list = TopicPartitionList::new();
+//        let offset = Offset::Offset(first as i64);
+//        tp_list.add_partition_offset(&topic, 0, offset).unwrap();
+//        consumer.assign(&tp_list).unwrap();
+//        let mut v = Vec::new();
+//        let lim = last - first + 1;
+//        for _ in 0..lim {
+//            match consumer.recv().await {
+//                Ok(msg) => {
+//                    let data: Vec<u8> = msg.payload().unwrap().into();
+//                    v.push(data);
+//                }
+//                Err(_) => break,
+//            }
+//        }
+//        sender.send(v).await.unwrap();
+//    }
+//}
+
+//pub struct KafkaReader {
+//    local_buffer: Vec<Vec<u8>>,
+//    kafka_stream: Receiver<Vec<Vec<u8>>>,
+//    kafka_request: Sender<(u64, u64)>,
+//    offsets: (u64, u64),
+//}
+//
+//impl KafkaReader {
+//    pub fn new(bootstrap_servers: String, topic: String) -> Result<Self, Error> {
+//        let (stream_sender, stream_receiver) = channel(1);
+//        let (request_sender, request_receiver) = channel(1);
+//        RUNTIME.spawn(stream_consumer(
+//            request_receiver,
+//            stream_sender,
+//            bootstrap_servers,
+//            topic,
+//        ));
+//        Ok(Self {
+//            local_buffer: Vec::new(),
+//            kafka_stream: stream_receiver,
+//            kafka_request: request_sender,
+//            offsets: (u64::MAX, u64::MAX),
+//        })
+//    }
+//
+//    pub fn read(&mut self, at: u64) -> Result<&[u8], Error> {
+//        //println!("READING: {}", at);
+//        if at < self.offsets.0 || at > self.offsets.1 {
+//            let first_offset = if at < 10 { 0 } else { at - 10 };
+//            //println!("Loading: {:?}", (first_offset, at));
+//            self.kafka_request.try_send((first_offset, at)).unwrap();
+//            loop {
+//                match self.kafka_stream.try_recv() {
+//                    Ok(x) => {
+//                        self.local_buffer = x;
+//                        break;
+//                    }
+//                    Err(TryRecvError::Empty) => {}
+//                    Err(TryRecvError::Disconnected) => panic!("worker failed"),
+//                }
+//            }
+//            self.offsets = (first_offset, at);
+//        }
+//        //println!("offset: {:?}", self.offsets);
+//        let offset = at - self.offsets.0;
+//        Ok(self.local_buffer[offset as usize].as_slice())
+//    }
+//}
 
 pub struct KafkaReader {
     consumer: BaseConsumer,
     timeout: Timeout,
-    local_buffer: Vec<u8>,
+    local_buffer: Vec<Vec<u8>>,
     topic: String,
-    //last_offset: u64,
+    offsets: (u64, u64),
 }
 
 impl KafkaReader {
@@ -111,29 +199,37 @@ impl KafkaReader {
             topic,
             timeout: Timeout::After(Duration::from_secs(0)),
             local_buffer: Vec::new(),
-            //last_offset: u64::MAX,
+            offsets: (u64::MAX, u64::MAX),
         })
     }
 
     pub fn read(&mut self, at: u64) -> Result<&[u8], Error> {
-        self.local_buffer.clear();
-        let offset: i64 = at.try_into().unwrap();
-        let mut tp_list = TopicPartitionList::new();
-        let offset = Offset::Offset(offset);
-        tp_list
-            .add_partition_offset(&self.topic, 0, offset)
-            .unwrap();
-        self.consumer.assign(&tp_list)?;
-        //self.consumer.seek(&self.topic, 0, offset.clone(), Duration::from_secs(0))?;
-        println!("CONSUMING {:?}", offset);
-        let msg = loop {
-            match self.consumer.poll(self.timeout) {
-                Some(Ok(x)) => break x,
-                Some(Err(x)) => return Err(x.into()),
-                None => {}
-            };
-        };
-        self.local_buffer.extend_from_slice(msg.payload().unwrap());
-        Ok(self.local_buffer.as_slice())
+        if at < self.offsets.0 || at > self.offsets.1 {
+            let start = if at < 10 { 0 } else { at - 10 };
+            let mut tp_list = TopicPartitionList::new();
+            let offset = Offset::Offset(start.try_into().unwrap());
+            tp_list
+                .add_partition_offset(&self.topic, 0, offset)
+                .unwrap();
+            self.consumer.assign(&tp_list)?;
+            for i in 0..(1 + at - start) as usize {
+                let msg = loop {
+                    match self.consumer.poll(self.timeout) {
+                        Some(Ok(x)) => break x,
+                        Some(Err(x)) => return Err(x.into()),
+                        None => {}
+                    };
+                };
+                if self.local_buffer.len() < i + 1 {
+                    self.local_buffer.push(msg.payload().unwrap().into());
+                } else {
+                    self.local_buffer[i].clear();
+                    self.local_buffer[i].extend_from_slice(msg.payload().unwrap());
+                }
+            }
+            self.offsets = (start, at);
+        }
+        let idx = at - self.offsets.0;
+        Ok(self.local_buffer[idx as usize].as_slice())
     }
 }

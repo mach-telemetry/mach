@@ -375,9 +375,15 @@ mod test {
             exp_ts.push(item.ts);
             exp_f0.push(item.values[0]);
             if idx < 255 {
-                assert_eq!(buf.push_type(item.ts, vals.as_slice()), Ok(InnerPushStatus::Done));
+                assert_eq!(
+                    buf.push_type(item.ts, vals.as_slice()),
+                    Ok(InnerPushStatus::Done)
+                );
             } else {
-                assert_eq!(buf.push_type(item.ts, vals.as_slice()), Ok(InnerPushStatus::Flush));
+                assert_eq!(
+                    buf.push_type(item.ts, vals.as_slice()),
+                    Ok(InnerPushStatus::Flush)
+                );
             }
         }
 
