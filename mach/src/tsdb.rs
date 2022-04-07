@@ -2,7 +2,7 @@ use crate::{
     durability::*,
     id::*,
     persistent_list::{self, List},
-    reader::{ReadResponse, ReadServer},
+    reader::ReadServer,
     series::{self, *},
     writer::{Writer, WriterConfig, WriterMetadata},
 };
@@ -34,20 +34,19 @@ pub struct Mach {
     writers: Vec<WriterId>,
     writer_table: HashMap<WriterId, (WriterMetadata, DurabilityWorker)>,
     series_table: Arc<DashMap<SeriesId, Series>>,
-    read_server: ReadServer,
 }
 
 impl Mach {
     pub fn new() -> Self {
-        let series_table = Arc::new(DashMap::new());
-        let read_server = ReadServer::new(series_table.clone());
-
         Mach {
             writers: Vec::new(),
             writer_table: HashMap::new(),
-            series_table,
-            read_server,
+            series_table: Arc::new(DashMap::new()),
         }
+    }
+
+    pub fn new_read_server(&self) -> ReadServer {
+        ReadServer::new(self.series_table.clone())
     }
 
     pub fn add_writer(&mut self, writer_config: WriterConfig) -> Result<Writer, Error> {
@@ -58,10 +57,6 @@ impl Mach {
         self.writer_table
             .insert(meta.id.clone(), (meta, durability));
         Ok(writer)
-    }
-
-    pub async fn read(&self, id: SeriesId) -> ReadResponse {
-        self.read_server.read_request(id).await
     }
 
     pub fn add_series(&mut self, config: SeriesConfig) -> Result<(WriterId, SeriesId), Error> {

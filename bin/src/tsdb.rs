@@ -7,19 +7,17 @@ pub mod mach_rpc {
 
 use mach_rpc::tsdb_service_server::{TsdbService, TsdbServiceServer};
 use mach_rpc::{
-    queue_config, AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest,
-    MapResponse, ReadSeriesRequest, ReadSeriesResponse,
+    AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse,
 };
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
+mod reader;
 mod writer;
 #[allow(unused_imports)]
 use mach::durable_queue::{FileConfig, KafkaConfig};
 use mach::{
     compression::{CompressFn, Compression},
-    durable_queue::QueueConfig,
-    id::SeriesId,
     series::{SeriesConfig, Types},
     tags::Tags,
     tsdb::Mach,
@@ -27,25 +25,6 @@ use mach::{
     writer::WriterConfig,
 };
 use std::{collections::HashMap, sync::Arc};
-
-impl mach_rpc::QueueConfig {
-    fn from_mach(config: QueueConfig) -> Self {
-        mach_rpc::QueueConfig {
-            configs: match config {
-                QueueConfig::Kafka(cfg) => {
-                    Some(queue_config::Configs::Kafka(mach_rpc::KafkaConfig {
-                        bootstrap: cfg.bootstrap,
-                        topic: cfg.topic,
-                    }))
-                }
-                QueueConfig::File(cfg) => Some(queue_config::Configs::File(mach_rpc::FileConfig {
-                    dir: cfg.dir.into_os_string().into_string().unwrap(),
-                    file: cfg.file,
-                })),
-            },
-        }
-    }
-}
 
 pub struct MachTSDB {
     tsdb: Arc<RwLock<Mach>>,
@@ -78,6 +57,9 @@ impl MachTSDB {
             writer::serve_writer(writer, &addr);
             writers.insert(id, addr);
         }
+
+        reader::serve_reader(mach.new_read_server(), "127.0.0.1:51000");
+
         Self {
             tsdb: Arc::new(RwLock::new(mach)),
             writers,
@@ -154,26 +136,6 @@ impl TsdbService for MachTSDB {
         Ok(Response::new(AddSeriesResponse {
             writer_address,
             series_id,
-        }))
-    }
-
-    async fn read(
-        &self,
-        req: Request<ReadSeriesRequest>,
-    ) -> Result<Response<ReadSeriesResponse>, Status> {
-        let req = req.into_inner();
-        let serid = SeriesId(req.series_id);
-
-        let tsdb_locked = self.tsdb.read().await;
-        let r = tsdb_locked.read(serid).await;
-
-        let response_queue = mach_rpc::QueueConfig::from_mach(r.response_queue);
-        let data_queue = mach_rpc::QueueConfig::from_mach(r.data_queue);
-
-        Ok(Response::new(ReadSeriesResponse {
-            response_queue: Some(response_queue),
-            data_queue: Some(data_queue),
-            offset: r.offset,
         }))
     }
 
