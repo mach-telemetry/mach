@@ -1,4 +1,4 @@
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tonic::{transport::Server, Request, Response, Status};
 
 pub mod mach_rpc {
@@ -48,7 +48,7 @@ impl mach_rpc::QueueConfig {
 }
 
 pub struct MachTSDB {
-    tsdb: Arc<Mutex<Mach>>,
+    tsdb: Arc<RwLock<Mach>>,
     writers: HashMap<String, String>,
 }
 
@@ -79,7 +79,7 @@ impl MachTSDB {
             writers.insert(id, addr);
         }
         Self {
-            tsdb: Arc::new(Mutex::new(mach)),
+            tsdb: Arc::new(RwLock::new(mach)),
             writers,
         }
     }
@@ -146,7 +146,7 @@ impl TsdbService for MachTSDB {
             seg_count,
             nvars,
         };
-        let mut tsdb_locked = self.tsdb.lock().await;
+        let mut tsdb_locked = self.tsdb.write().await;
         let (writer_id, series_id) = tsdb_locked.add_series(conf).unwrap();
         let writer_address = self.writers.get(&writer_id.0).unwrap().clone();
         let series_id = series_id.0;
@@ -164,7 +164,7 @@ impl TsdbService for MachTSDB {
         let req = req.into_inner();
         let serid = SeriesId(req.series_id);
 
-        let tsdb_locked = self.tsdb.lock().await;
+        let tsdb_locked = self.tsdb.read().await;
         let r = tsdb_locked.read(serid).await;
 
         let response_queue = mach_rpc::QueueConfig::from_mach(r.response_queue);
