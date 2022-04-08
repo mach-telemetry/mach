@@ -1,3 +1,4 @@
+use tokio::sync::RwLock;
 use tonic::{transport::Server, Request, Response, Status};
 
 pub mod mach_rpc {
@@ -11,8 +12,7 @@ use mach_rpc::{
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
-//use futures::Stream;
-
+mod reader;
 mod writer;
 #[allow(unused_imports)]
 use mach::durable_queue::{FileConfig, KafkaConfig};
@@ -24,13 +24,10 @@ use mach::{
     utils::random_id,
     writer::WriterConfig,
 };
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, sync::Arc};
 
 pub struct MachTSDB {
-    tsdb: Arc<Mutex<Mach>>,
+    tsdb: Arc<RwLock<Mach>>,
     writers: HashMap<String, String>,
 }
 
@@ -60,8 +57,11 @@ impl MachTSDB {
             writer::serve_writer(writer, &addr);
             writers.insert(id, addr);
         }
+
+        reader::serve_reader(mach.new_read_server(), "127.0.0.1:51000");
+
         Self {
-            tsdb: Arc::new(Mutex::new(mach)),
+            tsdb: Arc::new(RwLock::new(mach)),
             writers,
         }
     }
@@ -128,8 +128,8 @@ impl TsdbService for MachTSDB {
             seg_count,
             nvars,
         };
-
-        let (writer_id, series_id) = self.tsdb.lock().unwrap().add_series(conf).unwrap();
+        let mut tsdb_locked = self.tsdb.write().await;
+        let (writer_id, series_id) = tsdb_locked.add_series(conf).unwrap();
         let writer_address = self.writers.get(&writer_id.0).unwrap().clone();
         let series_id = series_id.0;
 

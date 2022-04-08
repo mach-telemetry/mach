@@ -19,9 +19,9 @@ use tokio::{
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReadResponse {
-    response_queue: QueueConfig,
-    data_queue: QueueConfig,
-    offset: u64,
+    pub response_queue: QueueConfig,
+    pub data_queue: QueueConfig,
+    pub offset: u64,
 }
 
 pub enum SnapshotterRequest {

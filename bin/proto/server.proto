@@ -80,4 +80,33 @@ service WriterService {
   rpc Push(PushRequest) returns (PushResponse) {}
 }
 
+message ReadSeriesRequest {
+    uint64 series_id = 1;
+}
 
+message KafkaConfig {
+    string bootstrap = 1;
+    string topic = 2;
+}
+
+message FileConfig {
+    string dir = 1;
+    string file = 2;
+}
+
+message QueueConfig {
+    oneof configs {
+        KafkaConfig kafka = 1;
+        FileConfig file = 2;
+    }
+}
+
+message ReadSeriesResponse {
+    QueueConfig response_queue = 1;
+    QueueConfig data_queue = 2;
+    uint64 offset = 5;
+}
+
+service ReaderService {
+  rpc Read(ReadSeriesRequest) returns (ReadSeriesResponse) {}
+}
