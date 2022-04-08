@@ -5,6 +5,7 @@ use tonic::transport::Channel;
 
 use mach::durable_queue::{DurableQueueReader, FileConfig, KafkaConfig, QueueConfig};
 use mach::snapshot::{Snapshot, SnapshotItem, SnapshotReader};
+use mach_rpc::reader_service_client::ReaderServiceClient;
 use mach_rpc::tsdb_service_client::TsdbServiceClient;
 use mach_rpc::writer_service_client::WriterServiceClient;
 use mach_rpc::{
@@ -33,11 +34,11 @@ impl queue_config::Configs {
     }
 }
 
-struct TsdbService {
+struct TsdbClient {
     inner: TsdbServiceClient<Channel>,
 }
 
-impl TsdbService {
+impl TsdbClient {
     async fn new(address: &'static str) -> Result<Self, tonic::transport::Error> {
         let inner = TsdbServiceClient::connect(address).await?;
         Ok(Self { inner })
@@ -50,35 +51,13 @@ impl TsdbService {
         let r = self.inner.add_series(req).await?;
         Ok(r.into_inner())
     }
-
-    async fn get_snapshot(
-        self: &mut Self,
-        series_id: u64,
-    ) -> Result<SnapshotReader, Box<dyn Error>> {
-        let r = self
-            .inner
-            .read(ReadSeriesRequest { series_id })
-            .await?
-            .into_inner();
-
-        let resp_queue_cfg = r.response_queue.unwrap().configs.unwrap().to_mach_config();
-        let data_queue_cfg = r.data_queue.unwrap().configs.unwrap().to_mach_config();
-
-        let mut resp_reader = DurableQueueReader::from_config(resp_queue_cfg).unwrap();
-        let snapshot = Snapshot::from_bytes(resp_reader.read(r.offset).unwrap());
-
-        Ok(SnapshotReader::new(
-            &snapshot,
-            DurableQueueReader::from_config(data_queue_cfg).unwrap(),
-        ))
-    }
 }
 
-struct WriterService {
+struct WriterClient {
     inner: WriterServiceClient<Channel>,
 }
 
-impl WriterService {
+impl WriterClient {
     async fn new(address: String) -> Result<Self, tonic::transport::Error> {
         Ok(Self {
             inner: WriterServiceClient::connect(address).await?,
@@ -112,14 +91,49 @@ impl WriterService {
     }
 }
 
+struct ReaderClient {
+    inner: ReaderServiceClient<Channel>,
+}
+
+impl ReaderClient {
+    async fn new(address: &'static str) -> Result<Self, tonic::transport::Error> {
+        Ok(Self {
+            inner: ReaderServiceClient::connect(address).await?,
+        })
+    }
+
+    async fn get_snapshot(
+        self: &mut Self,
+        series_id: u64,
+    ) -> Result<SnapshotReader, Box<dyn Error>> {
+        let r = self
+            .inner
+            .read(ReadSeriesRequest { series_id })
+            .await?
+            .into_inner();
+
+        let resp_queue_cfg = r.response_queue.unwrap().configs.unwrap().to_mach_config();
+        let data_queue_cfg = r.data_queue.unwrap().configs.unwrap().to_mach_config();
+
+        let mut resp_reader = DurableQueueReader::from_config(resp_queue_cfg).unwrap();
+        let snapshot = Snapshot::from_bytes(resp_reader.read(r.offset).unwrap());
+
+        Ok(SnapshotReader::new(
+            &snapshot,
+            DurableQueueReader::from_config(data_queue_cfg).unwrap(),
+        ))
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     use ValueType::{Bytes, F64};
 
-    let mut tsdb_client = TsdbService::new("http://127.0.0.1:50050")
+    let mut tsdb_client = TsdbClient::new("http://127.0.0.1:50050")
         .await
         .expect("TSDB service not started");
 
+    // register a time series
     let r = tsdb_client
         .add_series(AddSeriesRequest {
             types: vec![F64.into(), Bytes.into()],
@@ -129,7 +143,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let series_id = r.series_id;
     let writer_address = r.writer_address;
 
-    let mut writer_client = WriterService::new(format!("http://{}", writer_address))
+    // push sample
+    let mut writer_client = WriterClient::new(format!("http://{}", writer_address))
         .await
         .expect("writer client could not be connected");
 
@@ -152,7 +167,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let push_resp = writer_client.push(samples).await?;
     assert!(push_resp.get(&series_ref).unwrap());
 
-    let mut snap_reader = tsdb_client.get_snapshot(series_id).await?;
+    // read sample
+    let mut reader_client = ReaderClient::new("http://127.0.0.1:51000")
+        .await
+        .expect("Reader Service not started");
+
+    let mut snap_reader = reader_client.get_snapshot(series_id).await?;
 
     let mut c = 0;
     while let Ok(Some(item)) = snap_reader.next_item() {
