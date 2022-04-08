@@ -17,6 +17,8 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
 
+const NUM_SAMPLES: usize = 300;
+
 type SeriesReference = u64;
 
 impl queue_config::Configs {
@@ -151,21 +153,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let series_ref = writer_client.get_series_ref(series_id).await?;
     println!("Series reference: {:?}", series_ref);
 
-    let sample = Sample {
-        timestamp: 12345,
-        values: vec![
-            Value {
-                pb_type: Some(PbType::F64(123.4)),
-            },
-            Value {
-                pb_type: Some(PbType::Str("hello world".into())),
-            },
-        ],
-    };
-    let samples = HashMap::from([(series_ref, sample)]);
+    for _ in 0..NUM_SAMPLES {
+        let sample = Sample {
+            timestamp: 12345,
+            values: vec![
+                Value {
+                    pb_type: Some(PbType::F64(123.4)),
+                },
+                Value {
+                    pb_type: Some(PbType::Str("hello world".into())),
+                },
+            ],
+        };
+        let samples = HashMap::from([(series_ref, sample)]);
 
-    let push_resp = writer_client.push(samples).await?;
-    assert!(push_resp.get(&series_ref).unwrap());
+        let push_resp = writer_client.push(samples).await?;
+        assert!(push_resp.get(&series_ref).unwrap());
+    }
 
     // read sample
     let mut reader_client = ReaderClient::new("http://127.0.0.1:51000")
@@ -177,12 +181,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut c = 0;
     while let Ok(Some(item)) = snap_reader.next_item() {
         match item {
-            SnapshotItem::Active(item) => println!("{:?}", item.timestamps()),
-            SnapshotItem::Compressed(item) => println!("{:?}", item.timestamps()),
+            SnapshotItem::Active(item) => {
+                println!("{:?}", item.timestamps());
+                c += item.timestamps().len();
+            }
+            SnapshotItem::Compressed(item) => {
+                println!("{:?}", item.timestamps());
+                c += item.timestamps().len();
+            }
         }
-        c += 1;
     }
     println!("{} items read", c);
+    assert_eq!(c, NUM_SAMPLES);
 
     Ok(())
 }
