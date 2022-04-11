@@ -169,8 +169,8 @@ impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
         let len = self.len.load(SeqCst);
         self[0..8].copy_from_slice(&len.to_be_bytes());
         let mut byte_buffer = ByteBuffer::new(&mut self[len..]);
-        let len = byte_buffer.len();
         bincode::serialize_into(&mut byte_buffer, data).unwrap();
+        let len = byte_buffer.len();
         self.len.fetch_add(len, SeqCst);
     }
 
@@ -306,5 +306,58 @@ impl ActiveBlock {
             }
         }
         Err(Error::BlockVersion)
+    }
+}
+
+#[cfg(test)]
+mod bytes_tests {
+    use super::*;
+    use crate::compression::CompressFn;
+    use crate::sample::Type;
+    use crate::segment::Buffer;
+    use crate::series::Types;
+    use crate::test_utils::*;
+
+    #[test]
+    fn test_set_tail() {
+        // set-tail should change Bytes's first 8 bytes to point to tail,
+        // and increment Bytes's len by the tail's size.
+
+        let data = (*MULTIVARIATE_DATA[0].1).clone();
+
+        let mut b = Bytes::new(vec![0xCC; 2048].into_boxed_slice());
+        let mut meta = HashMap::new();
+
+        let series_id = SeriesId(333);
+        let nvars = data[0].values.len();
+        let types = vec![Types::F64; nvars];
+        let mut buf = Buffer::new(types.as_slice());
+        for (_, item) in data[..255].iter().enumerate() {
+            let mut vals = Vec::new();
+            item.values.iter().for_each(|x| vals.push(Type::F64(*x)));
+            buf.push_type(item.ts, vals.as_slice()).unwrap();
+        }
+
+        let segment_info = b.push(
+            series_id,
+            &buf.to_flush().unwrap(),
+            &Compression::from(vec![CompressFn::Decimal(3); nvars]),
+            ActiveNode::new().static_node(),
+        );
+        meta.insert(series_id, segment_info);
+        let len_meta = {
+            let mut buf = vec![0; 1024].into_boxed_slice();
+            let mut byte_buffer = ByteBuffer::new(&mut buf);
+            bincode::serialize_into(&mut byte_buffer, &meta).unwrap();
+            byte_buffer.len()
+        };
+
+        let len_before_insert = b.len.load(SeqCst);
+        b.set_tail(&meta);
+        let len_after_insert = b.len.load(SeqCst);
+
+        let tail_offset = usize::from_be_bytes(b[0..8].try_into().unwrap());
+        assert!(len_after_insert == len_before_insert + len_meta);
+        assert!(len_after_insert == tail_offset + len_meta);
     }
 }

@@ -1,5 +1,6 @@
 use crate::utils::random_id;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::ops::Deref;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -26,7 +27,7 @@ impl Deref for WriterId {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Copy, Clone, Eq, Debug, PartialEq, Hash, Serialize, Deserialize)]
 pub struct SeriesId(pub u64);
 
 impl Deref for SeriesId {
