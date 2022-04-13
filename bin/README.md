@@ -1,3 +1,10 @@
+### Need to pull proto submodule
+
+```
+git submodule update --init --recursive
+```
+
+
 ### Run Server
 
 make sure you are running the tsdb server

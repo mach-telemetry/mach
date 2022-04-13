@@ -1,0 +1,3 @@
+[submodule "bin/mach-proto"]
+	path = bin/mach-proto
+	url = git@github.com:fsolleza/mach-proto.git
