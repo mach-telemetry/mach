@@ -3,91 +3,63 @@ pub mod mach_rpc {
 }
 
 use mach_rpc::tsdb_service_client::TsdbServiceClient;
-use mach_rpc::MapRequest;
+use mach_rpc::{self as rpc, MapRequest};
 use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
 };
-use std::time::{Duration, Instant};
+use std::time::{SystemTime, Duration, Instant, UNIX_EPOCH};
 use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
 
-//fn echo_requests_iter() -> impl Stream<Item = EchoRequest> {
-//    tokio_stream::iter(1..usize::MAX).map(|i| EchoRequest {
-//        msg: format!("msg {:02}", i),
-//    })
-//}
+async fn sample_maker(sender: Sender<rpc::PushRequest>) {
+    //let mut rng = rand::thread_rng();
+    let mut counter = 0;
+    loop {
+        let mut request = Vec::new();
+        for t in ["a", "b", "c"] {
+            let mut samples = Vec::new();
+            let mut tags = HashMap::new();
+            tags.insert(String::from(t), String::from(t));
+            for _ in 0..1000 {
+                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+                let timestamp: u64 = now.as_millis().try_into().unwrap();
+                let value: f64 = 12345.0;
+                let sample = rpc::Sample {
+                    id: counter,
+                    timestamp: timestamp,
+                    values: vec![
+                        rpc::Value {
+                            value_type: Some(rpc::value::ValueType::F64(value)),
+                        },
+                    ],
+                };
+                samples.push(sample);
+                counter += 1;
+            }
+            request.push(rpc::Samples { tags, samples} );
+        }
+        let push_request = rpc::PushRequest { samples: request };
+        sender.send(push_request).await.unwrap();
+    }
+}
 
-//async fn echo_stream(
-//    client: &mut TsdbServiceClient<Channel>,
-//    counter: Arc<AtomicUsize>,
-//    num: usize,
-//) {
-//    let in_stream = echo_requests_iter().take(num);
-//
-//    let response = client.echo_stream(in_stream).await.unwrap();
-//
-//    let mut resp_stream = response.into_inner();
-//
-//    let mut instant = Instant::now();
-//    while let Some(recieved) = resp_stream.next().await {
-//        let received = recieved.unwrap();
-//        let count = counter.fetch_add(1, SeqCst);
-//        //if count > 0 && count % 1_000_000 == 0 {
-//        //    let elapsed = instant.elapsed();
-//        //    println!("received 1,000,000 responses in {:?}", elapsed);
-//        //    instant = Instant::now();
-//        //}
-//    }
-//}
-
-//async fn map(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
-//    let (tx, mut rx) = channel(1);
-//    tokio::spawn(map_maker(tx));
-//
-//    loop {
-//        client.map(rx.recv().await.unwrap()).await.unwrap();
-//        counter.fetch_add(100_000, SeqCst);
-//    }
-//}
-
-async fn map_stream(client: &mut TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
+async fn sample_stream(mut client: TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
     let (tx, rx) = channel(1);
+    tokio::spawn(sample_maker(tx));
 
     let in_stream = ReceiverStream::new(rx);
-    let response = client.map_stream(in_stream).await.unwrap();
-    tokio::spawn(map_maker(tx));
+    let response = client.push_stream(in_stream).await.unwrap();
 
     let mut resp_stream = response.into_inner();
-
-    let mut _instant = Instant::now();
     while let Some(recieved) = resp_stream.next().await {
-        let _received = recieved.unwrap();
-        let _count = counter.fetch_add(100_000, SeqCst);
-        //if count > 0 && count % 1_000_000 == 0 {
-        //    let elapsed = instant.elapsed();
-        //    println!("received 1,000,000 responses in {:?}", elapsed);
-        //    instant = Instant::now();
-        //}
+        let received = recieved.unwrap();
+        let _count = counter.fetch_add(received.responses.len(), SeqCst);
     }
 }
 
-async fn map_maker(sender: Sender<MapRequest>) {
-    let mut map = HashMap::new();
-    for i in 0..1 {
-        map.insert(i, i);
-    }
-    loop {
-        sender
-            .send(MapRequest {
-                samples: map.clone().into(),
-            })
-            .await
-            .unwrap();
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -101,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut client = TsdbServiceClient::connect("http://127.0.0.1:50050")
                 .await
                 .unwrap();
-            map_stream(&mut client, counter.clone()).await;
+            sample_stream(client, counter.clone()).await;
         }));
     }
     let mut last = 0;

@@ -17,6 +17,8 @@ use std::time::Duration;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
+use rand::Rng;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 //fn echo_requests_iter() -> impl Stream<Item = EchoRequest> {
 //    tokio_stream::iter(1..usize::MAX).map(|i| EchoRequest {
@@ -74,6 +76,48 @@ async fn counter_watcher(counter: Arc<AtomicUsize>) {
     });
 }
 
+async fn sample_maker(sender: Sender<PushRequest>) {
+    //let mut rng = rand::thread_rng();
+    let mut counter = 0;
+    loop {
+        let mut samples = Vec::new();
+        for _ in 0..10000 {
+            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+            let timestamp: u64 = now.as_millis().try_into().unwrap();
+            let value: f64 = 12345.0;
+            let refid: u64 = counter % 100;
+            let sample = Sample {
+                id: counter,
+                refid,
+                timestamp: timestamp,
+                values: vec![
+                    Value {
+                        pb_type: Some(PbType::F64(value)),
+                    },
+                ],
+            };
+            samples.push(sample);
+            counter += 1;
+        }
+        let push_request = PushRequest { sample: samples };
+        sender.send(push_request).await.unwrap();
+    }
+}
+
+async fn sample_stream(mut client: WriterServiceClient<Channel>, counter: Arc<AtomicUsize>) {
+    let (tx, rx) = channel(1);
+    tokio::spawn(sample_maker(tx));
+
+    let in_stream = ReceiverStream::new(rx);
+    let response = client.push_stream(in_stream).await.unwrap();
+
+    let mut resp_stream = response.into_inner();
+    while let Some(recieved) = resp_stream.next().await {
+        let received = recieved.unwrap();
+        let _count = counter.fetch_add(received.responses.len(), SeqCst);
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicUsize::new(0));
@@ -94,55 +138,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } = client.add_series(req).await.unwrap().into_inner();
     println!("Writer address: {:?}", writer_address);
     let writer_address = format!("http://{}", writer_address);
-    let mut writer_client = WriterServiceClient::connect(writer_address).await.unwrap();
 
-    let series_ref_request = GetSeriesReferenceRequest { series_id };
-    let GetSeriesReferenceResponse { series_reference } = writer_client
-        .get_series_reference(series_ref_request)
-        .await
-        .unwrap()
-        .into_inner();
-    println!("Series reference: {:?}", series_reference);
+    /* Streaming */
+    let mut handles = Vec::new();
+    for i in 0..2 {
+        let mut writer_client = WriterServiceClient::connect(writer_address.clone()).await.unwrap();
+        let counter_clone = counter.clone();
+        handles.push(tokio::task::spawn(sample_stream(writer_client, counter_clone)));
+    }
+    for handle in handles {
+        handle.await;
+    }
 
-    // Samples
-    let mut samples = HashMap::new();
-    let sample = Sample {
-        timestamp: 12345,
-        values: vec![
-            Value {
-                pb_type: Some(PbType::F64(123.4)),
-            },
-            Value {
-                pb_type: Some(PbType::Str("hello world".into())),
-            },
-        ],
-    };
-    samples.insert(series_reference, sample);
-    let request = PushRequest { samples };
+    /* A single push*/
+    // let mut writer_client = WriterServiceClient::connect(writer_address).await.unwrap();
+    // let series_ref_request = GetSeriesReferenceRequest { series_id };
+    // let GetSeriesReferenceResponse { series_reference } = writer_client
+    //     .get_series_reference(series_ref_request)
+    //     .await
+    //     .unwrap()
+    //     .into_inner();
+    // println!("Series reference: {:?}", series_reference);
 
-    let results = writer_client
-        .push(request)
-        .await
-        .unwrap()
-        .into_inner()
-        .results;
-    println!("{:?}", results);
+    // // Samples
+    // let sample = Sample {
+    //     timestamp: 12345,
+    //     values: vec![
+    //         Value {
+    //             pb_type: Some(PbType::F64(123.4)),
+    //         },
+    //         Value {
+    //             pb_type: Some(PbType::Str("hello world".into())),
+    //         },
+    //     ],
+    // };
+    // //samples.insert(series_reference, sample);
+    // let request = PushRequest { id: 0, refid: series_reference, sample: Some(sample) };
 
-    //let mut counter: u64 = 0;
-    //let mut instant = Instant::now();
-    //loop {
-    //    let request = tonic::Request::new(EchoRequest {
-    //        msg: format!("Tonic{}", counter)
-    //    });
-    //    let response = client.echo(request).await?;
-    //    //println!("RESPONSE={:?}", response.into_inner().msg);
-    //    counter += 1;
-    //    if counter % 1_000 == 0 {
-    //        let elapsed = instant.elapsed();
-    //        println!("1,000,000 requests in {:?}", elapsed);
-    //        instant = Instant::now();
-    //    }
-    //    //sleep(Duration::from_secs(1));
-    //}
+    // let result = writer_client
+    //     .push(request)
+    //     .await
+    //     .unwrap()
+    //     .into_inner()
+    //     .result;
+    // println!("{:?}", result);
+
     Ok(())
 }

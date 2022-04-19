@@ -13,7 +13,7 @@ use mach::{
 use mach_rpc::writer_service_server::{WriterService, WriterServiceServer};
 use mach_rpc::{
     value::PbType, EchoRequest, EchoResponse, GetSeriesReferenceRequest,
-    GetSeriesReferenceResponse, MapRequest, MapResponse, PushRequest, PushResponse, Sample,
+    GetSeriesReferenceResponse, MapRequest, MapResponse, PushRequest, PushResponse, Sample, SampleResult,
 };
 use std::time::Duration;
 use std::{
@@ -38,11 +38,12 @@ struct GetReferenceId {
 }
 
 struct Push {
-    samples: HashMap<u64, Sample>,
-    resp: oneshot::Sender<HashMap<u64, bool>>,
+    sample: Vec<Sample>,
+    resp: oneshot::Sender<Vec<SampleResult>>,
 }
 
 struct MachSample {
+    id: u64,
     timestamp: u64,
     values: Vec<Type>,
 }
@@ -53,7 +54,7 @@ fn pb_sample_to_mach_sample(sample: Sample) -> MachSample {
     for item in sample.values {
         values.push(pb_type_to_mach_type(item.pb_type.unwrap()));
     }
-    MachSample { timestamp, values }
+    MachSample { id: sample.id, timestamp, values }
 }
 
 fn pb_type_to_mach_type(v: PbType) -> Type {
@@ -98,21 +99,24 @@ async fn writer_worker(mut writer: Writer, mut channel: mpsc::UnboundedReceiver<
                 counter.fetch_add(len, SeqCst);
             }
             WriteRequest::Push(mut x) => {
-                let mut hashmap = HashMap::new();
-                for (series_ref, pb_sample) in x.samples.drain() {
-                    let sample = pb_sample_to_mach_sample(pb_sample);
-                    match writer.push(
-                        SeriesRef(series_ref as usize),
-                        sample.timestamp,
-                        &sample.values,
-                    ) {
-                        Ok(_) => hashmap.insert(series_ref, true),
-                        Err(_) => hashmap.insert(series_ref, false),
-                    };
+                let mut results = Vec::new();
+                for sample in x.sample.drain(..) {
+                    let sample = pb_sample_to_mach_sample(sample);
+                    results.push(SampleResult {
+                        id: sample.id,
+                        result: true,
+                    });
+                    counter.fetch_add(1, SeqCst);
                 }
-                let len = hashmap.len();
-                x.resp.send(hashmap).unwrap();
-                counter.fetch_add(len, SeqCst);
+                x.resp.send(results);
+                //match writer.push(
+                //    SeriesRef(x.refid as usize),
+                //    sample.timestamp,
+                //    &sample.values,
+                //) {
+                //    Ok(_) => x.resp.send(true),
+                //    Err(_) => x.resp.send(false),
+                //};
             }
         }
     }
@@ -131,6 +135,7 @@ fn map_test_worker(
                     let (resp_tx, resp_rx) = oneshot::channel();
 
                     let request = WriteRequest::MapTest(MapTest {
+                        //refid: v.refid,
                         samples: v.samples,
                         resp: resp_tx,
                     });
@@ -167,15 +172,15 @@ fn push_worker(
                     let (resp_tx, resp_rx) = oneshot::channel();
 
                     let request = WriteRequest::Push(Push {
-                        samples: v.samples,
+                        sample: v.sample,
                         resp: resp_tx,
                     });
                     if writer.send(request).is_err() {
                         panic!("Writer thread is dead");
                     }
-                    let response = resp_rx.await.unwrap();
+                    let responses: Vec<SampleResult> = resp_rx.await.unwrap();
                     client
-                        .send(Ok(PushResponse { results: response }))
+                        .send(Ok(PushResponse { responses }))
                         .await
                         .expect("working rx")
                 }
@@ -245,15 +250,18 @@ impl WriterService for MachWriter {
     async fn push(&self, msg: Request<PushRequest>) -> Result<Response<PushResponse>, Status> {
         let request = msg.into_inner();
         let (resp_tx, resp_rx) = oneshot::channel();
+        //let req_id = request.id;
         let request = WriteRequest::Push(Push {
-            samples: request.samples,
+            //id: req_id,
+            //refid: request.refid,
+            sample: request.sample,
             resp: resp_tx,
         });
         if self.sender.send(request).is_err() {
             panic!("Writer thread is dead");
         }
-        let results = resp_rx.await.unwrap();
-        Ok(Response::new(PushResponse { results }))
+        let responses = resp_rx.await.unwrap();
+        Ok(Response::new(PushResponse { responses }))
     }
 
     async fn get_series_reference(

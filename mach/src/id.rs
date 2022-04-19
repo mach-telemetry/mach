@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::Deref;
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct WriterId(pub String);
 
 impl WriterId {
