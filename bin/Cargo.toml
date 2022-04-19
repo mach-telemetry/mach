@@ -29,9 +29,9 @@ path = "src/tsdb.rs"
 name = "tsdb-client"
 path = "src/tsdb_client.rs"
 
-[[bin]]
-name = "writer-client"
-path = "src/writer_client.rs"
+#[[bin]]
+#name = "writer-client"
+#path = "src/writer_client.rs"
 
 [[bin]]
 name = "reader-client"

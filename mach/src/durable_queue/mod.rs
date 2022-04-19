@@ -135,7 +135,7 @@ impl DurableQueueReader {
         match config {
             QueueConfig::Kafka(cfg) => Ok(DurableQueueReader::Kafka(KafkaReader::new(
                 cfg.bootstrap.clone(),
-                cfg.topic.clone(),
+                cfg.topic,
             )?)),
             QueueConfig::File(cfg) => {
                 let file = cfg.dir.join(cfg.file);

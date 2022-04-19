@@ -61,9 +61,9 @@ async fn writer_worker(
 
     // Loop over the items being written
     while let Some(mut item) = requests.recv().await {
-        let series_ref = references.entry(item.series_id).or_insert_with(|| {
+        let series_ref = *references.entry(item.series_id).or_insert_with(|| {
             writer.get_reference(item.series_id)
-        }).clone();
+        });
         let mut results = Vec::new();
 
         // Loop over the samples in the item
@@ -152,7 +152,7 @@ impl MachTSDB {
                         samples: samples.samples,
                         response: response_sender
                     };
-                    if let Err(_) = sender.send(item) {
+                    if sender.send(item).is_err() {
                         panic!("Send to writer worker error");
                     }
                     let response = response_receiver.await.unwrap();
@@ -171,7 +171,7 @@ impl MachTSDB {
                         samples: samples.samples,
                         response: response_sender
                     };
-                    if let Err(_) = sender.send(item) {
+                    if sender.send(item).is_err() {
                         panic!("Send to writer worker error");
                     }
                     let response = response_receiver.await.unwrap();
