@@ -6,10 +6,7 @@ pub mod mach_rpc {
 }
 
 use mach_rpc::tsdb_service_server::{TsdbService, TsdbServiceServer};
-use mach_rpc::{
-    self as rpc,
-    AddSeriesRequest, AddSeriesResponse, EchoRequest, EchoResponse, MapRequest, MapResponse
-};
+use mach_rpc as rpc;
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
@@ -25,7 +22,7 @@ use mach::{
     tsdb::Mach,
     utils::{random_id, bytes::Bytes},
     writer::{Writer, WriterConfig},
-    id::{SeriesRef, SeriesId, WriterId},
+    id::{SeriesId, WriterId},
 };
 use std::{time::Duration, collections::HashMap, sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}}};
 use dashmap::DashMap;
@@ -107,12 +104,8 @@ pub struct MachTSDB {
 impl MachTSDB {
     fn new() -> Self {
         let mut mach = Mach::new();
-        let mut writers = DashMap::new();
-        for i in 0..1 {
-            //let queue_config = FileConfig {
-            //    dir: CONF.out_path.clone(),
-            //    file: random_id(),
-            //}.config();
+        let writers = DashMap::new();
+        for _ in 0..1 {
             let queue_config = KafkaConfig {
                 bootstrap: String::from("localhost:9093,localhost:9094,localhost:9095"),
                 topic: random_id(),
@@ -125,7 +118,6 @@ impl MachTSDB {
             };
 
             let writer = mach.add_writer(writer_config).unwrap();
-            let id = writer.id().0;
             let (tx, rx) = mpsc::unbounded_channel();
             writers.insert(writer.id(), tx);
             tokio::task::spawn(writer_worker(writer, rx));
@@ -155,13 +147,14 @@ impl MachTSDB {
                 // Already registered
                 if let Some(sender) = self.sources.get(&tags.id()) {
                     println!("NO REGISTER");
-                    //let sender = self.writers.get(&writer_id).unwrap().clone();
                     let item = WriterWorkerItem {
                         series_id,
                         samples: samples.samples,
                         response: response_sender
                     };
-                    sender.send(item);
+                    if let Err(_) = sender.send(item) {
+                        panic!("Send to writer worker error");
+                    }
                     let response = response_receiver.await.unwrap();
                     responses.extend_from_slice(&response);
                 }
@@ -178,7 +171,9 @@ impl MachTSDB {
                         samples: samples.samples,
                         response: response_sender
                     };
-                    sender.send(item);
+                    if let Err(_) = sender.send(item) {
+                        panic!("Send to writer worker error");
+                    }
                     let response = response_receiver.await.unwrap();
                     responses.extend_from_slice(&response);
                 }
@@ -220,18 +215,18 @@ fn detect_config(tags: Tags, sample: &rpc::Sample) -> SeriesConfig {
 
 #[tonic::async_trait]
 impl TsdbService for MachTSDB {
-    async fn echo(&self, msg: Request<EchoRequest>) -> Result<Response<EchoResponse>, Status> {
+    async fn echo(&self, msg: Request<rpc::EchoRequest>) -> Result<Response<rpc::EchoResponse>, Status> {
         //println!("Got a request: {:?}", msg);
-        let reply = EchoResponse {
+        let reply = rpc::EchoResponse {
             msg: format!("Echo: {}", msg.into_inner().msg),
         };
         Ok(Response::new(reply))
     }
 
-    type EchoStreamStream = ReceiverStream<Result<EchoResponse, Status>>;
+    type EchoStreamStream = ReceiverStream<Result<rpc::EchoResponse, Status>>;
     async fn echo_stream(
         &self,
-        request: Request<tonic::Streaming<EchoRequest>>,
+        request: Request<tonic::Streaming<rpc::EchoRequest>>,
     ) -> Result<Response<Self::EchoStreamStream>, Status> {
         let mut in_stream = request.into_inner();
         let (tx, rx) = mpsc::channel(4);
@@ -239,7 +234,7 @@ impl TsdbService for MachTSDB {
             while let Some(result) = in_stream.next().await {
                 match result {
                     Ok(v) => tx
-                        .send(Ok(EchoResponse { msg: v.msg }))
+                        .send(Ok(rpc::EchoResponse { msg: v.msg }))
                         .await
                         .expect("working rx"),
                     Err(err) => {
@@ -260,7 +255,7 @@ impl TsdbService for MachTSDB {
         &self,
         request: Request<tonic::Streaming<rpc::PushRequest>>
     ) -> Result<Response<Self::PushStreamStream>, Status> {
-        let mut stream = request.into_inner();
+        let stream = request.into_inner();
         let (tx, rx) = mpsc::channel(1);
 
         let this = self.clone();
