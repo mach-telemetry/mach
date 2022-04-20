@@ -146,7 +146,7 @@ impl MachTSDB {
 
                 // Already registered
                 if let Some(sender) = self.sources.get(&tags.id()) {
-                    println!("NO REGISTER");
+                    //println!("NO REGISTER");
                     let item = WriterWorkerItem {
                         series_id,
                         samples: samples.samples,
@@ -161,7 +161,7 @@ impl MachTSDB {
 
                 // Register first
                 else {
-                    println!("REGISTERING");
+                    //println!("REGISTERING");
                     let config = detect_config(tags, &samples.samples[0]);
                     let (writer_id, series_id) = self.tsdb.write().await.add_series(config).unwrap();
                     let sender = self.writers.get(&writer_id).unwrap().clone();
@@ -178,7 +178,7 @@ impl MachTSDB {
                     responses.extend_from_slice(&response);
                 }
             }
-            println!("DONE");
+            //println!("DONE");
             response_channel.send(Ok(rpc::PushResponse { responses })).await.unwrap();
         }
     }

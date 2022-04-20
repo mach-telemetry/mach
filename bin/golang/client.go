@@ -6,11 +6,38 @@ import (
 	"log"
 	"time"
 	"fmt"
+	"sync/atomic"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	pb "github.com/fsolleza/mach-proto/golang"
 )
+
+func generate_request() pb.PushRequest {
+	request_samples := []*pb.Samples{}
+	counter := uint64(0)
+	for _, t := range []string{"a", "b", "c"} {
+		samples := pb.Samples {
+			Tags: map[string]string { t:t },
+			Samples: []*pb.Sample{},
+		}
+
+		for i := 0; i < 3; i++ {
+			timestamp := uint64(time.Now().UnixMicro())
+			var values []*pb.Value
+			values = append(values, &pb.Value { ValueType: &pb.Value_F64 { F64: 123.456 }})
+			values = append(values, &pb.Value { ValueType: &pb.Value_Str { Str: "foobar string"}})
+			sample := pb.Sample { Id: counter, Timestamp: timestamp, Values: values }
+			samples.Samples = append(samples.Samples, &sample)
+			counter = counter + 1
+		}
+
+		request_samples = append(request_samples, &samples)
+	}
+	request := pb.PushRequest { Samples: request_samples }
+	return request
+}
+
 
 func main() {
 	conn, err := grpc.Dial("localhost:50050", grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -27,61 +54,39 @@ func main() {
 	}
 	fmt.Println("Echo success: ", result.Msg)
 
-	// Register source
-	tags := make(map[string]string)
-	tags["foo"] = "bar"
-	var types []pb.AddSeriesRequest_ValueType
-	types = append(types, pb.AddSeriesRequest_F64)
-	types = append(types, pb.AddSeriesRequest_Bytes)
-	add_series_request := pb.AddSeriesRequest { Types: types, Tags: tags }
-	add_series_result, err := tsdb.AddSeries(ctx, &add_series_request)
-	if err != nil {
-		log.Fatalf("could not register: %v", err)
-	}
-	fmt.Println("Address and SeriesId", add_series_result.WriterAddress, add_series_result.SeriesId)
-	series_id := add_series_result.SeriesId
-	_ = series_id
-	writer_address := add_series_result.WriterAddress
+	stream, err := tsdb.PushStream(context.Background())
 
-	// Connect to writer
-	writer_conn, err := grpc.Dial(writer_address, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	defer writer_conn.Close()
-	writer := pb.NewWriterServiceClient(writer_conn)
+	// Stream samples into tsdb
+	go func() {
+		for {
+			request := generate_request()
+			if err := stream.Send(&request); err != nil {
+				panic("ERROR")
+			}
+		}
+	}()
 
-	writer_echo_result, err := writer.Echo(ctx, &pb.EchoRequest{ Msg: "message" })
-	if err != nil {
-		log.Fatalf("could not greet: %v", err)
-	}
-	fmt.Println("Writer Echo success: ", writer_echo_result.Msg)
+	result_count := uint64(0)
 
-	// Get writer series reference
-	series_ref_request := pb.GetSeriesReferenceRequest { SeriesId: series_id}
-	series_ref_response, err := writer.GetSeriesReference(ctx, &series_ref_request)
-	if err != nil {
-		log.Fatalf("could not get_ref: %v", err)
-	}
-	series_ref := series_ref_response.SeriesReference
+	// Consume response
+	go func() {
+		for {
+			resp, err := stream.Recv()
+			if err != nil {
+				panic("ERROR")
+			}
+			atomic.AddUint64(&result_count, uint64(len(resp.Responses)))
+		}
+	}()
 
-	// Prepare sample
-	var timestamp uint64 = 12345
-	var values []*pb.Value
-	values = append(values, &pb.Value { PbType: &pb.Value_F64 { F64: 123.456 }})
-	values = append(values, &pb.Value { PbType: &pb.Value_Str { Str: "foobar string"}})
-	sample := pb.Sample { Timestamp: timestamp, Values: values }
-
-
-	// Prepare samples
-	samples := make(map[uint64]*pb.Sample)
-	samples[series_ref] = &sample
-
-	// Write samples
-	push_request := pb.PushRequest { Samples: samples }
-	push_response, err := writer.Push(ctx, &push_request)
-	if err != nil {
-		log.Fatalf("could not push: %v", err)
-	}
-	fmt.Println("Results push", push_response.Results)
+	// Monitor counts
+	done := make(chan bool) // force wait
+	go func() {
+		for {
+			time.Sleep(time.Second)
+			fmt.Println("Received", atomic.LoadUint64(&result_count), "/s")
+		}
+		close(done)
+	}()
+	<-done
 }
