@@ -10,7 +10,7 @@ use mach_rpc as rpc;
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
-mod reader;
+//mod reader;
 mod tag_index;
 //mod writer;
 #[allow(unused_imports)]
@@ -26,9 +26,10 @@ use mach::{
     id::{SeriesId, WriterId},
 };
 use tag_index::TagIndex;
-use std::{time::Duration, collections::HashMap, sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}}};
+use std::{time::Duration, collections::{HashMap, HashSet}, sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}}};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
+use regex::Regex;
 
 lazy_static! {
     static ref COUNTER: Arc<AtomicUsize> = {
@@ -127,7 +128,7 @@ impl MachTSDB {
             tokio::task::spawn(writer_worker(writer, rx));
         }
 
-        reader::serve_reader(mach.new_read_server(), "127.0.0.1:51000");
+        //reader::serve_reader(mach.new_read_server(), "127.0.0.1:51000");
 
         Self {
             tag_index,
@@ -135,6 +136,10 @@ impl MachTSDB {
             sources: Arc::new(DashMap::new()),
             writers: Arc::new(writers),
         }
+    }
+
+    pub fn get_series(&self, re: &Regex) -> HashSet<Tags> {
+        self.tag_index.search(re)
     }
 
     async fn push_stream_handler(
@@ -167,7 +172,7 @@ impl MachTSDB {
                 // Register first
                 else {
                     //println!("REGISTERING");
-                    let config = detect_config(tags, &samples.samples[0]);
+                    let config = detect_config(tags.clone(), &samples.samples[0]);
                     let (writer_id, series_id) = self.tsdb.write().await.add_series(config).unwrap();
                     let sender = self.writers.get(&writer_id).unwrap().clone();
                     self.sources.insert(series_id, sender.clone());
@@ -180,6 +185,7 @@ impl MachTSDB {
                         panic!("Send to writer worker error");
                     }
                     let response = response_receiver.await.unwrap();
+                    self.tag_index.insert(tags);
                     responses.extend_from_slice(&response);
                 }
             }

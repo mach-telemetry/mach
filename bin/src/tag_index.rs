@@ -1,6 +1,5 @@
 use mach::{
     tags::Tags,
-    id::SeriesId,
 };
 use dashmap::DashMap;
 use std::collections::HashSet;
@@ -19,7 +18,6 @@ impl TagIndex {
     }
 
     pub fn insert(&self, tags: Tags) {
-        let series_id = tags.id();
         for tag in tags.data() {
             let to_index = format!("{}={}", tag.0, tag.1);
             self.map.entry(to_index).or_insert_with(|| { HashSet::new() }).insert(tags.clone());
