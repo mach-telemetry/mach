@@ -52,6 +52,12 @@ impl From<HashMap<String, String>> for Tags {
     }
 }
 
+impl From<Tags> for HashMap<String,String> {
+    fn from(mut tags: Tags) -> Self {
+        tags.data.drain(..).collect()
+    }
+}
+
 impl Tags {
     pub fn data(&self) -> &[(String, String)] {
         self.data.as_slice()

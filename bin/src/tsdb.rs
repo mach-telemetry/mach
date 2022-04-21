@@ -24,9 +24,11 @@ use mach::{
     utils::{random_id, bytes::Bytes},
     writer::{Writer, WriterConfig},
     id::{SeriesId, WriterId},
+    reader::{ReadServer, ReadResponse},
+    durable_queue::QueueConfig,
 };
 use tag_index::TagIndex;
-use std::{time::Duration, collections::{HashMap, HashSet}, sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}}};
+use std::{time::Duration, convert::From, collections::{HashMap}, sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}}};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -46,6 +48,25 @@ lazy_static! {
         });
         counter
     };
+}
+
+impl From<QueueConfig> for rpc::QueueConfig {
+    fn from(config: QueueConfig) -> Self {
+        rpc::QueueConfig {
+            configs: match config {
+                QueueConfig::Kafka(cfg) => {
+                    Some(rpc::queue_config::Configs::Kafka(mach_rpc::KafkaConfig {
+                        bootstrap: cfg.bootstrap,
+                        topic: cfg.topic,
+                    }))
+                }
+                QueueConfig::File(cfg) => Some(rpc::queue_config::Configs::File(mach_rpc::FileConfig {
+                    dir: cfg.dir.into_os_string().into_string().unwrap(),
+                    file: cfg.file,
+                })),
+            },
+        }
+    }
 }
 
 struct WriterWorkerItem {
@@ -103,6 +124,7 @@ pub struct MachTSDB {
     tsdb: Arc<RwLock<Mach>>,
     sources: Arc<DashMap<SeriesId, mpsc::UnboundedSender<WriterWorkerItem>>>,
     writers: Arc<DashMap<WriterId, mpsc::UnboundedSender<WriterWorkerItem>>>,
+    reader: ReadServer,
 }
 
 impl MachTSDB {
@@ -128,18 +150,25 @@ impl MachTSDB {
             tokio::task::spawn(writer_worker(writer, rx));
         }
 
-        //reader::serve_reader(mach.new_read_server(), "127.0.0.1:51000");
+        let reader = mach.new_read_server();
 
         Self {
             tag_index,
             tsdb: Arc::new(RwLock::new(mach)),
             sources: Arc::new(DashMap::new()),
             writers: Arc::new(writers),
+            reader,
         }
     }
 
-    pub fn get_series(&self, re: &Regex) -> HashSet<Tags> {
-        self.tag_index.search(re)
+    pub async fn read_handler(&self, re: &Regex) -> HashMap<Tags, ReadResponse> {
+        let tags = self.tag_index.search(re);
+        let mut results = HashMap::new();
+        for tag in tags {
+            let response = self.reader.read_request(tag.id()).await;
+            results.insert(tag, response);
+        }
+        results
     }
 
     async fn push_stream_handler(
@@ -171,7 +200,6 @@ impl MachTSDB {
 
                 // Register first
                 else {
-                    //println!("REGISTERING");
                     let config = detect_config(tags.clone(), &samples.samples[0]);
                     let (writer_id, series_id) = self.tsdb.write().await.add_series(config).unwrap();
                     let sender = self.writers.get(&writer_id).unwrap().clone();
@@ -259,6 +287,25 @@ impl TsdbService for MachTSDB {
             }
         });
         Ok(Response::new(ReceiverStream::new(rx)))
+    }
+
+    async fn read(&self, msg: Request<rpc::ReadRequest>) -> Result<Response::<rpc::ReadResponse>, Status> {
+        let re = Regex::new(msg.into_inner().regex.as_str()).unwrap();
+        let mut results = self.read_handler(&re).await;
+
+        let mut snapshots = Vec::new();
+        for (tags, r) in results.drain() {
+            let response_queue = rpc::QueueConfig::from(r.response_queue);
+            let data_queue = rpc::QueueConfig::from(r.data_queue);
+            snapshots.push(rpc::SeriesSnapshot {
+                tags: tags.into(),
+                response_queue: Some(response_queue),
+                data_queue: Some(data_queue),
+                offset: r.offset,
+            });
+        }
+
+        Ok(Response::new(rpc::ReadResponse { snapshots } ))
     }
 
     type PushStreamStream = ReceiverStream<Result<rpc::PushResponse, Status>>;
