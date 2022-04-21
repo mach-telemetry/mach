@@ -10,6 +10,8 @@ use rdkafka::{
     types::RDKafkaErrorCode,
     util::Timeout,
     Message,
+    admin::{NewTopic, AdminOptions, TopicReplication, AdminClient},
+    client::DefaultClientContext,
 };
 //use std::sync::mpsc::{SyncSender, Receiver, sync_channel};
 use serde::*;
@@ -61,6 +63,23 @@ pub struct KafkaWriter {
     dur: Duration,
 }
 
+async fn create_topic(bootstraps: String, topic: String) -> Result<(), Error> {
+    println!("creating topic: {}", topic);
+    let client: AdminClient<DefaultClientContext> = ClientConfig::new()
+        .set("bootstrap.servers", &bootstraps)
+        .create()?;
+
+    let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(3)));
+    let topics = &[NewTopic {
+        name: topic.as_str(),
+        num_partitions: 1,
+        replication: TopicReplication::Fixed(3),
+        config: Vec::new()
+    }];
+    client.create_topics(topics, &admin_opts).await?;
+    Ok(())
+}
+
 fn default_producer(bootstraps: String) -> Result<FutureProducer, Error> {
     println!("making producer to bootstraps: {}", bootstraps);
     let producer: FutureProducer = ClientConfig::new()
@@ -71,12 +90,15 @@ fn default_producer(bootstraps: String) -> Result<FutureProducer, Error> {
         .set("batch.num.messages", "1")
         .set("compression.type", "none")
         .set("acks", "all")
+        .set("message.timeout.ms", "3000")
         .create()?;
     Ok(producer)
 }
 
 impl KafkaWriter {
     pub fn new(kafka_bootstrap: String, topic: String) -> Result<Self, Error> {
+        let f = create_topic(kafka_bootstrap.clone(), topic.clone());
+        futures::executor::block_on(f)?;
         let producer = default_producer(kafka_bootstrap)?;
         let dur = Duration::from_secs(0);
         Ok(Self {
@@ -88,7 +110,9 @@ impl KafkaWriter {
 
     pub async fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&self.topic).payload(bytes);
+        let now = std::time::Instant::now();
         let (partition, offset) = self.producer.send(to_send, self.dur).await.unwrap();
+        println!("Item successfully produced in {:?}", now.elapsed());
         assert_eq!(partition, 0);
         Ok(offset.try_into().unwrap())
     }
