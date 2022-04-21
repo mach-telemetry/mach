@@ -3,23 +3,28 @@ pub mod mach_rpc {
 }
 
 use mach_rpc::tsdb_service_client::TsdbServiceClient;
-use mach_rpc::{self as rpc, MapRequest};
+use mach_rpc as rpc;
 use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
 };
-use std::time::{SystemTime, Duration, Instant, UNIX_EPOCH};
+use std::time::{SystemTime, Duration, UNIX_EPOCH};
 use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
 
+const SOURCES_PER_THREAD: usize = 3;
+
 async fn sample_maker(sender: Sender<rpc::PushRequest>) {
     //let mut rng = rand::thread_rng();
+    let strings: Vec<String> = (0..SOURCES_PER_THREAD).map(|_| {
+        random_string::generate(10, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+    }).collect();
     let mut counter = 0;
     loop {
         let mut request = Vec::new();
-        for t in ["a", "b", "c"] {
+        for t in strings.iter() {
             let mut samples = Vec::new();
             let mut tags = HashMap::new();
             tags.insert(String::from(t), String::from(t));
@@ -47,6 +52,7 @@ async fn sample_maker(sender: Sender<rpc::PushRequest>) {
 }
 
 async fn sample_stream(mut client: TsdbServiceClient<Channel>, counter: Arc<AtomicUsize>) {
+    println!("RUNNING STREAM");
     let (tx, rx) = channel(1);
     tokio::spawn(sample_maker(tx));
 
@@ -65,12 +71,12 @@ async fn sample_stream(mut client: TsdbServiceClient<Channel>, counter: Arc<Atom
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicUsize::new(0));
 
-    let clients = 1;
+    let clients = 2;
     let mut v = Vec::new();
     for _ in 0..clients {
         let counter = counter.clone();
         v.push(tokio::spawn(async move {
-            let mut client = TsdbServiceClient::connect("http://127.0.0.1:50050")
+            let client = TsdbServiceClient::connect("http://127.0.0.1:50050")
                 .await
                 .unwrap();
             sample_stream(client, counter.clone()).await;
