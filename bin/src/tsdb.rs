@@ -11,6 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
 mod reader;
+mod tag_index;
 //mod writer;
 #[allow(unused_imports)]
 use mach::durable_queue::{FileConfig, KafkaConfig};
@@ -24,6 +25,7 @@ use mach::{
     writer::{Writer, WriterConfig},
     id::{SeriesId, WriterId},
 };
+use tag_index::TagIndex;
 use std::{time::Duration, collections::HashMap, sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}}};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
@@ -96,6 +98,7 @@ async fn writer_worker(
 
 #[derive(Clone)]
 pub struct MachTSDB {
+    tag_index: TagIndex,
     tsdb: Arc<RwLock<Mach>>,
     sources: Arc<DashMap<SeriesId, mpsc::UnboundedSender<WriterWorkerItem>>>,
     writers: Arc<DashMap<WriterId, mpsc::UnboundedSender<WriterWorkerItem>>>,
@@ -103,6 +106,7 @@ pub struct MachTSDB {
 
 impl MachTSDB {
     fn new() -> Self {
+        let tag_index = TagIndex::new();
         let mut mach = Mach::new();
         let writers = DashMap::new();
         for _ in 0..1 {
@@ -126,6 +130,7 @@ impl MachTSDB {
         reader::serve_reader(mach.new_read_server(), "127.0.0.1:51000");
 
         Self {
+            tag_index,
             tsdb: Arc::new(RwLock::new(mach)),
             sources: Arc::new(DashMap::new()),
             writers: Arc::new(writers),
