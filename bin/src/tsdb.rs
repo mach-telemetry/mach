@@ -5,33 +5,41 @@ pub mod mach_rpc {
     tonic::include_proto!("mach_rpc"); // The string specified here must match the proto package name
 }
 
-use mach_rpc::tsdb_service_server::{TsdbService, TsdbServiceServer};
 use mach_rpc as rpc;
+use mach_rpc::tsdb_service_server::{TsdbService, TsdbServiceServer};
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
 //mod reader;
 mod tag_index;
 //mod writer;
+use dashmap::DashMap;
+use lazy_static::lazy_static;
 #[allow(unused_imports)]
 use mach::durable_queue::{FileConfig, KafkaConfig};
 use mach::{
     compression::{CompressFn, Compression},
-    series::{SeriesConfig, Types},
+    durable_queue::QueueConfig,
+    id::{SeriesId, WriterId},
+    reader::{ReadResponse, ReadServer},
     sample::Type,
+    series::{SeriesConfig, Types},
     tags::Tags,
     tsdb::Mach,
-    utils::{random_id, bytes::Bytes},
+    utils::{bytes::Bytes, random_id},
     writer::{Writer, WriterConfig},
-    id::{SeriesId, WriterId},
-    reader::{ReadServer, ReadResponse},
-    durable_queue::QueueConfig,
+};
+use regex::Regex;
+use std::{
+    collections::HashMap,
+    convert::From,
+    sync::{
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Arc,
+    },
+    time::Duration,
 };
 use tag_index::TagIndex;
-use std::{time::Duration, convert::From, collections::{HashMap}, sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}}};
-use dashmap::DashMap;
-use lazy_static::lazy_static;
-use regex::Regex;
 
 lazy_static! {
     static ref COUNTER: Arc<AtomicUsize> = {
@@ -60,10 +68,12 @@ impl From<QueueConfig> for rpc::QueueConfig {
                         topic: cfg.topic,
                     }))
                 }
-                QueueConfig::File(cfg) => Some(rpc::queue_config::Configs::File(mach_rpc::FileConfig {
-                    dir: cfg.dir.into_os_string().into_string().unwrap(),
-                    file: cfg.file,
-                })),
+                QueueConfig::File(cfg) => {
+                    Some(rpc::queue_config::Configs::File(mach_rpc::FileConfig {
+                        dir: cfg.dir.into_os_string().into_string().unwrap(),
+                        file: cfg.file,
+                    }))
+                }
             },
         }
     }
@@ -77,7 +87,8 @@ struct WriterWorkerItem {
 
 async fn writer_worker(
     mut writer: Writer,
-    mut requests: mpsc::UnboundedReceiver<WriterWorkerItem>) {
+    mut requests: mpsc::UnboundedReceiver<WriterWorkerItem>,
+) {
     let mut references = HashMap::new();
     let counter = COUNTER.clone();
     println!("Writer id {:?} starting up", writer.id());
@@ -85,27 +96,30 @@ async fn writer_worker(
 
     // Loop over the items being written
     while let Some(mut item) = requests.recv().await {
-        let series_ref = *references.entry(item.series_id).or_insert_with(|| {
-            writer.get_reference(item.series_id)
-        });
+        let series_ref = *references
+            .entry(item.series_id)
+            .or_insert_with(|| writer.get_reference(item.series_id));
         let mut results = Vec::new();
 
         // Loop over the samples in the item
         for mut sample in item.samples.drain(..) {
-
             // Iterate over sample's values and create values Mach can interpret
             values.clear();
             for v in sample.values.drain(..) {
                 let item = match v.value_type {
                     Some(rpc::value::ValueType::F64(x)) => Type::F64(x),
-                    Some(rpc::value::ValueType::Str(x)) => Type::Bytes(Bytes::from_slice(x.as_bytes())),
+                    Some(rpc::value::ValueType::Str(x)) => {
+                        Type::Bytes(Bytes::from_slice(x.as_bytes()))
+                    }
                     _ => panic!("Unhandled value type in sample"),
-                    };
+                };
                 values.push(item);
             }
 
             // Push the sample
-            let result = writer.push(series_ref, sample.timestamp, values.as_slice()).is_ok();
+            let result = writer
+                .push(series_ref, sample.timestamp, values.as_slice())
+                .is_ok();
 
             // Record result
             results.push(rpc::SampleResult {
@@ -174,7 +188,7 @@ impl MachTSDB {
     async fn push_stream_handler(
         &self,
         response_channel: mpsc::Sender<Result<rpc::PushResponse, Status>>,
-        mut request_stream: tonic::Streaming<rpc::PushRequest>
+        mut request_stream: tonic::Streaming<rpc::PushRequest>,
     ) {
         while let Some(Ok(mut request)) = request_stream.next().await {
             let mut responses = Vec::new();
@@ -189,7 +203,7 @@ impl MachTSDB {
                     let item = WriterWorkerItem {
                         series_id,
                         samples: samples.samples,
-                        response: response_sender
+                        response: response_sender,
                     };
                     if sender.send(item).is_err() {
                         panic!("Send to writer worker error");
@@ -197,17 +211,17 @@ impl MachTSDB {
                     let response = response_receiver.await.unwrap();
                     responses.extend_from_slice(&response);
                 }
-
                 // Register first
                 else {
                     let config = detect_config(tags.clone(), &samples.samples[0]);
-                    let (writer_id, series_id) = self.tsdb.write().await.add_series(config).unwrap();
+                    let (writer_id, series_id) =
+                        self.tsdb.write().await.add_series(config).unwrap();
                     let sender = self.writers.get(&writer_id).unwrap().clone();
                     self.sources.insert(series_id, sender.clone());
                     let item = WriterWorkerItem {
                         series_id,
                         samples: samples.samples,
-                        response: response_sender
+                        response: response_sender,
                     };
                     if sender.send(item).is_err() {
                         panic!("Send to writer worker error");
@@ -218,7 +232,10 @@ impl MachTSDB {
                 }
             }
             //println!("DONE");
-            response_channel.send(Ok(rpc::PushResponse { responses })).await.unwrap();
+            response_channel
+                .send(Ok(rpc::PushResponse { responses }))
+                .await
+                .unwrap();
         }
     }
 }
@@ -248,13 +265,16 @@ fn detect_config(tags: Tags, sample: &rpc::Sample) -> SeriesConfig {
         types,
         compression,
         seg_count,
-        nvars
+        nvars,
     }
 }
 
 #[tonic::async_trait]
 impl TsdbService for MachTSDB {
-    async fn echo(&self, msg: Request<rpc::EchoRequest>) -> Result<Response<rpc::EchoResponse>, Status> {
+    async fn echo(
+        &self,
+        msg: Request<rpc::EchoRequest>,
+    ) -> Result<Response<rpc::EchoResponse>, Status> {
         //println!("Got a request: {:?}", msg);
         let reply = rpc::EchoResponse {
             msg: format!("Echo: {}", msg.into_inner().msg),
@@ -289,7 +309,10 @@ impl TsdbService for MachTSDB {
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 
-    async fn read(&self, msg: Request<rpc::ReadRequest>) -> Result<Response::<rpc::ReadResponse>, Status> {
+    async fn read(
+        &self,
+        msg: Request<rpc::ReadRequest>,
+    ) -> Result<Response<rpc::ReadResponse>, Status> {
         let re = Regex::new(msg.into_inner().regex.as_str()).unwrap();
         let mut results = self.read_handler(&re).await;
 
@@ -305,13 +328,13 @@ impl TsdbService for MachTSDB {
             });
         }
 
-        Ok(Response::new(rpc::ReadResponse { snapshots } ))
+        Ok(Response::new(rpc::ReadResponse { snapshots }))
     }
 
     type PushStreamStream = ReceiverStream<Result<rpc::PushResponse, Status>>;
     async fn push_stream(
         &self,
-        request: Request<tonic::Streaming<rpc::PushRequest>>
+        request: Request<tonic::Streaming<rpc::PushRequest>>,
     ) -> Result<Response<Self::PushStreamStream>, Status> {
         let stream = request.into_inner();
         let (tx, rx) = mpsc::channel(1);
@@ -319,10 +342,8 @@ impl TsdbService for MachTSDB {
         let this = self.clone();
         tokio::task::spawn(async move { this.push_stream_handler(tx, stream).await });
 
-
         Ok(Response::new(ReceiverStream::new(rx)))
     }
-
 }
 
 #[tokio::main]

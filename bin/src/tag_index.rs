@@ -1,9 +1,7 @@
-use mach::{
-    tags::Tags,
-};
 use dashmap::DashMap;
-use std::collections::HashSet;
+use mach::tags::Tags;
 use regex::Regex;
+use std::collections::HashSet;
 
 #[derive(Clone)]
 pub struct TagIndex {
@@ -13,14 +11,17 @@ pub struct TagIndex {
 impl TagIndex {
     pub fn new() -> Self {
         TagIndex {
-            map: DashMap::new()
+            map: DashMap::new(),
         }
     }
 
     pub fn insert(&self, tags: Tags) {
         for tag in tags.data() {
             let to_index = format!("{}={}", tag.0, tag.1);
-            self.map.entry(to_index).or_insert_with(|| { HashSet::new() }).insert(tags.clone());
+            self.map
+                .entry(to_index)
+                .or_insert_with(HashSet::new)
+                .insert(tags.clone());
         }
     }
 
@@ -29,15 +30,12 @@ impl TagIndex {
         for item in self.map.iter() {
             let k = item.key();
             if re.is_match(k.as_str()) {
-                set = set.union(item.value()).map(|x| {
-                    x
-                }).cloned().collect();
+                set = set.union(item.value()).cloned().collect();
             }
         }
         set
     }
 }
-
 
 #[cfg(test)]
 mod test {
@@ -71,4 +69,3 @@ mod test {
         assert!(result.contains(&tags2));
     }
 }
-

@@ -2,14 +2,14 @@ pub mod mach_rpc {
     tonic::include_proto!("mach_rpc"); // The string specified here must match the proto package name
 }
 
-use mach_rpc::tsdb_service_client::TsdbServiceClient;
 use mach_rpc as rpc;
+use mach_rpc::tsdb_service_client::TsdbServiceClient;
 use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
 };
-use std::time::{SystemTime, Duration, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::transport::Channel;
@@ -18,9 +18,14 @@ const SOURCES_PER_THREAD: usize = 3;
 
 async fn sample_maker(sender: Sender<rpc::PushRequest>) {
     //let mut rng = rand::thread_rng();
-    let strings: Vec<String> = (0..SOURCES_PER_THREAD).map(|_| {
-        random_string::generate(10, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-    }).collect();
+    let strings: Vec<String> = (0..SOURCES_PER_THREAD)
+        .map(|_| {
+            random_string::generate(
+                10,
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+            )
+        })
+        .collect();
     let mut counter = 0;
     loop {
         let mut request = Vec::new();
@@ -34,17 +39,15 @@ async fn sample_maker(sender: Sender<rpc::PushRequest>) {
                 let value: f64 = 12345.0;
                 let sample = rpc::Sample {
                     id: counter,
-                    timestamp: timestamp,
-                    values: vec![
-                        rpc::Value {
-                            value_type: Some(rpc::value::ValueType::F64(value)),
-                        },
-                    ],
+                    timestamp,
+                    values: vec![rpc::Value {
+                        value_type: Some(rpc::value::ValueType::F64(value)),
+                    }],
                 };
                 samples.push(sample);
                 counter += 1;
             }
-            request.push(rpc::Samples { tags, samples} );
+            request.push(rpc::Samples { tags, samples });
         }
         let push_request = rpc::PushRequest { samples: request };
         sender.send(push_request).await.unwrap();
@@ -65,7 +68,6 @@ async fn sample_stream(mut client: TsdbServiceClient<Channel>, counter: Arc<Atom
         let _count = counter.fetch_add(received.responses.len(), SeqCst);
     }
 }
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
