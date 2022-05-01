@@ -85,11 +85,12 @@ async fn durability_worker(
         bincode::serialize_into(&mut encoded, &data).unwrap();
         lz4::compress_to_vec(&encoded, &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
         match queue_writer.write(&compressed[..]).await {
-            Ok(offset) => println!(
-                "Durability at offset {}, data size: {}",
-                offset,
-                compressed.len()
-            ),
+            //Ok(offset) => println!(
+            //    "Durability at offset {}, data size: {}",
+            //    offset,
+            //    compressed.len()
+            //),
+            Ok(offset) => {},
             Err(x) => println!("Durablity error {:?}", x),
         }
         //let (partition, offset) = producer.send(to_send, Duration::from_secs(0)).await.unwrap();

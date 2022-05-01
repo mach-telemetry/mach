@@ -32,6 +32,11 @@ path = "src/tsdb.rs"
 name = "tsdb-client"
 path = "src/tsdb_client.rs"
 
+[[bin]]
+name = "direct-load"
+path = "src/load_from_file.rs"
+
+
 #[[bin]]
 #name = "writer-client"
 #path = "src/writer_client.rs"

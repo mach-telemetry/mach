@@ -4,6 +4,8 @@ pub mod rpc {
 mod tag_index;
 mod mach_tsdb;
 mod none_tsdb;
+mod file_tsdb;
+mod sample;
 
 use rpc::tsdb_service_server::{TsdbServiceServer};
 use lazy_static::lazy_static;
@@ -19,6 +21,7 @@ use std::{
 };
 use mach_tsdb::MachTSDB;
 use none_tsdb::NoneTSDB;
+use file_tsdb::FileTSDB;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -30,19 +33,26 @@ struct Args {
 
     #[clap(short, long, default_value_t = String::from("50050"))]
     port: String,
+
+    #[clap(short, long)]
+    path: Option<String>,
 }
 
 lazy_static! {
     pub static ref COUNTER: Arc<AtomicUsize> = {
         let counter = Arc::new(AtomicUsize::new(0));
         let counter_clone = counter.clone();
+        let mut data = [0; 5];
         tokio::spawn(async move {
             let mut last = 0;
-            loop {
+            for i in 0..{
                 tokio::time::sleep(Duration::from_secs(1)).await;
-                let cur = counter_clone.load(SeqCst);
-                println!("received {} / sec", cur - last);
-                last = cur;
+                let idx = i % 5;
+                data[idx] = counter_clone.load(SeqCst);
+                let max = data.iter().max().unwrap();
+                let min = data.iter().min().unwrap();
+                let rate = (max - min) / 5;
+                println!("received {} / sec", rate);
             }
         });
         counter
@@ -73,6 +83,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         "none" => {
             let tsdb = NoneTSDB::new();
+            Server::builder()
+                .add_service(TsdbServiceServer::new(tsdb))
+                .serve(addr)
+                .await?;
+        }
+        "file" => {
+            let p = args.path.as_deref().unwrap();
+            let tsdb = FileTSDB::new(p);
             Server::builder()
                 .add_service(TsdbServiceServer::new(tsdb))
                 .serve(addr)

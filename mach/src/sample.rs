@@ -1,4 +1,5 @@
 pub use crate::utils::bytes::*;
+pub use serde::*;
 
 pub enum Type {
     U64(u64),

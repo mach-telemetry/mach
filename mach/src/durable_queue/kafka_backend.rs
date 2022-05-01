@@ -112,7 +112,7 @@ impl KafkaWriter {
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&self.topic).payload(bytes);
         let now = std::time::Instant::now();
         let (partition, offset) = self.producer.send(to_send, self.dur).await.unwrap();
-        println!("Item successfully produced in {:?}", now.elapsed());
+        //println!("Item successfully produced in {:?}", now.elapsed());
         assert_eq!(partition, 0);
         Ok(offset.try_into().unwrap())
     }
