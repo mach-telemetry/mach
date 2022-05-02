@@ -1,13 +1,13 @@
 use tonic::{Request, Response, Status};
 
+use crate::increment_sample_counter;
+use crate::rpc;
 use rpc::tsdb_service_server::TsdbService;
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
-use crate::increment_sample_counter;
-use crate::rpc;
 
 #[derive(Clone)]
-pub struct NoneTSDB { }
+pub struct NoneTSDB {}
 
 impl NoneTSDB {
     pub fn new() -> Self {
@@ -98,5 +98,3 @@ impl TsdbService for NoneTSDB {
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
-
-

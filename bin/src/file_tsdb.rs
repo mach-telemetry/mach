@@ -1,18 +1,18 @@
 use tonic::{Request, Response, Status};
 
-use rpc::tsdb_service_server::TsdbService;
-use tokio::sync::mpsc;
-use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use crate::increment_sample_counter;
 use crate::rpc;
-use serde_json::json;
+use crate::sample::*;
+use rpc::tsdb_service_server::TsdbService;
 use serde::*;
-use std::io::prelude::*;
+use serde_json::json;
+use std::collections::HashMap;
 use std::fs::File;
+use std::io::prelude::*;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
-use crate::sample::*;
+use tokio::sync::mpsc;
+use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
 #[derive(Clone)]
 pub struct FileTSDB {
@@ -22,7 +22,7 @@ pub struct FileTSDB {
 impl FileTSDB {
     pub fn new<P: AsRef<Path>>(p: P) -> Self {
         FileTSDB {
-            file: Arc::new(Mutex::new(File::create(p).unwrap()))
+            file: Arc::new(Mutex::new(File::create(p).unwrap())),
         }
     }
 
@@ -35,14 +35,18 @@ impl FileTSDB {
             let mut responses = Vec::new();
             for mut samples in request.samples.drain(..) {
                 for mut sample in samples.samples {
-                    let values: Vec<Type> = sample.values.drain(..).map(|v| {
-                        let item = match v.value_type {
-                            Some(rpc::value::ValueType::F64(x)) => Type::F64(x),
-                            Some(rpc::value::ValueType::Str(x)) => Type::Str(x),
-                            _ => panic!("Unhandled value type in sample"),
-                        };
-                        item
-                    }).collect();
+                    let values: Vec<Type> = sample
+                        .values
+                        .drain(..)
+                        .map(|v| {
+                            let item = match v.value_type {
+                                Some(rpc::value::ValueType::F64(x)) => Type::F64(x),
+                                Some(rpc::value::ValueType::Str(x)) => Type::Str(x),
+                                _ => panic!("Unhandled value type in sample"),
+                            };
+                            item
+                        })
+                        .collect();
                     let s = Sample {
                         tags: samples.tags.clone(),
                         timestamp: sample.timestamp,
@@ -125,5 +129,3 @@ impl TsdbService for FileTSDB {
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
-
-

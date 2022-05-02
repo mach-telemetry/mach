@@ -1,16 +1,8 @@
 mod sample;
 
-use std::fs;
-use std::io::*;
-use std::collections::HashMap;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
-use std::time::Duration;
-use std::thread;
-use serde::*;
-use serde_json;
 use mach::{
     compression::{CompressFn, Compression},
-    durable_queue::{QueueConfig, KafkaConfig},
+    durable_queue::{KafkaConfig, QueueConfig},
     id::{SeriesId, WriterId},
     reader::{ReadResponse, ReadServer},
     sample::Type,
@@ -20,9 +12,19 @@ use mach::{
     utils::{bytes::Bytes, random_id},
     writer::{Writer, WriterConfig},
 };
+use serde::*;
+use serde_json;
+use std::collections::HashMap;
+use std::fs;
+use std::io::*;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
+use std::thread;
+use std::time::Duration;
 
 pub fn main() {
-
     let counter = Arc::new(AtomicUsize::new(0));
     let cc = counter.clone();
     thread::spawn(move || {
@@ -49,11 +51,13 @@ pub fn main() {
     };
     let mut writer = mach.add_writer(writer_config).unwrap();
 
-
     // Load data into memory
     println!("Loading data");
     let reader = BufReader::new(fs::File::open("/home/fsolleza/data/mach/demo_data").unwrap());
-    let mut data: Vec<sample::Sample> = reader.lines().map(|x| serde_json::from_str(&x.unwrap()).unwrap()).collect();
+    let mut data: Vec<sample::Sample> = reader
+        .lines()
+        .map(|x| serde_json::from_str(&x.unwrap()).unwrap())
+        .collect();
 
     // Write data to single writer
     println!("Writing data");
@@ -73,9 +77,7 @@ pub fn main() {
         for v in sample.values.drain(..) {
             let item = match v {
                 sample::Type::F64(x) => Type::F64(x),
-                sample::Type::Str(x) => {
-                    Type::Bytes(Bytes::from_slice(x.as_bytes()))
-                }
+                sample::Type::Str(x) => Type::Bytes(Bytes::from_slice(x.as_bytes())),
                 _ => panic!("Unhandled value type in sample"),
             };
         }
@@ -83,10 +85,11 @@ pub fn main() {
         // Push the sample
         loop {
             if writer
-            .push(series_ref, sample.timestamp, values.as_slice())
-            .is_ok() {
+                .push(series_ref, sample.timestamp, values.as_slice())
+                .is_ok()
+            {
                 counter.fetch_add(1, SeqCst);
-                break
+                break;
             }
         }
     }
@@ -120,4 +123,3 @@ fn detect_config(tags: &Tags, sample: &sample::Sample) -> SeriesConfig {
         nvars,
     }
 }
-

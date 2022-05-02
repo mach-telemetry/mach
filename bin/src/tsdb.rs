@@ -1,17 +1,20 @@
 pub mod rpc {
     tonic::include_proto!("mach_rpc"); // The string specified here must match the proto package name
 }
-mod tag_index;
+mod file_tsdb;
 mod mach_tsdb;
 mod none_tsdb;
-mod file_tsdb;
 mod sample;
+mod tag_index;
 
-use rpc::tsdb_service_server::{TsdbServiceServer};
-use lazy_static::lazy_static;
-use tonic::transport::Server;
 use clap::Parser;
+use lazy_static::lazy_static;
+use rpc::tsdb_service_server::TsdbServiceServer;
+use tonic::transport::Server;
 
+use file_tsdb::FileTSDB;
+use mach_tsdb::MachTSDB;
+use none_tsdb::NoneTSDB;
 use std::{
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
@@ -19,9 +22,6 @@ use std::{
     },
     time::Duration,
 };
-use mach_tsdb::MachTSDB;
-use none_tsdb::NoneTSDB;
-use file_tsdb::FileTSDB;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -45,7 +45,7 @@ lazy_static! {
         let mut data = [0; 5];
         tokio::spawn(async move {
             let mut last = 0;
-            for i in 0..{
+            for i in 0.. {
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 let idx = i % 5;
                 data[idx] = counter_clone.load(SeqCst);
@@ -80,7 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .add_service(TsdbServiceServer::new(tsdb))
                 .serve(addr)
                 .await?;
-        },
+        }
         "none" => {
             let tsdb = NoneTSDB::new();
             Server::builder()

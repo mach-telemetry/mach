@@ -5,6 +5,9 @@ use rpc::tsdb_service_server::TsdbService;
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
+use crate::increment_sample_counter;
+use crate::rpc;
+use crate::tag_index::TagIndex;
 use dashmap::DashMap;
 use mach::durable_queue::KafkaConfig;
 use mach::{
@@ -20,14 +23,7 @@ use mach::{
     writer::{Writer, WriterConfig},
 };
 use regex::Regex;
-use std::{
-    collections::HashMap,
-    convert::From,
-    sync::Arc,
-};
-use crate::tag_index::TagIndex;
-use crate::increment_sample_counter;
-use crate::rpc;
+use std::{collections::HashMap, convert::From, sync::Arc};
 
 impl From<QueueConfig> for rpc::QueueConfig {
     fn from(config: QueueConfig) -> Self {
@@ -39,12 +35,10 @@ impl From<QueueConfig> for rpc::QueueConfig {
                         topic: cfg.topic,
                     }))
                 }
-                QueueConfig::File(cfg) => {
-                    Some(rpc::queue_config::Configs::File(rpc::FileConfig {
-                        dir: cfg.dir.into_os_string().into_string().unwrap(),
-                        file: cfg.file,
-                    }))
-                }
+                QueueConfig::File(cfg) => Some(rpc::queue_config::Configs::File(rpc::FileConfig {
+                    dir: cfg.dir.into_os_string().into_string().unwrap(),
+                    file: cfg.file,
+                })),
             },
         }
     }
@@ -316,5 +310,3 @@ impl TsdbService for MachTSDB {
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
-
-

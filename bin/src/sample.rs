@@ -1,10 +1,10 @@
-use std::collections::HashMap;
 use serde::*;
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 pub enum Type {
     F64(f64),
-    Str(String)
+    Str(String),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -13,5 +13,3 @@ pub struct Sample {
     pub timestamp: u64,
     pub values: Vec<Type>,
 }
-
-
