@@ -65,11 +65,12 @@ pub struct KafkaWriter {
 
 async fn create_topic(bootstraps: String, topic: String) -> Result<(), Error> {
     println!("creating topic: {}", topic);
+    println!("at bootstraps: {}", bootstraps);
     let client: AdminClient<DefaultClientContext> = ClientConfig::new()
         .set("bootstrap.servers", &bootstraps)
         .create()?;
 
-    let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(3)));
+    let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(10)));
     let topics = &[NewTopic {
         name: topic.as_str(),
         num_partitions: 1,
@@ -90,7 +91,7 @@ fn default_producer(bootstraps: String) -> Result<FutureProducer, Error> {
         .set("batch.num.messages", "1")
         .set("compression.type", "none")
         .set("acks", "all")
-        .set("message.timeout.ms", "3000")
+        .set("message.timeout.ms", "10000")
         .create()?;
     Ok(producer)
 }

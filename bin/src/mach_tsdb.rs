@@ -13,7 +13,7 @@ use mach::durable_queue::KafkaConfig;
 use mach::{
     compression::{CompressFn, Compression},
     durable_queue::QueueConfig,
-    id::{SeriesId, WriterId},
+    id::{SeriesId, WriterId, SeriesRef},
     reader::{ReadResponse, ReadServer},
     sample::Type,
     series::{SeriesConfig, Types},
@@ -23,7 +23,10 @@ use mach::{
     writer::{Writer, WriterConfig},
 };
 use regex::Regex;
-use std::{collections::HashMap, convert::From, sync::Arc};
+use std::{
+    collections::HashMap, convert::From, sync::{Arc, mpsc::channel},
+};
+use futures::executor::block_on;
 
 impl From<QueueConfig> for rpc::QueueConfig {
     fn from(config: QueueConfig) -> Self {
@@ -50,7 +53,7 @@ struct WriterWorkerItem {
     response: oneshot::Sender<Vec<rpc::SampleResult>>,
 }
 
-async fn writer_worker(
+fn writer_worker(
     mut writer: Writer,
     mut requests: mpsc::UnboundedReceiver<WriterWorkerItem>,
 ) {
@@ -60,7 +63,7 @@ async fn writer_worker(
     let mut values = Vec::new();
 
     // Loop over the items being written
-    while let Some(mut item) = requests.recv().await {
+    while let Some(mut item) = block_on(requests.recv()) {
         let series_ref = *references
             .entry(item.series_id)
             .or_insert_with(|| writer.get_reference(item.series_id));
@@ -82,17 +85,21 @@ async fn writer_worker(
             }
 
             // Push the sample
-            let result = writer
-                .push(series_ref, sample.timestamp, values.as_slice())
-                .is_ok();
+            loop {
+                if writer
+                    .push(series_ref, sample.timestamp, values.as_slice())
+                    .is_ok() {
+                    increment_sample_counter(1);
+                    break;
+                }
+            }
 
             // Record result
             results.push(rpc::SampleResult {
                 id: sample.id,
-                result,
+                result: true,
             })
         }
-        increment_sample_counter(results.len());
         item.response.send(results).unwrap();
     }
 }
@@ -101,8 +108,10 @@ async fn writer_worker(
 pub struct MachTSDB {
     tag_index: TagIndex,
     tsdb: Arc<RwLock<Mach>>,
-    sources: Arc<DashMap<SeriesId, mpsc::UnboundedSender<WriterWorkerItem>>>,
-    writers: Arc<DashMap<WriterId, mpsc::UnboundedSender<WriterWorkerItem>>>,
+    //sources: Arc<DashMap<SeriesId, mpsc::UnboundedSender<WriterWorkerItem>>>,
+    //writers: Arc<DashMap<WriterId, mpsc::UnboundedSender<WriterWorkerItem>>>,
+    writer: Arc<RwLock<Writer>>,
+    references: Arc<DashMap<SeriesId, SeriesRef>>,
     reader: ReadServer,
 }
 
@@ -110,10 +119,10 @@ impl MachTSDB {
     pub fn new() -> Self {
         let tag_index = TagIndex::new();
         let mut mach = Mach::new();
-        let writers = DashMap::new();
-        for _ in 0..1 {
+        //let writers = DashMap::new();
             let queue_config = KafkaConfig {
-                bootstrap: String::from("localhost:9093,localhost:9094,localhost:9095"),
+                bootstrap: String::from("b-2.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-1.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092"),
+                //bootstrap: String::from("localhost:9093,localhost:9094,localhost:9095"),
                 topic: random_id(),
             }
             .config();
@@ -124,18 +133,19 @@ impl MachTSDB {
             };
 
             let writer = mach.add_writer(writer_config).unwrap();
-            let (tx, rx) = mpsc::unbounded_channel();
-            writers.insert(writer.id(), tx);
-            tokio::task::spawn(writer_worker(writer, rx));
-        }
+            //let (tx, rx) = mpsc::unbounded_channel();
+            //writers.insert(writer.id(), tx);
+            //std::thread::spawn(move || {
+            //    writer_worker(writer, rx)
+            //});
 
         let reader = mach.new_read_server();
 
         Self {
             tag_index,
             tsdb: Arc::new(RwLock::new(mach)),
-            sources: Arc::new(DashMap::new()),
-            writers: Arc::new(writers),
+            references: Arc::new(DashMap::new()),
+            writer: Arc::new(RwLock::new(writer)),
             reader,
         }
     }
@@ -154,46 +164,54 @@ impl MachTSDB {
         &self,
         response_channel: mpsc::Sender<Result<rpc::PushResponse, Status>>,
         mut request_stream: tonic::Streaming<rpc::PushRequest>,
-    ) {
+        ) {
+        let mut writer = self.writer.write().await;
+        let mut mach = self.tsdb.write().await;
+        let mut values = Vec::new();
+
         while let Some(Ok(mut request)) = request_stream.next().await {
             let mut responses = Vec::new();
-            for samples in request.samples.drain(..) {
-                let tags = Tags::from(samples.tags);
+            for mut samples in request.samples.drain(..) {
+                let tags = Tags::from(samples.tags.clone());
                 let series_id = tags.id();
-                let (response_sender, response_receiver) = oneshot::channel();
 
-                // Already registered
-                if let Some(sender) = self.sources.get(&tags.id()) {
-                    //println!("NO REGISTER");
-                    let item = WriterWorkerItem {
-                        series_id,
-                        samples: samples.samples,
-                        response: response_sender,
-                    };
-                    if sender.send(item).is_err() {
-                        panic!("Send to writer worker error");
+                // Try to get series reference, otehrwise, register
+                let series_ref = *self.references.entry(series_id).or_insert_with(|| {
+                    let (w, s) = mach.add_series(detect_config(&tags, &samples.samples[0])).unwrap();
+                    //assert_eq!(w, WriterId(0));
+                    let r = writer.get_reference(series_id);
+                    r
+                });
+
+                for mut sample in samples.samples.drain(..) {
+                    // Iterate over sample's values and create values Mach can interpret
+                    values.clear();
+                    for v in sample.values.drain(..) {
+                        let item = match v.value_type {
+                            Some(rpc::value::ValueType::F64(x)) => Type::F64(x),
+                            Some(rpc::value::ValueType::Str(x)) => {
+                                Type::Bytes(Bytes::from_slice(x.as_bytes()))
+                            }
+                            _ => panic!("Unhandled value type in sample"),
+                        };
+                        values.push(item);
                     }
-                    let response = response_receiver.await.unwrap();
-                    responses.extend_from_slice(&response);
-                }
-                // Register first
-                else {
-                    let config = detect_config(tags.clone(), &samples.samples[0]);
-                    let (writer_id, series_id) =
-                        self.tsdb.write().await.add_series(config).unwrap();
-                    let sender = self.writers.get(&writer_id).unwrap().clone();
-                    self.sources.insert(series_id, sender.clone());
-                    let item = WriterWorkerItem {
-                        series_id,
-                        samples: samples.samples,
-                        response: response_sender,
-                    };
-                    if sender.send(item).is_err() {
-                        panic!("Send to writer worker error");
+
+                    // Push the sample
+                    loop {
+                        if writer
+                            .push(series_ref, sample.timestamp, values.as_slice())
+                                .is_ok() {
+                                    increment_sample_counter(1);
+                                    break;
+                                }
                     }
-                    let response = response_receiver.await.unwrap();
-                    self.tag_index.insert(tags);
-                    responses.extend_from_slice(&response);
+
+                    // Record result
+                    responses.push(rpc::SampleResult {
+                        id: sample.id,
+                        result: true,
+                    })
                 }
             }
             //println!("DONE");
@@ -205,7 +223,7 @@ impl MachTSDB {
     }
 }
 
-fn detect_config(tags: Tags, sample: &rpc::Sample) -> SeriesConfig {
+fn detect_config(tags: &Tags, sample: &rpc::Sample) -> SeriesConfig {
     let mut types = Vec::new();
     let mut compression = Vec::new();
     for v in sample.values.iter() {
@@ -226,7 +244,7 @@ fn detect_config(tags: Tags, sample: &rpc::Sample) -> SeriesConfig {
     let nvars = types.len();
 
     SeriesConfig {
-        tags,
+        tags: tags.clone(),
         types,
         compression,
         seg_count,

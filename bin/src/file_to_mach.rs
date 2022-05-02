@@ -40,7 +40,7 @@ pub fn main() {
     // Setup mach and writer
     let mut mach = Mach::new();
     let queue_config = KafkaConfig {
-        bootstrap: String::from("localhost:9093,localhost:9094,localhost:9095"),
+        bootstrap: String::from("b-1.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-2.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092"),
         topic: random_id(),
     }
     .config();
@@ -53,7 +53,7 @@ pub fn main() {
 
     // Load data into memory
     println!("Loading data");
-    let reader = BufReader::new(fs::File::open("/home/fsolleza/data/mach/demo_data").unwrap());
+    let reader = BufReader::new(fs::File::open("/home/ubuntu/demo_data").unwrap());
     let mut data: Vec<sample::Sample> = reader
         .lines()
         .map(|x| serde_json::from_str(&x.unwrap()).unwrap())

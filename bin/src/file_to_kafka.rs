@@ -41,15 +41,15 @@ use tokio::io::{self, *};
 
 #[tokio::main]
 async fn main() {
-    let counter = Arc::new(AtomicUsize::new(0));
-    let cc = counter.clone();
+    let producer_counter = Arc::new(AtomicUsize::new(0));
+    let pc = counter.clone();
 
     tokio::task::spawn(async move {
         let mut last = cc.load(SeqCst);
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;
-            let cur = cc.load(SeqCst);
-            println!("Rate {} / sec", cur - last);
+            let cur = pc.load(SeqCst);
+            println!("Producer Rate {} / sec", cur - last);
             last = cur;
         }
     });
@@ -65,23 +65,24 @@ async fn main() {
     //});
 
     // Setup topic, producer, and consumer
-    let bootstraps = String::from("localhost:9093,localhost:9094,localhost:9095");
+    let bootstraps = String::from("b-3.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-2.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-1.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092");
+    //let bootstraps = String::from("localhost:9093,localhost:9094,localhost:9095");
     let topic = random_id();
     let barrier = Arc::new(tokio::sync::Barrier::new(2));
-    let batch_size = 8192;
+    let batch_size = 8129*2;
 
-    //println!("creating topic: {}", topic);
-    //let client: AdminClient<DefaultClientContext> = ClientConfig::new()
-    //    .set("bootstrap.servers", &bootstraps)
-    //    .create().unwrap();
-    //let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(3)));
-    //let topics = &[NewTopic {
-    //    name: topic.as_str(),
-    //    num_partitions: 1,
-    //    replication: TopicReplication::Fixed(3),
-    //    config: Vec::new()
-    //}];
-    //client.create_topics(topics, &admin_opts).await.unwrap();
+    println!("creating topic: {}", topic);
+    let client: AdminClient<DefaultClientContext> = ClientConfig::new()
+        .set("bootstrap.servers", &bootstraps)
+        .create().unwrap();
+    let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(3)));
+    let topics = &[NewTopic {
+        name: topic.as_str(),
+        num_partitions: 1,
+        replication: TopicReplication::Fixed(3),
+        config: Vec::new()
+    }];
+    client.create_topics(topics, &admin_opts).await.unwrap();
 
     let producer: FutureProducer = ClientConfig::new()
         .set("bootstrap.servers", &bootstraps)
@@ -98,7 +99,7 @@ async fn main() {
     tokio::task::spawn(async move {
         println!("Loading data");
         let reader = BufReader::new(
-            File::open("/home/fsolleza/data/mach/demo_data")
+            File::open("/home/ubuntu/demo_data")
                 .await
                 .unwrap(),
         );
@@ -123,7 +124,10 @@ async fn main() {
                 let bytes = bincode::serialize(&buf).unwrap();
                 let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&producer_topic).payload(&bytes);
                 match producer.send(to_send, Duration::from_secs(3)).await {
-                    Ok(x) => assert_eq!(x.0, 0),
+                    Ok(x) => {
+                        assert_eq!(x.0, 0);
+                        counter.fetch_add(batch_size, SeqCst);
+                    }
                     Err(x) => println!("Produce error"),
                 }
                 buf.clear();
@@ -151,7 +155,7 @@ async fn main() {
                     None => {},
                     Some(Ok(s)) => {
                         if let Ok(x) = bincode::deserialize::<Vec<sample::Sample>>(s) {
-                            counter.fetch_add(batch_size, SeqCst);
+                            //counter.fetch_add(batch_size, SeqCst);
                         }
                     },
                     Some(Err(e)) => {
