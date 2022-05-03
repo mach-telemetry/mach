@@ -1,7 +1,7 @@
 use crate::{
     active_block::ActiveBlock,
     constants::*,
-    durable_queue::KafkaConfig,
+    durable_queue::{QueueConfig},
     id::WriterId,
     runtime::RUNTIME,
     segment::SegmentSnapshot,
@@ -23,8 +23,8 @@ pub struct DurabilityWorker {
 }
 
 impl DurabilityWorker {
-    pub fn new(writer_id: WriterId, active_block: Arc<WpLock<ActiveBlock>>) -> Self {
-        init(writer_id, active_block)
+    pub fn new(writer_id: WriterId, active_block: Arc<WpLock<ActiveBlock>>, queue_config: QueueConfig) -> Self {
+        init(writer_id, active_block, queue_config)
     }
 
     pub fn register_series(&self, series: Series) {
@@ -34,13 +34,13 @@ impl DurabilityWorker {
     }
 }
 
-fn init(writer_id: WriterId, active_block: Arc<WpLock<ActiveBlock>>) -> DurabilityWorker {
+fn init(writer_id: WriterId, active_block: Arc<WpLock<ActiveBlock>>, queue_config: QueueConfig) -> DurabilityWorker {
     let writer_id: String = writer_id.inner().into();
     let (tx, rx) = unbounded_channel();
     let series = Arc::new(Mutex::new(Vec::<Series>::new()));
     let series2 = series.clone();
     RUNTIME.spawn(durability_receiver(rx, series2));
-    RUNTIME.spawn(durability_worker(writer_id, series, active_block));
+    RUNTIME.spawn(durability_worker(writer_id, series, active_block, queue_config));
     DurabilityWorker { chan: tx }
 }
 
@@ -54,13 +54,14 @@ async fn durability_worker(
     _writer_id: String,
     series: Arc<Mutex<Vec<Series>>>,
     active_block: Arc<WpLock<ActiveBlock>>,
+    queue_config: QueueConfig,
 ) {
-    let k_config = KafkaConfig {
-        bootstrap: String::from(KAFKA_BOOTSTRAP),
-        topic: random_id(),
-    };
+    //let k_config = KafkaConfig {
+    //    bootstrap: String::from(KAFKA_BOOTSTRAP),
+    //    topic: random_id(),
+    //};
 
-    let queue_config = k_config.config();
+    //let queue_config = k_config.config();
     let queue = queue_config.clone().make().unwrap();
     let mut queue_writer = queue.writer().unwrap();
 

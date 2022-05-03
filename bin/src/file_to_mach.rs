@@ -24,6 +24,23 @@ use std::sync::{
 };
 use std::thread;
 use std::time::Duration;
+use lazy_static::*;
+
+lazy_static!{
+    static ref FILE_CONF: QueueConfig = FileConfig {
+        dir: "/home/ubuntu".into(),
+        file: random_id(),
+    }
+    .config();
+    static ref KAFKA_CONF: QueueConfig = KafkaConfig {
+        bootstrap: String::from("b-1.demo-cluster.5nabvl.c25.kafka.us-east-1.amazonaws.com:9092,b-2.demo-cluster.5nabvl.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo-cluster.5nabvl.c25.kafka.us-east-1.amazonaws.com:9092"),
+        topic: random_id(),
+    }
+    .config();
+    static ref DATA: String = String::from("/home/ubuntu/demo_data");
+}
+
+
 
 pub fn main() {
     let counter = Arc::new(AtomicUsize::new(0));
@@ -43,27 +60,18 @@ pub fn main() {
 
     // Setup mach and writer
     let mut mach = Mach::new();
-    //let queue_config = KafkaConfig {
-    //    bootstrap: String::from("b-1.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-2.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092"),
-    //    topic: random_id(),
-    //}
-    //.config();
-
-    let queue_config = FileConfig {
-        dir: "/home/fsolleza/Sandbox/tmp".into(),
-        file: random_id(),
-    }
-    .config();
+    let _queue_config = FILE_CONF.clone();
+    //let _queue_config = KAFKA_CONF.clone();
 
     let writer_config = WriterConfig {
-        queue_config,
+        queue_config: _queue_config,
         active_block_flush_sz: 1_000_000,
     };
     let mut writer = mach.add_writer(writer_config).unwrap();
 
     // Load data into memory
     println!("Loading data");
-    let reader = BufReader::new(fs::File::open("/home/fsolleza/data/mach/demo_data").unwrap());
+    let reader = BufReader::new(fs::File::open(&*DATA).unwrap());
     let mut data: Vec<sample::Sample> = reader
         .lines()
         .map(|x| serde_json::from_str(&x.unwrap()).unwrap())
@@ -99,11 +107,17 @@ pub fn main() {
 
     // Write data to single writer
     println!("Writing data");
-    for (series_ref, timestamp, values) in samples.drain(..) {
+    let mut values = Vec::new();
+    for (series_ref, timestamp, mut items) in samples.drain(..) {
         //let tags = Tags::from(sample.tags);
         //let series_id = tags.id();
         //let series_ref = *map.get(&series_id).unwrap();
         // Push the sample
+        values.clear();
+        values.append(&mut items);
+        //for item in items {
+        //    values.push(item);
+        //}
         loop {
             if writer
                 .push(series_ref, timestamp, values.as_slice())

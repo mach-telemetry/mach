@@ -5,6 +5,7 @@ use crate::{
     reader::ReadServer,
     series::{self, *},
     writer::{Writer, WriterConfig, WriterMetadata},
+    durable_queue::QueueConfig,
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
@@ -45,14 +46,19 @@ impl Mach {
         }
     }
 
-    pub fn new_read_server(&self) -> ReadServer {
-        ReadServer::new(self.series_table.clone())
+    pub fn new_read_server(&self, config: QueueConfig) -> ReadServer {
+        ReadServer::new(self.series_table.clone(), config)
     }
 
     pub fn add_writer(&mut self, writer_config: WriterConfig) -> Result<Writer, Error> {
         let global_meta = self.series_table.clone();
+        let mut q = writer_config.queue_config.clone();
+        match &mut q {
+            QueueConfig::Kafka(x) => x.topic.push_str("_durability"),
+            QueueConfig::File(x) => x.file.push_str("_durability"),
+        }
         let (writer, meta) = Writer::new(global_meta, writer_config);
-        let durability = DurabilityWorker::new(meta.id.clone(), meta.active_block.clone());
+        let durability = DurabilityWorker::new(meta.id.clone(), meta.active_block.clone(), q);
         self.writers.push(meta.id.clone());
         self.writer_table
             .insert(meta.id.clone(), (meta, durability));

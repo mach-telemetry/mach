@@ -35,13 +35,14 @@ async fn snapshot_worker(
     series: Series,
     snapshotters: Arc<RwLock<HashMap<SeriesId, Snapshotter>>>,
     mut receiver: mpsc::UnboundedReceiver<SnapshotterRequest>,
+    queue_config: QueueConfig,
 ) {
-    let response_config = KafkaConfig {
-        bootstrap: String::from(KAFKA_BOOTSTRAP),
-        topic: random_id(),
-    };
+    //let response_config = KafkaConfig {
+    //    bootstrap: String::from(KAFKA_BOOTSTRAP),
+    //    topic: random_id(),
+    //};
 
-    let queue_config = response_config.config();
+    //let queue_config = response_config.config();
     let queue = queue_config.clone().make().unwrap();
     let mut queue_writer = queue.writer().unwrap();
 
@@ -118,13 +119,15 @@ pub struct ReadServer {
     // Use RwLock hashmap here because DashMap might deadlock if getting a &mut ref and holding
     // another reference.
     snapshotters: Arc<RwLock<HashMap<SeriesId, Snapshotter>>>,
+    queue_config: QueueConfig,
 }
 
 impl ReadServer {
-    pub fn new(series_table: Arc<DashMap<SeriesId, Series>>) -> Self {
+    pub fn new(series_table: Arc<DashMap<SeriesId, Series>>, queue_config: QueueConfig) -> Self {
         Self {
             series_table,
             snapshotters: Arc::new(RwLock::new(HashMap::new())),
+            queue_config,
         }
     }
 
@@ -144,6 +147,7 @@ impl ReadServer {
                 series,
                 self.snapshotters.clone(),
                 rx,
+                self.queue_config.clone(),
             ));
             Snapshotter { worker }
         });
