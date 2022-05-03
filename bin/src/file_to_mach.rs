@@ -2,7 +2,7 @@ mod sample;
 
 use mach::{
     compression::{CompressFn, Compression},
-    durable_queue::{KafkaConfig, QueueConfig},
+    durable_queue::{KafkaConfig, FileConfig, QueueConfig},
     id::{SeriesId, WriterId},
     reader::{ReadResponse, ReadServer},
     sample::Type,
@@ -14,11 +14,12 @@ use mach::{
 };
 use serde::*;
 use serde_json;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::*;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
+    Barrier,
     Arc,
 };
 use std::thread;
@@ -27,8 +28,11 @@ use std::time::Duration;
 pub fn main() {
     let counter = Arc::new(AtomicUsize::new(0));
     let cc = counter.clone();
+    let barrier = Arc::new(Barrier::new(2));
+    let cb = barrier.clone();
     thread::spawn(move || {
         let mut last = cc.load(SeqCst);
+        cb.wait();
         loop {
             thread::sleep(Duration::from_secs(1));
             let cur = cc.load(SeqCst);
@@ -39,9 +43,15 @@ pub fn main() {
 
     // Setup mach and writer
     let mut mach = Mach::new();
-    let queue_config = KafkaConfig {
-        bootstrap: String::from("b-1.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-2.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092"),
-        topic: random_id(),
+    //let queue_config = KafkaConfig {
+    //    bootstrap: String::from("b-1.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-2.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092"),
+    //    topic: random_id(),
+    //}
+    //.config();
+
+    let queue_config = FileConfig {
+        dir: "/home/fsolleza/Sandbox/tmp".into(),
+        file: random_id(),
     }
     .config();
 
@@ -53,39 +63,50 @@ pub fn main() {
 
     // Load data into memory
     println!("Loading data");
-    let reader = BufReader::new(fs::File::open("/home/ubuntu/demo_data").unwrap());
+    let reader = BufReader::new(fs::File::open("/home/fsolleza/data/mach/demo_data").unwrap());
     let mut data: Vec<sample::Sample> = reader
         .lines()
         .map(|x| serde_json::from_str(&x.unwrap()).unwrap())
         .collect();
 
-    // Write data to single writer
-    println!("Writing data");
-    let mut values = Vec::new();
-
-    let mut map = HashMap::new();
-    for mut sample in data.drain(..) {
+    // Register series
+    println!("Register series");
+    //let mut map = HashMap::new();
+    let mut samples = Vec::new();
+    let mut set = HashMap::new();
+    for sample in data.iter() {
         let tags = Tags::from(sample.tags.clone());
         let series_id = tags.id();
-        let series_ref = *map.entry(series_id).or_insert_with(|| {
-            let (w, s) = mach.add_series(detect_config(&tags, &sample)).unwrap();
-            //assert_eq!(w, WriterId(0));
-            let r = writer.get_reference(series_id);
-            r
+        let series_ref = *set.entry(series_id).or_insert_with(|| {
+            let _ = mach.add_series(detect_config(&tags, &sample)).unwrap();
+            let series_ref = writer.get_reference(series_id);
+            series_ref
         });
-        values.clear();
-        for v in sample.values.drain(..) {
+        //series_refs.push(*series_ref);
+        let mut values = Vec::new();
+        for v in &sample.values {
             let item = match v {
-                sample::Type::F64(x) => Type::F64(x),
+                sample::Type::F64(x) => Type::F64(*x),
                 sample::Type::Str(x) => Type::Bytes(Bytes::from_slice(x.as_bytes())),
                 _ => panic!("Unhandled value type in sample"),
             };
+            values.push(item);
         }
+        samples.push((series_ref, sample.timestamp, values))
+    }
+    println!("Done registeringer");
+    barrier.wait();
 
+    // Write data to single writer
+    println!("Writing data");
+    for (series_ref, timestamp, values) in samples.drain(..) {
+        //let tags = Tags::from(sample.tags);
+        //let series_id = tags.id();
+        //let series_ref = *map.get(&series_id).unwrap();
         // Push the sample
         loop {
             if writer
-                .push(series_ref, sample.timestamp, values.as_slice())
+                .push(series_ref, timestamp, values.as_slice())
                 .is_ok()
             {
                 counter.fetch_add(1, SeqCst);
@@ -112,7 +133,7 @@ fn detect_config(tags: &Tags, sample: &sample::Sample) -> SeriesConfig {
         }
     }
     let compression = Compression::from(compression);
-    let seg_count = 1;
+    let seg_count = 3;
     let nvars = types.len();
 
     SeriesConfig {
