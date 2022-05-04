@@ -1,15 +1,12 @@
 use crate::{
-    constants::*,
-    durable_queue::{KafkaConfig, QueueConfig},
+    durable_queue::{QueueConfig},
     id::SeriesId,
     runtime::*,
     series::Series,
-    utils::*,
 };
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::convert::From;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::{

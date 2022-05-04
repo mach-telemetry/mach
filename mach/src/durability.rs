@@ -1,12 +1,11 @@
 use crate::{
     active_block::ActiveBlock,
-    constants::*,
     durable_queue::{QueueConfig},
     id::WriterId,
     runtime::RUNTIME,
     segment::SegmentSnapshot,
     series::Series,
-    utils::{random_id, wp_lock::WpLock},
+    utils::{wp_lock::WpLock},
 };
 use lzzzz::lz4;
 use std::{sync::Arc, time::Duration};
@@ -91,7 +90,7 @@ async fn durability_worker(
             //    offset,
             //    compressed.len()
             //),
-            Ok(offset) => {},
+            Ok(_) => {},
             Err(x) => println!("Durablity error {:?}", x),
         }
         //let (partition, offset) = producer.send(to_send, Duration::from_secs(0)).await.unwrap();

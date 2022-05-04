@@ -9,11 +9,12 @@ use crate::increment_sample_counter;
 use crate::rpc;
 use crate::tag_index::TagIndex;
 use dashmap::DashMap;
+use futures::executor::block_on;
 use mach::durable_queue::KafkaConfig;
 use mach::{
     compression::{CompressFn, Compression},
     durable_queue::QueueConfig,
-    id::{SeriesId, WriterId, SeriesRef},
+    id::{SeriesId, SeriesRef, WriterId},
     reader::{ReadResponse, ReadServer},
     sample::Type,
     series::{SeriesConfig, Types},
@@ -24,9 +25,10 @@ use mach::{
 };
 use regex::Regex;
 use std::{
-    collections::HashMap, convert::From, sync::{Arc, mpsc::channel},
+    collections::HashMap,
+    convert::From,
+    sync::{mpsc::channel, Arc},
 };
-use futures::executor::block_on;
 
 impl From<QueueConfig> for rpc::QueueConfig {
     fn from(config: QueueConfig) -> Self {
@@ -53,10 +55,7 @@ struct WriterWorkerItem {
     response: oneshot::Sender<Vec<rpc::SampleResult>>,
 }
 
-fn writer_worker(
-    mut writer: Writer,
-    mut requests: mpsc::UnboundedReceiver<WriterWorkerItem>,
-) {
+fn writer_worker(mut writer: Writer, mut requests: mpsc::UnboundedReceiver<WriterWorkerItem>) {
     let mut references = HashMap::new();
     //let counter = COUNTER.clone();
     println!("Writer id {:?} starting up", writer.id());
@@ -88,7 +87,8 @@ fn writer_worker(
             loop {
                 if writer
                     .push(series_ref, sample.timestamp, values.as_slice())
-                    .is_ok() {
+                    .is_ok()
+                {
                     increment_sample_counter(1);
                     break;
                 }
@@ -120,24 +120,24 @@ impl MachTSDB {
         let tag_index = TagIndex::new();
         let mut mach = Mach::new();
         //let writers = DashMap::new();
-            let queue_config = KafkaConfig {
+        let queue_config = KafkaConfig {
                 bootstrap: String::from("b-2.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-1.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092"),
                 //bootstrap: String::from("localhost:9093,localhost:9094,localhost:9095"),
                 topic: random_id(),
             }
             .config();
 
-            let writer_config = WriterConfig {
-                queue_config,
-                active_block_flush_sz: 1_000_000,
-            };
+        let writer_config = WriterConfig {
+            queue_config,
+            active_block_flush_sz: 1_000_000,
+        };
 
-            let writer = mach.add_writer(writer_config).unwrap();
-            //let (tx, rx) = mpsc::unbounded_channel();
-            //writers.insert(writer.id(), tx);
-            //std::thread::spawn(move || {
-            //    writer_worker(writer, rx)
-            //});
+        let writer = mach.add_writer(writer_config).unwrap();
+        //let (tx, rx) = mpsc::unbounded_channel();
+        //writers.insert(writer.id(), tx);
+        //std::thread::spawn(move || {
+        //    writer_worker(writer, rx)
+        //});
 
         let reader = mach.new_read_server();
 
@@ -164,7 +164,7 @@ impl MachTSDB {
         &self,
         response_channel: mpsc::Sender<Result<rpc::PushResponse, Status>>,
         mut request_stream: tonic::Streaming<rpc::PushRequest>,
-        ) {
+    ) {
         let mut writer = self.writer.write().await;
         let mut mach = self.tsdb.write().await;
         let mut values = Vec::new();
@@ -177,7 +177,9 @@ impl MachTSDB {
 
                 // Try to get series reference, otehrwise, register
                 let series_ref = *self.references.entry(series_id).or_insert_with(|| {
-                    let (w, s) = mach.add_series(detect_config(&tags, &samples.samples[0])).unwrap();
+                    let (w, s) = mach
+                        .add_series(detect_config(&tags, &samples.samples[0]))
+                        .unwrap();
                     //assert_eq!(w, WriterId(0));
                     let r = writer.get_reference(series_id);
                     r
@@ -201,10 +203,11 @@ impl MachTSDB {
                     loop {
                         if writer
                             .push(series_ref, sample.timestamp, values.as_slice())
-                                .is_ok() {
-                                    increment_sample_counter(1);
-                                    break;
-                                }
+                            .is_ok()
+                        {
+                            increment_sample_counter(1);
+                            break;
+                        }
                     }
 
                     // Record result

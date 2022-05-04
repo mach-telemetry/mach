@@ -1,8 +1,9 @@
 mod sample;
 
+use lazy_static::*;
 use mach::{
     compression::{CompressFn, Compression},
-    durable_queue::{KafkaConfig, FileConfig, QueueConfig},
+    durable_queue::{FileConfig, KafkaConfig, QueueConfig},
     id::{SeriesId, WriterId},
     reader::{ReadResponse, ReadServer},
     sample::Type,
@@ -19,14 +20,12 @@ use std::fs;
 use std::io::*;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
-    Barrier,
-    Arc,
+    Arc, Barrier,
 };
 use std::thread;
 use std::time::Duration;
-use lazy_static::*;
 
-lazy_static!{
+lazy_static! {
     static ref FILE_CONF: QueueConfig = FileConfig {
         dir: "/home/ubuntu".into(),
         file: random_id(),
@@ -39,8 +38,6 @@ lazy_static!{
     .config();
     static ref DATA: String = String::from("/home/ubuntu/demo_data");
 }
-
-
 
 pub fn main() {
     let counter = Arc::new(AtomicUsize::new(0));
