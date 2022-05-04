@@ -13,6 +13,12 @@ use std::mem::{align_of, size_of, ManuallyDrop};
 /// heap.
 pub struct Bytes(*const u8);
 
+impl Clone for Bytes {
+    fn clone(&self) -> Self {
+        Bytes::from_slice(self.bytes())
+    }
+}
+
 impl Bytes {
     pub fn len(&self) -> usize {
         let slice: &[u8] = unsafe { std::slice::from_raw_parts(self.0, 8) };

@@ -1,6 +1,7 @@
 pub use crate::utils::bytes::*;
 pub use serde::*;
 
+#[derive(Clone)]
 pub enum Type {
     U64(u64),
     F64(f64),

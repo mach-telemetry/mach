@@ -7,14 +7,14 @@ use lazy_static::*;
 use mach::{
     compression::{CompressFn, Compression},
     durable_queue::{KafkaConfig, FileConfig, QueueConfig},
-//    id::{SeriesId, WriterId},
+    id::{SeriesRef, SeriesId, WriterId},
 //    reader::{ReadResponse, ReadServer},
-    sample::Type,
+    sample::{Sample, Type},
     series::{SeriesConfig, Types},
     tags::Tags,
     tsdb::Mach,
     utils::random_id,
-    writer::WriterConfig,
+    writer::{Writer, WriterConfig},
 };
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
@@ -40,25 +40,24 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zstd::stream::{decode_all, encode_all};
 
-const ENDPOINT: &str = &"kafka"; // "mach", "kafka"
+const ENDPOINT: &str = &"mach"; // "mach", "kafka"
 const BATCH_SIZE: usize = 8192 * 2;
-const DATA_PATH: &str = &"/home/fsolleza/data/mach/demo_data";
-const KAFKA_PARTITIONS: i32 = 10;
+const DATA_PATH: &str = &"/home/ubuntu/demo_data";
+const KAFKA_PARTITIONS: i32 = 1;
 const KAFKA_REPLICATION: i32 = 3;
 const KAFKA_ACKS: &str = &"all";
-const KAFKA_BOOTSTRAPS: &str = &"localhost:9093,localhost:9094,localhost:9095";
+//const KAFKA_BOOTSTRAPS: &str = &"localhost:9093,localhost:9094,localhost:9095";
+const KAFKA_BOOTSTRAPS: &str = &"b-1.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092,b-2.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092";
 const MACH_FILE_OUT: &str = &"/home/fsolleza/data/mach/tmp";
 const MACH_STORAGE: &str = "kafka"; // "file", "kafka"
 
 lazy_static! {
     static ref KAFKA_TOPIC: String = random_id();
-    static ref COUNTER_BARRIER: Arc<Barrier> = Arc::new(Barrier::new(4));
+    static ref TIMER: Duration = Duration::from_secs(1) / 100000;
     static ref SAMPLE_COUNTER: Arc<AtomicUsize> = {
         let counter = Arc::new(AtomicUsize::new(0));
         let sc = counter.clone();
         thread::spawn(move || {
-            let barrier = COUNTER_BARRIER.clone();
-            barrier.wait();
             loop {
                 thread::sleep(Duration::from_secs(1));
                 let cur = sc.load(SeqCst);
@@ -71,8 +70,6 @@ lazy_static! {
         let counter = Arc::new(AtomicUsize::new(0));
         let pc = counter.clone();
         thread::spawn(move || {
-            let barrier = COUNTER_BARRIER.clone();
-            barrier.wait();
             let mut last = pc.load(SeqCst);
             loop {
                 thread::sleep(Duration::from_secs(1));
@@ -87,8 +84,6 @@ lazy_static! {
         let counter = Arc::new(AtomicUsize::new(0));
         let pc = counter.clone();
         thread::spawn(move || {
-            let barrier = COUNTER_BARRIER.clone();
-            barrier.wait();
             let mut last = pc.load(SeqCst);
             loop {
                 thread::sleep(Duration::from_secs(1));
@@ -112,8 +107,6 @@ lazy_static! {
 }
 
 fn kafka_producer(rx: Receiver<sample::Sample>) {
-    let sc = SAMPLE_COUNTER.clone();
-    let pc = PRODUCER_COUNTER.clone();
     let producer_topic = KAFKA_TOPIC.clone();
 
     println!("Making producer");
@@ -129,6 +122,8 @@ fn kafka_producer(rx: Receiver<sample::Sample>) {
 
     let mut buf = Vec::new();
     println!("Begin waiting for samples");
+    let sc = SAMPLE_COUNTER.clone();
+    let pc = PRODUCER_COUNTER.clone();
     while let Ok(sample) = rx.recv() {
         sc.fetch_sub(1, SeqCst);
         buf.push(sample);
@@ -176,9 +171,33 @@ fn detect_config(tags: &Tags, sample: &sample::Sample) -> SeriesConfig {
     }
 }
 
-fn mach_writer(rx: Receiver<sample::Sample>) {
+fn mach_writer(rx: Receiver<(SeriesRef, u64, Vec<mach::sample::Type>)>, mach: Mach, mut writer: Writer) {
     let sc = SAMPLE_COUNTER.clone();
     let pc = PRODUCER_COUNTER.clone();
+
+    //let mut values = Vec::new();
+    while let Ok((r, t, v)) = rx.recv() {
+        sc.fetch_sub(1, SeqCst);
+        loop {
+            if writer
+                .push(r, t, v.as_slice())
+                .is_ok()
+            {
+                pc.fetch_add(1, SeqCst);
+                break;
+            }
+        }
+    }
+}
+
+fn mach_consumer() {
+    let _consumer_counter = CONSUMER_COUNTER.clone();
+}
+
+fn mach_generator(to_producer: Sender<(SeriesRef, u64, Vec<Type>)>) -> (Mach, Writer) {
+
+    println!("Loading data");
+    let reader = BufReader::new(File::open(DATA_PATH).unwrap());
 
     // Setup mach and writer
     let mut mach = Mach::new();
@@ -195,42 +214,48 @@ fn mach_writer(rx: Receiver<sample::Sample>) {
     let mut writer = mach.add_writer(writer_config).unwrap();
 
     let mut set = HashMap::new();
-    let mut values = Vec::new();
-    while let Ok(sample) = rx.recv() {
-        sc.fetch_sub(1, SeqCst);
-        let tags = Tags::from(sample.tags.clone());
-        let series_id = tags.id();
-        let series_ref = *set.entry(series_id).or_insert_with(|| {
-            let _ = mach.add_series(detect_config(&tags, &sample)).unwrap();
-            let series_ref = writer.get_reference(series_id);
-            series_ref
-        });
+    let data: Vec<(SeriesRef, Vec<Type>)> = reader
+        .lines()
+        .map(|x| {
+            let sample: sample::Sample = serde_json::from_str(&x.unwrap()).unwrap();
+            let tags = Tags::from(sample.tags.clone());
+            let series_id = tags.id();
+            let series_ref = *set.entry(series_id).or_insert_with(|| {
+                let _ = mach.add_series(detect_config(&tags, &sample)).unwrap();
+                let series_ref = writer.get_reference(series_id);
+                series_ref
+            });
+            let mut v = Vec::new();
+            for i in sample.values {
+                v.push(Type::from(&i));
+            }
+            (series_ref, v)
+        })
+    .collect();
+    println!("Done loading data");
 
-        values.clear();
-        for v in &sample.values {
-            values.push(Type::from(v));
-        }
-
+    // Write data to single writer
+    thread::spawn(move || {
+        println!("Writing data");
+        let sc = SAMPLE_COUNTER.clone();
+        let mut last = std::time::Instant::now();
         loop {
-            if writer
-                .push(series_ref, sample.timestamp, values.as_slice())
-                .is_ok()
-            {
-                pc.fetch_add(1, SeqCst);
-                break;
+            for (r, v) in data.iter() {
+                while last.elapsed() < *TIMER {}
+                last = std::time::Instant::now();
+                let t = millis_now();
+                let v = (*v).clone();
+                if to_producer.send((*r, t, v)).is_err() {
+                    panic!("Failed to send");
+                };
+                sc.fetch_add(1, SeqCst);
             }
         }
-    }
+    });
+    (mach, writer)
 }
 
-fn mach_consumer() {
-    let _consumer_counter = CONSUMER_COUNTER.clone();
-}
-
-fn generator(to_producer: Sender<sample::Sample>) {
-    let cb = COUNTER_BARRIER.clone();
-    let sc = SAMPLE_COUNTER.clone();
-
+fn kafka_generator(to_producer: Sender<sample::Sample>) {
     println!("Loading data");
     let reader = BufReader::new(File::open(DATA_PATH).unwrap());
 
@@ -243,21 +268,20 @@ fn generator(to_producer: Sender<sample::Sample>) {
         .collect();
     println!("Done loading data");
 
-    // Write data to single writer
-    println!("WAITING FOR CONSUMER");
-    cb.wait();
-    println!("Writing data");
-
-    loop {
-        for sample in data.iter() {
-            let mut sample = sample.clone();
-            sample.timestamp = millis_now();
-            if to_producer.send(sample).is_err() {
-                panic!("Failed to send");
-            };
-            sc.fetch_add(1, SeqCst);
+    thread::spawn( move || {
+        println!("Writing data");
+        let sc = SAMPLE_COUNTER.clone();
+        loop {
+            for sample in data.iter() {
+                let mut sample = sample.clone();
+                sample.timestamp = millis_now();
+                if to_producer.send(sample).is_err() {
+                    panic!("Failed to send");
+                };
+                sc.fetch_add(1, SeqCst);
+            }
         }
-    }
+    });
 }
 
 fn make_topic() {
@@ -280,6 +304,11 @@ fn kafka_main() {
 
     make_topic();
 
+    // init the generator and producer
+    let (tx, rx) = channel::<sample::Sample>();
+    kafka_generator(tx);
+    let h = thread::spawn(move || kafka_producer(rx));
+
     // init the consumer
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -287,24 +316,17 @@ fn kafka_main() {
         .unwrap();
     runtime.spawn(kafka_consumer());
 
-    // init the generator and producer
-    let (tx, rx) = channel::<sample::Sample>();
-    let mut handles = Vec::new();
-    handles.push(thread::spawn(move || kafka_producer(rx)));
-    handles.push(thread::spawn(move || generator(tx)));
-
-    for h in handles {
-        h.join().unwrap();
-    }
+    h.join().unwrap();
 }
 
 fn mach_main() {
     // init the generator and producer
-    let (tx, rx) = channel::<sample::Sample>();
+    let (tx, rx) = channel();
     let mut handles = Vec::new();
+    let (mach, writer) = mach_generator(tx);
+    handles.push(thread::spawn(move || mach_writer(rx, mach, writer)));
+    //handles.push(thread::spawn(move || generator(tx)));
     handles.push(thread::spawn(move || mach_consumer()));
-    handles.push(thread::spawn(move || mach_writer(rx)));
-    handles.push(thread::spawn(move || generator(tx)));
     for h in handles {
         h.join().unwrap();
     }
