@@ -119,6 +119,7 @@ fn kafka_producer(rx: Receiver<sample::Sample>) {
         .set("linger.ms", "0")
         .set("message.copy.max.bytes", "5000000")
         .set("message.timeout.ms", "3000")
+        .set("compression.type", "none")
         .create()
         .unwrap();
 
