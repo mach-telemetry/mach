@@ -41,21 +41,23 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zstd::stream::{decode_all, encode_all};
 
-const ENDPOINT: &str = &"kafka"; // "mach", "kafka"
-const BATCH_SIZE: usize = 8192 * 2;
-const DATA_PATH: &str = &"/home/fsolleza/data/mach/demo_data";
-//const DATA_PATH: &str = &"/home/ubuntu/demo_data";
+const ENDPOINT: &str = &"mach"; // "mach", "kafka"
+//const DATA_PATH: &str = &"/home/fsolleza/data/mach/demo_data";
+const DATA_PATH: &str = &"/home/ubuntu/demo_data";
+
+const KAFKA_BATCH_SIZE: usize = 8192 * 2 * 2;
 const KAFKA_PARTITIONS: i32 = 1;
 const KAFKA_REPLICATION: i32 = 3;
 const KAFKA_ACKS: &str = &"all";
-const KAFKA_BOOTSTRAPS: &str = &"localhost:9093,localhost:9094,localhost:9095";
-//const KAFKA_BOOTSTRAPS: &str = &"b-1.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092,b-2.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092";
+//const KAFKA_BOOTSTRAPS: &str = &"localhost:9093,localhost:9094,localhost:9095";
+const KAFKA_BOOTSTRAPS: &str = &"b-2.demo.pv81xs.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo.pv81xs.c25.kafka.us-east-1.amazonaws.com:9092,b-1.demo.pv81xs.c25.kafka.us-east-1.amazonaws.com:9092";
+
 const MACH_FILE_OUT: &str = &"/home/fsolleza/data/mach/tmp";
 const MACH_STORAGE: &str = "kafka"; // "file", "kafka"
 
 lazy_static! {
     static ref KAFKA_TOPIC: String = random_id();
-    static ref TIMER: Duration = Duration::from_secs(1) / 100000000;
+    static ref TIMER: Duration = Duration::from_secs(1) / 100000;
     static ref SAMPLE_COUNTER: Arc<AtomicUsize> = {
         let counter = Arc::new(AtomicUsize::new(0));
         let sc = counter.clone();
@@ -130,14 +132,14 @@ fn kafka_producer(rx: Receiver<sample::Sample>) {
     while let Ok(sample) = rx.recv() {
         sc.fetch_sub(1, SeqCst);
         buf.push(sample);
-        if buf.len() == BATCH_SIZE {
+        if buf.len() == KAFKA_BATCH_SIZE {
             let encoded = bincode::serialize(&buf).unwrap();
             let bytes = encode_all(encoded.as_slice(), 0).unwrap();
             let to_send: FutureRecord<str, [u8]> =
                 FutureRecord::to(&producer_topic).payload(&bytes);
             match executor::block_on(producer.send(to_send, Duration::from_secs(3))) {
                 Ok(_) => {
-                    pc.fetch_add(BATCH_SIZE, SeqCst);
+                    pc.fetch_add(KAFKA_BATCH_SIZE, SeqCst);
                 }
                 Err(_) => println!("Produce error"),
             }
@@ -422,7 +424,7 @@ async fn kafka_consumer() {
                         if let Ok(x) = bincode::deserialize::<Vec<sample::Sample>>(d.as_slice()) {
                             let count = x.len();
                             println!("Block size: {}, sample count: {}", sz, count);
-                            consumer_counter.fetch_add(BATCH_SIZE, SeqCst);
+                            consumer_counter.fetch_add(KAFKA_BATCH_SIZE, SeqCst);
                             let last_timestamp = x.last().unwrap().timestamp;
                             let now: u64 = millis_now();
                             let data_latency = Duration::from_millis(now - last_timestamp);
