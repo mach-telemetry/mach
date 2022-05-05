@@ -162,6 +162,12 @@ impl<T: AsRef<[u8]>> Bytes<T> {
             bytes,
         }
     }
+
+    pub fn get_tail(&self) -> &[u8] {
+        let b = self.bytes.as_ref();
+        let offset = usize::from_be_bytes(b[0..8].try_into().unwrap());
+        &b[offset..]
+    }
 }
 
 impl<T: AsRef<[u8]> + AsMut<[u8]>> Bytes<T> {
@@ -213,17 +219,56 @@ pub type BlockEntries = Vec<Box<[u8]>>;
 
 pub struct StaticBlock<T> {
     bytes: Bytes<T>,
+    tail: BlockTail,
 }
 
 impl<T: AsRef<[u8]>> StaticBlock<T> {
     pub fn new(bytes: T) -> Self {
+        let bytes = Bytes::new(bytes);
+        let tail = bincode::deserialize(bytes.get_tail()).unwrap();
         StaticBlock {
-            bytes: Bytes::new(bytes),
+            bytes,
+            tail
         }
     }
 
     pub fn read(&self, node: StaticNode) -> Result<(BlockEntries, StaticNode), Error> {
         Ok(self.bytes.read(node.offset, node.size))
+    }
+
+    pub fn samples(&self) -> usize {
+        self.tail.samples
+    }
+
+    pub fn chunks(&self) -> &HashMap<SeriesId, Vec<(usize, usize)>> {
+        &self.tail.chunks
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BlockTail {
+    samples: usize,
+    chunks: HashMap<SeriesId, Vec<(usize, usize)>>,
+}
+
+impl BlockTail {
+    fn new() -> Self {
+        Self {
+            samples: 0,
+            chunks: HashMap::new(),
+        }
+    }
+
+    fn clear(&mut self) {
+        self.chunks.clear();
+        self.samples = 0;
+    }
+
+    fn insert(&mut self, id: SeriesId, offsets: (usize, usize), samples: usize) {
+        self.samples += samples;
+        self.chunks.entry(id).or_insert_with(|| {
+            Vec::new()
+        }).push(offsets);
     }
 }
 
@@ -231,10 +276,16 @@ pub struct ActiveBlock {
     queue_offset: Arc<AtomicU64>,
     block_version: AtomicUsize,
     bytes: Bytes<Box<[u8]>>,
-    series: HashMap<SeriesId, (usize, usize)>,
+
+    // Safety note: this is a struct that does not meet the guarantees of WpLock. It should not be
+    // accessed in a read without extra precaution
+    tail: BlockTail,
     flush_sz: usize,
 }
 
+/// Safety
+///
+/// This is safe because ActiveBlock.tail is never accessed by the read() function
 unsafe impl NoDealloc for ActiveBlock {}
 
 impl ActiveBlock {
@@ -246,7 +297,7 @@ impl ActiveBlock {
         Self {
             bytes: Bytes::new(vec![0u8; flush_sz * 2].into_boxed_slice()),
             queue_offset: Arc::new(AtomicU64::new(u64::MAX)),
-            series: HashMap::new(),
+            tail: BlockTail::new(),
             flush_sz,
             block_version: AtomicUsize::new(0),
         }
@@ -261,7 +312,7 @@ impl ActiveBlock {
     ) -> ActiveNode {
         let (offset, size) = self.bytes.push(id, segment, compression, prev_node);
 
-        self.series.insert(id, (offset, size));
+        self.tail.insert(id, (offset, size), segment.len());
 
         ActiveNode {
             queue_offset: self.queue_offset.clone(),
@@ -273,7 +324,7 @@ impl ActiveBlock {
 
     pub async fn flush(&mut self, flusher: &mut DurableQueueWriter) -> Result<(), Error> {
         //println!("FLUSHING ACTIVE BLOCK");
-        self.bytes.set_tail(&self.series);
+        self.bytes.set_tail(&self.tail);
         let queue_offset = flusher
             .write(&self.bytes[..self.bytes.len.load(SeqCst)])
             .await?;
@@ -284,7 +335,7 @@ impl ActiveBlock {
 
     pub fn reset(&mut self) {
         self.block_version.fetch_add(1, SeqCst);
-        self.series.clear();
+        self.tail.clear();
         self.bytes.reset();
         self.queue_offset = Arc::new(AtomicU64::new(u64::MAX));
     }
