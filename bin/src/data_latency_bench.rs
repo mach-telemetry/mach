@@ -7,14 +7,15 @@ use lazy_static::*;
 use mach::{
     compression::{CompressFn, Compression},
     durable_queue::{KafkaConfig, FileConfig, QueueConfig},
-    id::{SeriesRef, SeriesId, WriterId},
+    id::SeriesRef,
 //    reader::{ReadResponse, ReadServer},
-    sample::{Sample, Type},
+    sample::{Type},
     series::{SeriesConfig, Types},
     tags::Tags,
     tsdb::Mach,
     utils::random_id,
     writer::{Writer, WriterConfig},
+    active_block::StaticBlock,
 };
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
@@ -33,27 +34,28 @@ use std::io::*;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     mpsc::{channel, Receiver, Sender},
-    Arc, Barrier,
+    Arc
 };
 use std::thread;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zstd::stream::{decode_all, encode_all};
 
-const ENDPOINT: &str = &"mach"; // "mach", "kafka"
+const ENDPOINT: &str = &"kafka"; // "mach", "kafka"
 const BATCH_SIZE: usize = 8192 * 2;
-const DATA_PATH: &str = &"/home/ubuntu/demo_data";
+const DATA_PATH: &str = &"/home/fsolleza/data/mach/demo_data";
+//const DATA_PATH: &str = &"/home/ubuntu/demo_data";
 const KAFKA_PARTITIONS: i32 = 1;
 const KAFKA_REPLICATION: i32 = 3;
 const KAFKA_ACKS: &str = &"all";
-//const KAFKA_BOOTSTRAPS: &str = &"localhost:9093,localhost:9094,localhost:9095";
-const KAFKA_BOOTSTRAPS: &str = &"b-1.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092,b-2.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092";
+const KAFKA_BOOTSTRAPS: &str = &"localhost:9093,localhost:9094,localhost:9095";
+//const KAFKA_BOOTSTRAPS: &str = &"b-1.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092,b-2.demo.2fmu0t.c25.kafka.us-east-1.amazonaws.com:9092";
 const MACH_FILE_OUT: &str = &"/home/fsolleza/data/mach/tmp";
 const MACH_STORAGE: &str = "kafka"; // "file", "kafka"
 
 lazy_static! {
     static ref KAFKA_TOPIC: String = random_id();
-    static ref TIMER: Duration = Duration::from_secs(1) / 100000;
+    static ref TIMER: Duration = Duration::from_secs(1) / 100000000;
     static ref SAMPLE_COUNTER: Arc<AtomicUsize> = {
         let counter = Arc::new(AtomicUsize::new(0));
         let sc = counter.clone();
@@ -171,7 +173,7 @@ fn detect_config(tags: &Tags, sample: &sample::Sample) -> SeriesConfig {
     }
 }
 
-fn mach_writer(rx: Receiver<(SeriesRef, u64, Vec<mach::sample::Type>)>, mach: Mach, mut writer: Writer) {
+fn mach_writer(rx: Receiver<(SeriesRef, u64, Vec<mach::sample::Type>)>, _mach: Mach, mut writer: Writer) {
     let sc = SAMPLE_COUNTER.clone();
     let pc = PRODUCER_COUNTER.clone();
 
@@ -190,8 +192,46 @@ fn mach_writer(rx: Receiver<(SeriesRef, u64, Vec<mach::sample::Type>)>, mach: Ma
     }
 }
 
-fn mach_consumer() {
-    let _consumer_counter = CONSUMER_COUNTER.clone();
+async fn mach_consumer() {
+    let consumer_counter = CONSUMER_COUNTER.clone();
+    let topic = match &*KAFKA_CONF {
+        QueueConfig::Kafka(x) => x.topic.clone(),
+        _ => unreachable!(),
+    };
+    let consumer: StreamConsumer<DefaultConsumerContext> = ClientConfig::new()
+        .set("bootstrap.servers", KAFKA_BOOTSTRAPS)
+        .set("group.id", random_id())
+        .create()
+        .unwrap();
+    consumer
+        .subscribe(&[&topic])
+        .expect("Can't subscribe to specified topics");
+
+    println!("Reading data");
+
+    loop {
+        match consumer.recv().await {
+            Err(e) => println!("Kafka error: {}", e),
+            Ok(m) => {
+                match m.payload_view::<[u8]>() {
+                    None => {}
+                    Some(Ok(s)) => {
+                        let sz = s.len();
+                        // we use zstd inside mach to compress the block before writing to kafka
+                        let block = StaticBlock::new(decode_all(s).unwrap());
+                        //let block = StaticBlock::new(s);
+                        let count = block.samples();
+                        println!("Block size: {}, sample count: {}", sz, count);
+                        consumer_counter.fetch_add(count, SeqCst);
+                    }
+                    Some(Err(_)) => {
+                        println!("Error while deserializing message payload");
+                    }
+                };
+                consumer.commit_message(&m, CommitMode::Async).unwrap();
+            }
+        }
+    }
 }
 
 fn mach_generator(to_producer: Sender<(SeriesRef, u64, Vec<Type>)>) -> (Mach, Writer) {
@@ -272,7 +312,10 @@ fn kafka_generator(to_producer: Sender<sample::Sample>) {
         println!("Writing data");
         let sc = SAMPLE_COUNTER.clone();
         loop {
+            let mut last = std::time::Instant::now();
             for sample in data.iter() {
+                while last.elapsed() < *TIMER {}
+                last = std::time::Instant::now();
                 let mut sample = sample.clone();
                 sample.timestamp = millis_now();
                 if to_producer.send(sample).is_err() {
@@ -325,8 +368,12 @@ fn mach_main() {
     let mut handles = Vec::new();
     let (mach, writer) = mach_generator(tx);
     handles.push(thread::spawn(move || mach_writer(rx, mach, writer)));
-    //handles.push(thread::spawn(move || generator(tx)));
-    handles.push(thread::spawn(move || mach_consumer()));
+    // init the consumer
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.spawn(mach_consumer());
     for h in handles {
         h.join().unwrap();
     }
@@ -369,8 +416,11 @@ async fn kafka_consumer() {
                 match m.payload_view::<[u8]>() {
                     None => {}
                     Some(Ok(s)) => {
+                        let sz = s.len();
                         let d = decode_all(s).unwrap();
                         if let Ok(x) = bincode::deserialize::<Vec<sample::Sample>>(d.as_slice()) {
+                            let count = x.len();
+                            println!("Block size: {}, sample count: {}", sz, count);
                             consumer_counter.fetch_add(BATCH_SIZE, SeqCst);
                             let last_timestamp = x.last().unwrap().timestamp;
                             let now: u64 = millis_now();

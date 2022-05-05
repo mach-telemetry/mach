@@ -250,7 +250,7 @@ mod test {
     #[test]
     fn test_kafka_writer() {
         use crate::durable_queue::KafkaConfig;
-        let bootstrap = String::from(KAFKA_BOOTSTRAP);
+        let bootstrap = String::from("localhost:9093,localhost:9094,localhost:9095");
         let topic = random_id();
         let queue_config = KafkaConfig { bootstrap, topic };
         sample_data(queue_config.config());

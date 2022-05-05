@@ -25,7 +25,7 @@ regex = "1.5.5"
 clap = { version = "3.1.12", features = ["derive"] }
 rdkafka = "0.28.0"
 bincode = "1.3.3"
-zstd = "0.11.1+zstd.1.5.2"
+zstd = "0.11.1"
 timer = "0.2.0"
 chrono = "0.4.19"
 
@@ -42,8 +42,8 @@ name = "file2mach"
 path = "src/file_to_mach.rs"
 
 [[bin]]
-name = "file2endpoint"
-path = "src/file_to_endpoint.rs"
+name = "data_latency_bench"
+path = "src/data_latency_bench.rs"
 
 #[[bin]]
 #name = "writer-client"

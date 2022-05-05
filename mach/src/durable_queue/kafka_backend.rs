@@ -16,6 +16,7 @@ use rdkafka::{
 //use std::sync::mpsc::{SyncSender, Receiver, sync_channel};
 use serde::*;
 use std::{convert::TryInto, time::Duration};
+use zstd::stream::{decode_all, encode_all};
 //use tokio::sync::mpsc::{channel, error::TryRecvError, Receiver, Sender};
 
 #[derive(Debug)]
@@ -110,6 +111,8 @@ impl KafkaWriter {
     }
 
     pub async fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
+        let encoded = encode_all(bytes, 0).unwrap();
+        let bytes = encoded.as_slice();
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&self.topic).payload(bytes);
         //let now = std::time::Instant::now();
         let (partition, offset) = self.producer.send(to_send, self.dur).await.unwrap();
@@ -245,11 +248,13 @@ impl KafkaReader {
                         None => {}
                     };
                 };
+                let decoded = decode_all(msg.payload().unwrap()).unwrap();
+                //let decoded = msg.payload().unwrap().into();
                 if self.local_buffer.len() < i + 1 {
-                    self.local_buffer.push(msg.payload().unwrap().into());
+                    self.local_buffer.push(decoded);
                 } else {
                     self.local_buffer[i].clear();
-                    self.local_buffer[i].extend_from_slice(msg.payload().unwrap());
+                    self.local_buffer[i].extend_from_slice(&decoded);
                 }
             }
             self.offsets = (start, at);
