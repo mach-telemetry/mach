@@ -4,9 +4,6 @@ use crate::increment_sample_counter;
 use crate::rpc;
 use crate::sample::*;
 use rpc::tsdb_service_server::TsdbService;
-use serde::*;
-use serde_json::json;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
@@ -33,7 +30,7 @@ impl FileTSDB {
     ) {
         while let Some(Ok(mut request)) = request_stream.next().await {
             let mut responses = Vec::new();
-            for mut samples in request.samples.drain(..) {
+            for samples in request.samples.drain(..) {
                 for mut sample in samples.samples {
                     let values: Vec<Type> = sample
                         .values
@@ -53,7 +50,7 @@ impl FileTSDB {
                         values,
                     };
                     let s = serde_json::to_string(&s).unwrap();
-                    write!(self.file.lock().unwrap(), "{}\n", &s);
+                    write!(self.file.lock().unwrap(), "{}\n", &s).unwrap();
                     responses.push(rpc::SampleResult {
                         id: sample.id,
                         result: true,

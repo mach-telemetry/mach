@@ -2,19 +2,19 @@ use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 
 use rpc::tsdb_service_server::TsdbService;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 
 use crate::increment_sample_counter;
 use crate::rpc;
 use crate::tag_index::TagIndex;
 use dashmap::DashMap;
-use futures::executor::block_on;
+//use futures::executor::block_on;
 use mach::durable_queue::KafkaConfig;
 use mach::{
     compression::{CompressFn, Compression},
     durable_queue::QueueConfig,
-    id::{SeriesId, SeriesRef, WriterId},
+    id::{SeriesId, SeriesRef},
     reader::{ReadResponse, ReadServer},
     sample::Type,
     series::{SeriesConfig, Types},
@@ -27,10 +27,8 @@ use regex::Regex;
 use std::{
     collections::HashMap,
     convert::From,
-    sync::{mpsc::channel, Arc},
+    sync::Arc,
 };
-
-use lazy_static::*;
 
 impl From<QueueConfig> for rpc::QueueConfig {
     fn from(config: QueueConfig) -> Self {
@@ -51,60 +49,60 @@ impl From<QueueConfig> for rpc::QueueConfig {
     }
 }
 
-struct WriterWorkerItem {
-    series_id: SeriesId,
-    samples: Vec<rpc::Sample>,
-    response: oneshot::Sender<Vec<rpc::SampleResult>>,
-}
+//struct WriterWorkerItem {
+//    series_id: SeriesId,
+//    samples: Vec<rpc::Sample>,
+//    response: oneshot::Sender<Vec<rpc::SampleResult>>,
+//}
 
-fn writer_worker(mut writer: Writer, mut requests: mpsc::UnboundedReceiver<WriterWorkerItem>) {
-    let mut references = HashMap::new();
-    //let counter = COUNTER.clone();
-    println!("Writer id {:?} starting up", writer.id());
-    let mut values = Vec::new();
-
-    // Loop over the items being written
-    while let Some(mut item) = block_on(requests.recv()) {
-        let series_ref = *references
-            .entry(item.series_id)
-            .or_insert_with(|| writer.get_reference(item.series_id));
-        let mut results = Vec::new();
-
-        // Loop over the samples in the item
-        for mut sample in item.samples.drain(..) {
-            // Iterate over sample's values and create values Mach can interpret
-            values.clear();
-            for v in sample.values.drain(..) {
-                let item = match v.value_type {
-                    Some(rpc::value::ValueType::F64(x)) => Type::F64(x),
-                    Some(rpc::value::ValueType::Str(x)) => {
-                        Type::Bytes(Bytes::from_slice(x.as_bytes()))
-                    }
-                    _ => panic!("Unhandled value type in sample"),
-                };
-                values.push(item);
-            }
-
-            // Push the sample
-            loop {
-                if writer
-                    .push(series_ref, sample.timestamp, values.as_slice())
-                    .is_ok()
-                {
-                    increment_sample_counter(1);
-                    break;
-                }
-            }
-
-            // Record result
-            results.push(rpc::SampleResult {
-                id: sample.id,
-                result: true,
-            })
-        }
-        item.response.send(results).unwrap();
-    }
-}
+//fn writer_worker(mut writer: Writer, mut requests: mpsc::UnboundedReceiver<WriterWorkerItem>) {
+//    let mut references = HashMap::new();
+//    //let counter = COUNTER.clone();
+//    println!("Writer id {:?} starting up", writer.id());
+//    let mut values = Vec::new();
+//
+//    // Loop over the items being written
+//    while let Some(mut item) = block_on(requests.recv()) {
+//        let series_ref = *references
+//            .entry(item.series_id)
+//            .or_insert_with(|| writer.get_reference(item.series_id));
+//        let mut results = Vec::new();
+//
+//        // Loop over the samples in the item
+//        for mut sample in item.samples.drain(..) {
+//            // Iterate over sample's values and create values Mach can interpret
+//            values.clear();
+//            for v in sample.values.drain(..) {
+//                let item = match v.value_type {
+//                    Some(rpc::value::ValueType::F64(x)) => Type::F64(x),
+//                    Some(rpc::value::ValueType::Str(x)) => {
+//                        Type::Bytes(Bytes::from_slice(x.as_bytes()))
+//                    }
+//                    _ => panic!("Unhandled value type in sample"),
+//                };
+//                values.push(item);
+//            }
+//
+//            // Push the sample
+//            loop {
+//                if writer
+//                    .push(series_ref, sample.timestamp, values.as_slice())
+//                    .is_ok()
+//                {
+//                    increment_sample_counter(1);
+//                    break;
+//                }
+//            }
+//
+//            // Record result
+//            results.push(rpc::SampleResult {
+//                id: sample.id,
+//                result: true,
+//            })
+//        }
+//        item.response.send(results).unwrap();
+//    }
+//}
 
 #[derive(Clone)]
 pub struct MachTSDB {
@@ -170,7 +168,8 @@ impl MachTSDB {
 
                 // Try to get series reference, otehrwise, register
                 let series_ref = *self.references.entry(series_id).or_insert_with(|| {
-                    let (w, s) = mach
+                    self.tag_index.insert(tags.clone());
+                    let (_w, _s) = mach
                         .add_series(detect_config(&tags, &samples.samples[0]))
                         .unwrap();
                     //assert_eq!(w, WriterId(0));

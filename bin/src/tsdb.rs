@@ -47,7 +47,6 @@ lazy_static! {
         let counter_clone = counter.clone();
         let mut data = [0; 5];
         tokio::spawn(async move {
-            let mut last = 0;
             for i in 0.. {
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 let idx = i % 5;
