@@ -36,6 +36,9 @@ struct Args {
 
     #[clap(short, long)]
     path: Option<String>,
+
+    #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
+    kafka: String,
 }
 
 lazy_static! {
@@ -75,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.tsdb.as_str() {
         "mach" => {
-            let tsdb = MachTSDB::new();
+            let tsdb = MachTSDB::new(args.kafka.as_str());
             Server::builder()
                 .add_service(TsdbServiceServer::new(tsdb))
                 .serve(addr)

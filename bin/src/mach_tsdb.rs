@@ -30,6 +30,8 @@ use std::{
     sync::{mpsc::channel, Arc},
 };
 
+use lazy_static::*;
+
 impl From<QueueConfig> for rpc::QueueConfig {
     fn from(config: QueueConfig) -> Self {
         rpc::QueueConfig {
@@ -108,38 +110,29 @@ fn writer_worker(mut writer: Writer, mut requests: mpsc::UnboundedReceiver<Write
 pub struct MachTSDB {
     tag_index: TagIndex,
     tsdb: Arc<RwLock<Mach>>,
-    //sources: Arc<DashMap<SeriesId, mpsc::UnboundedSender<WriterWorkerItem>>>,
-    //writers: Arc<DashMap<WriterId, mpsc::UnboundedSender<WriterWorkerItem>>>,
     writer: Arc<RwLock<Writer>>,
     references: Arc<DashMap<SeriesId, SeriesRef>>,
     reader: ReadServer,
 }
 
 impl MachTSDB {
-    pub fn new() -> Self {
+    pub fn new(bootstraps: &str) -> Self {
         let tag_index = TagIndex::new();
         let mut mach = Mach::new();
-        //let writers = DashMap::new();
         let queue_config = KafkaConfig {
-                bootstrap: String::from("b-2.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-1.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo-cluster-1.c931w3.c25.kafka.us-east-1.amazonaws.com:9092"),
-                //bootstrap: String::from("localhost:9093,localhost:9094,localhost:9095"),
+                bootstrap: bootstraps.into(),
                 topic: random_id(),
             }
             .config();
 
+        let reader_config = queue_config.clone();
         let writer_config = WriterConfig {
             queue_config,
             active_block_flush_sz: 1_000_000,
         };
 
         let writer = mach.add_writer(writer_config).unwrap();
-        //let (tx, rx) = mpsc::unbounded_channel();
-        //writers.insert(writer.id(), tx);
-        //std::thread::spawn(move || {
-        //    writer_worker(writer, rx)
-        //});
-
-        let reader = mach.new_read_server();
+        let reader = mach.new_read_server(reader_config);
 
         Self {
             tag_index,
