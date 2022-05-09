@@ -10,9 +10,9 @@ pub enum Error {
     Deserialize,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Tags {
-    data: Vec<(String, String)>,
+    data: HashMap<String, String>,
     hash: u64,
 }
 
@@ -54,13 +54,14 @@ impl From<HashMap<String, String>> for Tags {
 
 impl From<Tags> for HashMap<String,String> {
     fn from(mut tags: Tags) -> Self {
-        tags.data.drain(..).collect()
+        tags.data
+        //tags.data.drain().collect()
     }
 }
 
 impl Tags {
-    pub fn data(&self) -> &[(String, String)] {
-        self.data.as_slice()
+    pub fn data(&self) -> Vec<(String, String)> {
+        self.data.iter().map(|x| (x.0.clone(), x.1.clone())).collect()
     }
 
     pub fn id(&self) -> SeriesId {
@@ -68,10 +69,16 @@ impl Tags {
     }
 
     fn from_map(mut data: HashMap<String, String>) -> Self {
-        let mut data: Vec<(String, String)> = data.drain().collect();
-        data.sort();
+        //let mut hash = 0;
+        //for item in data.iter() {
+        //    let mut hasher = rustc_hash::FxHasher::default();
+        //    item.hash(&mut hasher);
+        //    hash ^= hasher.finish();
+        //}
         let mut hasher = rustc_hash::FxHasher::default();
-        data.hash(&mut hasher);
+        let mut v: Vec<(String, String)> = data.drain().collect();
+        v.sort();
+        v.hash(&mut hasher);
         let hash = hasher.finish();
         Tags { data, hash }
     }

@@ -34,7 +34,7 @@ struct Args {
     #[clap(short, long, default_value_t = String::from("50050"))]
     port: String,
 
-    #[clap(short, long)]
+    #[clap(long)]
     path: Option<String>,
 
     #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]

@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package mach_rpc;
+
+// The definition for serving global state
+service TsdbService {
+  rpc RegisterSource(Source) returns (PushMetadata) {}
+  rpc PushStream(stream Batch) returns (PushResponse) {}
+  rpc Read(ReadRequest) returns (ReadResponse) {}
+}
+
+message Source {
+  map<string, string> tags = 1;
+  enum Types {
+    F64 = 0;
+    String = 1;
+  }
+  repeated Types types = 3;
+}
+
+message PushMetadata {
+  uint64 writer = 1;
+  uint64 reference = 2;
+}
+
+message Value {
+  oneof ValueType {
+    double f64 = 2;
+    string str = 3;
+  }
+}
+
+message Sample {
+  PushMetadata push_meta = 1;
+  uint64 timestamp = 2;
+  repeated Value values = 3;
+}
+
+message Batch {
+  repeated Sample samples = 1;
+}
+
+message PushResponse { }
+
+// The definition for serving global state
+//service WriterService {
+//  rpc Echo(EchoRequest) returns (EchoResponse) {}
+//  rpc GetSeriesReference(GetSeriesReferenceRequest) returns (GetSeriesReferenceResponse) {}
+//  rpc MapStream(stream MapRequest) returns (stream MapResponse) {}
+//  rpc PushStream(stream PushRequest) returns (stream PushResponse) {}
+//  rpc Push(PushRequest) returns (PushResponse) {}
+//}
+
+message ReadRequest {
+    string regex = 1;
+}
+
+message KafkaConfig {
+    string bootstrap = 1;
+    string topic = 2;
+}
+
+message FileConfig {
+    string dir = 1;
+    string file = 2;
+}
+
+message QueueConfig {
+    oneof configs {
+        KafkaConfig kafka = 1;
+        FileConfig file = 2;
+    }
+}
+
+message SeriesSnapshot {
+    map<string, string> tags = 1;
+    QueueConfig response_queue = 2;
+    QueueConfig data_queue = 3;
+    uint64 offset = 4;
+}
+
+message ReadResponse {
+    repeated SeriesSnapshot snapshots = 1;
+}
+

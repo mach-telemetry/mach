@@ -42,15 +42,15 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zstd::stream::{decode_all, encode_all};
 
 const ENDPOINT: &str = &"mach"; // "mach", "kafka"
-//const DATA_PATH: &str = &"/home/fsolleza/data/mach/demo_data";
-const DATA_PATH: &str = &"/home/ubuntu/demo_data";
+const DATA_PATH: &str = &"/home/fsolleza/data/mach/demo_data";
+//const DATA_PATH: &str = &"/home/ubuntu/demo_data";
 
 const KAFKA_BATCH_SIZE: usize = 8192 * 2 * 2;
 const KAFKA_PARTITIONS: i32 = 1;
 const KAFKA_REPLICATION: i32 = 3;
 const KAFKA_ACKS: &str = &"all";
-//const KAFKA_BOOTSTRAPS: &str = &"localhost:9093,localhost:9094,localhost:9095";
-const KAFKA_BOOTSTRAPS: &str = &"b-2.demo.pv81xs.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo.pv81xs.c25.kafka.us-east-1.amazonaws.com:9092,b-1.demo.pv81xs.c25.kafka.us-east-1.amazonaws.com:9092";
+const KAFKA_BOOTSTRAPS: &str = &"localhost:9093,localhost:9094,localhost:9095";
+//const KAFKA_BOOTSTRAPS: &str = &"b-2.demo.pv81xs.c25.kafka.us-east-1.amazonaws.com:9092,b-3.demo.pv81xs.c25.kafka.us-east-1.amazonaws.com:9092,b-1.demo.pv81xs.c25.kafka.us-east-1.amazonaws.com:9092";
 
 const MACH_FILE_OUT: &str = &"/home/fsolleza/data/mach/tmp";
 const MACH_STORAGE: &str = "kafka"; // "file", "kafka"
@@ -257,6 +257,7 @@ fn mach_generator(to_producer: Sender<(SeriesRef, u64, Vec<Type>)>) -> (Mach, Wr
     let mut writer = mach.add_writer(writer_config).unwrap();
 
     let mut set = HashMap::new();
+    let load_start = std::time::Instant::now();
     let data: Vec<(SeriesRef, Vec<Type>)> = reader
         .lines()
         .map(|x| {
@@ -275,7 +276,7 @@ fn mach_generator(to_producer: Sender<(SeriesRef, u64, Vec<Type>)>) -> (Mach, Wr
             (series_ref, v)
         })
     .collect();
-    println!("Done loading data");
+    println!("Done loading data in {:?}", load_start.elapsed());
 
     // Write data to single writer
     thread::spawn(move || {
