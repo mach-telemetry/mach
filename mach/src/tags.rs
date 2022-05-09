@@ -13,7 +13,7 @@ pub enum Error {
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Tags {
     data: HashMap<String, String>,
-    hash: u64,
+    hash_id: u64,
 }
 
 //impl Tags {
@@ -65,7 +65,7 @@ impl Tags {
     }
 
     pub fn id(&self) -> SeriesId {
-        SeriesId(self.hash)
+        SeriesId(self.hash_id)
     }
 
     fn from_map(mut data: HashMap<String, String>) -> Self {
@@ -79,10 +79,17 @@ impl Tags {
         let mut v: Vec<(String, String)> = data.drain().collect();
         v.sort();
         v.hash(&mut hasher);
-        let hash = hasher.finish();
-        Tags { data, hash }
+        let hash_id = hasher.finish();
+        Tags { data, hash_id }
     }
     //pub fn new() -> Self {
     //    Tags(HashSet::new())
     //}
+}
+
+impl Hash for Tags {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        self.hash_id.hash(hasher)
+    }
+
 }
