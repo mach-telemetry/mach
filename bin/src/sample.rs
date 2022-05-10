@@ -11,7 +11,9 @@ impl From<&Type> for mach::sample::Type {
     fn from(t: &Type) -> Self {
         let item = match t {
             Type::F64(x) => mach::sample::Type::F64(*x),
-            Type::Str(x) => mach::sample::Type::Bytes(mach::utils::bytes::Bytes::from_slice(x.as_bytes())),
+            Type::Str(x) => {
+                mach::sample::Type::Bytes(mach::utils::bytes::Bytes::from_slice(x.as_bytes()))
+            }
         };
         item
     }

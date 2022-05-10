@@ -19,3 +19,17 @@ cargo run --release --bin tsdb
 
 **Go:** `cd golang && go run client.go server_grpc.pb.go server.pb.go`
 
+
+### Build docker
+
+Assumes you're in this directory. Change Dockerfile to point to correct kafka bootstraps. If you're running on minikube for testing, set minikube as the image repo
+
+```
+eval $(minikube docker-env)
+cd ../ # cd to root project dir
+docker build . -t mach/tsdb -f bin/Dockerfile  # use root proj dir as context
+kubectl apply -f mach.yaml
+```
+
+
+

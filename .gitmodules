@@ -1,3 +1,6 @@
 [submodule "bin/mach-proto"]
 	path = bin/mach-proto
 	url = git@github.com:fsolleza/mach-proto.git
+[submodule "bin/opentelemetry-proto"]
+	path = bin/opentelemetry-proto
+	url = https://github.com/fsolleza/opentelemetry-proto.git

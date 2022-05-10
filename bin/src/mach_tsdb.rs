@@ -24,11 +24,7 @@ use mach::{
     writer::{Writer, WriterConfig},
 };
 use regex::Regex;
-use std::{
-    collections::HashMap,
-    convert::From,
-    sync::Arc,
-};
+use std::{collections::HashMap, convert::From, sync::Arc};
 
 impl From<QueueConfig> for rpc::QueueConfig {
     fn from(config: QueueConfig) -> Self {
@@ -118,10 +114,10 @@ impl MachTSDB {
         let tag_index = TagIndex::new();
         let mut mach = Mach::new();
         let queue_config = KafkaConfig {
-                bootstrap: bootstraps.into(),
-                topic: random_id(),
-            }
-            .config();
+            bootstrap: bootstraps.into(),
+            topic: random_id(),
+        }
+        .config();
 
         let reader_config = queue_config.clone();
         let writer_config = WriterConfig {

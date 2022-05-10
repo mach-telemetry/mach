@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: mach-tsdb
+  labels:
+    app: mach-tsdb
+spec:
+  selector:
+    matchLabels:
+      app: mach-tsdb
+  template:
+    metadata:
+      labels:
+        app: mach-tsdb
+    spec:
+      containers:
+      - name: mach-tsdb
+        image: mach/tsdb
+        imagePullPolicy: IfNotPresent

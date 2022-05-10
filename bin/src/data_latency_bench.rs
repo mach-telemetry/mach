@@ -5,39 +5,36 @@ mod sample;
 use futures::executor;
 use lazy_static::*;
 use mach::{
+    active_block::StaticBlock,
     compression::{CompressFn, Compression},
-    durable_queue::{KafkaConfig, FileConfig, QueueConfig},
+    durable_queue::{FileConfig, KafkaConfig, QueueConfig},
     id::SeriesRef,
-//    reader::{ReadResponse, ReadServer},
-    sample::{Type},
+    //    reader::{ReadResponse, ReadServer},
+    sample::Type,
     series::{SeriesConfig, Types},
     tags::Tags,
     tsdb::Mach,
     utils::random_id,
     writer::{Writer, WriterConfig},
-    active_block::StaticBlock,
 };
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
     config::ClientConfig,
-    consumer::{
-        stream_consumer::StreamConsumer, CommitMode, Consumer,
-        DefaultConsumerContext,
-    },
+    consumer::{stream_consumer::StreamConsumer, CommitMode, Consumer, DefaultConsumerContext},
     producer::{FutureProducer, FutureRecord},
     Message,
 };
 use serde_json;
+use std::collections::HashMap;
 use std::fs::*;
 use std::io::*;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     mpsc::{channel, Receiver, Sender},
-    Arc
+    Arc,
 };
 use std::thread;
-use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zstd::stream::{decode_all, encode_all};
 
@@ -61,12 +58,10 @@ lazy_static! {
     static ref SAMPLE_COUNTER: Arc<AtomicUsize> = {
         let counter = Arc::new(AtomicUsize::new(0));
         let sc = counter.clone();
-        thread::spawn(move || {
-            loop {
-                thread::sleep(Duration::from_secs(1));
-                let cur = sc.load(SeqCst);
-                println!("Unprocessed samples {}", cur);
-            }
+        thread::spawn(move || loop {
+            thread::sleep(Duration::from_secs(1));
+            let cur = sc.load(SeqCst);
+            println!("Unprocessed samples {}", cur);
         });
         counter
     };
@@ -176,7 +171,11 @@ fn detect_config(tags: &Tags, sample: &sample::Sample) -> SeriesConfig {
     }
 }
 
-fn mach_writer(rx: Receiver<(SeriesRef, u64, Vec<mach::sample::Type>)>, _mach: Mach, mut writer: Writer) {
+fn mach_writer(
+    rx: Receiver<(SeriesRef, u64, Vec<mach::sample::Type>)>,
+    _mach: Mach,
+    mut writer: Writer,
+) {
     let sc = SAMPLE_COUNTER.clone();
     let pc = PRODUCER_COUNTER.clone();
 
@@ -184,10 +183,7 @@ fn mach_writer(rx: Receiver<(SeriesRef, u64, Vec<mach::sample::Type>)>, _mach: M
     while let Ok((r, t, v)) = rx.recv() {
         sc.fetch_sub(1, SeqCst);
         loop {
-            if writer
-                .push(r, t, v.as_slice())
-                .is_ok()
-            {
+            if writer.push(r, t, v.as_slice()).is_ok() {
                 pc.fetch_add(1, SeqCst);
                 break;
             }
@@ -238,7 +234,6 @@ async fn mach_consumer() {
 }
 
 fn mach_generator(to_producer: Sender<(SeriesRef, u64, Vec<Type>)>) -> (Mach, Writer) {
-
     println!("Loading data");
     let reader = BufReader::new(File::open(DATA_PATH).unwrap());
 
@@ -275,7 +270,7 @@ fn mach_generator(to_producer: Sender<(SeriesRef, u64, Vec<Type>)>) -> (Mach, Wr
             }
             (series_ref, v)
         })
-    .collect();
+        .collect();
     println!("Done loading data in {:?}", load_start.elapsed());
 
     // Write data to single writer
@@ -312,7 +307,7 @@ fn kafka_generator(to_producer: Sender<sample::Sample>) {
         .collect();
     println!("Done loading data");
 
-    thread::spawn( move || {
+    thread::spawn(move || {
         println!("Writing data");
         let sc = SAMPLE_COUNTER.clone();
         loop {
@@ -348,7 +343,6 @@ fn make_topic() {
 }
 
 fn kafka_main() {
-
     make_topic();
 
     // init the generator and producer
@@ -387,7 +381,7 @@ fn main() {
     match ENDPOINT {
         "mach" => mach_main(),
         "kafka" => kafka_main(),
-        _ => panic!("Invalid endpoint")
+        _ => panic!("Invalid endpoint"),
     }
 }
 
