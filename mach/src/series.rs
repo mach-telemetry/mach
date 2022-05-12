@@ -6,7 +6,6 @@ use crate::{
     //reader::Snapshot,
     segment::{self, Segment, SegmentSnapshot},
     snapshot::Snapshot,
-    tags::Tags,
     id::SeriesId,
 };
 use serde::*;

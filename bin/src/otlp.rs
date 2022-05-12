@@ -102,3 +102,16 @@ impl Hash for KeyValue {
 }
 
 pub use otlp::*;
+
+use otlp::{
+    logs::v1::ResourceLogs,
+    metrics::v1::ResourceMetrics,
+    trace::v1::ResourceSpans,
+};
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub enum OtlpData {
+    Logs(Vec<ResourceLogs>),
+    Metrics(Vec<ResourceMetrics>),
+    Spans(Vec<ResourceSpans>),
+}
