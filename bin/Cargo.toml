@@ -50,6 +50,10 @@ path = "src/data_latency_bench.rs"
 name = "otlp_server"
 path = "src/otlp-server.rs"
 
+[[bin]]
+name = "otlp_mach_consumer"
+path = "src/otlp-mach-consumer.rs"
+
 #[[bin]]
 #name = "writer-client"
 #path = "src/writer_client.rs"
