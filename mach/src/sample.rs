@@ -5,7 +5,7 @@ pub use serde::*;
 pub enum Type {
     U64(u64),
     F64(f64),
-    Bytes(Bytes),
+    Bytes(Vec<u8>),
 }
 
 unsafe impl Sync for Type {}

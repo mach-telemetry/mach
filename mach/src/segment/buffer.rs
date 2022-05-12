@@ -111,16 +111,19 @@ impl InnerBuffer {
                     self.data[i][len] = x.to_be_bytes();
                 }
                 Type::F64(x) => {
+                    if i >= self.data.len() {
+                        println!("WILL PANIC {} {} {}", items.len(), self.data.len(), i);
+                    }
                     self.data[i][len] = x.to_be_bytes();
                 }
                 Type::Bytes(b) => {
                     //let b = unsafe { Bytes::from_raw(*x) };
-                    let bytes = b.as_raw_bytes();
+                    let bytes = &b;
                     let heap = self.heap[i].as_mut().unwrap();
                     let cur_len = heap.len();
-                    let len_after = bytes.len() + heap.len();
-                    heap.extend_from_slice(b.as_raw_bytes());
-                    if len_after > HEAP_TH {
+                    heap.extend_from_slice(&b.len().to_be_bytes());
+                    heap.extend_from_slice(bytes);
+                    if heap.len() > HEAP_TH {
                         self.is_full = true;
                     }
                     let item = ((&heap[cur_len..]).as_ptr() as u64).to_be_bytes();

@@ -1,6 +1,7 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::compile_protos("mach-proto/proto/server.proto")?;
     tonic_build::configure()
+        .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
         .compile(
             &[
                 "opentelemetry-proto/opentelemetry/proto/collector/logs/v1/logs_service.proto",

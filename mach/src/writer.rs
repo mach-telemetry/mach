@@ -307,7 +307,7 @@ mod test {
         tags.insert(String::from("attrib"), String::from("a"));
 
         let series_conf = SeriesConfig {
-            tags: Tags::from(tags),
+            id: Tags::from(tags).id(),
             compression,
             seg_count: 1,
             nvars,

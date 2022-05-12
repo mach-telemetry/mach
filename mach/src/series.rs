@@ -7,6 +7,7 @@ use crate::{
     segment::{self, Segment, SegmentSnapshot},
     snapshot::Snapshot,
     tags::Tags,
+    id::SeriesId,
 };
 use serde::*;
 
@@ -30,7 +31,7 @@ impl From<segment::Error> for Error {
 
 #[derive(PartialEq, Eq, Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum Types {
-    U64 = 0,
+    I64 = 0,
     F64 = 1,
     Bytes = 2,
 }
@@ -42,7 +43,7 @@ impl Types {
 
     pub fn from_u8(v: u8) -> Self {
         match v {
-            0 => Self::U64,
+            0 => Self::I64,
             1 => Self::F64,
             2 => Self::Bytes,
             _ => unimplemented!(),
@@ -52,7 +53,7 @@ impl Types {
 
 #[derive(Clone)]
 pub struct SeriesConfig {
-    pub tags: Tags,
+    pub id: SeriesId,
     pub types: Vec<Types>,
     pub compression: Compression,
     pub seg_count: usize,

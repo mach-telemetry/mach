@@ -374,7 +374,7 @@ mod test {
         let mut timestamps = [0; 256];
         for (idx, sample) in data[0..256].iter().enumerate() {
             timestamps[idx] = idx as u64;
-            let v = Type::Bytes(Bytes::from_slice(sample.as_bytes()));
+            let v = Type::Bytes(sample.as_bytes().into());
             buf.push_type(idx as u64, &[v]).unwrap();
         }
         let segment = buf.to_flush().unwrap();
