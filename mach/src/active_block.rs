@@ -240,7 +240,15 @@ impl<T: AsRef<[u8]>> StaticBlock<T> {
         self.tail.samples
     }
 
-    pub fn chunks(&self) -> &HashMap<SeriesId, Vec<(usize, usize)>> {
+    pub fn min_timestamp(&self) -> u64 {
+        self.tail.min_ts
+    }
+
+    pub fn max_timestamp(&self) -> u64 {
+        self.tail.max_ts
+    }
+
+    pub fn chunks(&self) -> &HashMap<SeriesId, Vec<(usize, usize, u64)>> {
         &self.tail.chunks
     }
 }
@@ -248,13 +256,17 @@ impl<T: AsRef<[u8]>> StaticBlock<T> {
 #[derive(Serialize, Deserialize)]
 pub struct BlockTail {
     samples: usize,
-    chunks: HashMap<SeriesId, Vec<(usize, usize)>>,
+    min_ts: u64,
+    max_ts: u64,
+    chunks: HashMap<SeriesId, Vec<(usize, usize, u64)>>,
 }
 
 impl BlockTail {
     fn new() -> Self {
         Self {
             samples: 0,
+            min_ts: u64::MAX,
+            max_ts: 0,
             chunks: HashMap::new(),
         }
     }
@@ -264,11 +276,13 @@ impl BlockTail {
         self.samples = 0;
     }
 
-    fn insert(&mut self, id: SeriesId, offsets: (usize, usize), samples: usize) {
+    fn insert(&mut self, id: SeriesId, meta: (usize, usize, u64), samples: usize) {
         self.samples += samples;
+        self.min_ts = self.min_ts.min(meta.2);
+        self.max_ts = self.max_ts.max(meta.2);
         self.chunks.entry(id).or_insert_with(|| {
             Vec::new()
-        }).push(offsets);
+        }).push(meta);
     }
 }
 
@@ -310,9 +324,10 @@ impl ActiveBlock {
         compression: &Compression,
         prev_node: StaticNode,
     ) -> ActiveNode {
+        let ts = *segment.timestamps().last().unwrap();
         let (offset, size) = self.bytes.push(id, segment, compression, prev_node);
 
-        self.tail.insert(id, (offset, size), segment.len());
+        self.tail.insert(id, (offset, size, ts), segment.len());
 
         ActiveNode {
             queue_offset: self.queue_offset.clone(),

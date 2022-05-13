@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 mach = { path = "../mach" }
 num = "0.4.0"
-tonic = { version = "0.6.2", features = ["prost", "compression"] }
+tonic = { version = "0.6.2", features = ["prost", "compression", "transport"] }
 tokio = { version = "1.17.0", features = ["full"] }
 tokio-stream = "0.1.8"
 prost = "0.9"
@@ -29,6 +29,7 @@ zstd = "0.11.1"
 timer = "0.2.0"
 chrono = "0.4.19"
 roaring = "0.9.0"
+tower = { version = "0.4" }
 
 [[bin]]
 name = "tsdb"
@@ -53,6 +54,10 @@ path = "src/otlp-server.rs"
 [[bin]]
 name = "otlp_mach_consumer"
 path = "src/otlp-mach-consumer.rs"
+
+[[bin]]
+name = "load-data"
+path = "src/load_data.rs"
 
 #[[bin]]
 #name = "writer-client"

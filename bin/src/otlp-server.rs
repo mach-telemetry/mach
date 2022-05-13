@@ -1,4 +1,5 @@
 mod otlp;
+mod tag_index;
 
 use otlp::{
     metrics::v1::{metric::Data, number_data_point},
@@ -27,6 +28,7 @@ use std::collections::{HashMap, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
 use lazy_static::*;
 use clap::Parser;
+use tag_index::TagIndex;
 
 use mach::{
     durable_queue::{KafkaConfig},
@@ -40,25 +42,36 @@ use mach::{
 };
 
 lazy_static! {
+    pub static ref QUEUE_LENGTH: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    pub static ref QUEUE_ITEMS: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     pub static ref COUNTER: Arc<AtomicUsize> = {
         let counter = Arc::new(AtomicUsize::new(0));
         let counter_clone = counter.clone();
-        let mut data = [0; 5];
+        let mut samples = [0; 5];
+        let mut items = [0; 5];
         std::thread::spawn(move || {
             for i in 0.. {
                 std::thread::sleep(Duration::from_secs(1));
                 let idx = i % 5;
-                data[idx] = counter_clone.load(SeqCst);
-                let max = data.iter().max().unwrap();
-                let min = data.iter().min().unwrap();
-                let rate = (max - min) / 5;
-                println!("received {} / sec", rate);
+
+                samples[idx] = counter_clone.load(SeqCst);
+                let max = samples.iter().max().unwrap();
+                let min = samples.iter().min().unwrap();
+                let sample_rate = (max - min) / 5;
+
+                items[idx] = QUEUE_ITEMS.load(SeqCst);
+                let max = items.iter().max().unwrap();
+                let min = items.iter().min().unwrap();
+                let items_rate = (max - min) / 5;
+
+                let ql = QUEUE_LENGTH.load(SeqCst);
+                println!("{} samples / sec, {} items / sec, queue length {}", sample_rate, items_rate, ql);
             }
         });
         counter
     };
-
     pub static ref MACH: Arc<RwLock<Mach>> = Arc::new(RwLock::new(Mach::new()));
+    pub static ref TAG_INDEX: TagIndex = TagIndex::new();
 }
 
 #[derive(Clone)]
@@ -73,7 +86,9 @@ impl TraceService for OtlpServer {
         req: Request<ExportTraceServiceRequest>,
     ) -> Result<Response<ExportTraceServiceResponse>, Status> {
         if self.sender.send(OtlpData::Spans(req.into_inner().resource_spans)).is_err() {
-            println!("Failed to write to sender");
+            //panic!("Failed to write to sender");
+        } else {
+            QUEUE_LENGTH.fetch_add(1, SeqCst);
         }
         Ok(Response::new(ExportTraceServiceResponse {}))
     }
@@ -86,7 +101,9 @@ impl LogsService for OtlpServer {
         req: Request<ExportLogsServiceRequest>,
     ) -> Result<Response<ExportLogsServiceResponse>, Status> {
         if self.sender.send(OtlpData::Logs(req.into_inner().resource_logs)).is_err() {
-            println!("Failed to write to sender");
+            //panic!("Failed to write to sender");
+        } else {
+            QUEUE_LENGTH.fetch_add(1, SeqCst);
         }
         Ok(Response::new(ExportLogsServiceResponse {}))
     }
@@ -99,31 +116,39 @@ impl MetricsService for OtlpServer {
         req: Request<ExportMetricsServiceRequest>,
     ) -> Result<Response<ExportMetricsServiceResponse>, Status> {
         if self.sender.send(OtlpData::Metrics(req.into_inner().resource_metrics)).is_err() {
-            println!("Failed to write to sender");
+            //panic!("Failed to write to sender");
+        } else {
+            QUEUE_LENGTH.fetch_add(1, SeqCst);
         }
         Ok(Response::new(ExportMetricsServiceResponse {}))
     }
 }
 
-//fn write_to_file_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
-//    use std::{
-//        io::*,
-//        fs::*,
-//    };
-//    let mut file = File::create(args.path).unwrap();
-//    let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
-//    let mut buf = Vec::new();
-//    while let Some(item) = rt.block_on(receiver.recv()) {
-//        buf.push(item);
-//        if buf.len() == args.file_item_count {
-//            let bytes = bincode::serialize(&buf).unwrap();
-//            file.write(bytes).unwrap();
-//            break;
-//        }
-//    }
-//}
+fn write_to_file_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
+    let _ = COUNTER.load(SeqCst);
+    use std::{
+        io::*,
+        fs::*,
+    };
+    let mut file = File::create(args.file_path.as_ref().unwrap()).unwrap();
+    let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+    let mut buf = Vec::new();
+    while let Some(item) = rt.block_on(receiver.recv()) {
+        buf.push(item);
+        QUEUE_ITEMS.fetch_add(1, SeqCst);
+        if buf.len() == args.file_item_count {
+            println!("Writing file with items {} items", buf.len());
+            let bytes = bincode::serialize(&buf).unwrap();
+            file.write_all(bytes.as_slice()).unwrap();
+            println!("Done writing");
+            panic!("HERE");
+            return;
+        }
+    }
+}
 
 fn kafka_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
+    let _c = COUNTER.load(SeqCst);
     use rdkafka::{
         admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
         client::DefaultClientContext,
@@ -160,6 +185,7 @@ fn kafka_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
 
     let mut buf = Vec::new();
     while let Some(item) = rt.block_on(receiver.recv()) {
+        QUEUE_LENGTH.fetch_sub(1, SeqCst);
         buf.push(item);
         if buf.len() == args.kafka_batch {
             let encoded = bincode::serialize(&buf).unwrap();
@@ -167,7 +193,7 @@ fn kafka_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
             let to_send: FutureRecord<str, [u8]> =
                 FutureRecord::to(&args.kafka_topic).payload(&bytes);
             match rt.block_on(producer.send(to_send, Duration::from_secs(3))) {
-                Ok(_) => COUNTER.fetch_add(args.kafka_batch, SeqCst),
+                Ok(_) => QUEUE_ITEMS.fetch_add(args.kafka_batch, SeqCst),
                 Err(_) => panic!("Producer failed"),
             };
             buf.clear();
@@ -177,8 +203,8 @@ fn kafka_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
 
 fn mach_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
     let queue_config = KafkaConfig {
-        bootstrap: (&args.kafka_bootstraps).into(),
-        topic: random_id(),
+        bootstrap: args.kafka_bootstraps.clone(),
+        topic: args.kafka_topic.clone(),
     }
     .config();
     let writer_config = WriterConfig {
@@ -191,6 +217,7 @@ fn mach_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
     let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
 
     while let Some(item) = rt.block_on(receiver.recv()) {
+        QUEUE_LENGTH.fetch_sub(1, SeqCst);
         let mut count = 0;
         match item {
             OtlpData::Metrics(resource_metrics) => {
@@ -525,10 +552,10 @@ fn mach_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
                     } // scope loop
                 } // resource loop
             }, // match Span
-
         } // match item
 
         COUNTER.fetch_add(count, SeqCst);
+        QUEUE_ITEMS.fetch_add(1, SeqCst);
     }
 }
 
@@ -560,12 +587,20 @@ struct Args {
 
     #[clap(short, long, default_value_t = 8192)]
     kafka_batch: usize,
+
+    #[clap(short, long)]
+    file_path: Option<String>,
+
+    #[clap(short, long, default_value_t = 1000000)]
+    file_item_count: usize,
+
 }
 
 fn validate_tsdb(s: &str) -> Result<String, String> {
     Ok(match s {
         "mach" => s.into(),
         "kafka" => s.into(),
+        "file" => s.into(),
         _ => return Err(format!("Invalid option {}, valid options are \"mach\", \"kafka\".", s))
     })
 }
@@ -595,6 +630,7 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     match args.tsdb.as_str() {
         "mach" => std::thread::spawn(move || { mach_worker(args_clone, rx) }),
         "kafka" => std::thread::spawn(move || { kafka_worker(args_clone, rx) }),
+        "file" => std::thread::spawn(move || { write_to_file_worker(args_clone, rx) }),
         _ => unreachable!(), // validation covers this
     };
 

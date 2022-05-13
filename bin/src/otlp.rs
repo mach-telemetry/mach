@@ -105,13 +105,108 @@ pub use otlp::*;
 
 use otlp::{
     logs::v1::ResourceLogs,
-    metrics::v1::ResourceMetrics,
+    metrics::v1::{metric::Data, ResourceMetrics},
     trace::v1::ResourceSpans,
 };
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub enum OtlpData {
     Logs(Vec<ResourceLogs>),
     Metrics(Vec<ResourceMetrics>),
     Spans(Vec<ResourceSpans>),
+}
+
+
+impl OtlpData {
+    pub fn update_timestamp(&mut self, timestamp: u64) {
+        match self {
+            OtlpData::Metrics(resource_metrics) => {
+
+                // Iterate over each resource
+                for resource in resource_metrics.iter_mut() {
+
+                    // Iterate over each scope
+                    for scope in resource.scope_metrics.iter_mut() {
+
+                        // Iterate over each metric
+                        for metric in scope.metrics.iter_mut() {
+
+                            // There are several types of metrics
+                            match metric.data.as_mut().unwrap() {
+
+                                Data::Gauge(x) => {
+                                    for point in &mut x.data_points {
+                                        point.time_unix_nano = timestamp;
+                                    }
+                                },
+
+                                Data::Sum(x) => {
+                                    for point in &mut x.data_points {
+                                        point.time_unix_nano = timestamp;
+                                    }
+                                },
+
+                                Data::Histogram(x) => {
+                                    for point in &mut x.data_points {
+                                        point.time_unix_nano = timestamp;
+                                    }
+                                },
+
+                                Data::ExponentialHistogram(x) => {
+                                    for point in &mut x.data_points {
+                                        point.time_unix_nano = timestamp;
+                                    }
+                                },
+
+                                Data::Summary(x) => {
+                                    for point in &mut x.data_points {
+                                        point.time_unix_nano = timestamp;
+                                    }
+                                },
+                            } // match brace
+                        } // metric loop
+                    } // scope loop
+                } // resource loop
+            }, // match Metric
+
+            OtlpData::Logs(resource_logs) => {
+
+                // Iterate over each resource
+                for resource in resource_logs.iter_mut() {
+
+                    // Iterate over each scope
+                    for scope in resource.scope_logs.iter_mut() {
+
+                        // Iterate over each log
+                        for log in &mut scope.log_records.iter_mut() {
+                            log.time_unix_nano = timestamp;
+                        } // log loop
+                    } // scope loop
+                } // resource loop
+            }, // match Logs
+
+            OtlpData::Spans(resource_spans) => {
+
+                // Iterate over each resource
+                for resource in resource_spans.iter_mut() {
+
+                    // Iterate over each scope
+                    for scope in resource.scope_spans.iter_mut() {
+
+                        // Iterate over each span
+                        for span in scope.spans.iter_mut() {
+                            let start = span.start_time_unix_nano;
+                            let diff = timestamp - start;
+                            span.start_time_unix_nano += diff;
+                            span.end_time_unix_nano += diff;
+                            for event in &mut span.events {
+                                event.time_unix_nano += diff;
+                            }
+                        } // span loop
+                    } // scope loop
+                } // resource loop
+            }, // match Span
+
+        } // match item
+    }
 }

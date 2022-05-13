@@ -11,6 +11,7 @@ use mach::{
     active_block::StaticBlock,
 };
 use zstd::stream::decode_all;
+use std::time::{UNIX_EPOCH, Duration, SystemTime};
 
 #[derive(Parser, Debug, Clone)]
 struct Args {
@@ -44,7 +45,11 @@ async fn mach_consumer(args: Args) {
                         // we use zstd inside mach to compress the block before writing to kafka
                         let block = StaticBlock::new(decode_all(s).unwrap());
                         let count = block.samples();
-                        println!("Block size: {}, sample count: {}", sz, count);
+                        let max_ts = block.max_timestamp();
+                        let now = SystemTime::now();
+                        let time = UNIX_EPOCH + Duration::from_nanos(max_ts);
+                        let gap = now.duration_since(time).unwrap();
+                        println!("Block size: {}, sample count: {}, gap: {:?}", sz, count, gap);
                     }
                     Some(Err(_)) => {
                         println!("Error while deserializing message payload");
