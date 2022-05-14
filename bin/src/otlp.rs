@@ -46,25 +46,13 @@ pub mod opentelemetry {
 }
 use opentelemetry::proto as otlp;
 
+pub use otlp::*;
+
 use otlp::{
-    //logs::v1::ResourceLogs,
-    //metrics::v1::{ResourceMetrics, metric::Data},
-    //trace::v1::ResourceSpans,
-    //collector::{
-    //    logs::v1::{
-    //        logs_service_server::{LogsService, LogsServiceServer},
-    //        ExportLogsServiceRequest, ExportLogsServiceResponse,
-    //    },
-    //    metrics::v1::{
-    //        metrics_service_server::{MetricsService, MetricsServiceServer},
-    //        ExportMetricsServiceRequest, ExportMetricsServiceResponse,
-    //    },
-    //    trace::v1::{
-    //        trace_service_server::{TraceService, TraceServiceServer},
-    //        ExportTraceServiceRequest, ExportTraceServiceResponse,
-    //    },
-    //},
     common::v1::{KeyValue, any_value::Value, ArrayValue, AnyValue, KeyValueList},
+    logs::v1::ResourceLogs,
+    metrics::v1::{metric::Data, ResourceMetrics},
+    trace::v1::ResourceSpans,
 };
 use std::hash::{Hash, Hasher};
 
@@ -101,13 +89,6 @@ impl Hash for KeyValue {
     }
 }
 
-pub use otlp::*;
-
-use otlp::{
-    logs::v1::ResourceLogs,
-    metrics::v1::{metric::Data, ResourceMetrics},
-    trace::v1::ResourceSpans,
-};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub enum OtlpData {
@@ -118,6 +99,93 @@ pub enum OtlpData {
 
 
 impl OtlpData {
+    pub fn add_attribute(&mut self, kv: KeyValue) {
+        match self {
+            OtlpData::Metrics(resource_metrics) => {
+
+                // Iterate over each resource
+                for resource in resource_metrics.iter_mut() {
+
+                    // Iterate over each scope
+                    for scope in resource.scope_metrics.iter_mut() {
+
+                        // Iterate over each metric
+                        for metric in scope.metrics.iter_mut() {
+
+                            // There are several types of metrics
+                            match metric.data.as_mut().unwrap() {
+
+                                Data::Gauge(x) => {
+                                    for point in &mut x.data_points {
+                                        point.attributes.push(kv.clone());
+                                    }
+                                },
+
+                                Data::Sum(x) => {
+                                    for point in &mut x.data_points {
+                                        point.attributes.push(kv.clone());
+                                    }
+                                },
+
+                                Data::Histogram(x) => {
+                                    for point in &mut x.data_points {
+                                        point.attributes.push(kv.clone());
+                                    }
+                                },
+
+                                Data::ExponentialHistogram(x) => {
+                                    for point in &mut x.data_points {
+                                        point.attributes.push(kv.clone());
+                                    }
+                                },
+
+                                Data::Summary(x) => {
+                                    for point in &mut x.data_points {
+                                        point.attributes.push(kv.clone());
+                                    }
+                                },
+                            } // match brace
+                        } // metric loop
+                    } // scope loop
+                } // resource loop
+            }, // match Metric
+
+            OtlpData::Logs(resource_logs) => {
+
+                // Iterate over each resource
+                for resource in resource_logs.iter_mut() {
+
+                    // Iterate over each scope
+                    for scope in resource.scope_logs.iter_mut() {
+
+                        // Iterate over each log
+                        for log in &mut scope.log_records.iter_mut() {
+                            log.attributes.push(kv.clone());
+                        } // log loop
+                    } // scope loop
+                } // resource loop
+            }, // match Logs
+
+            OtlpData::Spans(resource_spans) => {
+
+                // Iterate over each resource
+                for resource in resource_spans.iter_mut() {
+
+                    // Iterate over each scope
+                    for scope in resource.scope_spans.iter_mut() {
+
+                        // Iterate over each span
+                        for span in scope.spans.iter_mut() {
+                            span.attributes.push(kv.clone());
+                        } // span loop
+                    } // scope loop
+                } // resource loop
+            }, // match Span
+
+        } // match item
+    }
+
+
     pub fn update_timestamp(&mut self, timestamp: u64) {
         match self {
             OtlpData::Metrics(resource_metrics) => {

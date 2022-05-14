@@ -4,6 +4,7 @@ use std::{
     io::*,
 };
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use mach::utils::random_id;
 
 use otlp::{
     collector::{
@@ -23,11 +24,12 @@ use otlp::{
     logs::v1::ResourceLogs,
     metrics::v1::ResourceMetrics,
     trace::v1::ResourceSpans,
+    common::v1::{KeyValue, any_value::Value, AnyValue},
     OtlpData,
 };
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 use lazy_static::*;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
+use std::sync::{Arc, atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst}};
 use tonic::{transport::Channel, Request};
 use tower::timeout::Timeout;
 
@@ -54,12 +56,22 @@ pub fn counter_watcher() {
 lazy_static! {
     pub static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
     pub static ref QUEUED: AtomicUsize = AtomicUsize::new(0);
+    pub static ref START_COUNTERS: AtomicBool = AtomicBool::new(false);
+    pub static ref ITEMS: Vec<otlp::OtlpData> = {
+        println!("Loading");
+        let mut file = File::open("/home/fsolleza/data/mach/demo_data2").unwrap();
+        let mut data = Vec::new();
+        file.read_to_end(&mut data).unwrap();
+        let mut items: Vec<otlp::OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
+        println!("items read: {}", items.len());
+        items
+    };
 }
 
 async fn logs_client(mut rx: UnboundedReceiver<Vec<ResourceLogs>>) {
-    let channel = Channel::from_static("http://0.0.0.0:4317").connect().await.unwrap();
-    let timeout_channel = Timeout::new(channel, Duration::from_micros(1));
-    let mut client = LogsServiceClient::new(timeout_channel);
+    //let channel = Channel::from_static("tcp://0.0.0.0:4317").connect().await.unwrap();
+    //let timeout_channel = Timeout::new(channel, Duration::from_micros(1));
+    let mut client = LogsServiceClient::connect("http://0.0.0.0:4317").await.unwrap();
 
     while let Some(resource_logs) = rx.recv().await {
         let to_send = ExportLogsServiceRequest {
@@ -73,9 +85,7 @@ async fn logs_client(mut rx: UnboundedReceiver<Vec<ResourceLogs>>) {
 }
 
 async fn metrics_client(mut rx: UnboundedReceiver<Vec<ResourceMetrics>>) {
-    let channel = Channel::from_static("http://0.0.0.0:4317").connect().await.unwrap();
-    let timeout_channel = Timeout::new(channel, Duration::from_nanos(1));
-    let mut client = MetricsServiceClient::new(timeout_channel);
+    let mut client = MetricsServiceClient::connect("http://0.0.0.0:4317").await.unwrap();
 
     while let Some(resource_metrics) = rx.recv().await {
         let to_send = ExportMetricsServiceRequest {
@@ -89,9 +99,7 @@ async fn metrics_client(mut rx: UnboundedReceiver<Vec<ResourceMetrics>>) {
 }
 
 async fn span_client(mut rx: UnboundedReceiver<Vec<ResourceSpans>>) {
-    let channel = Channel::from_static("http://0.0.0.0:4317").connect().await.unwrap();
-    let timeout_channel = Timeout::new(channel, Duration::from_nanos(1));
-    let mut client = TraceServiceClient::new(timeout_channel);
+    let mut client = TraceServiceClient::connect("http://0.0.0.0:4317").await.unwrap();
 
     while let Some(resource_spans) = rx.recv().await {
         let to_send = ExportTraceServiceRequest {
@@ -106,6 +114,27 @@ async fn span_client(mut rx: UnboundedReceiver<Vec<ResourceSpans>>) {
 
 #[tokio::main]
 async fn main() {
+    //runner().await;
+    let mut handles = Vec::new();
+    handles.push(tokio::task::spawn(runner()));
+    handles.push(tokio::task::spawn(runner()));
+    //handles.push(tokio::task::spawn(runner()));
+    for h in handles {
+        h.await.unwrap();
+    }
+}
+
+//#[tokio::main()]
+async fn runner() {
+
+    let process_attribute: KeyValue = {
+        let value = Some(AnyValue { value: Some(Value::StringValue(random_id())) });
+        let key = String::from("loader_id");
+        KeyValue {
+            key,
+            value,
+        }
+    };
 
     let mut handles = Vec::new();
     let (logs_tx, logs_rx) = unbounded_channel();
@@ -117,17 +146,22 @@ async fn main() {
     let (spans_tx, spans_rx) = unbounded_channel();
     handles.push(tokio::task::spawn(span_client(spans_rx)));
 
-    let interval = Duration::from_secs(1) / 100000;
+    let interval = Duration::from_secs(1) / 1000000;
 
+    //let mut items = ITEMS.clone();
     println!("Loading");
     let mut file = File::open("/home/fsolleza/data/mach/demo_data2").unwrap();
     let mut data = Vec::new();
     file.read_to_end(&mut data).unwrap();
     let mut items: Vec<otlp::OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
-    let len = items.len();
     println!("items read: {}", items.len());
+    for item in items.iter_mut() {
+        item.add_attribute(process_attribute.clone());
+    }
 
-    std::thread::spawn(move || counter_watcher());
+    if !START_COUNTERS.swap(true, SeqCst) {
+        std::thread::spawn(move || counter_watcher());
+    }
 
     println!("Producing data at: {:?}", interval);
     let mut last = SystemTime::now();
