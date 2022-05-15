@@ -521,14 +521,14 @@ fn mach_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
                             let id_ref = *id_map.entry(id).or_insert_with(|| {
                                 let types = vec![ 
                                     Types::Bytes,
-                                    Types::Bytes,
-                                    Types::Bytes,
+                                    // Types::Bytes,
+                                    // Types::Bytes,
                                 ];
                                 let compression = Compression::from(
                                     vec![
                                         CompressFn::BytesLZ4,
-                                        CompressFn::BytesLZ4,
-                                        CompressFn::BytesLZ4,
+                                        //CompressFn::BytesLZ4,
+                                        //CompressFn::BytesLZ4,
                                     ]
                                 );
                                 let nvars = types.len();
@@ -548,12 +548,12 @@ fn mach_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
 
                             // Push span
                             let timestamp = span.start_time_unix_nano;
-                            let trace_id = Type::Bytes(span.trace_id);
-                            let span_id = Type::Bytes(span.span_id);
-                            let parent_id = Type::Bytes(span.parent_span_id);
+                            //let trace_id = Type::Bytes(span.trace_id);
+                            //let span_id = Type::Bytes(span.span_id);
+                            //let parent_id = Type::Bytes(span.parent_span_id);
 
-                            //let bytes = Type::Bytes(bincode::serialize(&span).unwrap());
-                            let slice = &[ trace_id, span_id, parent_id ];
+                            let bytes = Type::Bytes(bincode::serialize(&span).unwrap());
+                            let slice = &[ bytes ];
                             loop {
                                 if writer.push(id_ref, timestamp, slice).is_ok() {
                                     break;

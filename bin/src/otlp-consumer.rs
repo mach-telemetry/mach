@@ -54,6 +54,8 @@ async fn mach_consumer(args: Args) {
                         let sz = s.len();
                         // we use zstd inside mach to compress the block before writing to kafka
                         let block = StaticBlock::new(decode_all(s).unwrap());
+
+                        //let block = StaticBlock::new(s);
                         let count = block.samples();
                         let max_ts = block.max_timestamp();
                         let now = SystemTime::now();

@@ -111,8 +111,10 @@ impl KafkaWriter {
     }
 
     pub async fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
+        // ZStd compression
         let encoded = encode_all(bytes, 0).unwrap();
         let bytes = encoded.as_slice();
+
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&self.topic).payload(bytes);
         //let now = std::time::Instant::now();
         let (partition, offset) = self.producer.send(to_send, self.dur).await.unwrap();

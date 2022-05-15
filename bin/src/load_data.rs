@@ -57,13 +57,13 @@ lazy_static! {
     pub static ref COUNTER: AtomicUsize = AtomicUsize::new(0);
     pub static ref QUEUED: AtomicUsize = AtomicUsize::new(0);
     pub static ref START_COUNTERS: AtomicBool = AtomicBool::new(false);
-    pub static ref ITEMS: Vec<otlp::OtlpData> = {
-        println!("Loading");
-        let mut file = File::open("/home/fsolleza/data/mach/demo_data2").unwrap();
+    pub static ref ITEMS: Vec<OtlpData> = {
+        let mut file = File::open("/home/ubuntu/demo_data2").unwrap();
+        //let mut file = File::open("/home/fsolleza/data/mach/demo_data2").unwrap();
         let mut data = Vec::new();
         file.read_to_end(&mut data).unwrap();
         let mut items: Vec<otlp::OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
-        println!("items read: {}", items.len());
+        //items.truncate(1000000);
         items
     };
 }
@@ -165,15 +165,17 @@ async fn runner() {
     let (spans_tx, spans_rx) = channel(1);
     handles.push(tokio::task::spawn(span_client(spans_rx)));
 
-    let interval = Duration::from_secs(1) / 1000000;
+    let interval = Duration::from_secs(1)/4500;
 
     //let mut items = ITEMS.clone();
     println!("Loading");
-    let mut file = File::open("/home/fsolleza/data/mach/demo_data2").unwrap();
-    let mut data = Vec::new();
-    file.read_to_end(&mut data).unwrap();
-    let mut items: Vec<otlp::OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
-    println!("items read: {}", items.len());
+    let mut items = ITEMS.clone();
+    //let mut file = File::open("/home/ubuntu/demo_data2").unwrap();
+    ////let mut file = File::open("/home/fsolleza/data/mach/demo_data2").unwrap();
+    //let mut data = Vec::new();
+    //file.read_to_end(&mut data).unwrap();
+    //let mut items: Vec<otlp::OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
+    //println!("items read: {}", items.len());
     for item in items.iter_mut() {
         item.add_attribute(process_attribute.clone());
     }
@@ -184,21 +186,24 @@ async fn runner() {
 
     println!("Producing data at: {:?}", interval);
     let mut last = SystemTime::now();
-    for mut item in items.drain(..) {
-        while SystemTime::now().duration_since(last).unwrap() < interval {}
-        match item {
-            OtlpData::Logs(_) => if logs_tx.send(item).await.is_err() {
-                panic!("Failed to send");
-            },
-            OtlpData::Metrics(_) => if metrics_tx.send(item).await.is_err() {
-                panic!("Failed to send");
-            },
-            OtlpData::Spans(_) => if spans_tx.send(item).await.is_err() {
-                panic!("Failed to send");
+    loop {
+        for item in items.iter() {
+            let item = item.clone();
+            while SystemTime::now().duration_since(last).unwrap() < interval {}
+            match item {
+                OtlpData::Logs(_) => if logs_tx.send(item).await.is_err() {
+                    panic!("Failed to send");
+                },
+                OtlpData::Metrics(_) => if metrics_tx.send(item).await.is_err() {
+                    panic!("Failed to send");
+                },
+                OtlpData::Spans(_) => if spans_tx.send(item).await.is_err() {
+                    panic!("Failed to send");
+                }
             }
+            QUEUED.fetch_add(1, SeqCst);
+            last = SystemTime::now();
         }
-        QUEUED.fetch_add(1, SeqCst);
-        last = SystemTime::now();
     }
 
     drop(logs_tx);
