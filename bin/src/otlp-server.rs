@@ -148,7 +148,6 @@ fn write_to_file_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
 }
 
 fn kafka_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
-    let _c = COUNTER.load(SeqCst);
     use rdkafka::{
         admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
         client::DefaultClientContext,
@@ -185,6 +184,7 @@ fn kafka_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
 
     let mut buf = Vec::new();
     while let Some(item) = rt.block_on(receiver.recv()) {
+        let _c = COUNTER.load(SeqCst);
         QUEUE_LENGTH.fetch_sub(1, SeqCst);
         buf.push(item);
         if buf.len() == args.kafka_batch {
@@ -519,9 +519,17 @@ fn mach_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
 
                             // Get reference, if no reference, register source
                             let id_ref = *id_map.entry(id).or_insert_with(|| {
-                                let types = vec![ Types::Bytes, ];
+                                let types = vec![ 
+                                    Types::Bytes,
+                                    Types::Bytes,
+                                    Types::Bytes,
+                                ];
                                 let compression = Compression::from(
-                                    vec![ CompressFn::BytesLZ4, ]
+                                    vec![
+                                        CompressFn::BytesLZ4,
+                                        CompressFn::BytesLZ4,
+                                        CompressFn::BytesLZ4,
+                                    ]
                                 );
                                 let nvars = types.len();
 
@@ -540,8 +548,12 @@ fn mach_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
 
                             // Push span
                             let timestamp = span.start_time_unix_nano;
-                            let bytes = Type::Bytes(bincode::serialize(&span).unwrap());
-                            let slice = &[ bytes ];
+                            let trace_id = Type::Bytes(span.trace_id);
+                            let span_id = Type::Bytes(span.span_id);
+                            let parent_id = Type::Bytes(span.parent_span_id);
+
+                            //let bytes = Type::Bytes(bincode::serialize(&span).unwrap());
+                            let slice = &[ trace_id, span_id, parent_id ];
                             loop {
                                 if writer.push(id_ref, timestamp, slice).is_ok() {
                                     break;
@@ -618,7 +630,7 @@ fn validate_ack(s: &str) -> Result<String, String> {
 #[tokio::main]
 async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    println!("Args: {:?}", args);
+    println!("Args: {:#?}", args);
     let mut addr = String::from(args.server_addr.as_str());
     addr.push(':');
     addr.push_str(args.server_port.as_str());

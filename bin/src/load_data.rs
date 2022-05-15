@@ -27,7 +27,7 @@ use otlp::{
     common::v1::{KeyValue, any_value::Value, AnyValue},
     OtlpData,
 };
-use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use tokio::sync::mpsc::{Receiver, channel};
 use lazy_static::*;
 use std::sync::{Arc, atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst}};
 use tonic::{transport::Channel, Request};
@@ -68,12 +68,18 @@ lazy_static! {
     };
 }
 
-async fn logs_client(mut rx: UnboundedReceiver<Vec<ResourceLogs>>) {
+async fn logs_client(mut rx: Receiver<OtlpData>) {
     //let channel = Channel::from_static("tcp://0.0.0.0:4317").connect().await.unwrap();
     //let timeout_channel = Timeout::new(channel, Duration::from_micros(1));
     let mut client = LogsServiceClient::connect("http://0.0.0.0:4317").await.unwrap();
 
-    while let Some(resource_logs) = rx.recv().await {
+    while let Some(mut item) = rx.recv().await {
+        let nanos: u64 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos().try_into().unwrap();
+        item.update_timestamp(nanos);
+        let resource_logs = match item {
+            OtlpData::Logs(x) => x,
+            _ => unreachable!(),
+        };
         let to_send = ExportLogsServiceRequest {
             resource_logs,
         };
@@ -84,10 +90,16 @@ async fn logs_client(mut rx: UnboundedReceiver<Vec<ResourceLogs>>) {
     }
 }
 
-async fn metrics_client(mut rx: UnboundedReceiver<Vec<ResourceMetrics>>) {
+async fn metrics_client(mut rx: Receiver<OtlpData>) {
     let mut client = MetricsServiceClient::connect("http://0.0.0.0:4317").await.unwrap();
 
-    while let Some(resource_metrics) = rx.recv().await {
+    while let Some(mut item) = rx.recv().await {
+        let nanos: u64 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos().try_into().unwrap();
+        item.update_timestamp(nanos);
+        let resource_metrics = match item {
+            OtlpData::Metrics(x) => x,
+            _ => unreachable!(),
+        };
         let to_send = ExportMetricsServiceRequest {
             resource_metrics,
         };
@@ -98,10 +110,16 @@ async fn metrics_client(mut rx: UnboundedReceiver<Vec<ResourceMetrics>>) {
     }
 }
 
-async fn span_client(mut rx: UnboundedReceiver<Vec<ResourceSpans>>) {
+async fn span_client(mut rx: Receiver<OtlpData>) {
     let mut client = TraceServiceClient::connect("http://0.0.0.0:4317").await.unwrap();
 
-    while let Some(resource_spans) = rx.recv().await {
+    while let Some(mut item) = rx.recv().await {
+        let nanos: u64 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos().try_into().unwrap();
+        item.update_timestamp(nanos);
+        let resource_spans = match item {
+            OtlpData::Spans(x) => x,
+            _ => unreachable!(),
+        };
         let to_send = ExportTraceServiceRequest {
             resource_spans,
         };
@@ -116,9 +134,10 @@ async fn span_client(mut rx: UnboundedReceiver<Vec<ResourceSpans>>) {
 async fn main() {
     //runner().await;
     let mut handles = Vec::new();
-    handles.push(tokio::task::spawn(runner()));
-    handles.push(tokio::task::spawn(runner()));
-    //handles.push(tokio::task::spawn(runner()));
+    let workers = 4;
+    for i in 0..workers {
+        handles.push(tokio::task::spawn(runner()));
+    }
     for h in handles {
         h.await.unwrap();
     }
@@ -137,13 +156,13 @@ async fn runner() {
     };
 
     let mut handles = Vec::new();
-    let (logs_tx, logs_rx) = unbounded_channel();
+    let (logs_tx, logs_rx) = channel(1);
     handles.push(tokio::task::spawn(logs_client(logs_rx)));
 
-    let (metrics_tx, metrics_rx) = unbounded_channel();
+    let (metrics_tx, metrics_rx) = channel(1);
     handles.push(tokio::task::spawn(metrics_client(metrics_rx)));
 
-    let (spans_tx, spans_rx) = unbounded_channel();
+    let (spans_tx, spans_rx) = channel(1);
     handles.push(tokio::task::spawn(span_client(spans_rx)));
 
     let interval = Duration::from_secs(1) / 1000000;
@@ -166,13 +185,17 @@ async fn runner() {
     println!("Producing data at: {:?}", interval);
     let mut last = SystemTime::now();
     for mut item in items.drain(..) {
-        let nanos: u64 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos().try_into().unwrap();
-        item.update_timestamp(nanos);
         while SystemTime::now().duration_since(last).unwrap() < interval {}
         match item {
-            OtlpData::Logs(x) => logs_tx.send(x).unwrap(),
-            OtlpData::Metrics(x) => metrics_tx.send(x).unwrap(),
-            OtlpData::Spans(x) => spans_tx.send(x).unwrap(),
+            OtlpData::Logs(_) => if logs_tx.send(item).await.is_err() {
+                panic!("Failed to send");
+            },
+            OtlpData::Metrics(_) => if metrics_tx.send(item).await.is_err() {
+                panic!("Failed to send");
+            },
+            OtlpData::Spans(_) => if spans_tx.send(item).await.is_err() {
+                panic!("Failed to send");
+            }
         }
         QUEUED.fetch_add(1, SeqCst);
         last = SystemTime::now();

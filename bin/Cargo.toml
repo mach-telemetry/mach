@@ -44,16 +44,16 @@ name = "file2mach"
 path = "src/file_to_mach.rs"
 
 [[bin]]
-name = "data_latency_bench"
+name = "data-latency-bench"
 path = "src/data_latency_bench.rs"
 
 [[bin]]
-name = "otlp_server"
+name = "otlp-server"
 path = "src/otlp-server.rs"
 
 [[bin]]
-name = "otlp_mach_consumer"
-path = "src/otlp-mach-consumer.rs"
+name = "otlp-consumer"
+path = "src/otlp-consumer.rs"
 
 [[bin]]
 name = "load-data"
