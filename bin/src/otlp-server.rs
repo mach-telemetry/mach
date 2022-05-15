@@ -588,7 +588,7 @@ struct Args {
     #[clap(short, long, default_value_t = random_id())]
     kafka_topic: String,
 
-    #[clap(short, long, default_value_t = 3)]
+    #[clap(short, long, default_value_t = 1)]
     kafka_partitions: i32,
 
     #[clap(short, long, default_value_t = 3)]
