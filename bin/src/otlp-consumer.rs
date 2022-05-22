@@ -93,7 +93,17 @@ async fn kafka_consumer(args: Args) {
                     None => {}
                     Some(Ok(s)) => {
                         let sz = s.len();
-                        let data: Vec<OtlpData> = bincode::deserialize(decode_all(s).unwrap().as_slice()).unwrap();
+                        let bytes = decode_all(s).unwrap();
+                        let uncompressed_sz = bytes.len();
+                        let mut data = Vec::new();
+                        let mut slice = &bytes[..];
+                        while slice.len() > 0 {
+                            let sz = usize::from_be_bytes(slice[..8].try_into().unwrap());
+                            let item = bincode::deserialize(&slice[8..8+sz]).unwrap();
+                            data.push(item);
+                            slice = &slice[sz + 8..];
+                        }
+                        //let data: Vec<OtlpData> = bincode::deserialize(decode_all(s).unwrap().as_slice()).unwrap();
                         let mut count = 0;
                         let mut max_ts = 0;
                         for item in data.iter() {
@@ -104,7 +114,7 @@ async fn kafka_consumer(args: Args) {
                         let now = SystemTime::now();
                         let time = UNIX_EPOCH + Duration::from_nanos(max_ts);
                         let gap = now.duration_since(time).unwrap();
-                        println!("Block size: {}, sample count: {}, gap: {:?}", sz, count, gap);
+                        println!("Block size: {}, uncomp: {}, sample count: {}, gap: {:?}", sz, uncompressed_sz, count, gap);
                     }
                     Some(Err(_)) => {
                         println!("Error while deserializing message payload");

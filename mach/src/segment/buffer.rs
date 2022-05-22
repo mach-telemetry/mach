@@ -107,13 +107,19 @@ impl InnerBuffer {
         self.ts[len] = ts;
         for (i, item) in items.iter().enumerate() {
             match item {
+                Type::I64(x) => {
+                    self.data[i][len] = x.to_be_bytes();
+                }
                 Type::U64(x) => {
                     self.data[i][len] = x.to_be_bytes();
                 }
                 Type::F64(x) => {
-                    if i >= self.data.len() {
-                        println!("WILL PANIC {} {} {}", items.len(), self.data.len(), i);
-                    }
+                    self.data[i][len] = x.to_be_bytes();
+                }
+                Type::U32(x) => {
+                    self.data[i][len] = (*x as u64).to_be_bytes();
+                }
+                Type::Timestamp(x) => {
                     self.data[i][len] = x.to_be_bytes();
                 }
                 Type::Bytes(b) => {

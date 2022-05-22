@@ -30,6 +30,7 @@ timer = "0.2.0"
 chrono = "0.4.19"
 roaring = "0.9.0"
 tower = { version = "0.4" }
+redis = "0.21.5"
 
 [[bin]]
 name = "tsdb"
@@ -50,6 +51,10 @@ path = "src/data_latency_bench.rs"
 [[bin]]
 name = "otlp-server"
 path = "src/otlp-server.rs"
+
+[[bin]]
+name = "mach-server"
+path = "src/mach-server.rs"
 
 [[bin]]
 name = "otlp-consumer"

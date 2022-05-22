@@ -1,7 +1,6 @@
 mod otlp;
 mod tag_index;
 mod id_index;
-mod mach_proto;
 
 use otlp::{
     metrics::v1::{metric::Data, MetricsData, number_data_point, ResourceMetrics},
@@ -18,7 +17,6 @@ use otlp::{
         },
         trace::v1::{
             trace_service_server::{TraceService, TraceServiceServer},
-            trace_stream_service_client::{TraceStreamServiceClient},
             ExportTraceServiceRequest, ExportTraceServiceResponse,
         },
     },
@@ -26,7 +24,6 @@ use otlp::{
 };
 
 use tonic::{transport::Server, Request, Response, Status};
-use tokio_stream::wrappers::UnboundedReceiverStream;
 use prost::Message;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender, UnboundedReceiver};
 use std::sync::{Arc, RwLock, atomic::{AtomicUsize, Ordering::SeqCst}};
@@ -183,16 +180,13 @@ impl MetricsService for KafkaServer {
         &self,
         req: Request<ExportMetricsServiceRequest>,
     ) -> Result<Response<ExportMetricsServiceResponse>, Status> {
-        let data = OtlpData::Metrics(req.into_inner().resource_metrics);
-        let sample_count = data.sample_count();
-        let bytes = bincode::serialize(&data).unwrap();
-
-        if self.sender.send((sample_count, bytes)).is_err() {
-            panic!("Failed to write to sender");
-        } else {
-            QUEUE_LENGTH.fetch_add(1, SeqCst);
-        }
-        Ok(Response::new(ExportMetricsServiceResponse {}))
+        unimplemented!();
+        //if self.sender.send(OtlpData::Metrics(req.into_inner().resource_metrics)).is_err() {
+        //    panic!("Failed to write to sender");
+        //} else {
+        //    QUEUE_LENGTH.fetch_add(1, SeqCst);
+        //}
+        //Ok(Response::new(ExportMetricsServiceResponse {}))
     }
 }
 
@@ -278,23 +272,10 @@ fn write_to_file_worker(args: Args, mut receiver: UnboundedReceiver<OtlpData>) {
     }
 }
 
+
 #[derive(Clone)]
 pub struct MachServer {
-    stream: UnboundedSender<mach_proto::ExportMessage>
-}
-
-impl MachServer {
-    async fn new(args: Args) -> Self {
-        let mut client = mach_proto::MachServiceClient::connect("http://0.0.0.0:4318").await.unwrap();
-        let (tx, rx) = unbounded_channel();
-        let rx = UnboundedReceiverStream::new(rx);
-        tokio::task::spawn(async move {
-            let _ = client.export(rx).await.unwrap().into_inner();
-        });
-        MachServer {
-            stream: tx
-        }
-    }
+    writer: UnboundedSender<Vec<(SeriesId, u64, Vec<Type>)>>,
 }
 
 #[tonic::async_trait]
@@ -303,14 +284,25 @@ impl TraceService for MachServer {
         &self,
         req: Request<ExportTraceServiceRequest>,
     ) -> Result<Response<ExportTraceServiceResponse>, Status> {
-        let resource_spans = req.into_inner().resource_spans;
-        let mut samples = Vec::new();
-        resource_spans.iter().for_each(|x| samples.append(&mut x.get_samples()));
-        let msg = mach_proto::ExportMessage {
-            data: bincode::serialize(&samples).unwrap(),
-        };
-        self.stream.send(msg).unwrap();
+        let spans = get_span_samples(req.into_inner().resource_spans);
+        let count = spans.len();
+        ITEMS.fetch_add(1, SeqCst);
+        if self.writer.send(spans).is_err() {
+            panic!("Failed to write to sender");
+        } else {
+            QUEUE_LENGTH.fetch_add(count, SeqCst);
+        }
         Ok(Response::new(ExportTraceServiceResponse {}))
+    }
+}
+
+#[tonic::async_trait]
+impl LogsService for MachServer {
+    async fn export(
+        &self,
+        req: Request<ExportLogsServiceRequest>,
+    ) -> Result<Response<ExportLogsServiceResponse>, Status> {
+        unimplemented!()
     }
 }
 
@@ -320,36 +312,226 @@ impl MetricsService for MachServer {
         &self,
         req: Request<ExportMetricsServiceRequest>,
     ) -> Result<Response<ExportMetricsServiceResponse>, Status> {
-        let resource_metrics = req.into_inner().resource_metrics;
-        let mut samples = Vec::new();
-        resource_metrics.iter().for_each(|x| samples.append(&mut x.get_samples()));
-        let msg = mach_proto::ExportMessage {
-            data: bincode::serialize(&samples).unwrap(),
-        };
-        self.stream.send(msg).unwrap();
+        let metrics = get_metrics_samples(req.into_inner().resource_metrics);
+        let count = metrics.len();
+        ITEMS.fetch_add(1, SeqCst);
+        if self.writer.send(metrics).is_err() {
+            panic!("Failed to write to sender");
+        } else {
+            QUEUE_LENGTH.fetch_add(count, SeqCst);
+        }
         Ok(Response::new(ExportMetricsServiceResponse {}))
     }
 }
 
-//#[tonic::async_trait]
-//impl LogsService for MachServer {
-//    async fn export(
-//        &self,
-//        req: Request<ExportLogsServiceRequest>,
-//    ) -> Result<Response<ExportLogsServiceResponse>, Status> {
-//        unimplemented!()
-//    }
-//}
-//
-//#[tonic::async_trait]
-//impl MetricsService for MachServer {
-//    async fn export(
-//        &self,
-//        req: Request<ExportMetricsServiceRequest>,
-//    ) -> Result<Response<ExportMetricsServiceResponse>, Status> {
-//        unimplemented!()
-//    }
-//}
+fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
+    let mut types = Vec::new();
+    let mut compression = Vec::new();
+    values.iter().for_each(|v| {
+        let (t, c) = match v {
+            Type::U32(_) => (Types::U32, CompressFn::IntBitpack),
+            Type::U64(_) => (Types::U64, CompressFn::LZ4),
+            Type::F64(_) => (Types::F64, CompressFn::Decimal(3)),
+            Type::Bytes(_) => (Types::Bytes, CompressFn::NOOP),
+            _ => unimplemented!(),
+        };
+        types.push(t);
+        compression.push(c);
+    });
+    let compression = Compression::from(compression);
+    let nvars = types.len();
+    let conf = SeriesConfig {
+        id,
+        types,
+        compression,
+        seg_count: 3,
+        nvars,
+    };
+    conf
+}
+
+fn get_span_samples(resource_spans: Vec<ResourceSpans>) -> Vec<(SeriesId, u64, Vec<Type>)> {
+    let mut spans = Vec::new();
+    for resource in resource_spans {
+        let resource_attribs = &resource.resource.as_ref().unwrap().attributes;
+
+        // Iterate over each scope
+        for scope in resource.scope_spans {
+            let scope_name = &scope.scope.as_ref().unwrap().name;
+
+            // Iterate over each span
+            for span in scope.spans {
+                let mut hasher = DefaultHasher::new();
+                resource_attribs.hash(&mut hasher);
+                scope_name.hash(&mut hasher);
+                span.name.hash(&mut hasher);
+                let series_id = SeriesId(hasher.finish());
+
+                //let mut v = Vec::with_capacity(1);
+                //v.push(Type::Bytes(bincode::serialize(&span).unwrap()));
+
+                let mut v = Vec::with_capacity(5);
+                v.push(Type::Bytes(span.trace_id));
+                v.push(Type::Bytes(span.span_id));
+                v.push(Type::Bytes(span.parent_span_id));
+                v.push(Type::Bytes(bincode::serialize(&span.attributes).unwrap()));
+                v.push(Type::U64(span.end_time_unix_nano));
+                spans.push((series_id, span.start_time_unix_nano, v));
+            }
+        }
+    }
+    spans
+}
+
+fn writer_worker(args: Args, mut chan: mpsc::Receiver<Vec<(SeriesId, u64, Vec<Type>)>>) {
+    let queue_config = KafkaConfig {
+        bootstrap: args.kafka_bootstraps.clone(),
+        topic: args.kafka_topic.clone(),
+    }
+    .config();
+    let writer_config = WriterConfig {
+        queue_config,
+        active_block_flush_sz: args.mach_active_block_sz,
+    };
+    let mut writers = Vec::new();
+    writers.push((*MACH).write().unwrap().add_writer(writer_config.clone()).unwrap());
+    //writers.push((*MACH).write().unwrap().add_writer(writer_config).unwrap());
+
+    //let mut writer = (*MACH).write().unwrap().add_writer(writer_config).unwrap();
+    let mut reference_map: HashMap<SeriesId, (WriterId, SeriesRef)> = HashMap::new();
+
+    while let Ok(mut v) = chan.recv() {
+        let _ = *COUNTER_INIT;
+        QUEUE_LENGTH.fetch_sub(v.len(), SeqCst);
+        let item_count = v.len();
+        for (id, ts, values) in v.drain(..) {
+            // Get the series ref. If it's not available register the series
+            let (wid, id_ref) = *reference_map.entry(id).or_insert_with(|| {
+                let conf = get_series_config(id, values.as_slice());
+                let (wid, _) = (*MACH).write().unwrap().add_series(conf).unwrap();
+                let id_ref = writers[wid.0].get_reference(id);
+                (wid, id_ref)
+            });
+            //println!("wid: {:?}", wid);
+
+            //for _ in 0..2{
+            loop {
+                if writers[wid.0].push(id_ref, ts, values.as_slice()).is_ok() {
+                    break;
+                }
+            }
+        }
+        SAMPLES.fetch_add(item_count, SeqCst);
+    }
+}
+
+fn get_metrics_samples(resource_metrics: Vec<ResourceMetrics>) -> Vec<(SeriesId, u64, Vec<Type>)> {
+    let mut items = Vec::new();
+    for resource in &resource_metrics {
+        let resource_attribs = &resource.resource.as_ref().unwrap().attributes;
+
+        // Iterate over each scope
+        for scope in &resource.scope_metrics {
+            let scope_name = &scope.scope.as_ref().unwrap().name;
+
+            // Iterate over each metric
+            for metric in &scope.metrics {
+                let metric_name = &metric.name;
+
+                // There are several types of metrics
+                match metric.data.as_ref().unwrap() {
+                    Data::Gauge(x) => {
+                        unimplemented!();
+                    },
+
+                    Data::Sum(x) => {
+                        for point in &x.data_points {
+                            let point_attribs = &point.attributes;
+                            let mut hasher = DefaultHasher::new();
+                            resource_attribs.hash(&mut hasher);
+                            scope_name.hash(&mut hasher);
+                            metric_name.hash(&mut hasher);
+                            point_attribs.hash(&mut hasher);
+                            let id = SeriesId(hasher.finish());
+
+                            // Push sample
+                            let timestamp = point.time_unix_nano;
+                            let value = match point.value.as_ref().unwrap() {
+                                number_data_point::Value::AsDouble(x) => *x,
+                                number_data_point::Value::AsInt(x) => {
+                                    let x: i32 = (*x).try_into().unwrap();
+                                    x.into()
+                                }
+                            };
+                            let value = vec![Type::F64(value)];
+                            items.push((id, timestamp, value));
+                        }
+                    },
+
+                    Data::Histogram(x) => {
+                        for point in &x.data_points {
+                            let point_attribs = &point.attributes;
+                            let mut hasher = DefaultHasher::new();
+                            resource_attribs.hash(&mut hasher);
+                            scope_name.hash(&mut hasher);
+                            metric_name.hash(&mut hasher);
+                            point_attribs.hash(&mut hasher);
+                            let id = SeriesId(hasher.finish());
+
+                            // Push sample
+                            let timestamp = point.time_unix_nano;
+                            let value: Vec<Type> = point.bucket_counts.iter().map(|x| {
+                                let x: i32 = (*x).try_into().unwrap();
+                                Type::F64(x.into())
+                            }).collect();
+                            items.push((id, timestamp, value));
+                        }
+                    },
+
+                    Data::ExponentialHistogram(x) => {
+                        unimplemented!();
+                    },
+
+                    Data::Summary(x) => {
+                        unimplemented!();
+                    },
+                } // match brace
+            } // metric loop
+        } // scope loop
+    } // resource loop
+    items
+}
+
+fn batcher(
+    mut rx: UnboundedReceiver<Vec<(SeriesId, u64, Vec<Type>)>>,
+    tx: mpsc::SyncSender<Vec<(SeriesId, u64, Vec<Type>)>>,
+    batchsz: usize,
+) {
+    //let mut v = Vec::with_capacity(batchsz);
+    let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+    while let Some(mut item) = rt.block_on(rx.recv()) {
+        tx.send(item);
+        //v.append(&mut item);
+        //if v.len() > batchsz {
+        //    tx.send(v);
+        //    v = Vec::with_capacity(batchsz);
+        //}
+    }
+}
+
+fn init_mach(args: Args) -> MachServer {
+    let (writer_tx, writer_rx) = mpsc::sync_channel(10);
+    let (batcher_tx, batcher_rx) = unbounded_channel();
+
+    std::thread::spawn(move || batcher(batcher_rx, writer_tx, 1));
+    std::thread::spawn(move || writer_worker(args, writer_rx));
+
+    let server = MachServer {
+        writer: batcher_tx
+    };
+
+    server
+}
 
 #[tokio::main]
 async fn main()  -> Result<(), Box<dyn std::error::Error>> {
@@ -362,10 +544,10 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
 
     match args.tsdb.as_str() {
         "mach" => {
-            let server = MachServer::new(args).await;
+            let server = init_mach(args);
             Server::builder()
                 .add_service(TraceServiceServer::new( server.clone() ))
-                .add_service(MetricsServiceServer::new( server.clone() ))
+                //.add_service(LogsServiceServer::new( server.clone() ))
                 //.add_service(MetricsServiceServer::new( server.clone() ))
                 .serve(addr)
                 .await?;
@@ -378,7 +560,7 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
             Server::builder()
                 .add_service(TraceServiceServer::new( server.clone() ))
                 //.add_service(LogsServiceServer::new( server.clone() ))
-                .add_service(MetricsServiceServer::new( server.clone() ))
+                //.add_service(MetricsServiceServer::new( server.clone() ))
                 .serve(addr)
                 .await?;
         }

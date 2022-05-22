@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package mach_proto;
+
+service MachService {
+  rpc Export(stream ExportMessage) returns (ExportResponse) {}
+}
+
+message ExportMessage {
+  bytes data = 2;
+}
+
+message ExportResponse {}
+
+

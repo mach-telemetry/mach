@@ -26,6 +26,7 @@ impl From<segment::Error> for Error {
     }
 }
 
+#[derive(Clone)]
 pub struct WriterConfig {
     pub queue_config: QueueConfig,
     pub active_block_flush_sz: usize,
@@ -58,7 +59,7 @@ impl Writer {
     ) -> (Self, WriterMetadata) {
         let block_flush_sz = writer_config.active_block_flush_sz;
         let queue_config = writer_config.queue_config;
-        let id = WriterId::random();
+        let id = WriterId::new();
         let active_block = Arc::new(WpLock::new(ActiveBlock::new(block_flush_sz)));
         let durable_queue = Arc::new(queue_config.clone().make().unwrap());
         let list_maker = ListMaker::new(durable_queue.writer().unwrap());

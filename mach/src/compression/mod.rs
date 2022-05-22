@@ -1,10 +1,14 @@
 //mod bytes_lz4;
 mod bytes_lz42;
 mod decimal;
+mod noop;
 //mod fixed;
 mod timestamps;
 mod utils;
 mod xor;
+mod bitpack;
+mod delta_of_delta;
+mod lz4;
 
 use crate::segment::*;
 use crate::series::Types;
@@ -98,7 +102,11 @@ impl DecompressBuffer {
 pub enum CompressFn {
     Decimal(u8),
     BytesLZ4,
+    NOOP,
     XOR,
+    IntBitpack,
+    DeltaDelta,
+    LZ4,
 }
 
 impl CompressFn {
@@ -106,6 +114,9 @@ impl CompressFn {
         match self {
             CompressFn::Decimal(precision) => decimal::compress(segment, buf, *precision),
             CompressFn::XOR => xor::compress(segment, buf),
+            CompressFn::IntBitpack => bitpack::compress(segment, buf),
+            CompressFn::DeltaDelta => delta_of_delta::compress(segment, buf),
+            CompressFn::LZ4 => lz4::compress(segment, buf),
             _ => unimplemented!(),
         };
     }
@@ -113,6 +124,7 @@ impl CompressFn {
     pub fn compress_heap(&self, len: usize, heap: &[u8], buf: &mut ByteBuffer) {
         match self {
             CompressFn::BytesLZ4 => bytes_lz42::compress(len, heap, buf),
+            CompressFn::NOOP => noop::compress(len, heap, buf),
             _ => unimplemented!(),
         };
     }
@@ -121,6 +133,9 @@ impl CompressFn {
         match id {
             2 => xor::decompress(data, buf),
             3 => decimal::decompress(data, buf),
+            6 => bitpack::decompress(data, buf),
+            7 => delta_of_delta::decompress(data, buf),
+            8 => lz4::decompress(data, buf),
             _ => panic!("Error"),
         }
     }
@@ -128,6 +143,7 @@ impl CompressFn {
     pub fn decompress_heap(id: u64, data: &[u8], buf: &mut Vec<[u8; 8]>, heap: &mut Vec<u8>) {
         match id {
             4 => bytes_lz42::decompress(data, buf, heap),
+            5 => noop::decompress(data, buf, heap),
             _ => panic!("Error"),
         }
     }
@@ -137,6 +153,10 @@ impl CompressFn {
             CompressFn::XOR => 2,
             CompressFn::Decimal(_) => 3,
             CompressFn::BytesLZ4 => 4,
+            CompressFn::NOOP => 5,
+            CompressFn::IntBitpack => 6,
+            CompressFn::DeltaDelta => 7,
+            CompressFn::LZ4 => 8,
         }
     }
 }

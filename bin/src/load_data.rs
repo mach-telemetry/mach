@@ -5,6 +5,7 @@ use std::{
 };
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use mach::utils::random_id;
+use clap::*;
 
 use otlp::{
     collector::{
@@ -58,8 +59,8 @@ lazy_static! {
     pub static ref QUEUED: AtomicUsize = AtomicUsize::new(0);
     pub static ref START_COUNTERS: AtomicBool = AtomicBool::new(false);
     pub static ref ITEMS: Vec<OtlpData> = {
-        let mut file = File::open("/home/ubuntu/demo_data2").unwrap();
-        //let mut file = File::open("/home/fsolleza/data/mach/demo_data2").unwrap();
+        //let mut file = File::open("/home/ubuntu/demo_data2").unwrap();
+        let mut file = File::open("/home/fsolleza/data/mach/demo_data2").unwrap();
         let mut data = Vec::new();
         file.read_to_end(&mut data).unwrap();
         let mut items: Vec<otlp::OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
@@ -71,23 +72,23 @@ lazy_static! {
 async fn logs_client(mut rx: Receiver<OtlpData>) {
     //let channel = Channel::from_static("tcp://0.0.0.0:4317").connect().await.unwrap();
     //let timeout_channel = Timeout::new(channel, Duration::from_micros(1));
-    let mut client = LogsServiceClient::connect("http://0.0.0.0:4317").await.unwrap();
+    //let mut client = LogsServiceClient::connect("http://0.0.0.0:4317").await.unwrap();
 
-    while let Some(mut item) = rx.recv().await {
-        let nanos: u64 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos().try_into().unwrap();
-        item.update_timestamp(nanos);
-        let resource_logs = match item {
-            OtlpData::Logs(x) => x,
-            _ => unreachable!(),
-        };
-        let to_send = ExportLogsServiceRequest {
-            resource_logs,
-        };
-        match client.export(to_send).await {
-            _ => {},
-        };
-        COUNTER.fetch_add(1, SeqCst);
-    }
+    //while let Some(mut item) = rx.recv().await {
+    //    let nanos: u64 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos().try_into().unwrap();
+    //    item.update_timestamp(nanos);
+    //    let resource_logs = match item {
+    //        OtlpData::Logs(x) => x,
+    //        _ => unreachable!(),
+    //    };
+    //    let to_send = ExportLogsServiceRequest {
+    //        resource_logs,
+    //    };
+    //    match client.export(to_send).await {
+    //        _ => {},
+    //    };
+    //    COUNTER.fetch_add(1, SeqCst);
+    //}
 }
 
 async fn metrics_client(mut rx: Receiver<OtlpData>) {
@@ -130,12 +131,20 @@ async fn span_client(mut rx: Receiver<OtlpData>) {
     }
 }
 
+#[derive(Parser, Debug, Clone)]
+struct Args {
+    #[clap(short, long, default_value_t = 1)]
+    workers: usize,
+}
+
+
 #[tokio::main]
 async fn main() {
+    let args = Args::parse();
+    println!("Args:\n{:#?}", args);
     //runner().await;
     let mut handles = Vec::new();
-    let workers = 4;
-    for i in 0..workers {
+    for _ in 0..args.workers {
         handles.push(tokio::task::spawn(runner()));
     }
     for h in handles {
@@ -146,8 +155,9 @@ async fn main() {
 //#[tokio::main()]
 async fn runner() {
 
+    let name_id = random_id();
     let process_attribute: KeyValue = {
-        let value = Some(AnyValue { value: Some(Value::StringValue(random_id())) });
+        let value = Some(AnyValue { value: Some(Value::StringValue(name_id.clone())) });
         let key = String::from("loader_id");
         KeyValue {
             key,
@@ -165,7 +175,7 @@ async fn runner() {
     let (spans_tx, spans_rx) = channel(1);
     handles.push(tokio::task::spawn(span_client(spans_rx)));
 
-    let interval = Duration::from_secs(1)/4500;
+    let interval = Duration::from_secs(1)/1000000;
 
     //let mut items = ITEMS.clone();
     println!("Loading");
@@ -176,8 +186,15 @@ async fn runner() {
     //file.read_to_end(&mut data).unwrap();
     //let mut items: Vec<otlp::OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
     //println!("items read: {}", items.len());
+    let name_func = |x: &str| -> String {
+        format!("{}_{}", x, name_id.as_str())
+    };
     for item in items.iter_mut() {
-        item.add_attribute(process_attribute.clone());
+        match item {
+            OtlpData::Spans(_) => item.modify_name(name_func),
+            OtlpData::Metrics(_) => item.add_attribute(process_attribute.clone()),
+            _ => {},
+        }
     }
 
     if !START_COUNTERS.swap(true, SeqCst) {
@@ -191,17 +208,29 @@ async fn runner() {
             let item = item.clone();
             while SystemTime::now().duration_since(last).unwrap() < interval {}
             match item {
-                OtlpData::Logs(_) => if logs_tx.send(item).await.is_err() {
-                    panic!("Failed to send");
-                },
+
+                //OtlpData::Logs(_) => if logs_tx.send(item).await.is_err() {
+                //    panic!("Failed to send");
+                //} else {
+                //    QUEUED.fetch_add(1, SeqCst);
+                //},
+                OtlpData::Logs(_) => {},
+
                 OtlpData::Metrics(_) => if metrics_tx.send(item).await.is_err() {
                     panic!("Failed to send");
+                } else {
+                    QUEUED.fetch_add(1, SeqCst);
                 },
+                OtlpData::Metrics(_) => {},
+
                 OtlpData::Spans(_) => if spans_tx.send(item).await.is_err() {
                     panic!("Failed to send");
-                }
+                } else {
+                    QUEUED.fetch_add(1, SeqCst);
+                },
+                //OtlpData::Spans(_) => {},
+
             }
-            QUEUED.fetch_add(1, SeqCst);
             last = SystemTime::now();
         }
     }

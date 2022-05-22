@@ -34,7 +34,7 @@ impl DurabilityWorker {
 }
 
 fn init(writer_id: WriterId, active_block: Arc<WpLock<ActiveBlock>>, queue_config: QueueConfig) -> DurabilityWorker {
-    let writer_id: String = writer_id.inner().into();
+    let writer_id: String = format!("{}", writer_id.0);
     let (tx, rx) = unbounded_channel();
     let series = Arc::new(Mutex::new(Vec::<Series>::new()));
     let series2 = series.clone();

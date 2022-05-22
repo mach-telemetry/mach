@@ -2,30 +2,37 @@ use crate::utils::random_id;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::Deref;
+use lazy_static::*;
+use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct WriterId(pub String);
+lazy_static! {
+    static ref WRITER_ID: AtomicUsize = AtomicUsize::new(0);
+}
+
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct WriterId(pub usize);
 
 impl WriterId {
-    pub fn inner(&self) -> &str {
-        self.0.as_str()
-    }
+    //pub fn inner(&self) -> &str {
+    //    self.0.as_str()
+    //}
 
-    pub fn random() -> Self {
-        WriterId(random_id())
-    }
+    //pub fn random() -> Self {
+    //    WriterId(random_id())
+    //}
 
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
+    pub fn new() -> Self {
+        WriterId(WRITER_ID.fetch_add(1, SeqCst))
     }
 }
 
-impl Deref for WriterId {
-    type Target = str;
-    fn deref(&self) -> &str {
-        self.inner()
-    }
-}
+//impl Deref for WriterId {
+//    type Target = str;
+//    fn deref(&self) -> &str {
+//        self.inner()
+//    }
+//}
 
 #[derive(Copy, Clone, Eq, Debug, PartialEq, Hash, Serialize, Deserialize)]
 pub struct SeriesId(pub u64);
