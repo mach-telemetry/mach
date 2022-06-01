@@ -218,4 +218,17 @@ impl trace::v1::ResourceSpans {
             }
         }
     }
+
+    pub fn get_samples(&self) -> Vec<(mach::id::SeriesId, u64, Vec<mach::sample::Type>)> {
+        let mut spans = Vec::new();
+        for scope in &self.scope_spans {
+            for span in &scope.spans {
+                let mut v = Vec::with_capacity(1);
+                v.push(mach::sample::Type::Bytes(bincode::serialize(&span).unwrap()));
+                let series_id = mach::id::SeriesId(span.source_id);
+                spans.push((series_id, span.start_time_unix_nano, v));
+            }
+        }
+        spans
+    }
 }
