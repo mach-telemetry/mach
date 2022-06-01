@@ -168,7 +168,7 @@ fn mach_ingest(args: Args, mut data: Vec<OtlpData>) {
         match item {
             OtlpData::Spans(x) => {
                 for item in x {
-                    let mut samples = item.into_samples(&mut id_dict);
+                    let mut samples = item.get_samples();
                     spans.append(&mut samples);
                 }
             },

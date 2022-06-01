@@ -92,6 +92,15 @@ impl Hash for KeyValue {
     }
 }
 
+impl KeyValue {
+    fn get_i64(&self) -> Option<i64> {
+        match self.value.as_ref().unwrap().value.as_ref().unwrap() {
+            Value::IntValue(x) => Some(*x),
+            _ => None,
+        }
+    }
+}
+
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub enum OtlpData {
@@ -463,59 +472,24 @@ impl ResourceSpans {
         }
     }
 
-    pub fn into_samples(self, span_ids: &mut SpanIds) -> Vec<(SeriesId, u64, Vec<Type>)> {
-        let mut spans = Vec::with_capacity(100);
-        let resource_attribs = &self.resource.as_ref().unwrap().attributes;
-
-        let mut hash = 0;
-        //for attrib in resource_attribs.iter() {
-        //    hash ^= fxhash::hash64(attrib);
-        //}
-
-        // Iterate over each scope
-        for scope in self.scope_spans {
-            let scope_name = &scope.scope.as_ref().unwrap().name;
-            //let mut hash = hash;
-            //hash ^= fxhash::hash64(&scope_name);
-
-            // Iterate over each span
-            for span in scope.spans {
-                let mut hash = hash;
-                //hash ^= fxhash::hash64(&span.name);
-                let series_id = SeriesId(12345);
-
+    pub fn get_samples(&self) -> Vec<(SeriesId, u64, Vec<Type>)> {
+        let mut spans = Vec::new();
+        for scope in &self.scope_spans {
+            for span in &scope.spans {
                 let mut v = Vec::with_capacity(1);
                 v.push(Type::Bytes(bincode::serialize(&span).unwrap()));
-                spans.push((series_id, span.start_time_unix_nano, v));
-
-                //let sid = span_ids.get_id(span.span_id.as_slice().try_into().unwrap());
-
-                //let mut v = Vec::with_capacity(7);
-                //v.push(Type::Bytes(span.trace_id));
-                //v.push(Type::Bytes(span.span_id));
-                //v.push(Type::Bytes(span.parent_span_id));
-                //v.push(Type::U64(sid));
-                //spans.push((series_id, span.start_time_unix_nano, v));
-
-                //for attrib in span.attributes {
-                //    let mut v = Vec::with_capacity(3);
-                //    v.push(Type::U64(sid));
-                //    //v.push(Type::U64(series_id.0));
-                //    v.push(attrib.value.unwrap().value.unwrap().into_mach_type());
-                //    let id = SeriesId(fxhash::hash64(&attrib.key));
-                //    spans.push((id, span.start_time_unix_nano, v));
-                //};
-
-                //for event in span.events {
-                //    for attrib in event.attributes {
-                //        let mut v = Vec::with_capacity(3);
-                //        v.push(Type::U64(sid));
-                //        //v.push(Type::U64(series_id.0));
-                //        v.push(attrib.value.unwrap().value.unwrap().into_mach_type());
-                //        let id = SeriesId(fxhash::hash64(&attrib.key));
-                //        spans.push((id, event.time_unix_nano, v));
-                //    }
-                //}
+                let mut missing_id = true;
+                for attrib in span.attributes.iter() {
+                    if attrib.key.as_str() == "SourceId" {
+                        let id = SeriesId(attrib.get_i64().unwrap() as u64);
+                        spans.push((id, span.start_time_unix_nano, v));
+                        missing_id = false;
+                        break;
+                    }
+                }
+                if missing_id {
+                    panic!("Can't find ID");
+                }
             }
         }
         spans
@@ -552,6 +526,75 @@ impl Value {
 }
 
 impl ResourceMetrics {
+    pub fn set_source_ids(&mut self) {
+        let mut hash = 0;
+        for attrib in self.resource.as_ref().unwrap().attributes.iter() {
+            hash ^= fxhash::hash64(attrib);
+        }
+
+        for scope in self.scope_metrics.iter_mut() {
+            let mut hash = hash;
+            hash ^= fxhash::hash64(&scope.scope.as_ref().unwrap().name);
+
+            // Iterate over each metric
+            for metric in scope.metrics.iter_mut() {
+                let mut hash = hash;
+                hash ^= fxhash::hash64(&metric.name);
+
+                // There are several types of metrics
+                match metric.data.as_mut().unwrap() {
+                    Data::Gauge(x) => {
+                        unimplemented!();
+                    },
+
+                    Data::Sum(x) => {
+                        for point in x.data_points.iter_mut() {
+                            let mut hash = hash;
+                            for attrib in point.attributes.iter() {
+                                hash ^= fxhash::hash64(attrib);
+                            }
+                            let key = String::from("SourceId");
+                            let value = Some(AnyValue {
+                                value: Some(Value::IntValue(hash as i64))
+                            });
+                            let attrib = KeyValue {
+                                key,
+                                value
+                            };
+                            point.attributes.push(attrib);
+                        }
+                    },
+
+                    Data::Histogram(x) => {
+                        for point in x.data_points.iter_mut() {
+                            let mut hash = hash;
+                            for attrib in point.attributes.iter() {
+                                hash ^= fxhash::hash64(attrib);
+                            }
+                            let key = String::from("SourceId");
+                            let value = Some(AnyValue {
+                                value: Some(Value::IntValue(hash as i64))
+                            });
+                            let attrib = KeyValue {
+                                key,
+                                value
+                            };
+                            point.attributes.push(attrib);
+                        }
+                    },
+
+                    Data::ExponentialHistogram(x) => {
+                        unimplemented!();
+                    },
+
+                    Data::Summary(x) => {
+                        unimplemented!();
+                    },
+                } // match brace
+            } // metric loop
+        } // scope loop
+    }
+
     pub fn get_samples(&self) -> Vec<(SeriesId, u64, Vec<Type>)> {
         let mut items = Vec::new();
 
