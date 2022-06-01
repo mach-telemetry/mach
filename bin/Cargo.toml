@@ -59,7 +59,7 @@ debug = true
 
 [[bin]]
 name = "otlp-server"
-path = "src/otlp_server2.rs"
+path = "src/otlp_server.rs"
 
 //[[bin]]
 //name = "mach-server"
