@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 mach = { path = "../mach" }
 otlp = { path = "../otlp" }
+mach-otlp = { path = "../mach-otlp" }
 num = "0.4.0"
 tonic = { version = "0.6.2", features = ["prost", "compression", "transport"] }
 tokio = { version = "1.17.0", features = ["full"] }
@@ -74,10 +75,13 @@ path = "src/parse_traces.rs"
 name = "otlp-load"
 path = "src/otlp_load_bench.rs"
 
-
 [[bin]]
 name = "simple_bench"
 path = "src/simple_bench.rs"
+
+[[bin]]
+name = "convert-otlp-data"
+path = "src/convert-otlp-data.rs"
 
 [profile.release]
 debug = true

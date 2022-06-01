@@ -232,3 +232,24 @@ impl trace::v1::ResourceSpans {
         spans
     }
 }
+
+// Wrapper
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub enum OtlpData {
+    Logs(Vec<logs::v1::ResourceLogs>),
+    Metrics(Vec<metrics::v1::ResourceMetrics>),
+    Spans(Vec<trace::v1::ResourceSpans>),
+}
+
+impl From<&otlp::OtlpData> for OtlpData {
+    fn from(item: &otlp::OtlpData) -> Self {
+        match item {
+            otlp::OtlpData::Logs(x) => Self::Logs(x.iter().map(|x| x.into()).collect()),
+            otlp::OtlpData::Metrics(x) => unimplemented!(),
+            otlp::OtlpData::Spans(x) => Self::Spans(x.iter().map(|x| x.into()).collect()),
+        }
+    }
+}
+
+
+

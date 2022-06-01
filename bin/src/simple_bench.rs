@@ -1,44 +1,44 @@
 #![allow(warnings)]
 //mod otlp;
-mod mach_proto;
-mod tag_index;
-mod id_index;
+//mod mach_proto;
+//mod tag_index;
+//mod id_index;
 
-use otlp::{
-    metrics::v1::{metric::Data, MetricsData, number_data_point, ResourceMetrics},
-    logs::v1::{LogsData},
-    trace::v1::{TracesData, ResourceSpans, Span},
-    collector::{
-        logs::v1::{
-            logs_service_server::{LogsService, LogsServiceServer},
-            ExportLogsServiceRequest, ExportLogsServiceResponse,
-        },
-        metrics::v1::{
-            metrics_service_server::{MetricsService, MetricsServiceServer},
-            ExportMetricsServiceRequest, ExportMetricsServiceResponse,
-        },
-        trace::v1::{
-            //trace_service_server::{TraceService, TraceServiceServer},
-            ExportTraceServiceRequest, ExportTraceServiceResponse,
-        },
-    },
-    OtlpData,
-};
 
-use tonic::{transport::Server, Request, Response, Status};
-use prost::Message;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender, UnboundedReceiver};
-use tokio_stream::{wrappers::ReceiverStream, StreamExt};
-use std::sync::{Arc, RwLock, atomic::{AtomicUsize, Ordering::SeqCst}};
-use std::sync::mpsc;
+//use otlp::{
+//    metrics::v1::{metric::Data, MetricsData, number_data_point, ResourceMetrics},
+//    logs::v1::{LogsData},
+//    trace::v1::{TracesData, ResourceSpans, Span},
+//    collector::{
+//        logs::v1::{
+//            logs_service_server::{LogsService, LogsServiceServer},
+//            ExportLogsServiceRequest, ExportLogsServiceResponse,
+//        },
+//        metrics::v1::{
+//            metrics_service_server::{MetricsService, MetricsServiceServer},
+//            ExportMetricsServiceRequest, ExportMetricsServiceResponse,
+//        },
+//        trace::v1::{
+//            //trace_service_server::{TraceService, TraceServiceServer},
+//            ExportTraceServiceRequest, ExportTraceServiceResponse,
+//        },
+//    },
+//    OtlpData,
+//};
+//
+//use tonic::{transport::Server, Request, Response, Status};
+//use prost::Message;
+//use tokio::sync::mpsc::{unbounded_channel, UnboundedSender, UnboundedReceiver};
+//use tokio_stream::{wrappers::ReceiverStream, StreamExt};
+//use std::sync::{Arc, RwLock, atomic::{AtomicUsize, Ordering::SeqCst}};
+//use std::sync::mpsc;
 use std::time::Duration;
 use std::collections::{HashMap, HashSet, hash_map::DefaultHasher};
-use std::hash::{Hash, Hasher};
+//use std::hash::{Hash, Hasher};
 use std::fs::File;
 use std::io::prelude::*;
-use lazy_static::*;
+//use lazy_static::*;
 use clap::Parser;
-use tag_index::TagIndex;
 
 use mach::{
     durable_queue::{KafkaConfig, TOTAL_SZ},
@@ -77,7 +77,7 @@ fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
     conf
 }
 
-fn kafka_ingest(args: Args, mut data: Vec<OtlpData>) {
+fn kafka_ingest(args: Args, mut data: Vec<mach_otlp::OtlpData>) {
     use rdkafka::{
         admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
         client::DefaultClientContext,
@@ -143,7 +143,7 @@ fn kafka_ingest(args: Args, mut data: Vec<OtlpData>) {
     println!("Uncompressed {}", uncompressed);
 }
 
-fn mach_ingest(args: Args, mut data: Vec<OtlpData>) {
+fn mach_ingest(args: Args, mut data: Vec<mach_otlp::OtlpData>) {
     let mut mach = Mach::new();
     let mut reference_map: HashMap<SeriesId, SeriesRef> = HashMap::new();
     let mut id_dict = otlp::SpanIds::new();
@@ -166,7 +166,7 @@ fn mach_ingest(args: Args, mut data: Vec<OtlpData>) {
     let now = std::time::Instant::now();
     for item in data.drain(..) {
         match item {
-            OtlpData::Spans(x) => {
+            mach_otlp::OtlpData::Spans(x) => {
                 for item in x {
                     let mut samples = item.get_samples();
                     spans.append(&mut samples);
@@ -239,19 +239,27 @@ fn main() {
 
     let mut data = Vec::new();
     File::open(args.file_path.as_str()).unwrap().read_to_end(&mut data).unwrap();
-    let mut data: Vec<OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
+    let mut data: Vec<otlp::OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
     for _ in 0..3 {
         let mut d = data.clone();
         data.append(&mut d);
     }
 
     let mut now = std::time::SystemTime::now();
-
     for item in data.iter_mut() {
         let ts: u64 = (now.duration_since(std::time::UNIX_EPOCH)).unwrap().as_nanos().try_into().unwrap();
         item.update_timestamp(ts);
         now += std::time::Duration::from_secs(1);
     }
+
+    let mut data: Vec<mach_otlp::OtlpData> = data.iter().map(|x| {
+        let mut x: mach_otlp::OtlpData = x.into();
+        match &mut x {
+            mach_otlp::OtlpData::Spans(x) => x.iter_mut().for_each(|x| x.set_source_id()),
+            _ => unimplemented!(),
+        }
+        x
+    }).collect();
 
     println!("data items: {}", data.len());
     //kafka_ingest(args.clone(), data);
