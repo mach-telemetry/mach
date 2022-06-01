@@ -5,4 +5,7 @@ members = [
     "bin",
     "bench",
     "instrumentation",
+    "otlp",
+    "mach-otlp",
 ]
+

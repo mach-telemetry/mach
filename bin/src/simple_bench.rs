@@ -1,5 +1,5 @@
 #![allow(warnings)]
-mod otlp;
+//mod otlp;
 mod mach_proto;
 mod tag_index;
 mod id_index;

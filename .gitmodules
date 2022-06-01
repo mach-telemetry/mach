@@ -4,3 +4,9 @@
 [submodule "bin/opentelemetry-proto"]
 	path = bin/opentelemetry-proto
 	url = https://github.com/open-telemetry/opentelemetry-proto.git
+[submodule "otlp/opentelemetry-proto"]
+	path = otlp/opentelemetry-proto
+	url = git@github.com:open-telemetry/opentelemetry-proto.git
+[submodule "mach-otlp/opentelemetry-proto"]
+	path = mach-otlp/opentelemetry-proto
+	url = git@github.com:fsolleza/opentelemetry-proto.git
