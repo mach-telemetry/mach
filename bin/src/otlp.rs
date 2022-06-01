@@ -436,6 +436,32 @@ impl SpanIds {
 }
 
 impl ResourceSpans {
+    pub fn set_source_id(&mut self) {
+        let resource_attribs = &self.resource.as_ref().unwrap().attributes;
+        let mut hash = 0u64;
+        for attrib in resource_attribs.iter() {
+            hash ^= fxhash::hash64(attrib);
+        }
+        for scope in self.scope_spans.iter_mut() {
+            let scope_name = &scope.scope.as_ref().unwrap().name;
+            let mut hash = hash;
+            hash ^= fxhash::hash64(&scope_name);
+            for span in scope.spans.iter_mut() {
+                let mut hash = hash;
+                hash ^= fxhash::hash64(&span.name);
+                let key = String::from("SourceId");
+                let value = Some(AnyValue {
+                    value: Some(Value::IntValue(hash as i64))
+                });
+                let attrib = KeyValue {
+                    key,
+                    value
+                };
+                span.attributes.push(attrib);
+            }
+        }
+    }
+
     pub fn into_samples(self, span_ids: &mut SpanIds) -> Vec<(SeriesId, u64, Vec<Type>)> {
         let mut spans = Vec::with_capacity(100);
         let resource_attribs = &self.resource.as_ref().unwrap().attributes;
