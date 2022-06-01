@@ -6,6 +6,12 @@ use kafka_backend::KafkaReader;
 use serde::*;
 use std::path::PathBuf;
 
+use std::sync::atomic::AtomicUsize;
+
+lazy_static::lazy_static! {
+    pub static ref TOTAL_SZ: AtomicUsize = AtomicUsize::new(0);
+}
+
 #[derive(Debug)]
 pub enum Error {
     Kafka(kafka_backend::Error),

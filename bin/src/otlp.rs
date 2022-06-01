@@ -54,7 +54,9 @@ use otlp::{
     metrics::v1::{number_data_point, metric::Data, ResourceMetrics},
     trace::v1::ResourceSpans,
 };
-use std::hash::{Hash, Hasher};
+use std::hash::{Hash, Hasher, BuildHasher};
+use std::sync::atomic::{AtomicU64, Ordering::SeqCst};
+use dashmap::DashMap;
 
 impl Hash for AnyValue {
     fn hash<H: Hasher>(&self, hasher: &mut H) {
@@ -64,23 +66,23 @@ impl Hash for AnyValue {
             Value::BoolValue(x) => x.hash(hasher),
             Value::DoubleValue(x) => x.to_be_bytes().hash(hasher),
             Value::BytesValue(x) => x.hash(hasher),
-            Value::ArrayValue(x) => x.hash(hasher),
-            Value::KvlistValue(x) => x.hash(hasher),
+            Value::ArrayValue(x) => unimplemented!(),
+            Value::KvlistValue(x) => unimplemented!(),
         };
     }
 }
 
-impl Hash for KeyValueList {
-    fn hash<H: Hasher>(&self, hasher: &mut H) {
-        self.values.hash(hasher)
-    }
-}
-
-impl Hash for ArrayValue {
-    fn hash<H: Hasher>(&self, hasher: &mut H) {
-        self.values.hash(hasher)
-    }
-}
+//impl Hash for KeyValueList {
+//    fn hash<H: Hasher>(&self, hasher: &mut H) {
+//        self.values.hash(hasher)
+//    }
+//}
+//
+//impl Hash for ArrayValue {
+//    fn hash<H: Hasher>(&self, hasher: &mut H) {
+//        self.values.hash(hasher)
+//    }
+//}
 
 impl Hash for KeyValue {
     fn hash<H: Hasher>(&self, hasher: &mut H) {
@@ -108,30 +110,30 @@ impl OtlpData {
                         for metric in scope.metrics.iter() {
                             match metric.data.as_ref().unwrap() {
                                 Data::Gauge(x) => {
-                                    for point in &x.data_points {
+                                    for _ in &x.data_points {
                                         count += 1;
                                     }
                                 },
                                 Data::Sum(x) => {
-                                    for point in &x.data_points {
+                                    for _ in &x.data_points {
                                         count += 1;
                                     }
                                 },
 
                                 Data::Histogram(x) => {
-                                    for point in &x.data_points {
+                                    for _ in &x.data_points {
                                         count += 1;
                                     }
                                 },
 
                                 Data::ExponentialHistogram(x) => {
-                                    for point in &x.data_points {
+                                    for _ in &x.data_points {
                                         count += 1;
                                     }
                                 },
 
                                 Data::Summary(x) => {
-                                    for point in &x.data_points {
+                                    for _ in &x.data_points {
                                         count += 1;
                                     }
                                 },
@@ -144,7 +146,7 @@ impl OtlpData {
             OtlpData::Logs(resource_logs) => {
                 for resource in resource_logs.iter() {
                     for scope in resource.scope_logs.iter() {
-                        for log in &mut scope.log_records.iter() {
+                        for _ in &mut scope.log_records.iter() {
                             count += 1;
                         } // log loop
                     } // scope loop
@@ -154,7 +156,7 @@ impl OtlpData {
             OtlpData::Spans(resource_spans) => {
                 for resource in resource_spans.iter() {
                     for scope in resource.scope_spans.iter() {
-                        for span in scope.spans.iter() {
+                        for _ in scope.spans.iter() {
                             count += 1;
                         } // span loop
                     } // scope loop
@@ -362,7 +364,7 @@ impl OtlpData {
                             span.start_time_unix_nano += diff;
                             span.end_time_unix_nano += diff;
                             for event in &mut span.events {
-                                event.time_unix_nano += diff;
+                                event.time_unix_nano = span.start_time_unix_nano;
                             }
                         } // span loop
                     } // scope loop
@@ -377,41 +379,148 @@ use mach::{
     id::SeriesId,
     sample::Type,
 };
-use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use fxhash;
+
+#[derive(Clone)]
+struct NoopHash {
+    data: [u8; 8]
+}
+
+impl NoopHash {
+    fn new() -> Self {
+        Self {
+            data: [0u8; 8]
+        }
+    }
+}
+
+impl Hasher for NoopHash {
+    fn write(&mut self, data: &[u8]) {
+        self.data[..].copy_from_slice(&data[..8]);
+    }
+
+    fn finish(&self) -> u64 {
+        u64::from_be_bytes(self.data)
+    }
+}
+
+impl BuildHasher for NoopHash {
+    type Hasher = Self;
+    fn build_hasher(&self) -> Self {
+        Self::new()
+    }
+}
+
+pub struct SpanIds {
+    map: HashMap<[u8; 8], u64, NoopHash>,
+    id: u64,
+}
+
+impl SpanIds {
+    pub fn new() -> Self {
+        Self {
+            map: HashMap::with_hasher(NoopHash::new()),
+            id: 0,
+        }
+    }
+
+    pub fn get_id(&mut self, span_id: &[u8; 8]) -> u64 {
+        let id = *self.map.entry(*span_id).or_insert_with(|| {
+            let x = self.id;
+            self.id += 1;
+            x
+        });
+        id
+    }
+}
 
 impl ResourceSpans {
-    pub fn get_samples(&self) -> Vec<(SeriesId, u64, Vec<Type>)> {
-        let mut spans = Vec::new();
+    pub fn into_samples(self, span_ids: &mut SpanIds) -> Vec<(SeriesId, u64, Vec<Type>)> {
+        let mut spans = Vec::with_capacity(100);
         let resource_attribs = &self.resource.as_ref().unwrap().attributes;
 
+        let mut hash = 0;
+        //for attrib in resource_attribs.iter() {
+        //    hash ^= fxhash::hash64(attrib);
+        //}
+
         // Iterate over each scope
-        for scope in &self.scope_spans {
+        for scope in self.scope_spans {
             let scope_name = &scope.scope.as_ref().unwrap().name;
+            //let mut hash = hash;
+            //hash ^= fxhash::hash64(&scope_name);
 
             // Iterate over each span
-            for span in &scope.spans {
-                let mut hasher = DefaultHasher::new();
-                resource_attribs.hash(&mut hasher);
-                scope_name.hash(&mut hasher);
-                span.name.hash(&mut hasher);
-                let series_id = SeriesId(hasher.finish());
+            for span in scope.spans {
+                let mut hash = hash;
+                //hash ^= fxhash::hash64(&span.name);
+                let series_id = SeriesId(12345);
 
                 let mut v = Vec::with_capacity(1);
                 v.push(Type::Bytes(bincode::serialize(&span).unwrap()));
+                spans.push((series_id, span.start_time_unix_nano, v));
+
+                //let sid = span_ids.get_id(span.span_id.as_slice().try_into().unwrap());
 
                 //let mut v = Vec::with_capacity(7);
                 //v.push(Type::Bytes(span.trace_id));
                 //v.push(Type::Bytes(span.span_id));
                 //v.push(Type::Bytes(span.parent_span_id));
-                //v.push(Type::Bytes(bincode::serialize(&span.attributes).unwrap()));
-                //v.push(Type::Bytes(bincode::serialize(&span.links).unwrap()));
-                //v.push(Type::Bytes(bincode::serialize(&span.events).unwrap()));
-                //v.push(Type::U64(span.end_time_unix_nano));
+                //v.push(Type::U64(sid));
+                //spans.push((series_id, span.start_time_unix_nano, v));
 
-                spans.push((series_id, span.start_time_unix_nano, v));
+                //for attrib in span.attributes {
+                //    let mut v = Vec::with_capacity(3);
+                //    v.push(Type::U64(sid));
+                //    //v.push(Type::U64(series_id.0));
+                //    v.push(attrib.value.unwrap().value.unwrap().into_mach_type());
+                //    let id = SeriesId(fxhash::hash64(&attrib.key));
+                //    spans.push((id, span.start_time_unix_nano, v));
+                //};
+
+                //for event in span.events {
+                //    for attrib in event.attributes {
+                //        let mut v = Vec::with_capacity(3);
+                //        v.push(Type::U64(sid));
+                //        //v.push(Type::U64(series_id.0));
+                //        v.push(attrib.value.unwrap().value.unwrap().into_mach_type());
+                //        let id = SeriesId(fxhash::hash64(&attrib.key));
+                //        spans.push((id, event.time_unix_nano, v));
+                //    }
+                //}
             }
         }
         spans
+    }
+}
+
+impl Value {
+    fn into_mach_type(self) -> Type {
+        match self {
+            Value::StringValue(x) => Type::Bytes(x.into_bytes()),
+            Value::BytesValue(x) => Type::Bytes(x),
+            Value::IntValue(x) => Type::U32(x.try_into().unwrap()),
+            Value::DoubleValue(x) => Type::F64(x),
+            Value::BoolValue(x) => Type::U32(x as u32),
+            _ => {
+                println!("Cant convert easily {:?}", self);
+                unimplemented!();
+            },
+        }
+    }
+    fn as_mach_type(&self) -> Type {
+        match self {
+            Value::StringValue(x) => Type::Bytes(x.clone().into_bytes()),
+            Value::BytesValue(x) => Type::Bytes(x.clone()),
+            Value::IntValue(x) => Type::U32((*x).try_into().unwrap()),
+            Value::DoubleValue(x) => Type::F64(*x),
+            Value::BoolValue(x) => Type::U32(*x as u32),
+            _ => {
+                println!("Cant convert easily {:?}", self);
+                unimplemented!();
+            },
+        }
     }
 }
 
@@ -419,15 +528,26 @@ impl ResourceMetrics {
     pub fn get_samples(&self) -> Vec<(SeriesId, u64, Vec<Type>)> {
         let mut items = Vec::new();
 
+
         let resource_attribs = &self.resource.as_ref().unwrap().attributes;
+        let mut hash = 0;
+        for attrib in resource_attribs.iter() {
+            hash ^= fxhash::hash64(attrib);
+        }
 
         // Iterate over each scope
         for scope in &self.scope_metrics {
             let scope_name = &scope.scope.as_ref().unwrap().name;
 
+            let mut hash = hash;
+            hash ^= fxhash::hash64(&scope_name);
+
             // Iterate over each metric
             for metric in &scope.metrics {
                 let metric_name = &metric.name;
+
+                let mut hash = hash;
+                hash ^= fxhash::hash64(&metric_name);
 
                 // There are several types of metrics
                 match metric.data.as_ref().unwrap() {
@@ -438,12 +558,11 @@ impl ResourceMetrics {
                     Data::Sum(x) => {
                         for point in &x.data_points {
                             let point_attribs = &point.attributes;
-                            let mut hasher = DefaultHasher::new();
-                            resource_attribs.hash(&mut hasher);
-                            scope_name.hash(&mut hasher);
-                            metric_name.hash(&mut hasher);
-                            point_attribs.hash(&mut hasher);
-                            let id = SeriesId(hasher.finish());
+                            let mut hash = hash;
+                            for attrib in point_attribs.iter() {
+                                hash ^= fxhash::hash64(attrib);
+                            }
+                            let id = SeriesId(hash);
 
                             // Push sample
                             let timestamp = point.time_unix_nano;
@@ -462,12 +581,11 @@ impl ResourceMetrics {
                     Data::Histogram(x) => {
                         for point in &x.data_points {
                             let point_attribs = &point.attributes;
-                            let mut hasher = DefaultHasher::new();
-                            resource_attribs.hash(&mut hasher);
-                            scope_name.hash(&mut hasher);
-                            metric_name.hash(&mut hasher);
-                            point_attribs.hash(&mut hasher);
-                            let id = SeriesId(hasher.finish());
+                            let mut hash = hash;
+                            for attrib in point_attribs.iter() {
+                                hash ^= fxhash::hash64(attrib);
+                            }
+                            let id = SeriesId(hash);
 
                             // Push sample
                             let timestamp = point.time_unix_nano;

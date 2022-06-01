@@ -17,6 +17,7 @@ use rdkafka::{
 use serde::*;
 use std::{convert::TryInto, time::Duration};
 use zstd::stream::{decode_all, encode_all};
+use crate::durable_queue::TOTAL_SZ;
 //use tokio::sync::mpsc::{channel, error::TryRecvError, Receiver, Sender};
 
 #[derive(Debug)]
@@ -114,6 +115,7 @@ impl KafkaWriter {
         // ZStd compression
         let encoded = encode_all(bytes, 0).unwrap();
         let bytes = encoded.as_slice();
+        TOTAL_SZ.fetch_add(bytes.len(), std::sync::atomic::Ordering::SeqCst);
 
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&self.topic).payload(bytes);
         //let now = std::time::Instant::now();
