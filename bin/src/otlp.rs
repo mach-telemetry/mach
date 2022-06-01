@@ -46,6 +46,7 @@ pub mod opentelemetry {
 }
 use opentelemetry::proto as otlp;
 
+
 pub use otlp::*;
 
 use otlp::{
