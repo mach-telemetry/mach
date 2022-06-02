@@ -65,7 +65,7 @@ async fn snapshot_worker(
 
                 // If the snapshot is not durable, send to kafka topic for durability
                 if !durable {
-                    response.offset = queue_writer.write(&snapshot[..]).await.unwrap();
+                    response.offset = queue_writer.write(&snapshot[..]).unwrap();
                     durable = true;
                 }
 
@@ -138,14 +138,18 @@ impl ReadServer {
         write_guard.entry(series_id).or_insert({
             let (worker, rx) = mpsc::unbounded_channel();
             let series = self.series_table.get(&series_id).unwrap().clone();
-            RUNTIME.spawn(snapshot_worker(
-                snapshot_interval,
-                series_id,
-                series,
-                self.snapshotters.clone(),
-                rx,
-                self.queue_config.clone(),
-            ));
+            let snapshotters = self.snapshotters.clone();
+            let queue_config = self.queue_config.clone();
+            std::thread::spawn(move || {
+                futures::executor::block_on(snapshot_worker(
+                    snapshot_interval,
+                    series_id,
+                    series,
+                    snapshotters,
+                    rx,
+                    queue_config,
+                ))
+            });
             Snapshotter { worker }
         });
     }

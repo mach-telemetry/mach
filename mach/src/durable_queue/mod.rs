@@ -31,6 +31,18 @@ impl From<file_backend::Error> for Error {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NoopConfig {}
+impl NoopConfig {
+    fn make(&self) -> Result<InnerDurableQueue, Error> {
+        Ok(InnerDurableQueue::Noop)
+    }
+    pub fn config(self) -> QueueConfig {
+        QueueConfig::Noop
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct KafkaConfig {
     pub bootstrap: String,
     pub topic: String,
@@ -69,6 +81,7 @@ impl FileConfig {
 pub enum QueueConfig {
     Kafka(KafkaConfig),
     File(FileConfig),
+    Noop,
 }
 
 impl QueueConfig {
@@ -82,6 +95,10 @@ impl QueueConfig {
             Self::File(x) => DurableQueue {
                 config,
                 inner: x.make()?,
+            },
+            Self::Noop => DurableQueue {
+                config,
+                inner: InnerDurableQueue::Noop,
             },
         };
         Ok(d)
@@ -101,6 +118,7 @@ impl DurableQueue {
         match &self.inner {
             InnerDurableQueue::Kafka(x) => Ok(DurableQueueWriter::Kafka(x.make_writer()?)),
             InnerDurableQueue::File(x) => Ok(DurableQueueWriter::File(x.make_writer()?)),
+            InnerDurableQueue::Noop => Ok(DurableQueueWriter::Noop),
         }
     }
 
@@ -108,6 +126,7 @@ impl DurableQueue {
         match &self.inner {
             InnerDurableQueue::Kafka(x) => Ok(DurableQueueReader::Kafka(x.make_reader()?)),
             InnerDurableQueue::File(x) => Ok(DurableQueueReader::File(x.make_reader()?)),
+            InnerDurableQueue::Noop => unimplemented!(),
         }
     }
 }
@@ -115,18 +134,21 @@ impl DurableQueue {
 enum InnerDurableQueue {
     Kafka(kafka_backend::Kafka),
     File(file_backend::FileBackend),
+    Noop,
 }
 
 pub enum DurableQueueWriter {
     Kafka(kafka_backend::KafkaWriter),
     File(file_backend::FileWriter),
+    Noop,
 }
 
 impl DurableQueueWriter {
-    pub async fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
+    pub fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
         match self {
-            Self::Kafka(x) => Ok(x.write(bytes).await?),
+            Self::Kafka(x) => Ok(x.write(bytes)?),
             Self::File(x) => Ok(x.write(bytes)?),
+            Self::Noop => Ok(0),
         }
     }
 }
@@ -147,6 +169,7 @@ impl DurableQueueReader {
                 let file = cfg.dir.join(cfg.file);
                 Ok(DurableQueueReader::File(FileReader::new(&file)?))
             }
+            QueueConfig::Noop => unimplemented!(),
         }
     }
 

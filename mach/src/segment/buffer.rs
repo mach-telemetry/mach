@@ -135,6 +135,20 @@ impl InnerBuffer {
                     let item = ((&heap[cur_len..]).as_ptr() as u64).to_be_bytes();
                     self.data[i][len] = item;
                 }
+                Type::BorrowedBytes(b) => {
+                    //let b = unsafe { Bytes::from_raw(*x) };
+                    let bytes = &b;
+                    let heap = self.heap[i].as_mut().unwrap();
+                    let cur_len = heap.len();
+                    heap.extend_from_slice(&b.len().to_be_bytes());
+                    heap.extend_from_slice(bytes);
+                    if heap.len() > HEAP_TH {
+                        self.is_full = true;
+                    }
+                    let item = ((&heap[cur_len..]).as_ptr() as u64).to_be_bytes();
+                    self.data[i][len] = item;
+                    //b.into_raw_parts(); // don't drop the vec
+                }
             }
         }
         self.len = self.atomic_len.fetch_add(1, SeqCst) + 1;

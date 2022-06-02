@@ -1,4 +1,5 @@
 #![allow(warnings)]
+#![feature(vec_into_raw_parts)]
 use std::convert::From;
 
 pub mod opentelemetry {
@@ -219,17 +220,35 @@ impl trace::v1::ResourceSpans {
         }
     }
 
-    pub fn get_samples(&self) -> Vec<(mach::id::SeriesId, u64, Vec<mach::sample::Type>)> {
-        let mut spans = Vec::new();
+    //pub fn write_samples_to_mach<F: FnMut(mach::id::SeriesId, u64, &[mach::sample::Type])>(
+    //    &self,
+    //    func: &mut F
+    //){
+    //    let mut v: Vec<mach::sample::Type> = Vec::with_capacity(1);
+    //    v.push(mach::sample::Type::Bytes(Vec::with_capacity(8192)));
+    //    for scope in &self.scope_spans {
+    //        for span in &scope.spans {
+    //            let buf = v[0].byte_vec_mut();
+    //            let sz = bincode::serialized_size(&span).unwrap() as usize;
+    //            if buf.len() < sz {
+    //                buf.resize(sz, 0);
+    //            }
+    //            bincode::serialize_into(&mut buf[..], &span).unwrap();
+    //            let series_id = mach::id::SeriesId(span.source_id);
+    //            func(series_id, span.start_time_unix_nano, v.as_slice());
+    //        }
+    //    }
+    //}
+
+    pub fn get_samples(&self, samples: &mut Vec<(mach::id::SeriesId, u64, Vec<mach::sample::Type>)>,) {
         for scope in &self.scope_spans {
             for span in &scope.spans {
                 let mut v = Vec::with_capacity(1);
                 v.push(mach::sample::Type::Bytes(bincode::serialize(&span).unwrap()));
                 let series_id = mach::id::SeriesId(span.source_id);
-                spans.push((series_id, span.start_time_unix_nano, v));
+                samples.push((series_id, span.start_time_unix_nano, v));
             }
         }
-        spans
     }
 }
 

@@ -56,6 +56,7 @@ impl Mach {
         match &mut q {
             QueueConfig::Kafka(x) => x.topic.push_str("_durability"),
             QueueConfig::File(x) => x.file.push_str("_durability"),
+            QueueConfig::Noop => {} ,
         }
         let (writer, meta) = Writer::new(global_meta, writer_config);
         let durability = DurabilityWorker::new(meta.id.clone(), meta.active_block.clone(), q);

@@ -111,7 +111,7 @@ impl KafkaWriter {
         })
     }
 
-    pub async fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
+    pub fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
         // ZStd compression
         let encoded = encode_all(bytes, 0).unwrap();
         let bytes = encoded.as_slice();
@@ -119,9 +119,9 @@ impl KafkaWriter {
 
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&self.topic).payload(bytes);
         //let now = std::time::Instant::now();
-        let (partition, offset) = self.producer.send(to_send, self.dur).await.unwrap();
+        let (partition, offset) = futures::executor::block_on(self.producer.send(to_send, self.dur)).unwrap();
         //println!("Item successfully produced in {:?}", now.elapsed());
-        assert_eq!(partition, 0);
+        //assert_eq!(partition, 0);
         Ok(offset.try_into().unwrap())
     }
 }

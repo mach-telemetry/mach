@@ -76,7 +76,7 @@ impl List {
 pub struct ListWriter(List);
 
 impl ListWriter {
-    pub async fn push(
+    pub fn push(
         &mut self,
         id: SeriesId,
         segment: FlushSegment,
@@ -106,8 +106,9 @@ impl ListWriter {
         if to_flush {
             // Safety, the flush doesn't race with ListReader since the data the listreader will
             // access is always valid and will be correct
+            //let rt = thread_local_runtime();
             unsafe {
-                self.0.active_block.unprotected_write().flush(w).await?;
+                self.0.active_block.unprotected_write().flush(w)?;
             }
 
             // Now we guard because the listreader might be copying during this reset

@@ -8,7 +8,17 @@ pub enum Type {
     Timestamp(u64),
     F64(f64),
     Bytes(Vec<u8>),
+    BorrowedBytes(Vec<u8>),
     U32(u32),
+}
+
+impl Type {
+    pub fn byte_vec_mut(&mut self) -> &mut Vec<u8> {
+        match self {
+            Type::Bytes(x) => x,
+            _ => unimplemented!(),
+        }
+    }
 }
 
 unsafe impl Sync for Type {}

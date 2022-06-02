@@ -2,7 +2,7 @@ use crate::{
     active_block::ActiveBlock,
     durable_queue::{QueueConfig},
     id::WriterId,
-    runtime::RUNTIME,
+    //runtime::RUNTIME,
     segment::SegmentSnapshot,
     series::Series,
     utils::{wp_lock::WpLock},
@@ -38,8 +38,12 @@ fn init(writer_id: WriterId, active_block: Arc<WpLock<ActiveBlock>>, queue_confi
     let (tx, rx) = unbounded_channel();
     let series = Arc::new(Mutex::new(Vec::<Series>::new()));
     let series2 = series.clone();
-    RUNTIME.spawn(durability_receiver(rx, series2));
-    RUNTIME.spawn(durability_worker(writer_id, series, active_block, queue_config));
+    std::thread::spawn(move || {
+        futures::executor::block_on(durability_receiver(rx, series2));
+    });
+    std::thread::spawn(move || {
+        durability_worker(writer_id, series, active_block, queue_config)
+    });
     DurabilityWorker { chan: tx }
 }
 
@@ -84,7 +88,7 @@ async fn durability_worker(
         let data: (Vec<SegmentSnapshot>, Box<[u8]>) = (snapshots, buffer);
         bincode::serialize_into(&mut encoded, &data).unwrap();
         lz4::compress_to_vec(&encoded, &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
-        match queue_writer.write(&compressed[..]).await {
+        match queue_writer.write(&compressed[..]) {
             //Ok(offset) => println!(
             //    "Durability at offset {}, data size: {}",
             //    offset,

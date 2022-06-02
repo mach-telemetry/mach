@@ -337,11 +337,10 @@ impl ActiveBlock {
         }
     }
 
-    pub async fn flush(&mut self, flusher: &mut DurableQueueWriter) -> Result<(), Error> {
+    pub fn flush(&mut self, flusher: &mut DurableQueueWriter) -> Result<(), Error> {
         self.bytes.set_tail(&self.tail);
         let queue_offset = flusher
-            .write(&self.bytes[..self.bytes.len.load(SeqCst)])
-            .await?;
+            .write(&self.bytes[..self.bytes.len.load(SeqCst)])?;
         // Boradcast the queue offset to everyone who pushed
         self.queue_offset.store(queue_offset, SeqCst);
         Ok(())

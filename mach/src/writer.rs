@@ -139,12 +139,11 @@ struct ListMakerMeta {
 }
 
 impl ListMakerMeta {
-    async fn write(&mut self, w: &mut DurableQueueWriter) {
+    fn write(&mut self, w: &mut DurableQueueWriter) {
         //println!("WRITING TO ACTIVE BLOCK");
         if self
             .list
             .push(self.id, self.segment.clone(), &self.compression, w)
-            .await
             .is_err()
         {
             println!("Error writing to list");
@@ -179,14 +178,16 @@ impl std::fmt::Debug for ListMakerRequest {
 }
 
 struct ListMaker {
-    sender: UnboundedSender<ListMakerRequest>,
+    sender: crossbeam_channel::Sender<ListMakerRequest>,
     register_counter: usize,
 }
 
 impl ListMaker {
     fn new(durable_queue_writer: DurableQueueWriter) -> Self {
-        let (sender, receiver) = unbounded_channel();
-        RUNTIME.spawn(worker(durable_queue_writer, receiver));
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        std::thread::spawn(move || {
+            worker(durable_queue_writer, receiver)
+        });
         ListMaker {
             sender,
             register_counter: 0,
@@ -205,15 +206,23 @@ impl ListMaker {
         self.sender
             .send(ListMakerRequest::Flush(id))
             .expect("failed to send to flush worker");
+        //QUEUE_LEN.fetch_add(1, SeqCst);
     }
 }
 
-async fn worker(mut w: DurableQueueWriter, mut queue: UnboundedReceiver<ListMakerRequest>) {
+use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+lazy_static::lazy_static! {
+    static ref QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
+}
+
+fn worker(mut w: DurableQueueWriter, mut queue: crossbeam_channel::Receiver<ListMakerRequest>) {
     let mut metadata: Vec<ListMakerMeta> = Vec::new();
-    while let Some(item) = queue.recv().await {
+    while let Ok(item) = queue.recv() {
+        //QUEUE_LEN.fetch_sub(1, SeqCst);
+        //println!("Queue len {}", QUEUE_LEN.load(SeqCst));
         match item {
             ListMakerRequest::Register(meta) => metadata.push(meta),
-            ListMakerRequest::Flush(id) => metadata[id].write(&mut w).await,
+            ListMakerRequest::Flush(id) => metadata[id].write(&mut w),
         }
     }
 }

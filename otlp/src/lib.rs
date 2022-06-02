@@ -501,19 +501,19 @@ impl ResourceSpans {
 }
 
 impl Value {
-    fn into_mach_type(self) -> Type {
-        match self {
-            Value::StringValue(x) => Type::Bytes(x.into_bytes()),
-            Value::BytesValue(x) => Type::Bytes(x),
-            Value::IntValue(x) => Type::U32(x.try_into().unwrap()),
-            Value::DoubleValue(x) => Type::F64(x),
-            Value::BoolValue(x) => Type::U32(x as u32),
-            _ => {
-                println!("Cant convert easily {:?}", self);
-                unimplemented!();
-            },
-        }
-    }
+    //fn into_mach_type(self) -> Type {
+    //    match self {
+    //        Value::StringValue(x) => Type::Bytes(x.into_bytes()),
+    //        Value::BytesValue(x) => Type::Bytes(x),
+    //        Value::IntValue(x) => Type::U32(x.try_into().unwrap()),
+    //        Value::DoubleValue(x) => Type::F64(x),
+    //        Value::BoolValue(x) => Type::U32(x as u32),
+    //        _ => {
+    //            println!("Cant convert easily {:?}", self);
+    //            unimplemented!();
+    //        },
+    //    }
+    //}
     fn as_mach_type(&self) -> Type {
         match self {
             Value::StringValue(x) => Type::Bytes(x.clone().into_bytes()),
