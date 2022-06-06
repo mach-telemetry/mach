@@ -33,6 +33,7 @@ pub mod series;
 pub mod tags;
 pub mod tsdb;
 pub mod utils;
+pub mod mem_list;
 //pub mod writer;
 //pub mod wal;
 pub mod durability;

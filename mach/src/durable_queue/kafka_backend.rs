@@ -113,8 +113,10 @@ impl KafkaWriter {
 
     pub fn write(&mut self, bytes: &[u8]) -> Result<u64, Error> {
         // ZStd compression
+        let raw_sz = bytes.len();
         let encoded = encode_all(bytes, 0).unwrap();
         let bytes = encoded.as_slice();
+        println!("Orig: {}, comrpessed: {}", raw_sz, bytes.len());
         TOTAL_SZ.fetch_add(bytes.len(), std::sync::atomic::Ordering::SeqCst);
 
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&self.topic).payload(bytes);

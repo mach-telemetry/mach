@@ -138,14 +138,14 @@ fn kafka_ingest(args: Args, mut data: Vec<mach_otlp::OtlpData>) {
         if buf.len() > 1000000 {
             let sl = buf.as_slice();
             uncompressed += sl.len() as u32;
-            //let bytes = encode_all(sl, 0).unwrap();
-            //let to_send: FutureRecord<str, [u8]> =
-            //    FutureRecord::to(&topic).payload(&bytes);
-            //match rt.block_on(producer.send(to_send, Duration::from_secs(3))) {
-            //    Ok(x) => {},
-            //    Err(_) => panic!("Producer failed"),
-            //};
-            //sz += bytes.len();
+            let bytes = encode_all(sl, 0).unwrap();
+            let to_send: FutureRecord<str, [u8]> =
+                FutureRecord::to(&topic).payload(&bytes);
+            match rt.block_on(producer.send(to_send, Duration::from_secs(3))) {
+                Ok(x) => {},
+                Err(_) => panic!("Producer failed"),
+            };
+            sz += bytes.len();
             buf.clear();
         }
     }
@@ -164,12 +164,12 @@ fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
     let mut reference_map: HashMap<SeriesId, SeriesRef> = HashMap::new();
     let mut id_dict = otlp::SpanIds::new();
 
-    //let queue_config = KafkaConfig {
-    //    bootstrap: args.kafka_bootstraps.clone(),
-    //    topic: random_id(),
-    //}.config();
+    let queue_config = KafkaConfig {
+        bootstrap: args.kafka_bootstraps.clone(),
+        topic: random_id(),
+    }.config();
 
-    let queue_config = NoopConfig{}.config();
+    //let queue_config = NoopConfig{}.config();
 
     let writer_config = WriterConfig {
         queue_config,
@@ -293,9 +293,6 @@ fn main() {
     }).collect();
 
     println!("data items: {}", data.len());
-    kafka_ingest(args.clone(), data);
-    //mach_ingest(args.clone(), data.as_slice());
+    //kafka_ingest(args.clone(), data);
+    mach_ingest(args.clone(), data.as_slice());
 }
-
-
-
