@@ -11,8 +11,6 @@ use std::thread::JoinHandle;
 use std::{sync::atomic::AtomicU64, thread, time::Duration};
 
 lazy_static! {
-    static ref BOOTSTRAP_SERVERS: String =
-        String::from("localhost:9093,localhost:9094,localhost:9095");
     static ref TOPIC: String = uuid::Uuid::new_v4().to_string();
     static ref KAFKA_PARTITIONS: i32 = 3;
     static ref KAFKA_REPLICATION: i32 = 3;
@@ -24,6 +22,8 @@ lazy_static! {
 struct Args {
     #[clap(short, long, default_value_t = 1)]
     writers: usize,
+    #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
+    bootstrap_servers: String,
 }
 
 fn print_throughput() {
@@ -51,10 +51,10 @@ fn default_producer(bootstraps: String) -> FutureProducer {
     producer
 }
 
-fn make_topic() {
+fn make_topic(bootstrap_servers: &str) {
     let topic = TOPIC.clone();
     let client: AdminClient<DefaultClientContext> = ClientConfig::new()
-        .set("bootstrap.servers", BOOTSTRAP_SERVERS.to_string())
+        .set("bootstrap.servers", bootstrap_servers.to_string())
         .create()
         .unwrap();
     let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(5)));
@@ -65,10 +65,10 @@ fn make_topic() {
         config: Vec::new(),
     }];
     futures::executor::block_on(client.create_topics(topics, &admin_opts)).unwrap();
+    println!("topic created: {}", TOPIC.as_str());
 }
 
-fn kafka_write() {
-    let producer = default_producer(BOOTSTRAP_SERVERS.to_string());
+fn kafka_write(producer: FutureProducer) {
     loop {
         let to_send: FutureRecord<str, [u8]> =
             FutureRecord::to(&TOPIC).payload(&PAYLOAD.as_slice());
@@ -84,10 +84,13 @@ fn main() {
     let args = Args::parse();
     println!("Args:\n{:#?}", args);
 
-    make_topic();
+    make_topic(args.bootstrap_servers.as_str());
 
     let writer_handles: Vec<JoinHandle<()>> = (0..args.writers)
-        .map(|_| thread::spawn(kafka_write))
+        .map(|_| {
+            let producer = default_producer(args.bootstrap_servers.clone());
+            thread::spawn(move || kafka_write(producer))
+        })
         .collect();
 
     let print_thread = thread::spawn(print_throughput);
