@@ -1,6 +1,12 @@
 use clap::*;
 use lazy_static::lazy_static;
-use rdkafka::{config::ClientConfig, producer::FutureProducer, producer::FutureRecord};
+use rdkafka::{
+    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
+    client::DefaultClientContext,
+    config::ClientConfig,
+    producer::FutureProducer,
+    producer::FutureRecord,
+};
 use std::thread::JoinHandle;
 use std::{sync::atomic::AtomicU64, thread, time::Duration};
 
@@ -8,6 +14,8 @@ lazy_static! {
     static ref BOOTSTRAP_SERVERS: String =
         String::from("localhost:9093,localhost:9094,localhost:9095");
     static ref TOPIC: String = uuid::Uuid::new_v4().to_string();
+    static ref KAFKA_PARTITIONS: i32 = 3;
+    static ref KAFKA_REPLICATION: i32 = 3;
     static ref PAYLOAD: [u8; 1_000_000] = [33; 1_000_000];
     static ref COUNTER: AtomicU64 = AtomicU64::new(0);
 }
@@ -34,15 +42,29 @@ fn default_producer(bootstraps: String) -> FutureProducer {
     let producer: FutureProducer = ClientConfig::new()
         .set("bootstrap.servers", bootstraps)
         .set("message.max.bytes", "1000000000")
-        .set("linger.ms", "0")
         .set("message.copy.max.bytes", "5000000")
-        .set("batch.num.messages", "1")
         .set("compression.type", "none")
         .set("acks", "all")
         .set("message.timeout.ms", "10000")
         .create()
         .unwrap();
     producer
+}
+
+fn make_topic() {
+    let topic = TOPIC.clone();
+    let client: AdminClient<DefaultClientContext> = ClientConfig::new()
+        .set("bootstrap.servers", BOOTSTRAP_SERVERS.to_string())
+        .create()
+        .unwrap();
+    let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(5)));
+    let topics = &[NewTopic {
+        name: topic.as_str(),
+        num_partitions: *KAFKA_PARTITIONS,
+        replication: TopicReplication::Fixed(*KAFKA_REPLICATION),
+        config: Vec::new(),
+    }];
+    futures::executor::block_on(client.create_topics(topics, &admin_opts)).unwrap();
 }
 
 fn kafka_write() {
@@ -61,6 +83,8 @@ fn kafka_write() {
 fn main() {
     let args = Args::parse();
     println!("Args:\n{:#?}", args);
+
+    make_topic();
 
     let writer_handles: Vec<JoinHandle<()>> = (0..args.writers)
         .map(|_| thread::spawn(kafka_write))
