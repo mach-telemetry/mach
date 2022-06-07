@@ -1,5 +1,6 @@
 use clap::*;
 use lazy_static::lazy_static;
+use rand::{thread_rng, Rng};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
@@ -14,7 +15,6 @@ lazy_static! {
     static ref TOPIC: String = uuid::Uuid::new_v4().to_string();
     static ref KAFKA_PARTITIONS: i32 = 3;
     static ref KAFKA_REPLICATION: i32 = 3;
-    static ref PAYLOAD: [u8; 1_000_000] = [33; 1_000_000];
     static ref COUNTER: AtomicU64 = AtomicU64::new(0);
 }
 
@@ -24,6 +24,8 @@ struct Args {
     writers: usize,
     #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
     bootstrap_servers: String,
+    #[clap(short, long, default_value_t = 1)]
+    batch_size_mb: usize,
 }
 
 fn print_throughput() {
@@ -68,15 +70,16 @@ fn make_topic(bootstrap_servers: &str) {
     println!("topic created: {}", TOPIC.as_str());
 }
 
-fn kafka_write(producer: FutureProducer) {
+fn make_payload(num_bytes: usize) -> Vec<u8> {
+    (0..num_bytes).map(|_| thread_rng().gen()).collect()
+}
+
+fn kafka_write(producer: FutureProducer, payload: &[u8]) {
+    let payload_len: u64 = payload.len().try_into().unwrap();
     loop {
-        let to_send: FutureRecord<str, [u8]> =
-            FutureRecord::to(&TOPIC).payload(&PAYLOAD.as_slice());
+        let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&TOPIC).payload(payload);
         futures::executor::block_on(producer.send(to_send, Duration::from_secs(0))).unwrap();
-        COUNTER.fetch_add(
-            PAYLOAD.len().try_into().unwrap(),
-            std::sync::atomic::Ordering::SeqCst,
-        );
+        COUNTER.fetch_add(payload_len, std::sync::atomic::Ordering::SeqCst);
     }
 }
 
@@ -85,11 +88,13 @@ fn main() {
     println!("Args:\n{:#?}", args);
 
     make_topic(args.bootstrap_servers.as_str());
+    let payload = make_payload(args.batch_size_mb * 1_000_000);
 
     let writer_handles: Vec<JoinHandle<()>> = (0..args.writers)
         .map(|_| {
             let producer = default_producer(args.bootstrap_servers.clone());
-            thread::spawn(move || kafka_write(producer))
+            let my_payload = payload.clone();
+            thread::spawn(move || kafka_write(producer, my_payload.as_slice()))
         })
         .collect();
 
