@@ -34,6 +34,7 @@ roaring = "0.9.0"
 tower = { version = "0.4" }
 redis = "0.21.5"
 fxhash = "0.2.1"
+uuid = { version = "1.1.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 
 [build-dependencies]
 tonic-build = { version = "0.6.2", features = ["prost", "compression"] }
@@ -88,6 +89,10 @@ path = "src/mach-otlp-server.rs"
 [[bin]]
 name = "simple_bench"
 path = "src/simple_bench.rs"
+
+[[bin]]
+name = "kafka_bench"
+path = "src/kafka_bench.rs"
 
 #[[bin]]
 #name = "convert-otlp-data"
