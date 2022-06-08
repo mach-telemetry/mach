@@ -4,10 +4,81 @@ use crate::{
     segment::FlushSegment,
     utils::wp_lock::{WpLock, NoDealloc},
     utils::byte_buffer::ByteBuffer,
+    utils::random_id,
 };
-use std::sync::{Arc, RwLock, Mutex, atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst}};
+use std::sync::{Arc, RwLock, Mutex, mpsc::{Sender, Receiver, channel}, atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst}};
 use std::mem;
+use std::time::{Duration, SystemTime};
 use dashmap::DashMap;
+use lazy_static::lazy_static;
+use rdkafka::{
+    config::ClientConfig,
+    producer::{FutureProducer, FutureRecord},
+    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
+    client::DefaultClientContext,
+};
+use crossbeam_queue::SegQueue;
+
+fn make_topic(bootstrap_servers: &str, topic: &str) {
+    let client: AdminClient<DefaultClientContext> = ClientConfig::new()
+        .set("bootstrap.servers", bootstrap_servers.to_string())
+        .create()
+        .unwrap();
+    let admin_opts = AdminOptions::new().request_timeout(Some(std::time::Duration::from_secs(5)));
+    let topics = &[NewTopic {
+        name: topic,
+        num_partitions: 3,
+        replication: TopicReplication::Fixed(3),
+        config: Vec::new(),
+    }];
+    futures::executor::block_on(client.create_topics(topics, &admin_opts)).unwrap();
+    println!("topic created: {}", TOPIC.as_str());
+}
+
+fn default_producer(bootstraps: &str) -> FutureProducer {
+    println!("making producer to bootstraps: {}", bootstraps);
+    let producer: FutureProducer = ClientConfig::new()
+        .set("bootstrap.servers", bootstraps)
+        .set("message.max.bytes", "1000000000")
+        .set("message.copy.max.bytes", "5000000")
+        .set("compression.type", "none")
+        .set("acks", "all")
+        .set("message.timeout.ms", "10000")
+        .create()
+        .unwrap();
+    producer
+}
+
+lazy_static! {
+    static ref BOOTSTRAPS: String = String::from("localhost:9093,localhost:9094,localhost:9095");
+    static ref TOPIC: String = {
+        let topic = random_id();
+        make_topic(&*BOOTSTRAPS, topic.as_str());
+        topic
+    };
+}
+
+const FLUSHERS: usize = 4;
+
+struct Flusher {
+    block_list: Arc<BlockList>,
+}
+
+fn flush_worker(chan: Arc<SegQueue<Arc<ReadOnlyBlock>>>) {
+    //let mut buf = Vec::new();
+    let producer = default_producer(&*BOOTSTRAPS);
+    while let Some(block) = chan.pop() {
+        let mut guard = block.inner.lock().unwrap();
+        let (partition, offset) = match &*guard {
+            InnerReadOnlyBlock::Bytes(x) => {
+                let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&TOPIC).payload(x);
+                futures::executor::block_on(producer.send(to_send, Duration::from_secs(0))).unwrap()
+            },
+            _ => unimplemented!(),
+        };
+        *guard = InnerReadOnlyBlock::Offset(partition as usize, offset as usize);
+    }
+}
 
 pub struct List {
     head: AtomicU64,
@@ -16,17 +87,26 @@ pub struct List {
 pub struct BlockList {
     head_block: WpLock<Block>,
     tail: AtomicU64,
-    block_map: DashMap<u64, Arc<ReadOnlyBlock>>,
+    block_map: DashMap<u64, (SystemTime, Arc<ReadOnlyBlock>)>,
+    flush_queue: Arc<SegQueue<Arc<ReadOnlyBlock>>>,
 }
 
 impl BlockList {
-    //pub fn new() -> Self {
-    //    BlockList {
-    //        head: AtomicU64::new(u64::MAX),
-    //        tail: AtomicU64::new(u64::MAX),
-    //        map: DashMap::new(),
-    //    }
-    //}
+    pub fn new() -> Self {
+        let flush_queue = Arc::new(SegQueue::new());
+        for _ in 0..FLUSHERS {
+            let q = flush_queue.clone();
+            std::thread::spawn(move || {
+                flush_worker(q);
+            });
+        }
+        BlockList {
+            head_block: WpLock::new(Block::new()),
+            tail: AtomicU64::new(0),
+            block_map: DashMap::new(),
+            flush_queue,
+        }
+    }
 
     //pub fn push(&self, key: u64, block: Block) {
     //    let key = self.head.store(key) + 1;
@@ -52,14 +132,16 @@ impl BlockList {
             self.head_block.unprotected_write().push(head, series_id, segment, compression)
         };
 
+        // Update the list with the new head
         if head != block_id {
             list.head.store(block_id, SeqCst);
         }
 
         if is_full {
             // Safety: there should be only one writer and it should be doing this push
-            let copy = unsafe { self.head_block.unprotected_read().as_read_only() };
-            self.block_map.insert(block_id, Arc::new(copy));
+            let copy = Arc::new(unsafe { self.head_block.unprotected_read().as_read_only() });
+            self.block_map.insert(block_id, (SystemTime::now(), copy.clone()));
+            self.flush_queue.push(copy);
 
             // Mark current block as cleared
             self.head_block.protected_write().reset();
@@ -93,12 +175,13 @@ struct Block {
 }
 
 impl Block {
-    //fn new(id: u64) -> Self {
-    //    Self {
-    //        bytes: Bytes(vec![0u8; 2_000_000].into_boxed_slice()),
-    //        len: AtomicUsize::new(0),
-    //    }
-    //}
+    fn new() -> Self {
+        Self {
+            id: AtomicU64::new(0),
+            bytes: Bytes(vec![0u8; 2_000_000].into_boxed_slice()),
+            len: AtomicUsize::new(0),
+        }
+    }
 
     fn push(
         &mut self,
@@ -154,12 +237,23 @@ impl Block {
     fn as_read_only(&self) -> ReadOnlyBlock {
         let len = self.len.load(SeqCst);
         let bytes = self.bytes[..len].into();
-        ReadOnlyBlock {
-            bytes,
-        }
+        ReadOnlyBlock::from_inner(InnerReadOnlyBlock::Bytes(bytes))
     }
 }
 
+enum InnerReadOnlyBlock {
+    Bytes(Box<[u8]>),
+    Offset(usize, usize),
+}
+
 pub struct ReadOnlyBlock {
-    bytes: Box<[u8]>,
+    inner: Mutex<InnerReadOnlyBlock>,
+}
+
+impl ReadOnlyBlock {
+    fn from_inner(inner: InnerReadOnlyBlock) -> Self {
+        Self {
+            inner: Mutex::new(inner)
+        }
+    }
 }
