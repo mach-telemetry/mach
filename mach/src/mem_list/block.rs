@@ -32,8 +32,9 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn new() -> Self {
+    pub fn new(id: u64) -> Self {
         Self {
+            id: u64,
             bytes: WpLock::new(Bytes(vec![0u8; 2_000_000].into_boxed_slice())),
             len: AtomicUsize::new(0),
         }
