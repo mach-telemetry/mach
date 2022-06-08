@@ -4,7 +4,8 @@ use crate::{
     //wal::Wal,
     durable_queue::{DurableQueue, DurableQueueWriter, QueueConfig},
     id::{SeriesId, SeriesRef, WriterId},
-    persistent_list::*,
+    //persistent_list::*,
+    mem_list::{List, BlockList},
     runtime::*,
     sample::Type,
     segment::{self, FlushSegment, WriteSegment},
@@ -14,6 +15,7 @@ use crate::{
 use dashmap::DashMap;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use std::sync::mpsc::{channel, Sender, Receiver};
 
 #[derive(Debug)]
 pub enum Error {
@@ -34,9 +36,10 @@ pub struct WriterConfig {
 
 pub struct WriterMetadata {
     pub id: WriterId,
-    pub queue_config: QueueConfig,
-    pub active_block: Arc<WpLock<ActiveBlock>>,
-    pub durable_queue: Arc<DurableQueue>,
+    //pub queue_config: QueueConfig,
+    pub block_list: Arc<BlockList>,
+    //pub active_block: Arc<WpLock<ActiveBlock>>,
+    //pub durable_queue: Arc<DurableQueue>,
 }
 
 pub struct Writer {
@@ -44,12 +47,9 @@ pub struct Writer {
     local_meta: HashMap<SeriesId, Series>,
     references: HashMap<SeriesId, usize>,
     writers: Vec<WriteSegment>,
-    //active_block: Arc<WpLock<ActiveBlock>>,
-    //durable_queue: Arc<DurableQueue>,
-    lists: Vec<List>,
-    list_maker_id: Vec<usize>,
-    list_maker: ListMaker,
+    block_list: Arc<BlockList>,
     id: WriterId,
+    block_worker: Sender<FlushItem>,
 }
 
 impl Writer {
@@ -60,26 +60,34 @@ impl Writer {
         let block_flush_sz = writer_config.active_block_flush_sz;
         let queue_config = writer_config.queue_config;
         let id = WriterId::new();
-        let active_block = Arc::new(WpLock::new(ActiveBlock::new(block_flush_sz)));
-        let durable_queue = Arc::new(queue_config.clone().make().unwrap());
-        let list_maker = ListMaker::new(durable_queue.writer().unwrap());
+        let block_list = Arc::new(BlockList::new());
+        let block_list_clone = block_list.clone();
+        let (block_worker, rx) = channel();
+        std::thread::spawn(move || {
+            block_list_worker(block_list_clone, rx);
+        });
+        //let active_block = Arc::new(WpLock::new(ActiveBlock::new(block_flush_sz)));
+        //let durable_queue = Arc::new(queue_config.clone().make().unwrap());
+        //let list_maker = ListMaker::new(durable_queue.writer().unwrap());
 
         let meta = WriterMetadata {
             id: id.clone(),
-            queue_config,
-            active_block,
-            durable_queue,
+            block_list: block_list.clone(),
+            //queue_config,
+            //active_block,
+            //durable_queue,
         };
 
         let writer = Self {
             global_meta,
             local_meta: HashMap::new(),
             references: HashMap::new(),
-            list_maker_id: Vec::new(),
             writers: Vec::new(),
-            lists: Vec::new(),
-            list_maker,
+            block_list,
+            block_worker,
+            //list_maker,
             id,
+            //list_maker_id: Vec::new(),
             //active_block,
             //durable_queue,
         };
@@ -92,140 +100,139 @@ impl Writer {
     }
 
     pub fn get_reference(&mut self, id: SeriesId) -> SeriesRef {
-        let meta = self.global_meta.get(&id).unwrap().clone();
-        let writer = meta.segment().writer().unwrap();
-        let list = meta.list().clone();
-
-        let list_maker_id = self.list_maker.register(ListMakerMeta {
-            segment: writer.flush(),
-            list: meta.list().writer(),
-            id,
-            compression: meta.compression().clone(),
-        });
-
-        let len = self.writers.len();
-        self.references.insert(id, len);
-        self.local_meta.insert(id, meta);
+        let series_ref = self.writers.len();
+        let series = self.global_meta.get(&id).unwrap().clone();
+        let writer = series.segment().writer().unwrap();
         self.writers.push(writer);
-        self.lists.push(list);
-        self.list_maker_id.push(list_maker_id);
-        SeriesRef(len)
-    }
+        SeriesRef(series_ref)
 
-    //pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[[u8; 8]]) -> Result<(), Error> {
-    //    let reference = *reference;
-    //    match self.writers[reference].push(ts, data)? {
-    //        segment::PushStatus::Done => {}
-    //        segment::PushStatus::Flush(_) => self.list_maker.flush(self.list_maker_id[reference]),
-    //    }
-    //    Ok(())
-    //}
+
+        //let meta = self.global_meta.get(&id).unwrap().clone();
+        //self.references.insert(id, len);
+        //self.local_meta.insert(id, meta);
+        //self.lists.push(list);
+        //self.list_maker_id.push(list_maker_id);
+    }
 
     pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[Type]) -> Result<(), Error> {
         let reference = *reference;
         match self.writers[reference].push_type(ts, data)? {
-            segment::PushStatus::Done => {}
-            segment::PushStatus::Flush(_) => self.list_maker.flush(self.list_maker_id[reference]),
+            segment::PushStatus::Done => {},
+            segment::PushStatus::Flush(_) => {},
+            //segment::PushStatus::Flush(_) => self.list_maker.flush(self.list_maker_id[reference]),
         }
         Ok(())
     }
 }
 
-struct ListMakerMeta {
-    segment: FlushSegment,
-    list: ListWriter,
+struct FlushItem {
     id: SeriesId,
+    list: Arc<List>,
+    segment: FlushSegment,
     compression: Compression,
 }
 
-impl ListMakerMeta {
-    fn write(&mut self, w: &mut DurableQueueWriter) {
-        //println!("WRITING TO ACTIVE BLOCK");
-        if self
-            .list
-            .push(self.id, self.segment.clone(), &self.compression, w)
-            .is_err()
-        {
-            println!("Error writing to list");
-        }
-
-        // Safety: self.list.push call above that contains a clone doesn't mark the segment as
-        // flushed
-        unsafe {
-            self.segment.flushed();
-        }
+fn block_list_worker(block_list: Arc<BlockList>, chan: Receiver<FlushItem>) {
+    while let Ok(x) = chan.recv() {
+        block_list.push(&*x.list, x.id, &x.segment, &x.compression);
     }
 }
 
-enum ListMakerRequest {
-    Register(ListMakerMeta),
-    Flush(usize),
-}
-
-impl std::fmt::Debug for ListMakerRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("ListMakerRequest");
-        match self {
-            Self::Register(_) => {
-                ds.field("Register", &"");
-            }
-            Self::Flush(id) => {
-                ds.field("Flush", &id);
-            }
-        }
-        ds.finish()
-    }
-}
-
-struct ListMaker {
-    sender: crossbeam_channel::Sender<ListMakerRequest>,
-    register_counter: usize,
-}
-
-impl ListMaker {
-    fn new(durable_queue_writer: DurableQueueWriter) -> Self {
-        let (sender, receiver) = crossbeam_channel::unbounded();
-        std::thread::spawn(move || {
-            worker(durable_queue_writer, receiver)
-        });
-        ListMaker {
-            sender,
-            register_counter: 0,
-        }
-    }
-
-    fn register(&mut self, meta: ListMakerMeta) -> usize {
-        let id = self.register_counter;
-        self.register_counter += 1;
-        //let e = "failed to send to flush worker";
-        self.sender.send(ListMakerRequest::Register(meta)).unwrap();
-        id
-    }
-
-    fn flush(&self, id: usize) {
-        self.sender
-            .send(ListMakerRequest::Flush(id))
-            .expect("failed to send to flush worker");
-        //QUEUE_LEN.fetch_add(1, SeqCst);
-    }
-}
-
-use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
-lazy_static::lazy_static! {
-    static ref QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
-}
-
-fn worker(mut w: DurableQueueWriter, mut queue: crossbeam_channel::Receiver<ListMakerRequest>) {
-    let mut metadata: Vec<ListMakerMeta> = Vec::new();
-    while let Ok(item) = queue.recv() {
-        //QUEUE_LEN.fetch_sub(1, SeqCst);
-        //println!("Queue len {}", QUEUE_LEN.load(SeqCst));
-        match item {
-            ListMakerRequest::Register(meta) => metadata.push(meta),
-            ListMakerRequest::Flush(id) => metadata[id].write(&mut w),
-        }
-    }
-}
+//struct ListMakerMeta {
+//    segment: FlushSegment,
+//    list: ListWriter,
+//    id: SeriesId,
+//    compression: Compression,
+//}
+//
+//impl ListMakerMeta {
+//    fn write(&mut self, w: &mut DurableQueueWriter) {
+//        //println!("WRITING TO ACTIVE BLOCK");
+//        if self
+//            .list
+//            .push(self.id, self.segment.clone(), &self.compression, w)
+//            .is_err()
+//        {
+//            println!("Error writing to list");
+//        }
+//
+//        // Safety: self.list.push call above that contains a clone doesn't mark the segment as
+//        // flushed
+//        unsafe {
+//            self.segment.flushed();
+//        }
+//    }
+//}
+//
+//enum ListMakerRequest {
+//    Register(ListMakerMeta),
+//    Flush(usize),
+//}
+//
+//impl std::fmt::Debug for ListMakerRequest {
+//    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//        let mut ds = f.debug_struct("ListMakerRequest");
+//        match self {
+//            Self::Register(_) => {
+//                ds.field("Register", &"");
+//            }
+//            Self::Flush(id) => {
+//                ds.field("Flush", &id);
+//            }
+//        }
+//        ds.finish()
+//    }
+//}
+//
+//struct ListMaker {
+//    sender: crossbeam_channel::Sender<ListMakerRequest>,
+//    register_counter: usize,
+//}
+//
+//impl ListMaker {
+//    fn new(durable_queue_writer: DurableQueueWriter) -> Self {
+//        let (sender, receiver) = crossbeam_channel::unbounded();
+//        std::thread::spawn(move || {
+//            worker(durable_queue_writer, receiver)
+//        });
+//        ListMaker {
+//            sender,
+//            register_counter: 0,
+//        }
+//    }
+//
+//    fn register(&mut self, meta: ListMakerMeta) -> usize {
+//        let id = self.register_counter;
+//        self.register_counter += 1;
+//        //let e = "failed to send to flush worker";
+//        self.sender.send(ListMakerRequest::Register(meta)).unwrap();
+//        id
+//    }
+//
+//    fn flush(&self, id: usize) {
+//        self.sender
+//            .send(ListMakerRequest::Flush(id))
+//            .expect("failed to send to flush worker");
+//        //QUEUE_LEN.fetch_add(1, SeqCst);
+//    }
+//}
+//
+//use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+//lazy_static::lazy_static! {
+//    static ref QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
+//}
+//
+//fn worker(mut w: DurableQueueWriter, mut queue: crossbeam_channel::Receiver<ListMakerRequest>) {
+//    let mut metadata: Vec<ListMakerMeta> = Vec::new();
+//    while let Ok(item) = queue.recv() {
+//        //QUEUE_LEN.fetch_sub(1, SeqCst);
+//        //println!("Queue len {}", QUEUE_LEN.load(SeqCst));
+//        match item {
+//            ListMakerRequest::Register(meta) => metadata.push(meta),
+//            ListMakerRequest::Flush(id) => metadata[id].write(&mut w),
+//        }
+//    }
+//}
 
 #[cfg(test)]
 mod test {

@@ -2,16 +2,19 @@ use crate::{
     compression::Compression,
     durable_queue::QueueConfig,
     //persistent_list::{self, List, ListBuffer},
-    persistent_list::{self, List},
+    mem_list::{BlockList, List},
+    persistent_list,
     //reader::Snapshot,
     segment::{self, Segment, SegmentSnapshot},
     snapshot::Snapshot,
     id::SeriesId,
 };
 use serde::*;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum Error {
+    Noop,
     Segment(segment::Error),
     PersistentList(persistent_list::Error),
 }
@@ -70,19 +73,19 @@ pub struct SeriesConfig {
 #[derive(Clone)]
 pub struct Series {
     config: SeriesConfig,
-    queue: QueueConfig,
     segment: Segment,
-    list: List,
+    list: Arc<List>,
+    block_list: Arc<BlockList>,
 }
 
 impl Series {
-    pub fn new(config: SeriesConfig, queue: QueueConfig, list: List) -> Self {
+    pub fn new(config: SeriesConfig, block_list: Arc<BlockList>) -> Self {
         assert_eq!(config.nvars, config.compression.len());
         Self {
             segment: segment::Segment::new(config.seg_count, config.types.as_slice()),
             config,
-            list,
-            queue,
+            list: Arc::new(List::new()),
+            block_list,
         }
     }
 
@@ -91,9 +94,10 @@ impl Series {
     }
 
     pub fn snapshot(&self) -> Result<Snapshot, Error> {
-        let segment = self.segment.snapshot()?;
-        let list = self.list.snapshot()?;
-        Ok(Snapshot::new(segment, list))
+        //let segment = self.segment.snapshot()?;
+        //let list = self.list.snapshot()?;
+        //Ok(Snapshot::new(segment, list))
+        Err(Error::Noop)
     }
 
     //pub fn snapshot(&self) -> Result<Snapshot, Error> {
@@ -106,9 +110,9 @@ impl Series {
         &self.config
     }
 
-    pub fn queue(&self) -> &QueueConfig {
-        &self.queue
-    }
+    //pub fn queue(&self) -> &QueueConfig {
+    //    &self.queue
+    //}
 
     pub fn compression(&self) -> &Compression {
         &self.config.compression

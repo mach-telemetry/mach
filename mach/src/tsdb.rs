@@ -2,7 +2,7 @@ use crate::{
     durability::*,
     id::*,
     persistent_list::{self, List},
-    reader::ReadServer,
+    //reader::ReadServer,
     series::{self, *},
     writer::{Writer, WriterConfig, WriterMetadata},
     durable_queue::QueueConfig,
@@ -33,7 +33,8 @@ impl From<series::Error> for Error {
 
 pub struct Mach {
     writers: Vec<WriterId>,
-    writer_table: HashMap<WriterId, (WriterMetadata, DurabilityWorker)>,
+    //writer_table: HashMap<WriterId, (WriterMetadata, DurabilityWorker)>,
+    writer_table: HashMap<WriterId, WriterMetadata>,
     series_table: Arc<DashMap<SeriesId, Series>>,
 }
 
@@ -46,9 +47,9 @@ impl Mach {
         }
     }
 
-    pub fn new_read_server(&self, config: QueueConfig) -> ReadServer {
-        ReadServer::new(self.series_table.clone(), config)
-    }
+    //pub fn new_read_server(&self, config: QueueConfig) -> ReadServer {
+    //    ReadServer::new(self.series_table.clone(), config)
+    //}
 
     pub fn add_writer(&mut self, writer_config: WriterConfig) -> Result<Writer, Error> {
         let global_meta = self.series_table.clone();
@@ -59,10 +60,11 @@ impl Mach {
             QueueConfig::Noop => {} ,
         }
         let (writer, meta) = Writer::new(global_meta, writer_config);
-        let durability = DurabilityWorker::new(meta.id.clone(), meta.active_block.clone(), q);
+        //let durability = DurabilityWorker::new(meta.id.clone(), meta.block_list.clone(), q);
         self.writers.push(meta.id.clone());
         self.writer_table
-            .insert(meta.id.clone(), (meta, durability));
+            .insert(meta.id.clone(), meta);
+            //.insert(meta.id.clone(), (meta, durability));
         Ok(writer)
     }
 
@@ -73,13 +75,14 @@ impl Mach {
             .choose(&mut rand::thread_rng())
             .unwrap()
             .clone();
-        let (writer_meta, durability) = self.writer_table.get(&writer).unwrap();
+        //let (writer_meta, durability) = self.writer_table.get(&writer).unwrap();
+        let writer_meta = self.writer_table.get(&writer).unwrap();
 
-        let queue_config = writer_meta.queue_config.clone();
-        let list = List::new(writer_meta.active_block.clone());
+        let block_list = writer_meta.block_list.clone();
+        //let list = List::new(writer_meta.active_block.clone());
         let series_id = config.id;
-        let series = Series::new(config, queue_config, list);
-        durability.register_series(series.clone());
+        let series = Series::new(config, block_list);
+        //durability.register_series(series.clone());
         self.series_table.insert(series_id, series);
 
         Ok((writer, series_id))

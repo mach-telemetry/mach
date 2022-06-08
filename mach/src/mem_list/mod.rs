@@ -83,6 +83,13 @@ fn flush_worker(chan: Arc<SegQueue<Arc<ReadOnlyBlock>>>) {
 pub struct List {
     head: AtomicU64,
 }
+impl List {
+    pub fn new() -> Self {
+        List {
+            head: AtomicU64::new(u64::MAX)
+        }
+    }
+}
 
 pub struct BlockList {
     head_block: WpLock<Block>,
