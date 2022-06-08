@@ -1,5 +1,6 @@
 use clap::*;
 use lazy_static::lazy_static;
+use num_format::{Locale, ToFormattedString};
 use rand::{thread_rng, Rng};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
@@ -8,8 +9,13 @@ use rdkafka::{
     producer::FutureProducer,
     producer::FutureRecord,
 };
-use std::thread::JoinHandle;
 use std::{sync::atomic::AtomicU64, thread, time::Duration};
+
+macro_rules! mb_to_bytes {
+    ($mb: expr) => {
+        $mb * 1_000_000
+    };
+}
 
 lazy_static! {
     static ref TOPIC: String = uuid::Uuid::new_v4().to_string();
@@ -26,16 +32,30 @@ struct Args {
     bootstrap_servers: String,
     #[clap(short, long, default_value_t = 1)]
     batch_size_mb: usize,
+    #[clap(short, long, default_value_t = 10_000)]
+    total_write_size_mb: usize,
 }
 
-fn print_throughput() {
+fn collect_median(threshold: usize) -> u64 {
     let mut prev = 0;
+    let mut collected = Vec::new();
     loop {
         let curr = COUNTER.load(std::sync::atomic::Ordering::SeqCst);
+
         let bytes_sent = curr - prev;
         prev = curr;
-        println!("Throughput: {} bytes / sec", bytes_sent);
-        thread::sleep(Duration::from_secs(1));
+        println!(
+            "Throughput: {} bytes / sec",
+            bytes_sent.to_formatted_string(&Locale::en)
+        );
+        collected.push(bytes_sent);
+
+        if curr >= threshold.try_into().unwrap() {
+            collected.sort();
+            return collected[collected.len() / 2];
+        } else {
+            thread::sleep(Duration::from_secs(1));
+        }
     }
 }
 
@@ -88,20 +108,17 @@ fn main() {
     println!("Args:\n{:#?}", args);
 
     make_topic(args.bootstrap_servers.as_str());
-    let payload = make_payload(args.batch_size_mb * 1_000_000);
+    let payload = make_payload(mb_to_bytes!(args.batch_size_mb));
 
-    let writer_handles: Vec<JoinHandle<()>> = (0..args.writers)
-        .map(|_| {
-            let producer = default_producer(args.bootstrap_servers.clone());
-            let my_payload = payload.clone();
-            thread::spawn(move || kafka_write(producer, my_payload.as_slice()))
-        })
-        .collect();
-
-    let print_thread = thread::spawn(print_throughput);
-
-    for handle in writer_handles {
-        handle.join().unwrap();
+    for _ in 0..args.writers {
+        let producer = default_producer(args.bootstrap_servers.clone());
+        let my_payload = payload.clone();
+        thread::spawn(move || kafka_write(producer, my_payload.as_slice()));
     }
-    print_thread.join().unwrap();
+
+    let median = collect_median(mb_to_bytes!(args.total_write_size_mb));
+    println!(
+        "Median: {} bytes/sec",
+        median.to_formatted_string(&Locale::en)
+    );
 }
