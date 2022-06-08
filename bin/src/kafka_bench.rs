@@ -30,10 +30,12 @@ struct Args {
     writers: usize,
     #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
     bootstrap_servers: String,
-    #[clap(short, long, default_value_t = 1)]
-    batch_size_mb: usize,
-    #[clap(short, long, default_value_t = 10_000)]
-    total_write_size_mb: usize,
+    /// Number of bytes in a batch written to kafka.
+    #[clap(short, long, default_value_t = mb_to_bytes!(1))]
+    batch_size: usize,
+    /// Total number of bytes written to kafka.
+    #[clap(short, long, default_value_t = mb_to_bytes!(50_000))]
+    total_bytes: usize,
 }
 
 fn collect_median(threshold: usize) -> u64 {
@@ -108,7 +110,7 @@ fn main() {
     println!("Args:\n{:#?}", args);
 
     make_topic(args.bootstrap_servers.as_str());
-    let payload = make_payload(mb_to_bytes!(args.batch_size_mb));
+    let payload = make_payload(args.batch_size);
 
     for _ in 0..args.writers {
         let producer = default_producer(args.bootstrap_servers.clone());
@@ -116,7 +118,7 @@ fn main() {
         thread::spawn(move || kafka_write(producer, my_payload.as_slice()));
     }
 
-    let median = collect_median(mb_to_bytes!(args.total_write_size_mb));
+    let median = collect_median(args.total_bytes);
     println!(
         "Median: {} bytes/sec",
         median.to_formatted_string(&Locale::en)
