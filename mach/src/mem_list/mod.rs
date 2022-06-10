@@ -23,6 +23,7 @@ use kafka::client::{
     ProduceMessage,
     RequiredAcks
 };
+use rand::{Rng, thread_rng};
 
 fn make_topic(bootstrap_servers: &str, topic: &str) {
     println!("Creating topic");
@@ -40,6 +41,7 @@ fn make_topic(bootstrap_servers: &str, topic: &str) {
     futures::executor::block_on(client.create_topics(topics, &admin_opts)).unwrap();
     println!("topic created: {}", TOPIC.as_str());
 }
+
 
 //
 //fn default_producer(bootstraps: &str) -> FutureProducer {
@@ -73,14 +75,15 @@ lazy_static! {
     static ref TOPIC: String = random_id();
 }
 
-const FLUSHERS: usize = 1;
+const FLUSHERS: usize = 4;
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
+static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 
 struct Flusher {
     block_list: Arc<BlockList>,
 }
 
-fn flush_worker(chan: flume::Receiver<Arc<ReadOnlyBlock>>) {
+fn flush_worker(chan: crossbeam::channel::Receiver<Arc<ReadOnlyBlock>>) {
     use rand::Rng;
     use std::convert::TryInto;
     //let mut buf = Vec::new();
@@ -92,6 +95,7 @@ fn flush_worker(chan: flume::Receiver<Arc<ReadOnlyBlock>>) {
     let mut client = KafkaClient::new(bootstraps);
     client.load_metadata_all().unwrap();
     while let Ok(block) = chan.recv() {
+        QUEUE_LEN.fetch_sub(1, SeqCst);
         let mut guard = block.inner.lock().unwrap();
         let (partition, offset): (usize, usize) = match &*guard {
             InnerReadOnlyBlock::Bytes(x) => {
@@ -105,6 +109,7 @@ fn flush_worker(chan: flume::Receiver<Arc<ReadOnlyBlock>>) {
             _ => unimplemented!(),
         };
         *guard = InnerReadOnlyBlock::Offset(partition, offset);
+        //*guard = InnerReadOnlyBlock::Offset(0, 0);
     }
 }
 
@@ -123,24 +128,25 @@ pub struct BlockList {
     head_block: WpLock<Block>,
     tail: AtomicU64,
     block_map: DashMap<u64, (SystemTime, Arc<ReadOnlyBlock>)>,
-    flush_queue: flume::Sender<Arc<ReadOnlyBlock>>,
+    flushers: Vec<crossbeam::channel::Sender<Arc<ReadOnlyBlock>>>,
 }
 
 impl BlockList {
     pub fn new() -> Self {
         make_topic(BOOTSTRAPS.as_str(), TOPIC.as_str());
-        let (flush_queue, rx) = flume::unbounded();
+        let mut flushers = Vec::new();
         for _ in 0..FLUSHERS {
-            let q = rx.clone();
+            let (tx, rx) = crossbeam::channel::unbounded();
             std::thread::spawn(move || {
-                flush_worker(q);
+                flush_worker(rx);
             });
+            flushers.push(tx);
         }
         BlockList {
             head_block: WpLock::new(Block::new()),
             tail: AtomicU64::new(0),
             block_map: DashMap::new(),
-            flush_queue,
+            flushers,
         }
     }
 
@@ -179,8 +185,8 @@ impl BlockList {
             // Safety: there should be only one writer and it should be doing this push
             let copy = Arc::new(unsafe { self.head_block.unprotected_read().as_read_only() });
             self.block_map.insert(block_id, (SystemTime::now(), copy.clone()));
-            self.flush_queue.send(copy).unwrap();
-            println!("FLUSH QUEUE LEN: {}", self.flush_queue.len());
+            self.flushers[thread_rng().gen_range(0..FLUSHERS)].send(copy).unwrap();
+            println!("FLUSH QUEUE LEN: {}", QUEUE_LEN.fetch_add(1, SeqCst));
 
             // Mark current block as cleared
             self.head_block.protected_write().reset();
