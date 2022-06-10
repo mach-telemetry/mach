@@ -72,10 +72,10 @@ pub struct SeriesConfig {
 
 #[derive(Clone)]
 pub struct Series {
-    config: SeriesConfig,
-    segment: Segment,
-    list: Arc<List>,
-    block_list: Arc<BlockList>,
+    pub config: SeriesConfig,
+    pub segment: Segment,
+    pub list: Arc<List>,
+    pub block_list: Arc<BlockList>,
 }
 
 impl Series {
@@ -106,23 +106,23 @@ impl Series {
     //    Ok(Snapshot::new(segment, list))
     //}
 
-    pub fn config(&self) -> &SeriesConfig {
-        &self.config
-    }
-
-    //pub fn queue(&self) -> &QueueConfig {
-    //    &self.queue
+    //pub fn config(&self) -> &SeriesConfig {
+    //    &self.config
     //}
 
-    pub fn compression(&self) -> &Compression {
-        &self.config.compression
-    }
+    ////pub fn queue(&self) -> &QueueConfig {
+    ////    &self.queue
+    ////}
 
-    pub fn segment(&self) -> &Segment {
-        &self.segment
-    }
+    //pub fn compression(&self) -> &Compression {
+    //    &self.config.compression
+    //}
 
-    pub fn list(&self) -> &List {
-        &self.list
-    }
+    //pub fn segment(&self) -> &Segment {
+    //    &self.segment
+    //}
+
+    //pub fn list(&self) -> &List {
+    //    &self.list
+    //}
 }

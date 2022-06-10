@@ -18,8 +18,14 @@ use rdkafka::{
     client::DefaultClientContext,
 };
 use crossbeam_queue::SegQueue;
+use kafka::client::{
+    KafkaClient,
+    ProduceMessage,
+    RequiredAcks
+};
 
 fn make_topic(bootstrap_servers: &str, topic: &str) {
+    println!("Creating topic");
     let client: AdminClient<DefaultClientContext> = ClientConfig::new()
         .set("bootstrap.servers", bootstrap_servers.to_string())
         .create()
@@ -35,48 +41,70 @@ fn make_topic(bootstrap_servers: &str, topic: &str) {
     println!("topic created: {}", TOPIC.as_str());
 }
 
-fn default_producer(bootstraps: &str) -> FutureProducer {
-    println!("making producer to bootstraps: {}", bootstraps);
-    let producer: FutureProducer = ClientConfig::new()
-        .set("bootstrap.servers", bootstraps)
-        .set("message.max.bytes", "1000000000")
-        .set("message.copy.max.bytes", "5000000")
-        .set("compression.type", "none")
-        .set("acks", "all")
-        .set("message.timeout.ms", "10000")
-        .create()
-        .unwrap();
-    producer
+//
+//fn default_producer(bootstraps: &str) -> FutureProducer {
+//    println!("making producer to bootstraps: {}", bootstraps);
+//    let producer: FutureProducer = ClientConfig::new()
+//        .set("bootstrap.servers", bootstraps)
+//        .set("message.max.bytes", "1000000000")
+//        .set("message.copy.max.bytes", "5000000")
+//        .set("compression.type", "none")
+//        .set("acks", "all")
+//        .set("message.timeout.ms", "10000")
+//        .create()
+//        .unwrap();
+//    println!("producers made");
+//    producer
+//}
+
+fn kafka_client(bootstraps: Vec<String>) -> KafkaClient {
+    let bootstraps = vec![
+        "localhost:9093".to_owned(),
+        "localhost:9094".to_owned(),
+        "localhost:9095".to_owned()
+    ];
+    let mut client = KafkaClient::new(bootstraps);
+    client.load_metadata_all().unwrap();
+    client
 }
 
 lazy_static! {
     static ref BOOTSTRAPS: String = String::from("localhost:9093,localhost:9094,localhost:9095");
-    static ref TOPIC: String = {
-        let topic = random_id();
-        make_topic(&*BOOTSTRAPS, topic.as_str());
-        topic
-    };
+    static ref TOPIC: String = random_id();
 }
 
-const FLUSHERS: usize = 4;
+const FLUSHERS: usize = 1;
+pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 
 struct Flusher {
     block_list: Arc<BlockList>,
 }
 
-fn flush_worker(chan: Arc<SegQueue<Arc<ReadOnlyBlock>>>) {
+fn flush_worker(chan: flume::Receiver<Arc<ReadOnlyBlock>>) {
+    use rand::Rng;
+    use std::convert::TryInto;
     //let mut buf = Vec::new();
-    let producer = default_producer(&*BOOTSTRAPS);
-    while let Some(block) = chan.pop() {
+    let bootstraps = vec![
+        "localhost:9093".to_owned(),
+        "localhost:9094".to_owned(),
+        "localhost:9095".to_owned()
+    ];
+    let mut client = KafkaClient::new(bootstraps);
+    client.load_metadata_all().unwrap();
+    while let Ok(block) = chan.recv() {
         let mut guard = block.inner.lock().unwrap();
-        let (partition, offset) = match &*guard {
+        let (partition, offset): (usize, usize) = match &*guard {
             InnerReadOnlyBlock::Bytes(x) => {
-                let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&TOPIC).payload(x);
-                futures::executor::block_on(producer.send(to_send, Duration::from_secs(0))).unwrap()
+                let part: i32= rand::thread_rng().gen_range(0..3);
+                let req = vec![ProduceMessage::new(&*TOPIC, part, None, Some(&x))];
+                let resp = client.produce_messages(RequiredAcks::All, Duration::from_millis(1000), req.as_slice()).unwrap();
+                let offset = resp[0].partition_confirms[0].offset.unwrap();
+                TOTAL_MB_WRITTEN.fetch_add(x.len(), SeqCst);
+                (part.try_into().unwrap(), offset.try_into().unwrap())
             },
             _ => unimplemented!(),
         };
-        *guard = InnerReadOnlyBlock::Offset(partition as usize, offset as usize);
+        *guard = InnerReadOnlyBlock::Offset(partition, offset);
     }
 }
 
@@ -95,14 +123,15 @@ pub struct BlockList {
     head_block: WpLock<Block>,
     tail: AtomicU64,
     block_map: DashMap<u64, (SystemTime, Arc<ReadOnlyBlock>)>,
-    flush_queue: Arc<SegQueue<Arc<ReadOnlyBlock>>>,
+    flush_queue: flume::Sender<Arc<ReadOnlyBlock>>,
 }
 
 impl BlockList {
     pub fn new() -> Self {
-        let flush_queue = Arc::new(SegQueue::new());
+        make_topic(BOOTSTRAPS.as_str(), TOPIC.as_str());
+        let (flush_queue, rx) = flume::unbounded();
         for _ in 0..FLUSHERS {
-            let q = flush_queue.clone();
+            let q = rx.clone();
             std::thread::spawn(move || {
                 flush_worker(q);
             });
@@ -128,6 +157,7 @@ impl BlockList {
         segment: &FlushSegment,
         compression: &Compression,
     ) {
+        //println!("PUSHING HERE");
 
         // Safety: id() is atomic
         let block_id = unsafe { self.head_block.unprotected_read().id.load(SeqCst) };
@@ -145,10 +175,12 @@ impl BlockList {
         }
 
         if is_full {
+            //println!("is full");
             // Safety: there should be only one writer and it should be doing this push
             let copy = Arc::new(unsafe { self.head_block.unprotected_read().as_read_only() });
             self.block_map.insert(block_id, (SystemTime::now(), copy.clone()));
-            self.flush_queue.push(copy);
+            self.flush_queue.send(copy).unwrap();
+            println!("FLUSH QUEUE LEN: {}", self.flush_queue.len());
 
             // Mark current block as cleared
             self.head_block.protected_write().reset();

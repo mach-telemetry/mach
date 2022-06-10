@@ -46,6 +46,7 @@ pub struct Writer {
     global_meta: Arc<DashMap<SeriesId, Series>>,
     local_meta: HashMap<SeriesId, Series>,
     references: HashMap<SeriesId, usize>,
+    series: Vec<Series>,
     writers: Vec<WriteSegment>,
     block_list: Arc<BlockList>,
     id: WriterId,
@@ -83,6 +84,7 @@ impl Writer {
             local_meta: HashMap::new(),
             references: HashMap::new(),
             writers: Vec::new(),
+            series: Vec::new(),
             block_list,
             block_worker,
             //list_maker,
@@ -102,8 +104,9 @@ impl Writer {
     pub fn get_reference(&mut self, id: SeriesId) -> SeriesRef {
         let series_ref = self.writers.len();
         let series = self.global_meta.get(&id).unwrap().clone();
-        let writer = series.segment().writer().unwrap();
+        let writer = series.segment.writer().unwrap();
         self.writers.push(writer);
+        self.series.push(series.clone());
         SeriesRef(series_ref)
 
 
@@ -118,7 +121,19 @@ impl Writer {
         let reference = *reference;
         match self.writers[reference].push_type(ts, data)? {
             segment::PushStatus::Done => {},
-            segment::PushStatus::Flush(_) => {},
+            segment::PushStatus::Flush(_) => {
+                let series = &self.series[reference];
+                let id = series.config.id;
+                let list = series.list.clone();
+                let compression = series.config.compression.clone();
+                let segment = self.writers[reference].flush();
+                self.block_worker.send( FlushItem {
+                    id,
+                    list,
+                    segment,
+                    compression,
+                }).unwrap();
+            }
             //segment::PushStatus::Flush(_) => self.list_maker.flush(self.list_maker_id[reference]),
         }
         Ok(())
@@ -134,7 +149,13 @@ struct FlushItem {
 
 fn block_list_worker(block_list: Arc<BlockList>, chan: Receiver<FlushItem>) {
     while let Ok(x) = chan.recv() {
+        //println!("GOT SOMETHING");
         block_list.push(&*x.list, x.id, &x.segment, &x.compression);
+        // Safety: self.list.push call above that contains a clone doesn't mark the segment as
+        // flushed
+        unsafe {
+            x.segment.flushed();
+        }
     }
 }
 

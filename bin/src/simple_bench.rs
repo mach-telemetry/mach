@@ -36,6 +36,7 @@ use std::collections::{HashMap, HashSet, hash_map::DefaultHasher};
 //use std::hash::{Hash, Hasher};
 use std::fs::File;
 use std::io::prelude::*;
+use std::sync::atomic::Ordering::SeqCst;
 //use lazy_static::*;
 use clap::Parser;
 
@@ -48,6 +49,7 @@ use mach::{
     tsdb::Mach,
     writer::{Writer, WriterConfig},
     sample::Type,
+    mem_list::TOTAL_MB_WRITTEN,
 };
 
 fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
@@ -58,7 +60,7 @@ fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
             Type::U32(_) => (Types::U32, CompressFn::IntBitpack),
             Type::U64(_) => (Types::U64, CompressFn::LZ4),
             Type::F64(_) => (Types::F64, CompressFn::Decimal(3)),
-            Type::Bytes(_) => (Types::Bytes, CompressFn::NOOP),
+            Type::Bytes(_) => (Types::Bytes, CompressFn::BytesLZ4),
             Type::BorrowedBytes(_) => (Types::Bytes, CompressFn::NOOP),
             _ => unimplemented!(),
         };
@@ -75,6 +77,34 @@ fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
         nvars,
     };
     conf
+}
+
+use std::time::Duration;
+use kafka::client::{KafkaClient, ProduceMessage, RequiredAcks};
+
+fn kafka_ingest_worker(rx: flume::Receiver<mach_otlp::OtlpData>) {
+        use rand::Rng;
+    use std::convert::TryInto;
+    //let mut buf = Vec::new();
+    let bootstraps = vec![
+        "localhost:9093".to_owned(),
+        "localhost:9094".to_owned(),
+        "localhost:9095".to_owned()
+    ];
+    let mut client = KafkaClient::new(bootstraps);
+    client.load_metadata_all().unwrap();
+    let mut buf = Vec::new();
+    while let Ok(sample) = chan.recv() {
+        let serialized_sz = bincode::serialized_size(&item).unwrap() as usize;
+        let len = buf.len();
+        buf.resize(buf.len() + serialized_sz, 0);
+        bincode::serialize_into(&mut buf[len..], &item).unwrap();
+
+        let part: i32= rand::thread_rng().gen_range(0..3);
+        let req = vec![ProduceMessage::new(&*TOPIC, part, None, Some(&bincode::encode(&sample)))];
+        let resp = client.produce_messages(RequiredAcks::All, Duration::from_millis(1000), req.as_slice()).unwrap();
+        let offset = resp[0].partition_confirms[0].offset.unwrap();
+    }
 }
 
 fn kafka_ingest(args: Args, mut data: Vec<mach_otlp::OtlpData>) {
@@ -97,7 +127,7 @@ fn kafka_ingest(args: Args, mut data: Vec<mach_otlp::OtlpData>) {
     let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(3)));
     let topics = &[NewTopic {
         name: topic.as_str(),
-        num_partitions: 1,
+        num_partitions: 3,
         replication: TopicReplication::Fixed(3),
         config: vec![("min.insync.replicas", "3")],
     }];
@@ -190,6 +220,7 @@ fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
                     item.get_samples(&mut spans);
                     //spans.append(&mut samples);
                 }
+ 
             },
             _ => unimplemented!(),
         }
@@ -200,6 +231,9 @@ fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
     let now = std::time::Instant::now();
     let mut skipped = 0;
     let mut tries = Vec::with_capacity(spans.len());
+    let mut last = now.clone();
+    let interval = std::time::Duration::from_secs(1) / 1000;
+    let mut raw_byte_sz = 0;
     for (id, ts, values) in spans.iter() {
         let id = *id;
         let ts = *ts;
@@ -209,18 +243,24 @@ fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
             let id_ref = writer.get_reference(id);
             id_ref
         });
-        let mut failed = 1;
+        //let mut failed = 1;
         //for _ in 0..10 {
-        let mut try_count = 0;
+        //let mut try_count = 0;
+        //while std::time::Instant::now() - last < interval {}
+        raw_byte_sz += match &values[0] {
+            Type::Bytes(x) => x.len(),
+            _ => unimplemented!(),
+        };
         loop {
-            try_count += 1;
+            //try_count += 1;
             if writer.push(id_ref, ts, values.as_slice()).is_ok() {
-                failed = 0;
+                //failed = 0;
+                //last = std::time::Instant::now();
                 break;
             }
         };
-        tries.push(try_count);
-        skipped += failed;
+        //tries.push(try_count);
+        //skipped += failed;
     }
     let push_time = now.elapsed();
     let elapsed = extract_time + push_time;
@@ -234,6 +274,10 @@ fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
     let total_tries: usize = tries.iter().sum();
     println!("Tries: {} / {}", total_tries, tries.len());
     println!("Number of series: {}", reference_map.len());
+
+    std::thread::sleep(std::time::Duration::from_secs(5));
+    println!("Total mb written {}", TOTAL_MB_WRITTEN.load(SeqCst));
+    println!("Raw size written {}", raw_byte_sz);
 }
 
 #[derive(Parser, Debug, Clone)]
