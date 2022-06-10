@@ -90,7 +90,7 @@ path = "src/mach-otlp-server.rs"
 #path = "src/otlp_load_bench.rs"
 
 [[bin]]
-name = "simple_bench"
+name = "simple-bench"
 path = "src/simple_bench.rs"
 
 [[bin]]

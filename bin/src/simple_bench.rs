@@ -4,6 +4,7 @@
 //mod tag_index;
 //mod id_index;
 
+mod kafka_utils;
 
 //use otlp::{
 //    metrics::v1::{metric::Data, MetricsData, number_data_point, ResourceMetrics},
@@ -52,6 +53,123 @@ use mach::{
     mem_list::TOTAL_MB_WRITTEN,
 };
 
+//fn kafka_ingest_worker(rx: flume::Receiver<mach_otlp::OtlpData>) {
+//        use rand::Rng;
+//    use std::convert::TryInto;
+//    //let mut buf = Vec::new();
+//    let bootstraps = vec![
+//        "localhost:9093".to_owned(),
+//        "localhost:9094".to_owned(),
+//        "localhost:9095".to_owned()
+//    ];
+//    let mut client = KafkaClient::new(bootstraps);
+//    client.load_metadata_all().unwrap();
+//    let mut buf = Vec::new();
+//    while let Ok(sample) = chan.recv() {
+//        let serialized_sz = bincode::serialized_size(&item).unwrap() as usize;
+//        let len = buf.len();
+//        buf.resize(buf.len() + serialized_sz, 0);
+//        bincode::serialize_into(&mut buf[len..], &item).unwrap();
+//
+//        let part: i32= rand::thread_rng().gen_range(0..3);
+//        let req = vec![ProduceMessage::new(&*TOPIC, part, None, Some(&bincode::encode(&sample)))];
+//        let resp = client.produce_messages(RequiredAcks::All, Duration::from_millis(1000), req.as_slice()).unwrap();
+//        let offset = resp[0].partition_confirms[0].offset.unwrap();
+//    }
+//}
+
+fn get_samples(data: &[mach_otlp::OtlpData]) -> Vec<(SeriesId, u64, Vec<Type>)> {
+    let mut vec = Vec::new();
+    for item in data.iter() {
+        match item {
+            mach_otlp::OtlpData::Spans(x) => {
+                for item in x {
+                    item.get_samples(&mut vec);
+                }
+ 
+            },
+            _ => unimplemented!(),
+        }
+    }
+    vec
+}
+
+fn kafka_ingest(args: Args, mut data: Vec<mach_otlp::OtlpData>) {
+    let topic = random_id();
+    kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
+    let samples = get_samples(data.as_slice());
+
+    //let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+    //let topic = random_id();
+
+    //let client: AdminClient<DefaultClientContext> = ClientConfig::new()
+    //    .set("bootstrap.servers", &args.kafka_bootstraps)
+    //    .create()
+    //    .unwrap();
+    //let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(3)));
+    //let topics = &[NewTopic {
+    //    name: topic.as_str(),
+    //    num_partitions: 3,
+    //    replication: TopicReplication::Fixed(3),
+    //    config: vec![("min.insync.replicas", "3")],
+    //}];
+    //rt.block_on(client.create_topics(topics, &admin_opts)).unwrap();
+
+    //let producer: FutureProducer = ClientConfig::new()
+    //    .set("bootstrap.servers", args.kafka_bootstraps)
+    //    .set("acks", "all")
+    //    .set("linger.ms", "0")
+    //    .set("compression.type", "none")
+    //    .set("message.max.bytes", "1000000000")
+    //    .set("message.copy.max.bytes", "1000000000")
+    //    .create()
+    //    .unwrap();
+
+    ////let mut byte_buffer: Vec<u8> = Vec::with_capacity(2usize.pow(15));
+    //let mut buf = Vec::new();
+    //let now = std::time::Instant::now();
+    //let written = data.len() as u32;
+    //let mut sz = 0;
+    //let mut uncompressed = 0u32;
+    //for item in data {
+    //    let serialized_sz = bincode::serialized_size(&item).unwrap() as usize;
+    //    let len = buf.len();
+    //    buf.resize(buf.len() + serialized_sz, 0);
+    //    bincode::serialize_into(&mut buf[len..], &item).unwrap();
+    //    //match item {
+    //    //    mach_otlp::OtlpData::Spans(x) => {
+    //    //        let x = mach_otlp::trace::v1::TracesData { resource_spans: x };
+    //    //        let sz = x.encoded_len();
+    //    //        let buf_len = buf.len();
+    //    //        buf.resize(buf_len + sz, 0);
+    //    //        let mut slice: &mut [u8] = &mut buf[buf_len..];
+    //    //        x.encode(&mut slice);
+    //    //    }
+    //    //    _ => unimplemented!()
+    //    //}
+    //    if buf.len() > 1000000 {
+    //        let sl = buf.as_slice();
+    //        uncompressed += sl.len() as u32;
+    //        let bytes = encode_all(sl, 0).unwrap();
+    //        let to_send: FutureRecord<str, [u8]> =
+    //            FutureRecord::to(&topic).payload(&bytes);
+    //        match rt.block_on(producer.send(to_send, Duration::from_secs(3))) {
+    //            Ok(x) => {},
+    //            Err(_) => panic!("Producer failed"),
+    //        };
+    //        sz += bytes.len();
+    //        buf.clear();
+    //    }
+    //}
+    //let elapsed = now.elapsed();
+    //let elapsed_sec = elapsed.as_secs_f64();
+
+    //let written: f64 = written.try_into().unwrap();
+    //let sz: f64 = (sz as u32).try_into().unwrap();
+    //println!("Bytes Written {}, Elapsed {:?}, items/sec {}, bytes/sec {}", sz, elapsed, written/elapsed_sec, sz / elapsed_sec );
+    //println!("Uncompressed {}", uncompressed);
+}
+
 fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
     let mut types = Vec::new();
     let mut compression = Vec::new();
@@ -79,114 +197,6 @@ fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
     conf
 }
 
-use std::time::Duration;
-use kafka::client::{KafkaClient, ProduceMessage, RequiredAcks};
-
-fn kafka_ingest_worker(rx: flume::Receiver<mach_otlp::OtlpData>) {
-        use rand::Rng;
-    use std::convert::TryInto;
-    //let mut buf = Vec::new();
-    let bootstraps = vec![
-        "localhost:9093".to_owned(),
-        "localhost:9094".to_owned(),
-        "localhost:9095".to_owned()
-    ];
-    let mut client = KafkaClient::new(bootstraps);
-    client.load_metadata_all().unwrap();
-    let mut buf = Vec::new();
-    while let Ok(sample) = chan.recv() {
-        let serialized_sz = bincode::serialized_size(&item).unwrap() as usize;
-        let len = buf.len();
-        buf.resize(buf.len() + serialized_sz, 0);
-        bincode::serialize_into(&mut buf[len..], &item).unwrap();
-
-        let part: i32= rand::thread_rng().gen_range(0..3);
-        let req = vec![ProduceMessage::new(&*TOPIC, part, None, Some(&bincode::encode(&sample)))];
-        let resp = client.produce_messages(RequiredAcks::All, Duration::from_millis(1000), req.as_slice()).unwrap();
-        let offset = resp[0].partition_confirms[0].offset.unwrap();
-    }
-}
-
-fn kafka_ingest(args: Args, mut data: Vec<mach_otlp::OtlpData>) {
-    use rdkafka::{
-        admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
-        client::DefaultClientContext,
-        config::ClientConfig,
-        producer::{FutureProducer, FutureRecord},
-    };
-    use zstd::stream::{encode_all};
-    use prost::Message;
-
-    let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
-    let topic = random_id();
-
-    let client: AdminClient<DefaultClientContext> = ClientConfig::new()
-        .set("bootstrap.servers", &args.kafka_bootstraps)
-        .create()
-        .unwrap();
-    let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(3)));
-    let topics = &[NewTopic {
-        name: topic.as_str(),
-        num_partitions: 3,
-        replication: TopicReplication::Fixed(3),
-        config: vec![("min.insync.replicas", "3")],
-    }];
-    rt.block_on(client.create_topics(topics, &admin_opts)).unwrap();
-
-    let producer: FutureProducer = ClientConfig::new()
-        .set("bootstrap.servers", args.kafka_bootstraps)
-        .set("acks", "all")
-        .set("linger.ms", "0")
-        .set("compression.type", "none")
-        .set("message.max.bytes", "1000000000")
-        .set("message.copy.max.bytes", "1000000000")
-        .create()
-        .unwrap();
-
-    //let mut byte_buffer: Vec<u8> = Vec::with_capacity(2usize.pow(15));
-    let mut buf = Vec::new();
-    let now = std::time::Instant::now();
-    let written = data.len() as u32;
-    let mut sz = 0;
-    let mut uncompressed = 0u32;
-    for item in data {
-        let serialized_sz = bincode::serialized_size(&item).unwrap() as usize;
-        let len = buf.len();
-        buf.resize(buf.len() + serialized_sz, 0);
-        bincode::serialize_into(&mut buf[len..], &item).unwrap();
-        //match item {
-        //    mach_otlp::OtlpData::Spans(x) => {
-        //        let x = mach_otlp::trace::v1::TracesData { resource_spans: x };
-        //        let sz = x.encoded_len();
-        //        let buf_len = buf.len();
-        //        buf.resize(buf_len + sz, 0);
-        //        let mut slice: &mut [u8] = &mut buf[buf_len..];
-        //        x.encode(&mut slice);
-        //    }
-        //    _ => unimplemented!()
-        //}
-        if buf.len() > 1000000 {
-            let sl = buf.as_slice();
-            uncompressed += sl.len() as u32;
-            let bytes = encode_all(sl, 0).unwrap();
-            let to_send: FutureRecord<str, [u8]> =
-                FutureRecord::to(&topic).payload(&bytes);
-            match rt.block_on(producer.send(to_send, Duration::from_secs(3))) {
-                Ok(x) => {},
-                Err(_) => panic!("Producer failed"),
-            };
-            sz += bytes.len();
-            buf.clear();
-        }
-    }
-    let elapsed = now.elapsed();
-    let elapsed_sec = elapsed.as_secs_f64();
-
-    let written: f64 = written.try_into().unwrap();
-    let sz: f64 = (sz as u32).try_into().unwrap();
-    println!("Bytes Written {}, Elapsed {:?}, items/sec {}, bytes/sec {}", sz, elapsed, written/elapsed_sec, sz / elapsed_sec );
-    println!("Uncompressed {}", uncompressed);
-}
 
 #[inline(never)]
 fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
