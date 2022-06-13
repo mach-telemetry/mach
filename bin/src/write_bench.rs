@@ -23,9 +23,10 @@ use mach::{
 };
 
 type TimeStamp = u64;
-type IngestibleSample = (SeriesId, TimeStamp, Vec<Type>);
+type Sample = (SeriesId, TimeStamp, Vec<Type>);
+type RegisteredSample = (SeriesRef, TimeStamp, Vec<Type>);
 
-fn get_samples(data: &[mach_otlp::OtlpData]) -> Vec<IngestibleSample> {
+fn get_samples(data: &[mach_otlp::OtlpData]) -> Vec<Sample> {
     let mut vec = Vec::new();
     for item in data.iter() {
         match item {
@@ -74,96 +75,37 @@ fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
 }
 
 #[inline(never)]
-fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
-    let mut mach = Mach::new();
-    let mut reference_map: HashMap<SeriesId, SeriesRef> = HashMap::new();
-    let mut id_dict = otlp::SpanIds::new();
-
-    let queue_config = KafkaConfig {
-        bootstrap: args.kafka_bootstraps.clone(),
-        topic: random_id(),
-    }
-    .config();
-
-    //let queue_config = NoopConfig{}.config();
-
-    let writer_config = WriterConfig {
-        queue_config,
-        active_block_flush_sz: 1_000_000,
-    };
-    let mut writer = mach.add_writer(writer_config.clone()).unwrap();
-
-    let written = data.len() as u32;
-    let mut spans = Vec::with_capacity(8192);
-
-    // Extract samples
+fn mach_ingest(samples: &[RegisteredSample], writer: &mut Writer) {
     let now = std::time::Instant::now();
-    for item in data.iter() {
-        match item {
-            mach_otlp::OtlpData::Spans(x) => {
-                for item in x {
-                    //write_samples_to_mach(item, &mut reference_map, &mut mach, &mut writer);
-                    item.get_samples(&mut spans);
-                    //spans.append(&mut samples);
-                }
-            }
-            _ => unimplemented!(),
-        }
-    }
-    let extract_time = now.elapsed();
-
-    // Push data
-    let now = std::time::Instant::now();
-    let mut skipped = 0;
-    let mut tries = Vec::with_capacity(spans.len());
     let mut last = now.clone();
     let interval = std::time::Duration::from_secs(1) / 1000;
     let mut raw_byte_sz = 0;
-    for (id, ts, values) in spans.iter() {
-        let id = *id;
+    for (id_ref, ts, values) in samples.iter() {
+        let id_ref = *id_ref;
         let ts = *ts;
-        let id_ref = *reference_map.entry(id).or_insert_with(|| {
-            let conf = get_series_config(id, values.as_slice());
-            let (wid, _) = mach.add_series(conf).unwrap();
-            let id_ref = writer.get_reference(id);
-            id_ref
-        });
-        //let mut failed = 1;
-        //for _ in 0..10 {
-        //let mut try_count = 0;
-        //while std::time::Instant::now() - last < interval {}
         raw_byte_sz += match &values[0] {
             Type::Bytes(x) => x.len(),
             _ => unimplemented!(),
         };
         loop {
-            //try_count += 1;
             if writer.push(id_ref, ts, values.as_slice()).is_ok() {
-                //failed = 0;
-                //last = std::time::Instant::now();
                 break;
             }
         }
-        //tries.push(try_count);
-        //skipped += failed;
     }
+
+    let num_samples = samples.len();
     let push_time = now.elapsed();
-    let elapsed = extract_time + push_time;
+    let elapsed = push_time;
     let elapsed_sec = elapsed.as_secs_f64();
-    let written: f64 = written.try_into().unwrap();
     println!(
-        "Written {}, Elapsed {:?}, Samples/sec {}",
-        written,
+        "Written Samples {}, Elapsed {:?}, Samples/sec {}",
+        num_samples,
         elapsed,
-        written / elapsed_sec
+        num_samples as f64 / elapsed_sec
     );
-    println!("Sample extraction {:?}, Push {:?}", extract_time, push_time);
     let total_sz_written = TOTAL_SZ.load(std::sync::atomic::Ordering::SeqCst);
     println!("Total Size written: {}", total_sz_written);
-    println!("Total skipped: {} / {}", skipped, spans.len());
-    let total_tries: usize = tries.iter().sum();
-    println!("Tries: {} / {}", total_tries, tries.len());
-    println!("Number of series: {}", reference_map.len());
 
     std::thread::sleep(std::time::Duration::from_secs(5));
     // println!("Total mb written {}", TOTAL_MB_WRITTEN.load(SeqCst));
@@ -219,7 +161,7 @@ fn rewrite_timestamps(data: &mut Vec<otlp::OtlpData>) {
     }
 }
 
-fn otlp_data_to_samples(data: &Vec<otlp::OtlpData>) -> Vec<IngestibleSample> {
+fn otlp_data_to_samples(data: &Vec<otlp::OtlpData>) -> Vec<Sample> {
     let mut data: Vec<mach_otlp::OtlpData> = data
         .iter()
         .map(|x| {
@@ -248,15 +190,62 @@ fn otlp_data_to_samples(data: &Vec<otlp::OtlpData>) -> Vec<IngestibleSample> {
     samples
 }
 
+fn register_samples(
+    samples: Vec<Sample>,
+    mach: &mut Mach,
+    writer: &mut Writer,
+) -> Vec<RegisteredSample> {
+    let mut refmap: HashMap<SeriesId, SeriesRef> = HashMap::new();
+
+    for (id, _, values) in samples.iter() {
+        let id_ref = *refmap.entry(*id).or_insert_with(|| {
+            let conf = get_series_config(*id, values.as_slice());
+            let (wid, _) = mach.add_series(conf).unwrap();
+            let id_ref = writer.get_reference(*id);
+            id_ref
+        });
+    }
+
+    let mut registered_samples = Vec::new();
+    for (series_id, ts, values) in samples {
+        let series_ref = *refmap.get(&series_id).unwrap();
+        registered_samples.push((series_ref, ts, values));
+    }
+
+    registered_samples
+}
+
+fn prepare_samples(data: &Vec<otlp::OtlpData>) -> Vec<RegisteredSample> {
+    let samples = otlp_data_to_samples(data);
+    let samples = register_samples(samples, &mut mach, &mut writer);
+    samples
+}
+
+fn new_writer(mach: &mut Mach, kafka_bootstraps: String) -> Writer {
+    let queue_config = KafkaConfig {
+        bootstrap: kafka_bootstraps,
+        topic: random_id(),
+    }
+    .config();
+
+    let writer_config = WriterConfig {
+        queue_config,
+        active_block_flush_sz: 1_000_000,
+    };
+
+    mach.add_writer(writer_config.clone()).unwrap()
+}
+
 fn main() {
     let args = Args::parse();
     println!("Args: {:#?}", args);
 
+    let mut mach = Mach::new();
+    let mut writer = new_writer(&mut mach, args.kafka_bootstraps.clone());
+
     let mut data = load_data(args.file_path.as_str());
     rewrite_timestamps(&mut data);
-    let samples = otlp_data_to_samples(&data);
+    let samples = prepare_samples(&data);
 
-    println!("data items: {}", data.len());
-    //kafka_ingest(args.clone(), data);
-    mach_ingest(args.clone(), data.as_slice());
+    mach_ingest(&samples, &mut writer);
 }
