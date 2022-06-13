@@ -5,7 +5,7 @@ use crate::{
     utils::wp_lock::{WpLock, NoDealloc},
     utils::byte_buffer::ByteBuffer,
     utils::random_id,
-    kafka_utils,
+    utils::kafka,
 };
 use std::sync::{Arc, RwLock, Mutex, mpsc::{Sender, Receiver, channel}, atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst}};
 use std::mem;
@@ -21,6 +21,28 @@ use rdkafka::{
 use rand::{Rng, thread_rng};
 use std::convert::TryInto;
 
+const FLUSHERS: usize = 1;
+static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
+const PARTITIONS: i32 = 3;
+const REPLICAS: i32 = 3;
+const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
+
+lazy_static! {
+    static ref TOPIC: String = random_id();
+    static ref FLUSH_WORKERS: Vec<crossbeam::channel::Sender<Arc<ReadOnlyBlock>>> = {
+        let mut flushers = Vec::new();
+        for _ in 0..FLUSHERS {
+            let (tx, rx) = crossbeam::channel::unbounded();
+            std::thread::spawn(move || {
+                flush_worker(rx);
+            });
+            flushers.push(tx);
+        }
+        flushers
+    };
+}
+
+
 fn make_topic(bootstrap_servers: &str, topic: &str) {
     println!("Creating topic");
     let client: AdminClient<DefaultClientContext> = ClientConfig::new()
@@ -30,51 +52,38 @@ fn make_topic(bootstrap_servers: &str, topic: &str) {
     let admin_opts = AdminOptions::new().request_timeout(Some(std::time::Duration::from_secs(5)));
     let topics = &[NewTopic {
         name: topic,
-        num_partitions: 3,
-        replication: TopicReplication::Fixed(3),
+        num_partitions: PARTITIONS,
+        replication: TopicReplication::Fixed(REPLICAS),
         config: Vec::new(),
     }];
     futures::executor::block_on(client.create_topics(topics, &admin_opts)).unwrap();
     println!("topic created: {}", TOPIC.as_str());
 }
 
-
-lazy_static! {
-    static ref BOOTSTRAPS: String = String::from("localhost:9093,localhost:9094,localhost:9095");
-    static ref TOPIC: String = random_id();
+pub enum Error {
+    SnapshotError
 }
 
-const FLUSHERS: usize = 1;
-static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
-
-struct Flusher {
-    block_list: Arc<BlockList>,
-}
 
 fn flush_worker(chan: crossbeam::channel::Receiver<Arc<ReadOnlyBlock>>) {
-    let mut producer = kafka_utils::Producer::new(BOOTSTRAPS.as_str());
+    let mut producer = kafka::Producer::new(BOOTSTRAPS);
     while let Ok(block) = chan.recv() {
-        //QUEUE_LEN.fetch_sub(1, SeqCst);
-        let mut guard = block.inner.lock().unwrap();
-        let (partition, offset): (usize, usize) = match &*guard {
-            InnerReadOnlyBlock::Bytes(x) => {
-                let part: i32= rand::thread_rng().gen_range(0..3);
-                let (part2, offset) = producer.send(&*TOPIC, part, &x);
-                assert_eq!(part, part2);
-                (part2.try_into().unwrap(), offset.try_into().unwrap())
-            },
-            _ => unimplemented!(),
-        };
-        *guard = InnerReadOnlyBlock::Offset(partition, offset);
+        let mut bytes = block.bytes();
+        let part: i32= rand::thread_rng().gen_range(0..3);
+        let (part2, offset) = producer.send(&*TOPIC, part, &bytes[..]);
+        block.set_partition_offset(part.try_into().unwrap(), offset.try_into().unwrap());
     }
 }
 
 pub struct List {
+    id: SeriesId,
     head: AtomicU64,
 }
+
 impl List {
-    pub fn new() -> Self {
+    pub fn new(id: SeriesId) -> Self {
         List {
+            id,
             head: AtomicU64::new(u64::MAX)
         }
     }
@@ -84,26 +93,32 @@ pub struct BlockList {
     head_block: WpLock<Block>,
     tail: AtomicU64,
     block_map: DashMap<u64, (SystemTime, Arc<ReadOnlyBlock>)>,
-    flushers: Vec<crossbeam::channel::Sender<Arc<ReadOnlyBlock>>>,
 }
 
 impl BlockList {
     pub fn new() -> Self {
-        kafka_utils::make_topic(BOOTSTRAPS.as_str(), TOPIC.as_str());
-        let mut flushers = Vec::new();
-        for _ in 0..FLUSHERS {
-            let (tx, rx) = crossbeam::channel::unbounded();
-            std::thread::spawn(move || {
-                flush_worker(rx);
-            });
-            flushers.push(tx);
-        }
+        kafka::make_topic(BOOTSTRAPS, TOPIC.as_str());
         BlockList {
             head_block: WpLock::new(Block::new()),
             tail: AtomicU64::new(0),
             block_map: DashMap::new(),
-            flushers,
         }
+    }
+
+    pub fn snapshot(&self) -> Result<Vec<Arc<ReadOnlyBlock>>, Error> {
+        let guard = self.head_block.protected_read();
+        let head_block = guard.as_read_only();
+        let head = guard.id.load(SeqCst);
+        let tail = self.tail.load(SeqCst);
+        if guard.release().is_err() {
+            return Err(Error::SnapshotError);
+        };
+        let mut v = Vec::new();
+        v.push(Arc::new(head_block));
+        for item in head -1..tail {
+            v.push(self.block_map.get(&item).unwrap().1.clone());
+        }
+        Ok(v)
     }
 
     pub fn push(
@@ -133,7 +148,7 @@ impl BlockList {
             // Safety: there should be only one writer and it should be doing this push
             let copy = Arc::new(unsafe { self.head_block.unprotected_read().as_read_only() });
             self.block_map.insert(block_id, (SystemTime::now(), copy.clone()));
-            self.flushers[thread_rng().gen_range(0..FLUSHERS)].send(copy).unwrap();
+            FLUSH_WORKERS[thread_rng().gen_range(0..FLUSHERS)].send(copy).unwrap();
             // Mark current block as cleared
             self.head_block.protected_write().reset();
         }
@@ -170,7 +185,7 @@ impl Block {
         Self {
             id: AtomicU64::new(0),
             bytes: Bytes(vec![0u8; 2_000_000].into_boxed_slice()),
-            len: AtomicUsize::new(0),
+            len: AtomicUsize::new(std::mem::size_of::<u64>()), // id starts at 0
         }
     }
 
@@ -228,23 +243,81 @@ impl Block {
     fn as_read_only(&self) -> ReadOnlyBlock {
         let len = self.len.load(SeqCst);
         let bytes = self.bytes[..len].into();
-        ReadOnlyBlock::from_inner(InnerReadOnlyBlock::Bytes(bytes))
+        ReadOnlyBlock {
+            inner: RwLock::new(InnerReadOnlyBlock::Bytes(bytes)),
+        }
     }
 }
 
 enum InnerReadOnlyBlock {
-    Bytes(Box<[u8]>),
+    Bytes(Arc<[u8]>),
     Offset(usize, usize),
 }
 
 pub struct ReadOnlyBlock {
-    inner: Mutex<InnerReadOnlyBlock>,
+    inner: RwLock<InnerReadOnlyBlock>,
 }
 
 impl ReadOnlyBlock {
-    fn from_inner(inner: InnerReadOnlyBlock) -> Self {
-        Self {
-            inner: Mutex::new(inner)
+
+    fn set_partition_offset(&self, part: usize, off: usize) {
+        let mut guard = self.inner.write().unwrap();
+        let _x = std::mem::replace(&mut *guard, InnerReadOnlyBlock::Offset(part, off));
+    }
+
+    pub fn bytes(&self) -> Arc<[u8]> {
+        match &*self.inner.read().unwrap() {
+            InnerReadOnlyBlock::Bytes(x) => x.clone(),
+            InnerReadOnlyBlock::Offset(x, y) => unimplemented!(),
         }
     }
 }
+
+pub struct ReadOnlySegment {
+    id: SeriesId,
+    next_block: usize,
+    start: usize,
+    end: usize,
+    ro_bytes: ReadOnlyBytes,
+}
+
+#[derive(Clone)]
+pub struct ReadOnlyBytes(Arc<[u8]>);
+
+impl ReadOnlyBytes {
+    fn source_id(&self) -> usize {
+        usize::from_be_bytes(self.0[..8].try_into().unwrap())
+    }
+
+    pub fn get_segments(&self) -> Vec<ReadOnlySegment> {
+        let mut v = Vec::new();
+        let mut offset = 8;
+        while offset < self.0.len() {
+            let id = {
+                let id = u64::from_be_bytes(self.0[offset..offset+8].try_into().unwrap());
+                offset += 8;
+                SeriesId(id)
+            };
+
+            let next_block = usize::from_be_bytes(self.0[offset..offset+8].try_into().unwrap());
+            offset += 8;
+
+            let segment_sz = usize::from_be_bytes(self.0[offset..offset+8].try_into().unwrap());
+            offset += 8;
+
+            let start = offset;
+            let end = offset + segment_sz;
+
+            v.push(ReadOnlySegment {
+                id,
+                next_block,
+                start,
+                end,
+                ro_bytes: self.clone(),
+            });
+        }
+        v
+    }
+}
+
+

@@ -44,7 +44,7 @@ pub mod durable_queue;
 pub mod persistent_list;
 pub mod snapshot;
 pub mod writer;
-mod kafka_utils;
+//pub mod kafka_utils;
 //pub mod segment2;
 
 #[cfg(test)]

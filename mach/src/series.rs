@@ -83,8 +83,8 @@ impl Series {
         assert_eq!(config.nvars, config.compression.len());
         Self {
             segment: segment::Segment::new(config.seg_count, config.types.as_slice()),
+            list: Arc::new(List::new(config.id)),
             config,
-            list: Arc::new(List::new()),
             block_list,
         }
     }

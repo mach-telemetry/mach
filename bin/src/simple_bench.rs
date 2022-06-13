@@ -50,7 +50,7 @@ use mach::{
     tsdb::Mach,
     writer::{Writer, WriterConfig},
     sample::Type,
-    mem_list::TOTAL_MB_WRITTEN,
+    kafka_utils::TOTAL_MB_WRITTEN,
 };
 
 //fn kafka_ingest_worker(rx: flume::Receiver<mach_otlp::OtlpData>) {
