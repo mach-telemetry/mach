@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::sync::atomic::Ordering::SeqCst;
 use std::time::Duration;
+use zstd::zstd_safe::WriteBuf;
 
 use mach::{
     compression::{CompressFn, Compression},
@@ -125,9 +126,31 @@ fn new_writer(mach: &mut Mach, kafka_bootstraps: String) -> Writer {
     mach.add_writer(writer_config.clone()).unwrap()
 }
 
-fn kafka_ingest(args: Args, mut data: Vec<mach_otlp::OtlpData>) {
+fn kafka_ingest(samples: &[RegisteredSample], kafka_bootstrap: String, batch_size: usize) {
     let topic = random_id();
-    kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
+    kafka_utils::make_topic(&kafka_bootstrap, &topic);
+
+    let mut producer = kafka_utils::Producer::new(kafka_bootstrap.as_str());
+
+    let mut data: Vec<Vec<u8>> = Vec::new();
+    let mut count = 0;
+    for sample in samples {
+        data.push(bincode::serialize(sample).unwrap());
+        count += 1;
+        if count == batch_size {
+            count = 0;
+            let bytes = bincode::serialize(&data).unwrap();
+            let compressed = zstd::encode_all(bytes.as_slice(), 0).unwrap();
+            producer.send(topic.as_str(), 0, compressed.as_slice());
+            data.clear();
+        }
+    }
+
+    if data.len() > 0 {
+        let bytes = bincode::serialize(&data).unwrap();
+        let compressed = zstd::encode_all(bytes.as_slice(), 0).unwrap();
+        producer.send(topic.as_str(), 0, compressed.as_slice());
+    }
 }
 
 fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
@@ -233,9 +256,9 @@ struct Args {
 
     //#[clap(short, long, default_value_t = String::from("all"), parse(try_from_str=validate_ack))]
     //kafka_acks: String,
+    #[clap(short, long, default_value_t = 8192)]
+    kafka_batch: usize,
 
-    //#[clap(short, long, default_value_t = 8192)]
-    //kafka_batch: usize,
     #[clap(short, long)]
     file_path: String,
     //#[clap(short, long, default_value_t = 1000000)]
@@ -255,6 +278,8 @@ fn main() {
 
     match args.tsdb {
         BenchTarget::Mach => mach_ingest(&samples, &mut writer),
-        BenchTarget::Kafka => unimplemented!(),
+        BenchTarget::Kafka => {
+            kafka_ingest(&samples, args.kafka_bootstraps.clone(), args.kafka_batch)
+        }
     }
 }
