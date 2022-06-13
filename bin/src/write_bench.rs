@@ -26,120 +26,6 @@ type TimeStamp = u64;
 type Sample = (SeriesId, TimeStamp, Vec<Type>);
 type RegisteredSample = (SeriesRef, TimeStamp, Vec<Type>);
 
-fn get_samples(data: &[mach_otlp::OtlpData]) -> Vec<Sample> {
-    let mut vec = Vec::new();
-    for item in data.iter() {
-        match item {
-            mach_otlp::OtlpData::Spans(x) => {
-                for item in x {
-                    item.get_samples(&mut vec);
-                }
-            }
-            _ => unimplemented!(),
-        }
-    }
-    vec
-}
-
-fn kafka_ingest(args: Args, mut data: Vec<mach_otlp::OtlpData>) {
-    let topic = random_id();
-    kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
-    let samples = get_samples(data.as_slice());
-}
-
-fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
-    let mut types = Vec::new();
-    let mut compression = Vec::new();
-    values.iter().for_each(|v| {
-        let (t, c) = match v {
-            Type::U32(_) => (Types::U32, CompressFn::IntBitpack),
-            Type::U64(_) => (Types::U64, CompressFn::LZ4),
-            Type::F64(_) => (Types::F64, CompressFn::Decimal(3)),
-            Type::Bytes(_) => (Types::Bytes, CompressFn::BytesLZ4),
-            Type::BorrowedBytes(_) => (Types::Bytes, CompressFn::NOOP),
-            _ => unimplemented!(),
-        };
-        types.push(t);
-        compression.push(c);
-    });
-    let compression = Compression::from(compression);
-    let nvars = types.len();
-    let conf = SeriesConfig {
-        id,
-        types,
-        compression,
-        seg_count: 3,
-        nvars,
-    };
-    conf
-}
-
-#[inline(never)]
-fn mach_ingest(samples: &[RegisteredSample], writer: &mut Writer) {
-    let now = std::time::Instant::now();
-    let mut last = now.clone();
-    let interval = std::time::Duration::from_secs(1) / 1000;
-    let mut raw_byte_sz = 0;
-    for (id_ref, ts, values) in samples.iter() {
-        let id_ref = *id_ref;
-        let ts = *ts;
-        raw_byte_sz += match &values[0] {
-            Type::Bytes(x) => x.len(),
-            _ => unimplemented!(),
-        };
-        loop {
-            if writer.push(id_ref, ts, values.as_slice()).is_ok() {
-                break;
-            }
-        }
-    }
-
-    let num_samples = samples.len();
-    let push_time = now.elapsed();
-    let elapsed = push_time;
-    let elapsed_sec = elapsed.as_secs_f64();
-    println!(
-        "Written Samples {}, Elapsed {:?}, Samples/sec {}",
-        num_samples,
-        elapsed,
-        num_samples as f64 / elapsed_sec
-    );
-    let total_sz_written = TOTAL_SZ.load(std::sync::atomic::Ordering::SeqCst);
-    println!("Total Size written: {}", total_sz_written);
-
-    std::thread::sleep(std::time::Duration::from_secs(5));
-    // println!("Total mb written {}", TOTAL_MB_WRITTEN.load(SeqCst));
-    println!("Raw size written {}", raw_byte_sz);
-}
-
-#[derive(Parser, Debug, Clone)]
-struct Args {
-    #[clap(short, long, default_value_t = String::from("mach"))]
-    tsdb: String,
-
-    #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
-    kafka_bootstraps: String,
-
-    //#[clap(short, long, default_value_t = random_id())]
-    //kafka_topic: String,
-
-    //#[clap(short, long, default_value_t = 1)]
-    //kafka_partitions: i32,
-
-    //#[clap(short, long, default_value_t = 3)]
-    //kafka_replication: i32,
-
-    //#[clap(short, long, default_value_t = String::from("all"), parse(try_from_str=validate_ack))]
-    //kafka_acks: String,
-
-    //#[clap(short, long, default_value_t = 8192)]
-    //kafka_batch: usize,
-    #[clap(short, long)]
-    file_path: String,
-    //#[clap(short, long, default_value_t = 1000000)]
-    //mach_active_block_sz: usize,
-}
-
 fn load_data(path: &str) -> Vec<otlp::OtlpData> {
     let mut data = Vec::new();
     println!("Loading data");
@@ -234,6 +120,104 @@ fn new_writer(mach: &mut Mach, kafka_bootstraps: String) -> Writer {
     };
 
     mach.add_writer(writer_config.clone()).unwrap()
+}
+
+fn kafka_ingest(args: Args, mut data: Vec<mach_otlp::OtlpData>) {
+    let topic = random_id();
+    kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
+}
+
+fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
+    let mut types = Vec::new();
+    let mut compression = Vec::new();
+    values.iter().for_each(|v| {
+        let (t, c) = match v {
+            Type::U32(_) => (Types::U32, CompressFn::IntBitpack),
+            Type::U64(_) => (Types::U64, CompressFn::LZ4),
+            Type::F64(_) => (Types::F64, CompressFn::Decimal(3)),
+            Type::Bytes(_) => (Types::Bytes, CompressFn::BytesLZ4),
+            Type::BorrowedBytes(_) => (Types::Bytes, CompressFn::NOOP),
+            _ => unimplemented!(),
+        };
+        types.push(t);
+        compression.push(c);
+    });
+    let compression = Compression::from(compression);
+    let nvars = types.len();
+    let conf = SeriesConfig {
+        id,
+        types,
+        compression,
+        seg_count: 3,
+        nvars,
+    };
+    conf
+}
+
+#[inline(never)]
+fn mach_ingest(samples: &[RegisteredSample], writer: &mut Writer) {
+    let now = std::time::Instant::now();
+    let mut last = now.clone();
+    let interval = std::time::Duration::from_secs(1) / 1000;
+    let mut raw_byte_sz = 0;
+    for (id_ref, ts, values) in samples.iter() {
+        let id_ref = *id_ref;
+        let ts = *ts;
+        raw_byte_sz += match &values[0] {
+            Type::Bytes(x) => x.len(),
+            _ => unimplemented!(),
+        };
+        loop {
+            if writer.push(id_ref, ts, values.as_slice()).is_ok() {
+                break;
+            }
+        }
+    }
+
+    let num_samples = samples.len();
+    let push_time = now.elapsed();
+    let elapsed = push_time;
+    let elapsed_sec = elapsed.as_secs_f64();
+    println!(
+        "Written Samples {}, Elapsed {:?}, Samples/sec {}",
+        num_samples,
+        elapsed,
+        num_samples as f64 / elapsed_sec
+    );
+    let total_sz_written = TOTAL_SZ.load(std::sync::atomic::Ordering::SeqCst);
+    println!("Total Size written: {}", total_sz_written);
+
+    std::thread::sleep(std::time::Duration::from_secs(5));
+    // println!("Total mb written {}", TOTAL_MB_WRITTEN.load(SeqCst));
+    println!("Raw size written {}", raw_byte_sz);
+}
+
+#[derive(Parser, Debug, Clone)]
+struct Args {
+    #[clap(short, long, default_value_t = String::from("mach"))]
+    tsdb: String,
+
+    #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
+    kafka_bootstraps: String,
+
+    //#[clap(short, long, default_value_t = random_id())]
+    //kafka_topic: String,
+
+    //#[clap(short, long, default_value_t = 1)]
+    //kafka_partitions: i32,
+
+    //#[clap(short, long, default_value_t = 3)]
+    //kafka_replication: i32,
+
+    //#[clap(short, long, default_value_t = String::from("all"), parse(try_from_str=validate_ack))]
+    //kafka_acks: String,
+
+    //#[clap(short, long, default_value_t = 8192)]
+    //kafka_batch: usize,
+    #[clap(short, long)]
+    file_path: String,
+    //#[clap(short, long, default_value_t = 1000000)]
+    //mach_active_block_sz: usize,
 }
 
 fn main() {
