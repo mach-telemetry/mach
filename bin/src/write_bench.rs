@@ -2,13 +2,12 @@
 
 mod kafka_utils;
 
+use clap::Parser;
 use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync::atomic::Ordering::SeqCst;
 use std::time::Duration;
-//use lazy_static::*;
-use clap::Parser;
 
 use mach::{
     compression::{CompressFn, Compression},
@@ -101,9 +100,13 @@ fn register_samples(
     registered_samples
 }
 
-fn prepare_samples(data: &Vec<otlp::OtlpData>) -> Vec<RegisteredSample> {
+fn prepare_samples(
+    data: &Vec<otlp::OtlpData>,
+    mach: &mut Mach,
+    writer: &mut Writer,
+) -> Vec<RegisteredSample> {
     let samples = otlp_data_to_samples(data);
-    let samples = register_samples(samples, &mut mach, &mut writer);
+    let samples = register_samples(samples, mach, writer);
     samples
 }
 
@@ -192,10 +195,29 @@ fn mach_ingest(samples: &[RegisteredSample], writer: &mut Writer) {
     println!("Raw size written {}", raw_byte_sz);
 }
 
+fn validate_tsdb(s: &str) -> Result<BenchTarget, String> {
+    Ok(match s {
+        "mach" => BenchTarget::Mach,
+        "kafka" => BenchTarget::Kafka,
+        _ => {
+            return Err(format!(
+                "Invalid option {}, valid options are \"mach\", \"kafka\".",
+                s
+            ))
+        }
+    })
+}
+
+#[derive(Debug, Clone)]
+enum BenchTarget {
+    Mach,
+    Kafka,
+}
+
 #[derive(Parser, Debug, Clone)]
 struct Args {
-    #[clap(short, long, default_value_t = String::from("mach"))]
-    tsdb: String,
+    #[clap(short, long,  parse(try_from_str=validate_tsdb))]
+    tsdb: BenchTarget,
 
     #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
     kafka_bootstraps: String,
@@ -229,7 +251,10 @@ fn main() {
 
     let mut data = load_data(args.file_path.as_str());
     rewrite_timestamps(&mut data);
-    let samples = prepare_samples(&data);
+    let samples = prepare_samples(&data, &mut mach, &mut writer);
 
-    mach_ingest(&samples, &mut writer);
+    match args.tsdb {
+        BenchTarget::Mach => mach_ingest(&samples, &mut writer),
+        BenchTarget::Kafka => unimplemented!(),
+    }
 }
