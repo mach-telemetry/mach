@@ -26,12 +26,21 @@ type TimeStamp = u64;
 type Sample = (SeriesId, TimeStamp, Vec<Type>);
 type RegisteredSample = (SeriesRef, TimeStamp, Vec<Type>);
 
-fn load_data(path: &str) -> Vec<otlp::OtlpData> {
+fn load_data(path: &str, repeat_factor: usize) -> Vec<otlp::OtlpData> {
     let mut data = Vec::new();
-    println!("Loading data");
     File::open(path).unwrap().read_to_end(&mut data).unwrap();
     let data: Vec<otlp::OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
-    data
+
+    match repeat_factor {
+        0 | 1 => data,
+        n => {
+            let mut ret = data.clone();
+            for _ in 0..n - 1 {
+                ret.extend_from_slice(data.as_slice());
+            }
+            ret
+        }
+    }
 }
 
 fn rewrite_timestamps(data: &mut Vec<otlp::OtlpData>) {
@@ -102,7 +111,7 @@ fn register_samples(
 }
 
 fn prepare_samples(
-    data: &Vec<otlp::OtlpData>,
+    data: Vec<otlp::OtlpData>,
     mach: &mut Mach,
     writer: &mut Writer,
 ) -> Vec<RegisteredSample> {
@@ -186,6 +195,9 @@ fn mach_ingest(samples: &[RegisteredSample], writer: &mut Writer) {
     let mut last = now.clone();
     let interval = std::time::Duration::from_secs(1) / 1000;
     let mut raw_byte_sz = 0;
+
+    let push_repeat = 3;
+
     for (id_ref, ts, values) in samples.iter() {
         let id_ref = *id_ref;
         let ts = *ts;
@@ -272,9 +284,13 @@ fn main() {
     let mut mach = Mach::new();
     let mut writer = new_writer(&mut mach, args.kafka_bootstraps.clone());
 
-    let mut data = load_data(args.file_path.as_str());
+    println!("Loading data");
+    let mut data = load_data(args.file_path.as_str(), 8);
+    println!("Rewriting timestamps");
     rewrite_timestamps(&mut data);
-    let samples = prepare_samples(&data, &mut mach, &mut writer);
+    println!("Extracting samples");
+    let samples = prepare_samples(data, &mut mach, &mut writer);
+    println!("{} samples ready", samples.len());
 
     match args.tsdb {
         BenchTarget::Mach => mach_ingest(&samples, &mut writer),
