@@ -56,7 +56,7 @@ fn rewrite_timestamps(data: &mut Vec<otlp::OtlpData>) {
     }
 }
 
-fn otlp_data_to_samples(data: &Vec<otlp::OtlpData>) -> Vec<Sample> {
+fn otlp_data_to_samples(data: Vec<otlp::OtlpData>) -> Vec<Sample> {
     let mut data: Vec<mach_otlp::OtlpData> = data
         .iter()
         .map(|x| {
@@ -116,8 +116,8 @@ fn prepare_samples(
     writer: &mut Writer,
 ) -> Vec<RegisteredSample> {
     let samples = otlp_data_to_samples(data);
-    let samples = register_samples(samples, mach, writer);
-    samples
+    let registered_samples = register_samples(samples, mach, writer);
+    registered_samples
 }
 
 fn new_writer(mach: &mut Mach, kafka_bootstraps: String) -> Writer {
