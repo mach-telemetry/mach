@@ -1,3 +1,7 @@
+mod circular_list;
+
+use circular_list::IndexList;
+
 use crate::{
     compression::Compression,
     id::SeriesId,
@@ -10,6 +14,8 @@ use crate::{
 use std::sync::{Arc, RwLock, Mutex, mpsc::{Sender, Receiver, channel}, atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst}};
 use std::mem;
 use std::time::{Duration, SystemTime};
+use std::cell::RefCell;
+use std::collections::HashSet;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use rdkafka::{
@@ -61,7 +67,7 @@ fn make_topic(bootstrap_servers: &str, topic: &str) {
 }
 
 pub enum Error {
-    SnapshotError
+    Snapshot
 }
 
 
@@ -92,8 +98,15 @@ impl List {
 pub struct BlockList {
     head_block: WpLock<Block>,
     tail: AtomicU64,
-    block_map: DashMap<u64, (SystemTime, Arc<ReadOnlyBlock>)>,
+    id_set: RefCell<HashSet<SeriesId>>,
+    //block_map: DashMap<u64, (SystemTime, Arc<ReadOnlyBlock>)>,
+    series_map: DashMap<SeriesId, IndexList>,
 }
+
+/// Safety
+/// Blocklist isn't sync/send because of id_set w/c is RefCell but this is only used in one thread
+unsafe impl Sync for BlockList {}
+unsafe impl Send for BlockList {}
 
 impl BlockList {
     pub fn new() -> Self {
@@ -101,23 +114,23 @@ impl BlockList {
         BlockList {
             head_block: WpLock::new(Block::new()),
             tail: AtomicU64::new(0),
-            block_map: DashMap::new(),
+            id_set: RefCell::new(HashSet::new()),
+            series_map: DashMap::new(),
         }
     }
 
-    pub fn snapshot(&self) -> Result<Vec<Arc<ReadOnlyBlock>>, Error> {
+    pub fn snapshot(&self, series_id: SeriesId) -> Result<Vec<Arc<ReadOnlyBlock>>, Error> {
         let guard = self.head_block.protected_read();
         let head_block = guard.as_read_only();
         let head = guard.id.load(SeqCst);
         let tail = self.tail.load(SeqCst);
         if guard.release().is_err() {
-            return Err(Error::SnapshotError);
+            return Err(Error::Snapshot);
         };
+        let mut snapshots = self.series_map.get(&series_id).unwrap().snapshot()?;
         let mut v = Vec::new();
         v.push(Arc::new(head_block));
-        for item in head -1..tail {
-            v.push(self.block_map.get(&item).unwrap().1.clone());
-        }
+        v.append(&mut snapshots);
         Ok(v)
     }
 
@@ -144,10 +157,14 @@ impl BlockList {
             list.head.store(block_id, SeqCst);
         }
 
+        self.id_set.borrow_mut().insert(series_id);
+
         if is_full {
             // Safety: there should be only one writer and it should be doing this push
             let copy = Arc::new(unsafe { self.head_block.unprotected_read().as_read_only() });
-            self.block_map.insert(block_id, (SystemTime::now(), copy.clone()));
+            for id in self.id_set.borrow_mut().drain() {
+                self.series_map.get(&id).unwrap().push(copy.clone());
+            }
             FLUSH_WORKERS[thread_rng().gen_range(0..FLUSHERS)].send(copy).unwrap();
             // Mark current block as cleared
             self.head_block.protected_write().reset();
