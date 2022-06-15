@@ -138,44 +138,40 @@ fn new_writer(mach: &mut Mach, kafka_bootstraps: String) -> Writer {
 }
 
 #[inline(never)]
-fn kafka_ingest(samples: &[RegisteredSample], args: Args) {
+fn kafka_ingest(samples: Vec<RegisteredSample>, args: Args) {
     let topic = random_id();
     kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
 
-    let (tx, rx) = bounded::<Vec<u8>>(args.kafka_flush_queue_len );
+    let (tx, rx) = bounded::<Vec<RegisteredSample>>(args.kafka_flush_queue_len);
     let flushers: Vec<JoinHandle<()>> = (0..args.kafka_flushers)
         .map(|_| {
             let recv = rx.clone();
             let topic = topic.clone();
             let mut producer = kafka_utils::Producer::new(args.kafka_bootstraps.as_str());
             std::thread::spawn(move || {
-                while let Ok(payload) = recv.recv() {
-                    producer.send(topic.as_str(), 0, payload.as_slice());
+                while let Ok(data) = recv.recv() {
+                    let bytes = bincode::serialize(&data).unwrap();
+                    let compressed = zstd::encode_all(bytes.as_slice(), 0).unwrap();
+                    producer.send(topic.as_str(), 0, compressed.as_slice());
                 }
             })
         })
         .collect();
 
+    let num_samples = samples.len();
+
     let now = std::time::Instant::now();
 
-    let mut data: Vec<Vec<u8>> = Vec::new();
-    let mut count = 0;
+    let mut data = Vec::with_capacity(args.kafka_batch);
     for sample in samples {
-        data.push(bincode::serialize(sample).unwrap());
-        count += 1;
-        if count == args.kafka_batch {
-            count = 0;
-            let bytes = bincode::serialize(&data).unwrap();
-            let compressed = zstd::encode_all(bytes.as_slice(), 0).unwrap();
-            tx.send(compressed).unwrap();
-            data.clear();
+        data.push(sample);
+        if data.len() == args.kafka_batch {
+            tx.send(data);
+            data = Vec::with_capacity(args.kafka_batch);
         }
     }
-
-    if data.len() > 0 {
-        let bytes = bincode::serialize(&data).unwrap();
-        let compressed = zstd::encode_all(bytes.as_slice(), 0).unwrap();
-        tx.send(compressed).unwrap();
+    if !data.is_empty() {
+        tx.send(data);
     }
 
     drop(tx);
@@ -184,7 +180,6 @@ fn kafka_ingest(samples: &[RegisteredSample], args: Args) {
         flusher.join().unwrap();
     }
 
-    let num_samples = samples.len();
     let push_time = now.elapsed();
     let elapsed = push_time;
     let elapsed_sec = elapsed.as_secs_f64();
@@ -227,12 +222,10 @@ fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
 }
 
 #[inline(never)]
-fn mach_ingest(samples: &[RegisteredSample], writer: &mut Writer) {
+fn mach_ingest(samples: Vec<RegisteredSample>, mut writer: Writer) {
     let now = std::time::Instant::now();
     let mut last = now.clone();
     let mut raw_byte_sz = 0;
-
-    let push_repeat = 3;
 
     for (id_ref, ts, values) in samples.iter() {
         let id_ref = *id_ref;
@@ -301,7 +294,7 @@ struct Args {
 
     //#[clap(short, long, default_value_t = String::from("all"), parse(try_from_str=validate_ack))]
     //kafka_acks: String,
-    #[clap(short, long, default_value_t = 8192)]
+    #[clap(short, long, default_value_t = 100_000)]
     kafka_batch: usize,
 
     #[clap(short, long, default_value_t = 4)]
@@ -324,7 +317,7 @@ fn main() {
     let mut writer = new_writer(&mut mach, args.kafka_bootstraps.clone());
 
     println!("Loading data");
-    let mut data = load_data(args.file_path.as_str(), 8);
+    let mut data = load_data(args.file_path.as_str(), 6);
     println!("Rewriting timestamps");
     rewrite_timestamps(&mut data);
     println!("Extracting samples");
@@ -332,7 +325,7 @@ fn main() {
     println!("{} samples ready", samples.len());
 
     match args.tsdb {
-        BenchTarget::Mach => mach_ingest(&samples, &mut writer),
-        BenchTarget::Kafka => kafka_ingest(&samples, args),
+        BenchTarget::Mach => mach_ingest(samples, writer),
+        BenchTarget::Kafka => kafka_ingest(samples, args),
     }
 }
