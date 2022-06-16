@@ -1,6 +1,5 @@
-mod circular_list;
-
-use circular_list::IndexList;
+mod circular_block_buffer;
+use circular_block_buffer::CircularBlockBuffer;
 
 use crate::{
     compression::Compression,
@@ -99,8 +98,7 @@ pub struct BlockList {
     head_block: WpLock<Block>,
     tail: AtomicU64,
     id_set: RefCell<HashSet<SeriesId>>,
-    //block_map: DashMap<u64, (SystemTime, Arc<ReadOnlyBlock>)>,
-    series_map: DashMap<SeriesId, IndexList>,
+    series_map: DashMap<SeriesId, CircularBlockBuffer>,
 }
 
 /// Safety
@@ -163,7 +161,7 @@ impl BlockList {
             // Safety: there should be only one writer and it should be doing this push
             let copy = Arc::new(unsafe { self.head_block.unprotected_read().as_read_only() });
             for id in self.id_set.borrow_mut().drain() {
-                self.series_map.get(&id).unwrap().push(copy.clone());
+                self.series_map.entry(id).or_insert(CircularBlockBuffer::new()).push(copy.clone());
             }
             FLUSH_WORKERS[thread_rng().gen_range(0..FLUSHERS)].send(copy).unwrap();
             // Mark current block as cleared
