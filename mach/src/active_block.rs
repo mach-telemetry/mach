@@ -1,6 +1,6 @@
 use crate::{
     compression::Compression,
-    durable_queue::{self, DurableQueueReader, DurableQueueWriter},
+    //durable_queue::{self, DurableQueueReader, DurableQueueWriter},
     id::SeriesId,
     segment::FullSegment,
     utils::{byte_buffer::ByteBuffer, wp_lock::NoDealloc},
@@ -19,16 +19,16 @@ use std::{
 
 #[derive(Debug)]
 pub enum Error {
-    DurableQueue(durable_queue::Error),
+    //DurableQueue(durable_queue::Error),
     BlockVersion,
     EndOfQueue,
 }
 
-impl From<durable_queue::Error> for Error {
-    fn from(item: durable_queue::Error) -> Self {
-        Error::DurableQueue(item)
-    }
-}
+//impl From<durable_queue::Error> for Error {
+//    fn from(item: durable_queue::Error) -> Self {
+//        Error::DurableQueue(item)
+//    }
+//}
 
 #[derive(Clone)]
 pub struct ActiveNode {
@@ -102,16 +102,16 @@ impl StaticNode {
         }
     }
 
-    pub fn read_from_queue(
-        &self,
-        queue: &mut DurableQueueReader,
-    ) -> Result<(BlockEntries, StaticNode), Error> {
-        if self.queue_offset == u64::MAX {
-            Err(Error::EndOfQueue)
-        } else {
-            Ok(Bytes::new(queue.read(self.queue_offset)?).read(self.offset, self.size))
-        }
-    }
+    //pub fn read_from_queue(
+    //    &self,
+    //    queue: &mut DurableQueueReader,
+    //) -> Result<(BlockEntries, StaticNode), Error> {
+    //    if self.queue_offset == u64::MAX {
+    //        Err(Error::EndOfQueue)
+    //    } else {
+    //        Ok(Bytes::new(queue.read(self.queue_offset)?).read(self.offset, self.size))
+    //    }
+    //}
 }
 
 struct Bytes<T> {
@@ -337,14 +337,14 @@ impl ActiveBlock {
         }
     }
 
-    pub fn flush(&mut self, flusher: &mut DurableQueueWriter) -> Result<(), Error> {
-        self.bytes.set_tail(&self.tail);
-        let queue_offset = flusher
-            .write(&self.bytes[..self.bytes.len.load(SeqCst)])?;
-        // Boradcast the queue offset to everyone who pushed
-        self.queue_offset.store(queue_offset, SeqCst);
-        Ok(())
-    }
+    //pub fn flush(&mut self, flusher: &mut DurableQueueWriter) -> Result<(), Error> {
+    //    self.bytes.set_tail(&self.tail);
+    //    let queue_offset = flusher
+    //        .write(&self.bytes[..self.bytes.len.load(SeqCst)])?;
+    //    // Boradcast the queue offset to everyone who pushed
+    //    self.queue_offset.store(queue_offset, SeqCst);
+    //    Ok(())
+    //}
 
     pub fn reset(&mut self) {
         self.block_version.fetch_add(1, SeqCst);
