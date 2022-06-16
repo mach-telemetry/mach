@@ -2,7 +2,7 @@ use crate::{
     compression::Compression,
     //durable_queue::QueueConfig,
     //persistent_list::{self, List, ListBuffer},
-    mem_list::{BlockList, List},
+    mem_list::{SourceBlockList, BlockList},
     //persistent_list,
     //reader::Snapshot,
     segment::{self, Segment, SegmentSnapshot},
@@ -72,18 +72,16 @@ pub struct SeriesConfig {
 pub struct Series {
     pub config: SeriesConfig,
     pub segment: Segment,
-    pub list: Arc<List>,
-    pub block_list: Arc<BlockList>,
+    pub source_block_list: Arc<SourceBlockList>,
 }
 
 impl Series {
-    pub fn new(config: SeriesConfig, block_list: Arc<BlockList>) -> Self {
+    pub fn new(config: SeriesConfig, source_block_list: Arc<SourceBlockList>) -> Self {
         assert_eq!(config.nvars, config.compression.len());
         Self {
             segment: segment::Segment::new(config.seg_count, config.types.as_slice()),
-            list: Arc::new(List::new(config.id)),
             config,
-            block_list,
+            source_block_list,
         }
     }
 

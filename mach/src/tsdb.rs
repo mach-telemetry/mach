@@ -78,10 +78,10 @@ impl Mach {
         //let (writer_meta, durability) = self.writer_table.get(&writer).unwrap();
         let writer_meta = self.writer_table.get(&writer).unwrap();
 
-        let block_list = writer_meta.block_list.clone();
-        //let list = List::new(writer_meta.active_block.clone());
         let series_id = config.id;
-        let series = Series::new(config, block_list);
+        let block_list = writer_meta.block_list.clone();
+        let source_block_list = block_list.add_source(series_id);
+        let series = Series::new(config, source_block_list);
         //durability.register_series(series.clone());
         self.series_table.insert(series_id, series);
 

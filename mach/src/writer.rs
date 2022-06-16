@@ -124,12 +124,10 @@ impl Writer {
             segment::PushStatus::Flush(_) => {
                 let series = &self.series[reference];
                 let id = series.config.id;
-                let list = series.list.clone();
                 let compression = series.config.compression.clone();
                 let segment = self.writers[reference].flush();
                 self.block_worker.send( FlushItem {
                     id,
-                    list,
                     segment,
                     compression,
                 }).unwrap();
@@ -142,7 +140,6 @@ impl Writer {
 
 struct FlushItem {
     id: SeriesId,
-    list: Arc<List>,
     segment: FlushSegment,
     compression: Compression,
 }
@@ -150,7 +147,7 @@ struct FlushItem {
 fn block_list_worker(block_list: Arc<BlockList>, chan: Receiver<FlushItem>) {
     while let Ok(x) = chan.recv() {
         //println!("GOT SOMETHING");
-        block_list.push(&*x.list, x.id, &x.segment, &x.compression);
+        block_list.push(x.id, &x.segment, &x.compression);
         // Safety: self.list.push call above that contains a clone doesn't mark the segment as
         // flushed
         unsafe {

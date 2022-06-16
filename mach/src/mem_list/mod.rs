@@ -1,5 +1,5 @@
-mod circular_block_buffer;
-pub use circular_block_buffer::CircularBlockBuffer;
+mod source_block_list;
+pub use source_block_list::SourceBlockList;
 
 use crate::{
     compression::Compression,
@@ -93,9 +93,8 @@ impl List {
 
 pub struct BlockList {
     head_block: WpLock<Block>,
-    tail: AtomicU64,
     id_set: RefCell<HashSet<SeriesId>>,
-    series_map: DashMap<SeriesId, CircularBlockBuffer>,
+    series_map: DashMap<SeriesId, Arc<SourceBlockList>>,
 }
 
 /// Safety
@@ -108,30 +107,34 @@ impl BlockList {
         kafka::make_topic(BOOTSTRAPS, TOPIC.as_str());
         BlockList {
             head_block: WpLock::new(Block::new()),
-            tail: AtomicU64::new(0),
             id_set: RefCell::new(HashSet::new()),
             series_map: DashMap::new(),
         }
     }
 
-    pub fn snapshot(&self, series_id: SeriesId) -> Result<Vec<Arc<ReadOnlyBlock>>, Error> {
-        let guard = self.head_block.protected_read();
-        let head_block = guard.as_read_only();
-        let head = guard.id.load(SeqCst);
-        let tail = self.tail.load(SeqCst);
-        if guard.release().is_err() {
-            return Err(Error::Snapshot);
-        };
-        let mut snapshots = self.series_map.get(&series_id).unwrap().snapshot()?;
-        let mut v = Vec::new();
-        v.push(Arc::new(head_block));
-        v.append(&mut snapshots);
-        Ok(v)
+    //pub fn snapshot(&self, series_id: SeriesId) -> Result<Vec<Arc<ReadOnlyBlock>>, Error> {
+    //    let guard = self.head_block.protected_read();
+    //    let head_block = guard.as_read_only();
+    //    let head = guard.id.load(SeqCst);
+    //    let tail = self.tail.load(SeqCst);
+    //    if guard.release().is_err() {
+    //        return Err(Error::Snapshot);
+    //    };
+    //    let mut snapshots = self.series_map.get(&series_id).unwrap().snapshot()?;
+    //    let mut v = Vec::new();
+    //    v.push(Arc::new(head_block));
+    //    v.append(&mut snapshots);
+    //    Ok(v)
+    //}
+
+    pub fn add_source(&self, series_id: SeriesId) -> Arc<SourceBlockList> {
+        let list = Arc::new(SourceBlockList::new());
+        self.series_map.insert(series_id, list.clone());
+        list
     }
 
     pub fn push(
         &self,
-        list: &List,
         series_id: SeriesId,
         segment: &FlushSegment,
         compression: &Compression,
@@ -139,18 +142,12 @@ impl BlockList {
 
         // Safety: id() is atomic
         let block_id = unsafe { self.head_block.unprotected_read().id.load(SeqCst) };
-        let head = list.head.load(SeqCst);
 
         // Safety: unprotected write because Block push only appends data and increments an atomic
         // read is bounded by the atomic
         let is_full = unsafe {
-            self.head_block.unprotected_write().push(head, series_id, segment, compression)
+            self.head_block.unprotected_write().push(series_id, segment, compression)
         };
-
-        // Update the list with the new head
-        if head != block_id {
-            list.head.store(block_id, SeqCst);
-        }
 
         self.id_set.borrow_mut().insert(series_id);
 
@@ -158,7 +155,7 @@ impl BlockList {
             // Safety: there should be only one writer and it should be doing this push
             let copy = Arc::new(unsafe { self.head_block.unprotected_read().as_read_only() });
             for id in self.id_set.borrow_mut().drain() {
-                self.series_map.entry(id).or_insert(CircularBlockBuffer::new()).push(copy.clone());
+                self.series_map.get(&id).unwrap().push(copy.clone());
             }
             FLUSH_WORKERS[thread_rng().gen_range(0..FLUSHERS)].send(copy).unwrap();
             // Mark current block as cleared
@@ -203,7 +200,6 @@ impl Block {
 
     fn push(
         &mut self,
-        last_block_id: u64,
         series_id: SeriesId,
         segment: &FlushSegment,
         compression: &Compression,
@@ -214,11 +210,6 @@ impl Block {
         // Write SeriesId
         let end = offset + u64sz;
         self.bytes[offset..end].copy_from_slice(&series_id.0.to_be_bytes());
-        offset = end;
-
-        // Write where we can find the next chunk for this SeriesId
-        let end = offset + u64sz;
-        self.bytes[offset..end].copy_from_slice(&last_block_id.to_be_bytes());
         offset = end;
 
         // Reserve space for the size of the chunk
@@ -310,51 +301,51 @@ impl ReadOnlyBlock {
     }
 }
 
-pub struct ReadOnlySegment {
-    id: SeriesId,
-    next_block: usize,
-    start: usize,
-    end: usize,
-    ro_bytes: ReadOnlyBytes,
-}
-
-#[derive(Clone)]
-pub struct ReadOnlyBytes(Arc<[u8]>);
-
-impl ReadOnlyBytes {
-    fn source_id(&self) -> usize {
-        usize::from_be_bytes(self.0[..8].try_into().unwrap())
-    }
-
-    pub fn get_segments(&self) -> Vec<ReadOnlySegment> {
-        let mut v = Vec::new();
-        let mut offset = 8;
-        while offset < self.0.len() {
-            let id = {
-                let id = u64::from_be_bytes(self.0[offset..offset+8].try_into().unwrap());
-                offset += 8;
-                SeriesId(id)
-            };
-
-            let next_block = usize::from_be_bytes(self.0[offset..offset+8].try_into().unwrap());
-            offset += 8;
-
-            let segment_sz = usize::from_be_bytes(self.0[offset..offset+8].try_into().unwrap());
-            offset += 8;
-
-            let start = offset;
-            let end = offset + segment_sz;
-
-            v.push(ReadOnlySegment {
-                id,
-                next_block,
-                start,
-                end,
-                ro_bytes: self.clone(),
-            });
-        }
-        v
-    }
-}
+//pub struct ReadOnlySegment {
+//    id: SeriesId,
+//    next_block: usize,
+//    start: usize,
+//    end: usize,
+//    ro_bytes: ReadOnlyBytes,
+//}
+//
+//#[derive(Clone)]
+//pub struct ReadOnlyBytes(Arc<[u8]>);
+//
+//impl ReadOnlyBytes {
+//    fn source_id(&self) -> usize {
+//        usize::from_be_bytes(self.0[..8].try_into().unwrap())
+//    }
+//
+//    pub fn get_segments(&self) -> Vec<ReadOnlySegment> {
+//        let mut v = Vec::new();
+//        let mut offset = 8;
+//        while offset < self.0.len() {
+//            let id = {
+//                let id = u64::from_be_bytes(self.0[offset..offset+8].try_into().unwrap());
+//                offset += 8;
+//                SeriesId(id)
+//            };
+//
+//            let next_block = usize::from_be_bytes(self.0[offset..offset+8].try_into().unwrap());
+//            offset += 8;
+//
+//            let segment_sz = usize::from_be_bytes(self.0[offset..offset+8].try_into().unwrap());
+//            offset += 8;
+//
+//            let start = offset;
+//            let end = offset + segment_sz;
+//
+//            v.push(ReadOnlySegment {
+//                id,
+//                next_block,
+//                start,
+//                end,
+//                ro_bytes: self.clone(),
+//            });
+//        }
+//        v
+//    }
+//}
 
 

@@ -14,7 +14,7 @@ struct InnerBuffer {
     data: Box<[MaybeUninit<Arc<ReadOnlyBlock>>]>,
     offset: usize,
     producer: kafka::Producer,
-    last: (usize, usize),
+    last: (i32, i64),
 }
 
 impl InnerBuffer {
@@ -31,7 +31,7 @@ impl InnerBuffer {
 
     unsafe fn full_flush(&mut self) {
         let mut v = Vec::new();
-        v.push(self.last);
+        v.push((self.last.0.try_into().unwrap(), self.last.1.try_into().unwrap()));
         for item in self.data.iter() {
             let r = item.assume_init_ref();
             r.flush(&mut self.producer);
@@ -40,11 +40,10 @@ impl InnerBuffer {
         }
         let bytes = bincode::serialize(&v).unwrap();
         let part: i32= rand::thread_rng().gen_range(0..3);
-        let (p, o) = self.producer.send(&*TOPIC, part, &bytes);
-        self.last = (p.try_into().unwrap(), o.try_into().unwrap());
+        self.last = self.producer.send(&*TOPIC, part, &bytes);
     }
 
-    fn snapshot(&self) -> Vec<Arc<ReadOnlyBlock>> {
+    fn snapshot(&self) -> SourceBlocks {
         let mut v = Vec::with_capacity(256);
         let end = self.offset;
         let start = if end < 256 { 0 } else { end + 256 };
@@ -54,7 +53,11 @@ impl InnerBuffer {
                 v.push(self.data[off % 256].assume_init_ref().clone());
             }
         }
-        v
+
+        SourceBlocks {
+            data: v,
+            next: self.last
+        }
     }
 
     fn new() -> Self {
@@ -65,18 +68,18 @@ impl InnerBuffer {
             data: vec.into_boxed_slice(),
             offset: 0,
             producer,
-            last: (usize::MAX, usize::MAX),
+            last: (-1, -1),
         }
     }
 }
 
 unsafe impl NoDealloc for InnerBuffer {}
 
-pub struct CircularBlockBuffer {
+pub struct SourceBlockList {
     inner: WpLock<InnerBuffer>
 }
 
-impl CircularBlockBuffer {
+impl SourceBlockList {
     pub fn new() -> Self {
         Self {
             inner: WpLock::new(InnerBuffer::new()),
@@ -87,7 +90,7 @@ impl CircularBlockBuffer {
         self.inner.protected_write().push(item);
     }
 
-    pub fn snapshot(&self) -> Result<Vec<Arc<ReadOnlyBlock>>, Error> {
+    pub fn snapshot(&self) -> Result<SourceBlocks, Error> {
         let guard = self.inner.protected_read();
         let data = guard.snapshot();
         if guard.release().is_err() {
@@ -98,8 +101,9 @@ impl CircularBlockBuffer {
     }
 }
 
-
-
-
+pub struct  SourceBlocks {
+    data: Vec<Arc<ReadOnlyBlock>>,
+    next: (i32, i64)
+}
 
 
