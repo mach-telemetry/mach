@@ -1,7 +1,7 @@
 use crate::{
     compression::{self, Compression, DecompressBuffer},
     durable_queue::DurableQueueReader,
-    persistent_list::{self, ListSnapshot, ListSnapshotReader},
+    //persistent_list::{self, ListSnapshot, ListSnapshotReader},
     //runtime::RUNTIME,
     segment::{ReadBuffer, SegmentSnapshot, SegmentSnapshotReader},
     series::Types,
@@ -13,15 +13,15 @@ use std::slice;
 
 #[derive(Debug)]
 pub enum Error {
-    PersistentList(persistent_list::Error),
+    //PersistentList(persistent_list::Error),
     Compression(compression::Error),
 }
 
-impl From<persistent_list::Error> for Error {
-    fn from(item: persistent_list::Error) -> Self {
-        Error::PersistentList(item)
-    }
-}
+//impl From<persistent_list::Error> for Error {
+//    fn from(item: persistent_list::Error) -> Self {
+//        Error::PersistentList(item)
+//    }
+//}
 
 impl From<compression::Error> for Error {
     fn from(item: compression::Error) -> Self {

@@ -2,11 +2,11 @@ use crate::{
     active_block::*,
     compression::Compression,
     //wal::Wal,
-    durable_queue::{DurableQueue, DurableQueueWriter, QueueConfig},
+    //durable_queue::{DurableQueue, DurableQueueWriter, QueueConfig},
     id::{SeriesId, SeriesRef, WriterId},
     //persistent_list::*,
     mem_list::{List, BlockList},
-    runtime::*,
+    //runtime::*,
     sample::Type,
     segment::{self, FlushSegment, WriteSegment},
     series::*,
@@ -30,7 +30,7 @@ impl From<segment::Error> for Error {
 
 #[derive(Clone)]
 pub struct WriterConfig {
-    pub queue_config: QueueConfig,
+    //pub queue_config: QueueConfig,
     pub active_block_flush_sz: usize,
 }
 
@@ -59,7 +59,7 @@ impl Writer {
         writer_config: WriterConfig,
     ) -> (Self, WriterMetadata) {
         let block_flush_sz = writer_config.active_block_flush_sz;
-        let queue_config = writer_config.queue_config;
+        //let queue_config = writer_config.queue_config;
         let id = WriterId::new();
         let block_list = Arc::new(BlockList::new());
         let block_list_clone = block_list.clone();

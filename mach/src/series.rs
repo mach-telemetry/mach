@@ -1,12 +1,12 @@
 use crate::{
     compression::Compression,
-    durable_queue::QueueConfig,
+    //durable_queue::QueueConfig,
     //persistent_list::{self, List, ListBuffer},
     mem_list::{BlockList, List},
-    persistent_list,
+    //persistent_list,
     //reader::Snapshot,
     segment::{self, Segment, SegmentSnapshot},
-    snapshot::Snapshot,
+    //snapshot::Snapshot,
     id::SeriesId,
 };
 use serde::*;
@@ -16,14 +16,14 @@ use std::sync::Arc;
 pub enum Error {
     Noop,
     Segment(segment::Error),
-    PersistentList(persistent_list::Error),
+    //PersistentList(persistent_list::Error),
 }
 
-impl From<persistent_list::Error> for Error {
-    fn from(item: persistent_list::Error) -> Self {
-        Error::PersistentList(item)
-    }
-}
+//impl From<persistent_list::Error> for Error {
+//    fn from(item: persistent_list::Error) -> Self {
+//        Error::PersistentList(item)
+//    }
+//}
 
 impl From<segment::Error> for Error {
     fn from(item: segment::Error) -> Self {
@@ -93,12 +93,12 @@ impl Series {
         Ok(self.segment.snapshot()?)
     }
 
-    pub fn snapshot(&self) -> Result<Snapshot, Error> {
-        //let segment = self.segment.snapshot()?;
-        //let list = self.list.snapshot()?;
-        //Ok(Snapshot::new(segment, list))
-        Err(Error::Noop)
-    }
+    //pub fn snapshot(&self) -> Result<Snapshot, Error> {
+    //    //let segment = self.segment.snapshot()?;
+    //    //let list = self.list.snapshot()?;
+    //    //Ok(Snapshot::new(segment, list))
+    //    Err(Error::Noop)
+    //}
 
     //pub fn snapshot(&self) -> Result<Snapshot, Error> {
     //    let segment = self.segment.snapshot()?;
