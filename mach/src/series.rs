@@ -39,7 +39,6 @@ pub enum Types {
     Bytes = 3,
     Timestamp = 4,
     U32 = 5,
-    //Fixed(usize) = 6,
 }
 
 impl Types {
@@ -55,7 +54,6 @@ impl Types {
             3 => Self::Bytes,
             4 => Self::Timestamp,
             5 => Self::U32,
-            //6 => Fixed(usize),
             _ => unimplemented!(),
         }
     }
@@ -89,9 +87,10 @@ impl Series {
         }
     }
 
-    pub fn segment_snapshot(&self) -> Result<SegmentSnapshot, Error> {
-        Ok(self.segment.snapshot()?)
-    }
+    //pub fn segment_snapshot(&self) -> Result<SegmentSnapshot, Error> {
+    //    Ok(self.segment.snapshot()?)
+    //}
+
 
     //pub fn snapshot(&self) -> Result<Snapshot, Error> {
     //    //let segment = self.segment.snapshot()?;

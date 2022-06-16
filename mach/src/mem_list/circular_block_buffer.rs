@@ -1,13 +1,20 @@
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
 use crate::{
-    utils::wp_lock::{WpLock, NoDealloc},
-    mem_list::{ReadOnlyBlock, Error},
+    utils::{
+        wp_lock::{WpLock, NoDealloc},
+        kafka,
+    },
+    mem_list::{ReadOnlyBlock, Error, TOPIC, BOOTSTRAPS},
 };
 use std::mem::MaybeUninit;
+use rand::Rng;
+use std::convert::TryInto;
 
 struct InnerBuffer {
     data: Box<[MaybeUninit<Arc<ReadOnlyBlock>>]>,
-    offset: usize
+    offset: usize,
+    producer: kafka::Producer,
+    last: (usize, usize),
 }
 
 impl InnerBuffer {
@@ -15,6 +22,26 @@ impl InnerBuffer {
         let idx = (self.offset + 1) % self.data.len();
         self.data[idx].write(item);
         self.offset += 1;
+        if self.offset % self.data.len() == 0 {
+            unsafe {
+                self.full_flush();
+            }
+        }
+    }
+
+    unsafe fn full_flush(&mut self) {
+        let mut v = Vec::new();
+        v.push(self.last);
+        for item in self.data.iter() {
+            let r = item.assume_init_ref();
+            r.flush(&mut self.producer);
+            let p = r.partition_offset();
+            v.push(p);
+        }
+        let bytes = bincode::serialize(&v).unwrap();
+        let part: i32= rand::thread_rng().gen_range(0..3);
+        let (p, o) = self.producer.send(&*TOPIC, part, &bytes);
+        self.last = (p.try_into().unwrap(), o.try_into().unwrap());
     }
 
     fn snapshot(&self) -> Vec<Arc<ReadOnlyBlock>> {
@@ -33,9 +60,12 @@ impl InnerBuffer {
     fn new() -> Self {
         let mut vec = Vec::with_capacity(256);
         vec.resize_with(256, MaybeUninit::uninit);
+        let producer = kafka::Producer::new(&*BOOTSTRAPS);
         Self {
             data: vec.into_boxed_slice(),
             offset: 0,
+            producer,
+            last: (usize::MAX, usize::MAX),
         }
     }
 }

@@ -1,5 +1,5 @@
 mod circular_block_buffer;
-use circular_block_buffer::CircularBlockBuffer;
+pub use circular_block_buffer::CircularBlockBuffer;
 
 use crate::{
     compression::Compression,
@@ -73,10 +73,7 @@ pub enum Error {
 fn flush_worker(chan: crossbeam::channel::Receiver<Arc<ReadOnlyBlock>>) {
     let mut producer = kafka::Producer::new(BOOTSTRAPS);
     while let Ok(block) = chan.recv() {
-        let mut bytes = block.bytes();
-        let part: i32= rand::thread_rng().gen_range(0..3);
-        let (part2, offset) = producer.send(&*TOPIC, part, &bytes[..]);
-        block.set_partition_offset(part.try_into().unwrap(), offset.try_into().unwrap());
+        block.flush(&mut producer);
     }
 }
 
@@ -265,7 +262,7 @@ impl Block {
 }
 
 enum InnerReadOnlyBlock {
-    Bytes(Arc<[u8]>),
+    Bytes(Box<[u8]>),
     Offset(usize, usize),
 }
 
@@ -277,13 +274,38 @@ impl ReadOnlyBlock {
 
     fn set_partition_offset(&self, part: usize, off: usize) {
         let mut guard = self.inner.write().unwrap();
-        let _x = std::mem::replace(&mut *guard, InnerReadOnlyBlock::Offset(part, off));
+        match &mut *guard {
+            InnerReadOnlyBlock::Bytes(x) => {
+                let _x = std::mem::replace(&mut *guard, InnerReadOnlyBlock::Offset(part, off));
+            },
+            InnerReadOnlyBlock::Offset(..) => {},
+        }
     }
 
-    pub fn bytes(&self) -> Arc<[u8]> {
-        match &*self.inner.read().unwrap() {
-            InnerReadOnlyBlock::Bytes(x) => x.clone(),
+    //pub fn bytes(&self) -> Arc<[u8]> {
+    //    match &*self.inner.read().unwrap() {
+    //        InnerReadOnlyBlock::Bytes(x) => x.clone(),
+    //        InnerReadOnlyBlock::Offset(x, y) => unimplemented!(),
+    //    }
+    //}
+
+    fn flush(&self, producer: &mut kafka::Producer) {
+        let guard = self.inner.read().unwrap();
+        match &*guard {
+            InnerReadOnlyBlock::Bytes(bytes) => {
+                let part: i32= rand::thread_rng().gen_range(0..3);
+                let (part2, offset) = producer.send(&*TOPIC, part, bytes);
+                drop(guard);
+                self.set_partition_offset(part.try_into().unwrap(), offset.try_into().unwrap());
+            },
             InnerReadOnlyBlock::Offset(x, y) => unimplemented!(),
+        }
+    }
+
+    fn partition_offset(&self) -> (usize, usize) {
+        match &*self.inner.read().unwrap() {
+            InnerReadOnlyBlock::Bytes(_) => unimplemented!(),
+            InnerReadOnlyBlock::Offset(x, y) => (*x, *y)
         }
     }
 }
