@@ -14,7 +14,6 @@ use zstd::zstd_safe::WriteBuf;
 
 use mach::{
     compression::{CompressFn, Compression},
-    durable_queue::{KafkaConfig, NoopConfig, TOTAL_SZ},
     id::{SeriesId, SeriesRef, WriterId},
     // kafka_utils::TOTAL_MB_WRITTEN,
     sample::Type,
@@ -112,7 +111,11 @@ fn register_samples(
     registered_samples
 }
 
-fn prepare_samples(
+fn prepare_kafka_samples(data: Vec<otlp::OtlpData>) -> Vec<Sample> {
+    otlp_data_to_samples(data)
+}
+
+fn prepare_mach_samples(
     data: Vec<otlp::OtlpData>,
     mach: &mut Mach,
     writer: &mut Writer,
@@ -123,14 +126,7 @@ fn prepare_samples(
 }
 
 fn new_writer(mach: &mut Mach, kafka_bootstraps: String) -> Writer {
-    let queue_config = KafkaConfig {
-        bootstrap: kafka_bootstraps,
-        topic: random_id(),
-    }
-    .config();
-
     let writer_config = WriterConfig {
-        queue_config,
         active_block_flush_sz: 1_000_000,
     };
 
@@ -138,11 +134,11 @@ fn new_writer(mach: &mut Mach, kafka_bootstraps: String) -> Writer {
 }
 
 #[inline(never)]
-fn kafka_ingest(samples: Vec<RegisteredSample>, args: Args) {
+fn kafka_ingest(samples: Vec<Sample>, args: Args) {
     let topic = random_id();
     kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
 
-    let (tx, rx) = bounded::<Vec<RegisteredSample>>(args.kafka_flush_queue_len);
+    let (tx, rx) = bounded::<Vec<Sample>>(args.kafka_flush_queue_len);
     let flushers: Vec<JoinHandle<()>> = (0..args.kafka_flushers)
         .map(|_| {
             let recv = rx.clone();
@@ -189,8 +185,8 @@ fn kafka_ingest(samples: Vec<RegisteredSample>, args: Args) {
         elapsed,
         num_samples as f64 / elapsed_sec
     );
-    let total_sz_written = TOTAL_SZ.load(std::sync::atomic::Ordering::SeqCst);
-    println!("Total Size written: {}", total_sz_written);
+    // let total_sz_written = TOTAL_SZ.load(std::sync::atomic::Ordering::SeqCst);
+    // println!("Total Size written: {}", total_sz_written);
     // println!("Raw size written {}", raw_byte_sz);
 }
 
@@ -251,8 +247,8 @@ fn mach_ingest(samples: Vec<RegisteredSample>, mut writer: Writer) {
         elapsed,
         num_samples as f64 / elapsed_sec
     );
-    let total_sz_written = TOTAL_SZ.load(std::sync::atomic::Ordering::SeqCst);
-    println!("Total Size written: {}", total_sz_written);
+    // let total_sz_written = TOTAL_SZ.load(std::sync::atomic::Ordering::SeqCst);
+    // println!("Total Size written: {}", total_sz_written);
     println!("Raw size written {}", raw_byte_sz);
 }
 
@@ -313,19 +309,28 @@ fn main() {
     let args = Args::parse();
     println!("Args: {:#?}", args);
 
-    let mut mach = Mach::new();
-    let mut writer = new_writer(&mut mach, args.kafka_bootstraps.clone());
-
     println!("Loading data");
-    let mut data = load_data(args.file_path.as_str(), 6);
+    let mut data = load_data(args.file_path.as_str(), 4);
     println!("Rewriting timestamps");
     rewrite_timestamps(&mut data);
-    println!("Extracting samples");
-    let samples = prepare_samples(data, &mut mach, &mut writer);
-    println!("{} samples ready", samples.len());
 
     match args.tsdb {
-        BenchTarget::Mach => mach_ingest(samples, writer),
-        BenchTarget::Kafka => kafka_ingest(samples, args),
+        BenchTarget::Mach => {
+            let mut mach = Mach::new();
+            let mut writer = new_writer(&mut mach, args.kafka_bootstraps.clone());
+
+            println!("Extracting samples");
+            let samples = prepare_mach_samples(data, &mut mach, &mut writer);
+            println!("{} samples ready", samples.len());
+
+            mach_ingest(samples, writer);
+        }
+        BenchTarget::Kafka => {
+            println!("Extracting samples");
+            let samples = prepare_kafka_samples(data);
+            println!("{} samples ready", samples.len());
+
+            kafka_ingest(samples, args);
+        }
     }
 }
