@@ -1,5 +1,5 @@
 mod source_block_list;
-pub use source_block_list::SourceBlockList;
+pub use source_block_list::{SourceBlockList, SourceBlocks};
 
 use crate::{
     compression::Compression,
@@ -34,7 +34,7 @@ const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
 
 lazy_static! {
     static ref TOPIC: String = random_id();
-    static ref FLUSH_WORKERS: Vec<crossbeam::channel::Sender<Arc<ReadOnlyBlock>>> = {
+    static ref FLUSH_WORKERS: Vec<crossbeam::channel::Sender<Arc<BlockListEntry>>> = {
         let mut flushers = Vec::new();
         for _ in 0..FLUSHERS {
             let (tx, rx) = crossbeam::channel::unbounded();
@@ -70,7 +70,7 @@ pub enum Error {
 }
 
 
-fn flush_worker(chan: crossbeam::channel::Receiver<Arc<ReadOnlyBlock>>) {
+fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new(BOOTSTRAPS);
     while let Ok(block) = chan.recv() {
         block.flush(&mut producer);
@@ -112,20 +112,15 @@ impl BlockList {
         }
     }
 
-    //pub fn snapshot(&self, series_id: SeriesId) -> Result<Vec<Arc<ReadOnlyBlock>>, Error> {
-    //    let guard = self.head_block.protected_read();
-    //    let head_block = guard.as_read_only();
-    //    let head = guard.id.load(SeqCst);
-    //    let tail = self.tail.load(SeqCst);
-    //    if guard.release().is_err() {
-    //        return Err(Error::Snapshot);
-    //    };
-    //    let mut snapshots = self.series_map.get(&series_id).unwrap().snapshot()?;
-    //    let mut v = Vec::new();
-    //    v.push(Arc::new(head_block));
-    //    v.append(&mut snapshots);
-    //    Ok(v)
-    //}
+    pub fn snapshot(&self, series_id: SeriesId) -> Result<ReadOnlyBlock, Error> {
+        let guard = self.head_block.protected_read();
+        let head_block = guard.as_read_only();
+        if guard.release().is_err() {
+            Err(Error::Snapshot)
+        } else {
+            Ok(head_block.inner().into())
+        }
+    }
 
     pub fn add_source(&self, series_id: SeriesId) -> Arc<SourceBlockList> {
         let list = Arc::new(SourceBlockList::new());
@@ -243,60 +238,74 @@ impl Block {
         self.len.store(u64sz, SeqCst);
     }
 
-    fn as_read_only(&self) -> ReadOnlyBlock {
+    fn as_read_only(&self) -> BlockListEntry {
         let len = self.len.load(SeqCst);
         let bytes = self.bytes[..len].into();
-        ReadOnlyBlock {
-            inner: RwLock::new(InnerReadOnlyBlock::Bytes(bytes)),
+        BlockListEntry {
+            inner: RwLock::new(InnerBlockListEntry::Bytes(bytes)),
         }
     }
 }
 
-enum InnerReadOnlyBlock {
+#[derive(serde::Serialize, serde::Deserialize)]
+pub enum ReadOnlyBlock {
     Bytes(Box<[u8]>),
-    Offset(usize, usize),
+    Offset(i32, i64),
 }
 
-pub struct ReadOnlyBlock {
-    inner: RwLock<InnerReadOnlyBlock>,
+impl std::convert::From<InnerBlockListEntry> for ReadOnlyBlock {
+    fn from(item: InnerBlockListEntry) -> Self {
+        match item {
+            InnerBlockListEntry::Bytes(x) => ReadOnlyBlock::Bytes(x[..].into()),
+            InnerBlockListEntry::Offset(x, y) => ReadOnlyBlock::Offset(x, y),
+        }
+    }
 }
 
-impl ReadOnlyBlock {
+#[derive(Clone)]
+enum InnerBlockListEntry {
+    Bytes(Arc<[u8]>),
+    Offset(i32, i64),
+}
 
-    fn set_partition_offset(&self, part: usize, off: usize) {
+
+pub struct BlockListEntry {
+    inner: RwLock<InnerBlockListEntry>,
+}
+
+impl BlockListEntry {
+
+    fn set_partition_offset(&self, part: i32, off: i64) {
         let mut guard = self.inner.write().unwrap();
         match &mut *guard {
-            InnerReadOnlyBlock::Bytes(x) => {
-                let _x = std::mem::replace(&mut *guard, InnerReadOnlyBlock::Offset(part, off));
+            InnerBlockListEntry::Bytes(x) => {
+                let _x = std::mem::replace(&mut *guard, InnerBlockListEntry::Offset(part, off));
             },
-            InnerReadOnlyBlock::Offset(..) => {},
+            InnerBlockListEntry::Offset(..) => {},
         }
     }
 
-    //pub fn bytes(&self) -> Arc<[u8]> {
-    //    match &*self.inner.read().unwrap() {
-    //        InnerReadOnlyBlock::Bytes(x) => x.clone(),
-    //        InnerReadOnlyBlock::Offset(x, y) => unimplemented!(),
-    //    }
-    //}
+    fn inner(&self) -> InnerBlockListEntry {
+        self.inner.read().unwrap().clone()
+    }
 
     fn flush(&self, producer: &mut kafka::Producer) {
         let guard = self.inner.read().unwrap();
         match &*guard {
-            InnerReadOnlyBlock::Bytes(bytes) => {
+            InnerBlockListEntry::Bytes(bytes) => {
                 let part: i32= rand::thread_rng().gen_range(0..3);
                 let (part2, offset) = producer.send(&*TOPIC, part, bytes);
                 drop(guard);
-                self.set_partition_offset(part.try_into().unwrap(), offset.try_into().unwrap());
+                self.set_partition_offset(part, offset);
             },
-            InnerReadOnlyBlock::Offset(x, y) => unimplemented!(),
+            InnerBlockListEntry::Offset(x, y) => unimplemented!(),
         }
     }
 
-    fn partition_offset(&self) -> (usize, usize) {
+    fn partition_offset(&self) -> (i32, i64) {
         match &*self.inner.read().unwrap() {
-            InnerReadOnlyBlock::Bytes(_) => unimplemented!(),
-            InnerReadOnlyBlock::Offset(x, y) => (*x, *y)
+            InnerBlockListEntry::Bytes(_) => unimplemented!(),
+            InnerBlockListEntry::Offset(x, y) => (*x, *y)
         }
     }
 }

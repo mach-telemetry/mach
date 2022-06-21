@@ -4,21 +4,21 @@ use crate::{
         wp_lock::{WpLock, NoDealloc},
         kafka,
     },
-    mem_list::{ReadOnlyBlock, Error, TOPIC, BOOTSTRAPS},
+    mem_list::{BlockListEntry, ReadOnlyBlock, InnerBlockListEntry, Error, TOPIC, BOOTSTRAPS},
 };
 use std::mem::MaybeUninit;
 use rand::Rng;
 use std::convert::TryInto;
 
 struct InnerBuffer {
-    data: Box<[MaybeUninit<Arc<ReadOnlyBlock>>]>,
+    data: Box<[MaybeUninit<Arc<BlockListEntry>>]>,
     offset: usize,
     producer: kafka::Producer,
     last: (i32, i64),
 }
 
 impl InnerBuffer {
-    fn push(&mut self, item: Arc<ReadOnlyBlock>) {
+    fn push(&mut self, item: Arc<BlockListEntry>) {
         let idx = (self.offset + 1) % self.data.len();
         self.data[idx].write(item);
         self.offset += 1;
@@ -50,7 +50,7 @@ impl InnerBuffer {
         for off in start..end {
             /// Safety: offset ensures prior items are inited
             unsafe {
-                v.push(self.data[off % 256].assume_init_ref().clone());
+                v.push(self.data[off % 256].assume_init_ref().inner().into());
             }
         }
 
@@ -86,7 +86,7 @@ impl SourceBlockList {
         }
     }
 
-    pub fn push(&self, item: Arc<ReadOnlyBlock>) {
+    pub fn push(&self, item: Arc<BlockListEntry>) {
         self.inner.protected_write().push(item);
     }
 
@@ -101,9 +101,8 @@ impl SourceBlockList {
     }
 }
 
-pub struct  SourceBlocks {
-    data: Vec<Arc<ReadOnlyBlock>>,
+#[derive(serde::Serialize,serde::Deserialize)]
+pub struct SourceBlocks {
+    data: Vec<ReadOnlyBlock>,
     next: (i32, i64)
 }
-
-

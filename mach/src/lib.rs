@@ -32,12 +32,13 @@ pub mod series;
 pub mod tsdb;
 pub mod utils;
 pub mod mem_list;
+pub mod snapshot;
 //pub mod writer;
 //pub mod wal;
 //pub mod durability;
 
 // new shit
-pub mod active_block;
+//pub mod active_block;
 //pub mod durable_queue;
 //pub mod persistent_list;
 //pub mod snapshot;

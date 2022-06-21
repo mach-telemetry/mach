@@ -6,7 +6,12 @@ use rdkafka::{
 pub use kafka::client::{KafkaClient, ProduceMessage, RequiredAcks};
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
-use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering::SeqCst},
+};
+use dashmap::DashMap;
+use crate::utils::random_id;
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 
@@ -58,3 +63,47 @@ impl Producer {
         (part, offset)
     }
 }
+
+pub struct BufferedConsumer {
+    data: DashMap<(i32, i64), Arc<[u8]>>
+}
+
+impl BufferedConsumer {
+    pub fn new(bootstraps: &str, topic: &str) -> Self {
+        let data = DashMap::new();
+        init_consumer_worker(bootstraps, topic, data.clone());
+        Self {
+            data
+        }
+    }
+
+    pub fn get(&self, partition: i32, offset: i64) -> Option<Arc<[u8]>> {
+        Some(self.data.get(&(partition, offset))?.value().clone())
+    }
+}
+
+fn init_consumer_worker(bootstraps: &str, topic: &str, data: DashMap<(i32, i64), Arc<[u8]>>) {
+    use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
+    let bootstraps = bootstraps.split(",").map(|x| String::from(x)).collect();
+    let mut consumer =
+       Consumer::from_hosts(bootstraps)
+          .with_topic(topic.to_owned())
+          .with_fallback_offset(FetchOffset::Earliest)
+          .with_group(random_id())
+          .with_offset_storage(GroupOffsetStorage::Kafka)
+          .create()
+          .unwrap();
+
+    std::thread::spawn(move || {
+        loop {
+          for ms in consumer.poll().unwrap().iter() {
+            let partition = ms.partition();
+            for m in ms.messages() {
+                data.insert((partition, m.offset), m.value.into());
+            }
+          }
+        }
+    });
+}
+
+
