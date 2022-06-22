@@ -6,6 +6,7 @@ use crate::sample::{Bytes, Type};
 use crate::segment::Error;
 use crate::series::Types;
 use crate::utils::wp_lock::*;
+use crate::snapshot::Segment;
 //use crate::reader::SampleIterator;
 use serde::*;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
@@ -289,84 +290,85 @@ impl<'a> FlushBuffer<'a> {
     }
 }
 
+pub type ReadBuffer = Segment;
 pub type BufferSnapshot = ReadBuffer;
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct ReadBuffer {
-    len: usize,
-    ts: Vec<u64>,
-    data: Vec<Vec<[u8; 8]>>,
-    heap: Vec<Option<Vec<u8>>>,
-    heap_flags: Vec<Types>,
-}
-
-impl ReadBuffer {
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn variable(&self, i: usize) -> (Types, &[[u8; 8]]) {
-        (self.heap_flags[i], &self.data[i][..self.len])
-    }
-
-    pub fn get_timestamp_at(&self, i: usize) -> u64 {
-        let i = self.len - i - 1;
-        self.ts[i]
-    }
-
-    pub fn get_value_at(&self, var: usize, i: usize) -> (Types, [u8; 8]) {
-        let i = self.len - i - 1;
-        let (t, v) = self.variable(var);
-        (t, v[i])
-    }
-
-    pub fn timestamps(&self) -> &[u64] {
-        &self.ts[..self.len]
-    }
-
-    //pub fn as_segment(&self) -> reader::Segment {
-    //    let mut ts = self.ts[..self.len].into();
-    //    let mut data = Vec::new();
-    //    let mut heap = Vec::new();
-
-    //    for i in 0..self.data.len() {
-    //        if self.heap_flags[i] {
-    //            for j in 0..self.len {
-    //                // Copy each bytes location into the heap
-    //                let b = unsafe { Bytes::from_sample_entry(self.data[i][j]) };
-    //                let l = heap.len();
-    //                heap.extend_from_slice(b.as_raw_bytes());
-    //                let ptr: *const u8 = (&heap[l..heap.len()]).as_ptr();
-    //                data.push((ptr as u64).to_be_bytes());
-    //                b.into_raw(); // prevent freeing
-    //            }
-    //        } else {
-    //            data.extend_from_slice(&self.data[i][..self.len]);
-    //        }
-    //    }
-    //    reader::Segment::new(ts, data, heap)
-    //}
-
-    //pub fn reader(&self) -> reader::Segment {
-    //    let mut ts = Vec::new();
-    //    let mut data = Vec::new();
-    //    let nvars = self.heap_flags.len();
-
-    //    for i in (0..self.len).rev() {
-    //        ts.push(self.ts[i]);
-    //        for col in self.data.iter() {
-    //            data.push(col[i]);
-    //        }
-    //    }
-
-    //    reader::Segment {
-    //        ts,
-    //        data,
-    //        heap: self.heap.clone(),
-    //        heap_flags: self.heap_flags.clone(),
-    //    }
-    //}
-}
+// #[derive(Clone, Serialize, Deserialize)]
+// pub struct ReadBuffer {
+//     len: usize,
+//     ts: Vec<u64>,
+//     data: Vec<Vec<[u8; 8]>>,
+//     heap: Vec<Option<Vec<u8>>>,
+//     heap_flags: Vec<Types>,
+// }
+// 
+// impl ReadBuffer {
+//     pub fn len(&self) -> usize {
+//         self.len
+//     }
+// 
+//     pub fn variable(&self, i: usize) -> (Types, &[[u8; 8]]) {
+//         (self.heap_flags[i], &self.data[i][..self.len])
+//     }
+// 
+//     pub fn get_timestamp_at(&self, i: usize) -> u64 {
+//         let i = self.len - i - 1;
+//         self.ts[i]
+//     }
+// 
+//     pub fn get_value_at(&self, var: usize, i: usize) -> (Types, [u8; 8]) {
+//         let i = self.len - i - 1;
+//         let (t, v) = self.variable(var);
+//         (t, v[i])
+//     }
+// 
+//     pub fn timestamps(&self) -> &[u64] {
+//         &self.ts[..self.len]
+//     }
+// 
+//     //pub fn as_segment(&self) -> reader::Segment {
+//     //    let mut ts = self.ts[..self.len].into();
+//     //    let mut data = Vec::new();
+//     //    let mut heap = Vec::new();
+// 
+//     //    for i in 0..self.data.len() {
+//     //        if self.heap_flags[i] {
+//     //            for j in 0..self.len {
+//     //                // Copy each bytes location into the heap
+//     //                let b = unsafe { Bytes::from_sample_entry(self.data[i][j]) };
+//     //                let l = heap.len();
+//     //                heap.extend_from_slice(b.as_raw_bytes());
+//     //                let ptr: *const u8 = (&heap[l..heap.len()]).as_ptr();
+//     //                data.push((ptr as u64).to_be_bytes());
+//     //                b.into_raw(); // prevent freeing
+//     //            }
+//     //        } else {
+//     //            data.extend_from_slice(&self.data[i][..self.len]);
+//     //        }
+//     //    }
+//     //    reader::Segment::new(ts, data, heap)
+//     //}
+// 
+//     //pub fn reader(&self) -> reader::Segment {
+//     //    let mut ts = Vec::new();
+//     //    let mut data = Vec::new();
+//     //    let nvars = self.heap_flags.len();
+// 
+//     //    for i in (0..self.len).rev() {
+//     //        ts.push(self.ts[i]);
+//     //        for col in self.data.iter() {
+//     //            data.push(col[i]);
+//     //        }
+//     //    }
+// 
+//     //    reader::Segment {
+//     //        ts,
+//     //        data,
+//     //        heap: self.heap.clone(),
+//     //        heap_flags: self.heap_flags.clone(),
+//     //    }
+//     //}
+// }
 
 #[cfg(test)]
 mod test {

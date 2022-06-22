@@ -5,6 +5,7 @@ use crate::{
     compression::Compression,
     id::SeriesId,
     segment::FlushSegment,
+    snapshot::Segment,
     utils::wp_lock::{WpLock, NoDealloc},
     utils::byte_buffer::ByteBuffer,
     utils::random_id,
@@ -112,8 +113,13 @@ impl BlockList {
         }
     }
 
+    // Meant to be called from a separate reader thread. "as_read_only" makes an InnerBlockEntry
+    // (copies). head_block.inner().into() locks the InnerBlockEntry and converts to a
+    // ReadOnlyBlock - no contention here.
     pub fn snapshot(&self, series_id: SeriesId) -> Result<ReadOnlyBlock, Error> {
+        // Protected because the block could be reset while making the copy
         let guard = self.head_block.protected_read();
+
         let head_block = guard.as_read_only();
         if guard.release().is_err() {
             Err(Error::Snapshot)
@@ -159,37 +165,27 @@ impl BlockList {
     }
 }
 
-struct Bytes(Box<[u8]>);
-
-impl std::ops::Deref for Bytes {
-    type Target = Box<[u8]>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for Bytes {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 /// Safety:
 /// for internal use only. see use in Block struct
 unsafe impl NoDealloc for Block{}
 
 struct Block {
     id: AtomicU64,
-    bytes: Bytes,
+    bytes: Box<[u8]>,
     len: AtomicUsize,
+    items: AtomicUsize,
+    offsets: [(u64, usize); 256],
 }
 
 impl Block {
     fn new() -> Self {
         Self {
             id: AtomicU64::new(0),
-            bytes: Bytes(vec![0u8; 2_000_000].into_boxed_slice()),
+            bytes: vec![0u8; 2_000_000].into_boxed_slice(),
             len: AtomicUsize::new(std::mem::size_of::<u64>()), // id starts at 0
+            items: AtomicUsize::new(0),
+            offsets: [(0, 0); 256],
+
         }
     }
 
@@ -200,6 +196,8 @@ impl Block {
         compression: &Compression,
     ) -> bool {
         let mut offset = self.len.load(SeqCst);
+        let start_offset = offset;
+        let items = self.items.load(SeqCst);
         let u64sz = mem::size_of::<u64>();
 
         // Write SeriesId
@@ -224,7 +222,11 @@ impl Block {
         let size = (offset - size_offset) as u64;
         self.bytes[size_offset..size_offset + u64sz].copy_from_slice(&size.to_be_bytes());
 
+        // Write the seriesID and offset
+        self.offsets[items] = (series_id.0, start_offset);
+
         // update length
+        self.items.store(items + 1, SeqCst);
         self.len.store(offset, SeqCst);
 
         // return true if full
@@ -235,15 +237,52 @@ impl Block {
         let u64sz = mem::size_of::<u64>();
         let new_id = self.id.fetch_add(1, SeqCst) + 1;
         self.bytes[..u64sz].copy_from_slice(&new_id.to_be_bytes());
+        self.items.store(0, SeqCst);
         self.len.store(u64sz, SeqCst);
     }
 
     fn as_read_only(&self) -> BlockListEntry {
         let len = self.len.load(SeqCst);
-        let bytes = self.bytes[..len].into();
+        let items = self.items.load(SeqCst);
+        let mut bytes: Vec<u8> = self.bytes[..len].into();
+        bincode::serialize_into(&mut bytes, &self.offsets[..self.items.load(SeqCst)]).unwrap();
+        bytes.extend_from_slice(&len.to_be_bytes());
         BlockListEntry {
-            inner: RwLock::new(InnerBlockListEntry::Bytes(bytes)),
+            inner: RwLock::new(InnerBlockListEntry::Bytes(bytes.into())),
         }
+    }
+}
+
+pub struct ReadOnlyBlockBytes(Arc<[u8]>);
+
+impl ReadOnlyBlockBytes {
+
+    fn data_len_idx(&self) -> usize {
+        self.0.len()-8
+    }
+
+    fn data_len(&self) -> usize {
+        usize::from_be_bytes(self.0[self.data_len_idx()..].try_into().unwrap())
+    }
+
+    pub fn offsets(&self) -> Box<[(u64, usize)]> {
+        let data_len = self.data_len();
+        bincode::deserialize(&self.0[data_len..self.data_len_idx()]).unwrap()
+    }
+
+    pub fn segment_at_offset(&self, offset: usize) -> Segment {
+        let bytes = &self.0[offset..];
+        let mut offset = 0;
+        let series_id = SeriesId(u64::from_be_bytes(bytes[..8].try_into().unwrap()));
+        let size = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
+        unimplemented!()
+    }
+}
+
+impl std::ops::Deref for ReadOnlyBlockBytes {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -258,6 +297,17 @@ impl std::convert::From<InnerBlockListEntry> for ReadOnlyBlock {
         match item {
             InnerBlockListEntry::Bytes(x) => ReadOnlyBlock::Bytes(x[..].into()),
             InnerBlockListEntry::Offset(x, y) => ReadOnlyBlock::Offset(x, y),
+        }
+    }
+}
+
+impl ReadOnlyBlock {
+    fn into_bytes(self, kafka: &kafka::BufferedConsumer) -> ReadOnlyBlockBytes {
+        match self {
+            ReadOnlyBlock::Bytes(x) => ReadOnlyBlockBytes(x.into()),
+            ReadOnlyBlock::Offset(p, o) => {
+                ReadOnlyBlockBytes(kafka.get(p, o))
+            }
         }
     }
 }

@@ -77,8 +77,8 @@ impl BufferedConsumer {
         }
     }
 
-    pub fn get(&self, partition: i32, offset: i64) -> Option<Arc<[u8]>> {
-        Some(self.data.get(&(partition, offset))?.value().clone())
+    pub fn get(&self, partition: i32, offset: i64) -> Arc<[u8]> {
+        self.data.get(&(partition, offset)).unwrap().value().clone()
     }
 }
 
