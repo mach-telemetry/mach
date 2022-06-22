@@ -138,10 +138,10 @@ fn kafka_ingest(samples: Vec<Sample>, args: Args) {
     let topic = random_id();
     kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
 
-    let (tx, rx) = bounded::<Vec<Sample>>(args.kafka_flush_queue_len);
+    let (flusher_tx, flusher_rx) = bounded::<Vec<Sample>>(args.kafka_flush_queue_len);
     let flushers: Vec<JoinHandle<()>> = (0..args.kafka_flushers)
         .map(|_| {
-            let recv = rx.clone();
+            let recv = flusher_rx.clone();
             let topic = topic.clone();
             let mut producer = kafka_utils::Producer::new(args.kafka_bootstraps.as_str());
             std::thread::spawn(move || {
@@ -154,24 +154,37 @@ fn kafka_ingest(samples: Vec<Sample>, args: Args) {
         })
         .collect();
 
-    let num_samples = samples.len();
+    let (data_tx, data_rx) = bounded::<Vec<Sample>>(1);
+    let data_creator = std::thread::spawn(move || {
+        let now = std::time::Instant::now();
+        loop {
+            data_tx.send(samples.clone());
+            if now.elapsed().as_secs() > 60 {
+                break;
+            }
+        }
+        drop(data_tx);
+    });
 
     let now = std::time::Instant::now();
-
-    let mut data = Vec::with_capacity(args.kafka_batch);
-    for sample in samples {
-        data.push(sample);
-        if data.len() == args.kafka_batch {
-            tx.send(data);
-            data = Vec::with_capacity(args.kafka_batch);
+    let mut num_samples = 0;
+    while let Ok(new_samples) = data_rx.recv() {
+        let mut data = Vec::with_capacity(args.kafka_batch);
+        for sample in new_samples {
+            data.push(sample);
+            if data.len() == args.kafka_batch {
+                num_samples += data.len();
+                flusher_tx.send(data);
+                data = Vec::with_capacity(args.kafka_batch);
+            }
+        }
+        if !data.is_empty() {
+            num_samples += data.len();
+            flusher_tx.send(data);
         }
     }
-    if !data.is_empty() {
-        tx.send(data);
-    }
-
-    drop(tx);
-
+    drop(flusher_tx);
+    data_creator.join().unwrap();
     for flusher in flushers {
         flusher.join().unwrap();
     }
@@ -222,6 +235,7 @@ fn mach_ingest(samples: Vec<RegisteredSample>, mut writer: Writer) {
     let now = std::time::Instant::now();
     let mut last = now.clone();
     let mut raw_byte_sz = 0;
+    let mut fail_count = 0;
 
     for (id_ref, ts, values) in samples.iter() {
         let id_ref = *id_ref;
@@ -233,6 +247,8 @@ fn mach_ingest(samples: Vec<RegisteredSample>, mut writer: Writer) {
         loop {
             if writer.push(id_ref, ts, values.as_slice()).is_ok() {
                 break;
+            } else {
+                fail_count += 1;
             }
         }
     }
@@ -250,6 +266,7 @@ fn mach_ingest(samples: Vec<RegisteredSample>, mut writer: Writer) {
     // let total_sz_written = TOTAL_SZ.load(std::sync::atomic::Ordering::SeqCst);
     // println!("Total Size written: {}", total_sz_written);
     println!("Raw size written {}", raw_byte_sz);
+    println!("Fail count {}", fail_count);
 }
 
 fn validate_tsdb(s: &str) -> Result<BenchTarget, String> {
@@ -307,7 +324,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    println!("Args: {:#?}", args);
+    // println!("Args: {:#?}", args);
 
     println!("Loading data");
     let mut data = load_data(args.file_path.as_str(), 4);
@@ -330,7 +347,19 @@ fn main() {
             let samples = prepare_kafka_samples(data);
             println!("{} samples ready", samples.len());
 
-            kafka_ingest(samples, args);
+            let batch_sizes = vec![100, 1024, 2048, 4096, 8192, 100_000];
+            let flushers = vec![1, 2, 4, 8, 12, 16];
+
+            for batch_sz in &batch_sizes {
+                for num_flushers in &flushers {
+                    let mut kafka_args = args.clone();
+                    kafka_args.kafka_batch = *batch_sz;
+                    kafka_args.kafka_flushers = *num_flushers;
+                    println!("Args: {:#?}", kafka_args);
+                    let kafka_samples = samples.clone();
+                    kafka_ingest(kafka_samples, kafka_args);
+                }
+            }
         }
     }
 }
