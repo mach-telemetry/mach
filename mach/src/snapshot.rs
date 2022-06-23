@@ -6,21 +6,63 @@ use crate::{
 use std::sync::Arc;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub enum Heap {
+    ActiveHeap(Vec<Option<Vec<u8>>>),
+    DecompressHeap(Vec<u8>),
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Segment {
     pub len: usize,
     pub ts: Vec<u64>,
     pub data: Vec<Vec<[u8; 8]>>,
-    pub heap: Vec<Option<Vec<u8>>>,
-    pub heap_flags: Vec<Types>,
+    //pub active_heap: Vec<Option<Vec<u8>>>,
+    //pub decompress_heap: Vec<u8>,
+    pub heap: Heap,
+    pub types: Vec<Types>,
+    pub nvars: usize,
 }
 
 impl Segment {
+
+    pub fn clear(&mut self) {
+        self.ts.clear();
+        for mut col in self.data.iter_mut() {
+            col.clear();
+        }
+        match &mut self.heap {
+            Heap::ActiveHeap(x) => x.clear(),
+            Heap::DecompressHeap(x) => x.clear(),
+        }
+        self.types.clear();
+        self.len = 0;
+        self.nvars = 0;
+    }
+
+    //pub fn decompress_heap_mut(&mut self) -> &mut Vec<u8> {
+    //    match self.heap {
+    //        Heap::DecompressHeap(x) => &mut x,
+    //        _ => unimplemented!(),
+    //    }
+    //}
+
+    //pub fn active_heap_mut(&mut self) -> &mut Vec<Option<Vec<u8>>> {
+    //    match self.heap {
+    //        Heap::ActiveHeap(x) => &mut x,
+    //        _ => unimplemented!(),
+    //    }
+    //}
+
+    //pub fn set_heap(&mut self, heap: Heap) {
+    //    self.heap = heap
+    //}
+
     pub fn len(&self) -> usize {
         self.len
     }
 
     pub fn variable(&self, i: usize) -> (Types, &[[u8; 8]]) {
-        (self.heap_flags[i], &self.data[i][..self.len])
+        (self.types[i], &self.data[i][..self.len])
     }
 
     pub fn get_timestamp_at(&self, i: usize) -> u64 {
@@ -38,6 +80,26 @@ impl Segment {
         &self.ts[..self.len]
     }
 
+    pub fn set_types(&mut self, types: &[Types]) {
+        if types != self.types.as_slice() {
+            self.types.clear();
+            self.types.extend_from_slice(types);
+        }
+
+        let nvars = types.len();
+
+        #[allow(clippy::comparison_chain)]
+        if self.nvars < nvars {
+            for _ in 0..nvars - self.nvars {
+                self.data.push(Vec::with_capacity(256));
+            }
+        } else if self.nvars > nvars {
+            for _ in 0..self.nvars - nvars {
+                self.data.pop();
+            }
+        }
+        self.nvars = nvars;
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

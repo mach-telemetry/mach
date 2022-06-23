@@ -11,6 +11,7 @@ mod delta_of_delta;
 mod lz4;
 
 use crate::segment::*;
+use crate::snapshot::{Segment, Heap};
 use crate::series::Types;
 use crate::utils::byte_buffer::ByteBuffer;
 use std::convert::TryInto;
@@ -129,21 +130,15 @@ impl CompressFn {
         };
     }
 
-    pub fn decompress(id: u64, data: &[u8], buf: &mut Vec<[u8; 8]>) {
-        match id {
-            2 => xor::decompress(data, buf),
-            3 => decimal::decompress(data, buf),
-            6 => bitpack::decompress(data, buf),
-            7 => delta_of_delta::decompress(data, buf),
-            8 => lz4::decompress(data, buf),
-            _ => panic!("Error"),
-        }
-    }
-
-    pub fn decompress_heap(id: u64, data: &[u8], buf: &mut Vec<[u8; 8]>, heap: &mut Vec<u8>) {
-        match id {
-            4 => bytes_lz42::decompress(data, buf, heap),
-            5 => noop::decompress(data, buf, heap),
+    pub fn decompress(&self, data: &[u8], col: &mut Vec<[u8; 8]>, heap: Option<&mut Vec<u8>>) {
+        match self {
+            CompressFn::XOR => xor::decompress(data, col),
+            CompressFn::Decimal(_) => decimal::decompress(data, col),
+            CompressFn::IntBitpack => bitpack::decompress(data, col),
+            CompressFn::DeltaDelta => delta_of_delta::decompress(data, col),
+            CompressFn::LZ4 => lz4::decompress(data, col),
+            CompressFn::BytesLZ4 => bytes_lz42::decompress(data, col, heap.unwrap()),
+            CompressFn::NOOP => noop::decompress(data, col, heap.unwrap()),
             _ => panic!("Error"),
         }
     }
@@ -157,6 +152,19 @@ impl CompressFn {
             CompressFn::IntBitpack => 6,
             CompressFn::DeltaDelta => 7,
             CompressFn::LZ4 => 8,
+        }
+    }
+
+    fn from_id(id: u64) -> Self {
+        match id {
+            2 => CompressFn::XOR,
+            3 => CompressFn::Decimal(u8::MAX),
+            4 => CompressFn::BytesLZ4,
+            5 => CompressFn::NOOP,
+            6 => CompressFn::IntBitpack,
+            7 => CompressFn::DeltaDelta,
+            8 => CompressFn::LZ4,
+            _ => unimplemented!(),
         }
     }
 }
@@ -282,14 +290,12 @@ impl Compression {
         Ok((Header { types, codes, len }, off))
     }
 
-    pub fn decompress(data: &[u8], buf: &mut DecompressBuffer) -> Result<usize, Error> {
+    pub fn decompress(data: &[u8], buf: &mut Segment) -> Result<usize, Error> {
         buf.clear();
         let (header, mut off) = Self::get_header(data)?;
 
-        buf.len += header.len as usize;
-        if buf.nvars == 0 {
-            buf.set_nvars(header.codes.len());
-        }
+        buf.len = header.len as usize;
+        buf.set_types(header.types.as_slice());
 
         // decompress timestamps
         let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
@@ -303,19 +309,16 @@ impl Compression {
         for (i, code) in header.codes.iter().enumerate() {
             let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
             off += 8;
-            //println!("DECOMP VAR {} AT: {}", i, off);
             let d = &data[off..off + sz];
-            let v = &mut buf.values[i];
-            let h = &mut buf.heap;
-            match code {
-                4 => CompressFn::decompress_heap(*code, d, v, h),
-                _ => CompressFn::decompress(*code, d, v),
-            }
+            let h = match &mut buf.heap {
+                Heap::DecompressHeap(x) => x,
+                _ => unimplemented!(),
+            };
+            let v = &mut buf.data[i];
+            let code = CompressFn::from_id(*code);
+            code.decompress(d, v, Some(h));
             off += sz;
         }
-
-        buf.header = header;
-        //std::mem::swap(&mut buf.header, &mut header);
         Ok(off)
     }
 }

@@ -6,7 +6,7 @@ use crate::sample::{Bytes, Type};
 use crate::segment::Error;
 use crate::series::Types;
 use crate::utils::wp_lock::*;
-use crate::snapshot::Segment;
+use crate::snapshot::{Segment, Heap};
 //use crate::reader::SampleIterator;
 use serde::*;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
@@ -181,12 +181,14 @@ impl InnerBuffer {
 
     fn read(&self) -> ReadBuffer {
         let len = self.atomic_len.load(SeqCst);
+        let heap = Heap::ActiveHeap(self.heap.clone());
         ReadBuffer {
             len,
             ts: self.ts.into(),
             data: self.data.iter().map(|x| x[..].into()).collect(),
-            heap: self.heap.clone(),
-            heap_flags: self.heap_flags.clone(),
+            heap,
+            types: self.heap_flags.clone(),
+            nvars: self.data.len(),
         }
     }
 
