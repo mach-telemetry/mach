@@ -7,7 +7,7 @@ use crate::{
     //persistent_list::*,
     mem_list::{List, BlockList},
     //runtime::*,
-    sample::Type,
+    sample::SampleType,
     segment::{self, FlushSegment, WriteSegment},
     series::*,
     utils::wp_lock::WpLock,
@@ -117,7 +117,7 @@ impl Writer {
         //self.list_maker_id.push(list_maker_id);
     }
 
-    pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[Type]) -> Result<(), Error> {
+    pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[SampleType]) -> Result<(), Error> {
         let reference = *reference;
         match self.writers[reference].push_type(ts, data)? {
             segment::PushStatus::Done => {},

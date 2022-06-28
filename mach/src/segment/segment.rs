@@ -1,6 +1,6 @@
-use crate::sample::Type;
+use crate::sample::SampleType;
 use crate::segment::{buffer::*, Error};
-use crate::series::Types;
+use crate::series::FieldType;
 use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering::SeqCst};
 
 pub struct Segment {
@@ -26,7 +26,7 @@ impl Segment {
         }
     }
 
-    pub fn push_type(&mut self, ts: u64, item: &[Type]) -> Result<InnerPushStatus, Error> {
+    pub fn push_type(&mut self, ts: u64, item: &[SampleType]) -> Result<InnerPushStatus, Error> {
         let mut buf = unsafe { self.current_buffer.as_mut().unwrap() };
         let res = buf.push_type(ts, item);
         match res {
@@ -107,7 +107,7 @@ impl Segment {
         Ok(copies)
     }
 
-    pub fn new(nbuffers: usize, heap_pointers: &[Types]) -> Self {
+    pub fn new(nbuffers: usize, heap_pointers: &[FieldType]) -> Self {
         let mut buffers: Vec<Buffer> = (0..nbuffers).map(|_| Buffer::new(heap_pointers)).collect();
         Segment {
             local_head: 0,

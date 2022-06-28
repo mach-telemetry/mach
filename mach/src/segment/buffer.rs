@@ -2,9 +2,9 @@ use crate::constants::*;
 //use crate::segment::{full_segment::FullSegment, Error};
 //use crate::reader;
 //use crate::runtime::RUNTIME;
-use crate::sample::{Bytes, Type};
+use crate::sample::{Bytes, SampleType};
 use crate::segment::Error;
-use crate::series::Types;
+use crate::series::FieldType;
 use crate::utils::wp_lock::*;
 use crate::snapshot::{Segment, Heap};
 //use crate::reader::SampleIterator;
@@ -27,18 +27,18 @@ struct InnerBuffer {
     ts: [u64; SEGSZ],
     data: Vec<[[u8; 8]; SEGSZ]>,
     heap: Vec<Option<Vec<u8>>>,
-    heap_flags: Vec<Types>,
+    heap_flags: Vec<FieldType>,
 }
 
 impl InnerBuffer {
-    fn new(heap_pointers: &[Types]) -> Self {
+    fn new(heap_pointers: &[FieldType]) -> Self {
         let nvars = heap_pointers.len();
         //let heap_count = heap_pointers.iter().map(|x| *x as usize).sum();
 
         // Heap
         let mut heap = Vec::new();
         for in_heap in heap_pointers {
-            if *in_heap == Types::Bytes {
+            if *in_heap == FieldType::Bytes {
                 heap.push(Some(Vec::with_capacity(HEAP_SZ)));
             } else {
                 heap.push(None);
@@ -73,7 +73,7 @@ impl InnerBuffer {
         let mut heap_offset = 0;
         for (i, heap) in self.heap_flags.iter().enumerate() {
             let mut item = item[i];
-            if *heap == Types::Bytes {
+            if *heap == FieldType::Bytes {
                 let b = unsafe { Bytes::from_sample_entry(item) };
                 let bytes = b.as_raw_bytes();
                 let heap = self.heap[heap_offset].as_mut().unwrap();
@@ -100,7 +100,7 @@ impl InnerBuffer {
         }
     }
 
-    fn push_type(&mut self, ts: u64, items: &[Type]) -> Result<InnerPushStatus, Error> {
+    fn push_type(&mut self, ts: u64, items: &[SampleType]) -> Result<InnerPushStatus, Error> {
         if self.is_full {
             return Err(Error::PushIntoFull);
         }
@@ -108,22 +108,22 @@ impl InnerBuffer {
         self.ts[len] = ts;
         for (i, item) in items.iter().enumerate() {
             match item {
-                Type::I64(x) => {
+                SampleType::I64(x) => {
                     self.data[i][len] = x.to_be_bytes();
                 }
-                Type::U64(x) => {
+                SampleType::U64(x) => {
                     self.data[i][len] = x.to_be_bytes();
                 }
-                Type::F64(x) => {
+                SampleType::F64(x) => {
                     self.data[i][len] = x.to_be_bytes();
                 }
-                Type::U32(x) => {
+                SampleType::U32(x) => {
                     self.data[i][len] = (*x as u64).to_be_bytes();
                 }
-                Type::Timestamp(x) => {
+                SampleType::Timestamp(x) => {
                     self.data[i][len] = x.to_be_bytes();
                 }
-                Type::Bytes(b) => {
+                SampleType::Bytes(b) => {
                     //let b = unsafe { Bytes::from_raw(*x) };
                     let bytes = &b;
                     let heap = self.heap[i].as_mut().unwrap();
@@ -136,7 +136,7 @@ impl InnerBuffer {
                     let item = ((&heap[cur_len..]).as_ptr() as u64).to_be_bytes();
                     self.data[i][len] = item;
                 }
-                Type::BorrowedBytes(b) => {
+                SampleType::BorrowedBytes(b) => {
                     //let b = unsafe { Bytes::from_raw(*x) };
                     let bytes = &b;
                     let heap = self.heap[i].as_mut().unwrap();
@@ -212,7 +212,7 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new(heap_pointers: &[Types]) -> Self {
+    pub fn new(heap_pointers: &[FieldType]) -> Self {
         Self {
             inner: WpLock::new(InnerBuffer::new(heap_pointers)),
         }
@@ -228,7 +228,7 @@ impl Buffer {
         unsafe { self.inner.unprotected_write().push_item(ts, item) }
     }
 
-    pub fn push_type(&mut self, ts: u64, items: &[Type]) -> Result<InnerPushStatus, Error> {
+    pub fn push_type(&mut self, ts: u64, items: &[SampleType]) -> Result<InnerPushStatus, Error> {
         // Safe because the push method does not race with another method in buffer
         unsafe { self.inner.unprotected_write().push_type(ts, items) }
     }
@@ -268,7 +268,7 @@ impl<'a> FlushBuffer<'a> {
         &self.inner.data[i][..self.len]
     }
 
-    pub fn types(&self) -> &[Types] {
+    pub fn types(&self) -> &[FieldType] {
         self.inner.heap_flags.as_slice()
     }
 
@@ -375,7 +375,7 @@ pub type BufferSnapshot = ReadBuffer;
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::series::Types;
+    use crate::series::FieldType;
     use crate::test_utils::*;
     use rand::*;
 
@@ -390,7 +390,7 @@ mod test {
             }
         }
         let nvars = data[0].values.len();
-        let types = vec![Types::F64; nvars];
+        let types = vec![FieldType::F64; nvars];
 
         let mut buf = Buffer::new(types.as_slice());
 
@@ -398,7 +398,7 @@ mod test {
         let mut exp_f0 = Vec::new();
         for (idx, item) in data[..255].iter().enumerate() {
             let mut vals = Vec::new();
-            item.values.iter().for_each(|x| vals.push(Type::F64(*x)));
+            item.values.iter().for_each(|x| vals.push(SampleType::F64(*x)));
             exp_ts.push(item.ts);
             exp_f0.push(item.values[0]);
             if idx < 255 {
@@ -418,7 +418,7 @@ mod test {
         assert_eq!(read.timestamps(), exp_ts.as_slice());
         let (t, v) = read.variable(0);
         let v: Vec<f64> = v.iter().map(|x| f64::from_be_bytes(*x)).collect();
-        assert_eq!(t, Types::F64);
+        assert_eq!(t, FieldType::F64);
         assert_eq!(v.as_slice(), exp_f0.as_slice());
     }
 }

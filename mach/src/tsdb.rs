@@ -96,7 +96,7 @@ mod test {
         writer::{Writer, WriterConfig},
         compression::*,
         test_utils::*,
-        sample::Type,
+        sample::SampleType,
         snapshot::Snapshot,
         mem_list::{BOOTSTRAPS, TOPIC},
         utils::kafka::BufferedConsumer,
@@ -129,7 +129,7 @@ mod test {
 
         let series_conf = SeriesConfig {
             id: SeriesId(0),
-            types: vec![Types::F64; nvars],
+            types: vec![FieldType::F64; nvars],
             compression,
             seg_count: 1,
             nvars,
@@ -142,7 +142,7 @@ mod test {
         let epoch = std::time::UNIX_EPOCH;
         let mut rng = thread_rng();
         for _ in 0..1_000_000 {
-            let values: [Type; nvars] = [Type::F64(rng.gen()), Type::F64(rng.gen())];
+            let values: [SampleType; nvars] = [SampleType::F64(rng.gen()), SampleType::F64(rng.gen())];
             let time = epoch.elapsed().unwrap().as_micros() as u64;
             loop {
                 match writer.push(series_ref, time, &values[..]) {

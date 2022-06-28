@@ -2,7 +2,7 @@ pub use crate::utils::bytes::*;
 pub use serde::*;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub enum Type {
+pub enum SampleType {
     I64(i64),
     U64(u64),
     Timestamp(u64),
@@ -12,17 +12,17 @@ pub enum Type {
     U32(u32),
 }
 
-impl Type {
+impl SampleType {
     pub fn byte_vec_mut(&mut self) -> &mut Vec<u8> {
         match self {
-            Type::Bytes(x) => x,
+            SampleType::Bytes(x) => x,
             _ => unimplemented!(),
         }
     }
 }
 
-unsafe impl Sync for Type {}
-unsafe impl Send for Type {}
+unsafe impl Sync for SampleType {}
+unsafe impl Send for SampleType {}
 
 //#[derive(Copy, Clone)]
 //pub struct Sample<const V: usize> {

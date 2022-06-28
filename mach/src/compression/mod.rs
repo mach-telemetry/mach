@@ -12,7 +12,7 @@ mod lz4;
 
 use crate::segment::*;
 use crate::snapshot::{Segment, Heap};
-use crate::series::Types;
+use crate::series::FieldType;
 use crate::utils::byte_buffer::ByteBuffer;
 use std::convert::TryInto;
 use std::sync::Arc;
@@ -106,7 +106,7 @@ impl CompressFn {
 }
 
 struct Header {
-    types: Vec<Types>,
+    types: Vec<FieldType>,
     codes: Vec<u64>,
     len: usize,
 }
@@ -213,7 +213,7 @@ impl Compression {
 
         let mut types = Vec::new();
         for _ in 0..nvars {
-            types.push(Types::from_u8(data[off]));
+            types.push(FieldType::from_u8(data[off]));
             off += 1;
         }
 
@@ -262,9 +262,9 @@ impl Compression {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::sample::Type;
+    use crate::sample::SampleType;
     use crate::segment::Buffer;
-    use crate::series::Types;
+    use crate::series::FieldType;
     use crate::test_utils::*;
     use crate::snapshot::Segment;
 
@@ -275,7 +275,7 @@ mod test {
         let data = &MULTIVARIATE_DATA[0].1;
         let nvars = data[0].values.len();
 
-        let heaps = vec![Types::F64; nvars];
+        let heaps = vec![FieldType::F64; nvars];
         let mut buf = Buffer::new(heaps.as_slice());
 
         let _item = vec![[0u8; 8]; nvars];
@@ -283,7 +283,7 @@ mod test {
         for (idx, sample) in data[0..256].iter().enumerate() {
             let mut item = Vec::new();
             for (_i, val) in sample.values.iter().enumerate() {
-                item.push(Type::F64(*val));
+                item.push(SampleType::F64(*val));
                 //item[i] = val.to_be_bytes();
             }
             timestamps[idx] = sample.ts;
@@ -329,14 +329,14 @@ mod test {
         use crate::sample::Bytes;
         let data = &*LOG_DATA;
 
-        let heaps = vec![Types::Bytes; 1];
+        let heaps = vec![FieldType::Bytes; 1];
         let mut buf = Buffer::new(heaps.as_slice());
 
         //let item = vec![[0u8; 8]; 1];
         let mut timestamps = [0; 256];
         for (idx, sample) in data[0..256].iter().enumerate() {
             timestamps[idx] = idx as u64;
-            let v = Type::Bytes(sample.as_bytes().into());
+            let v = SampleType::Bytes(sample.as_bytes().into());
             buf.push_type(idx as u64, &[v]).unwrap();
         }
         let segment = buf.to_flush().unwrap();

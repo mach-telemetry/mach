@@ -32,7 +32,7 @@ impl From<segment::Error> for Error {
 }
 
 #[derive(PartialEq, Eq, Copy, Clone, Serialize, Deserialize, Debug)]
-pub enum Types {
+pub enum FieldType {
     I64 = 0,
     U64 = 1,
     F64 = 2,
@@ -41,7 +41,7 @@ pub enum Types {
     U32 = 5,
 }
 
-impl Types {
+impl FieldType {
     pub fn to_u8(self) -> u8 {
         self as u8
     }
@@ -62,7 +62,7 @@ impl Types {
 #[derive(Clone)]
 pub struct SeriesConfig {
     pub id: SeriesId,
-    pub types: Vec<Types>,
+    pub types: Vec<FieldType>,
     pub compression: Compression,
     pub seg_count: usize,
     pub nvars: usize,

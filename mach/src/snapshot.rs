@@ -1,7 +1,7 @@
 use crate::{
     mem_list::{ReadOnlyBlock, ReadOnlyBlockBytes, SourceBlocks},
     utils::kafka,
-    series::Types,
+    series::FieldType,
     id::SeriesId,
 };
 use std::sync::Arc;
@@ -17,10 +17,8 @@ pub struct Segment {
     pub len: usize,
     pub ts: Vec<u64>,
     pub data: Vec<Vec<[u8; 8]>>,
-    //pub active_heap: Vec<Option<Vec<u8>>>,
-    //pub decompress_heap: Vec<u8>,
     pub heap: Heap,
-    pub types: Vec<Types>,
+    pub types: Vec<FieldType>,
     pub nvars: usize,
 }
 
@@ -55,7 +53,7 @@ impl Segment {
         self.len
     }
 
-    pub fn variable(&self, i: usize) -> (Types, &[[u8; 8]]) {
+    pub fn variable(&self, i: usize) -> (FieldType, &[[u8; 8]]) {
         (self.types[i], &self.data[i][..self.len])
     }
 
@@ -64,7 +62,7 @@ impl Segment {
         self.ts[i]
     }
 
-    pub fn get_value_at(&self, var: usize, i: usize) -> (Types, [u8; 8]) {
+    pub fn get_value_at(&self, var: usize, i: usize) -> (FieldType, [u8; 8]) {
         let i = self.len - i - 1;
         let (t, v) = self.variable(var);
         (t, v[i])
@@ -74,7 +72,7 @@ impl Segment {
         &self.ts[..self.len]
     }
 
-    pub fn set_types(&mut self, types: &[Types]) {
+    pub fn set_types(&mut self, types: &[FieldType]) {
         if types != self.types.as_slice() {
             self.types.clear();
             self.types.extend_from_slice(types);
