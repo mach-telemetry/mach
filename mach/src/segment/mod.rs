@@ -78,7 +78,7 @@ pub struct FlushSegment {
 
 #[derive(Serialize, Deserialize)]
 pub struct SegmentSnapshot {
-    inner: Vec<buffer::BufferSnapshot>,
+    pub inner: Vec<buffer::BufferSnapshot>,
 }
 
 impl SegmentSnapshot {

@@ -19,7 +19,7 @@ struct InnerBuffer {
 
 impl InnerBuffer {
     fn push(&mut self, item: Arc<BlockListEntry>) {
-        let idx = (self.offset + 1) % self.data.len();
+        let idx = self.offset % self.data.len();
         self.data[idx].write(item);
         self.offset += 1;
         if self.offset % self.data.len() == 0 {
@@ -50,13 +50,14 @@ impl InnerBuffer {
         for off in start..end {
             /// Safety: offset ensures prior items are inited
             unsafe {
-                v.push(self.data[off % 256].assume_init_ref().inner().into());
+                let inner = self.data[off % 256].assume_init_ref().inner();
+                v.push(inner.into());
             }
         }
-
         SourceBlocks {
             data: v,
-            next: self.last
+            next: self.last,
+            idx: 0
         }
     }
 
@@ -104,5 +105,23 @@ impl SourceBlockList {
 #[derive(serde::Serialize,serde::Deserialize)]
 pub struct SourceBlocks {
     data: Vec<ReadOnlyBlock>,
-    next: (i32, i64)
+    next: (i32, i64),
+    idx: usize,
 }
+
+impl SourceBlocks {
+    pub fn next_block(&mut self, consumer: &kafka::BufferedConsumer) -> Option<&ReadOnlyBlock> {
+        if self.idx < self.data.len() {
+            let idx = self.idx;
+            self.idx += 1;
+            Some(&self.data[idx])
+        } else {
+            let next_blocks: SourceBlocks = bincode::deserialize(&*consumer.get(self.next.0, self.next.1)).unwrap();
+            self.data = next_blocks.data;
+            self.next = next_blocks.next;
+            self.idx = 1;
+            Some(&self.data[0])
+        }
+    }
+}
+

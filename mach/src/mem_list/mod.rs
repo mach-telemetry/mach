@@ -31,10 +31,11 @@ const FLUSHERS: usize = 1;
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 const PARTITIONS: i32 = 3;
 const REPLICAS: i32 = 3;
-const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
+pub const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
+pub const TOPIC: &str = "MACH";
 
 lazy_static! {
-    static ref TOPIC: String = random_id();
+    //static ref TOPIC: String = random_id();
     static ref FLUSH_WORKERS: Vec<crossbeam::channel::Sender<Arc<BlockListEntry>>> = {
         let mut flushers = Vec::new();
         for _ in 0..FLUSHERS {
@@ -49,23 +50,7 @@ lazy_static! {
 }
 
 
-fn make_topic(bootstrap_servers: &str, topic: &str) {
-    println!("Creating topic");
-    let client: AdminClient<DefaultClientContext> = ClientConfig::new()
-        .set("bootstrap.servers", bootstrap_servers.to_string())
-        .create()
-        .unwrap();
-    let admin_opts = AdminOptions::new().request_timeout(Some(std::time::Duration::from_secs(5)));
-    let topics = &[NewTopic {
-        name: topic,
-        num_partitions: PARTITIONS,
-        replication: TopicReplication::Fixed(REPLICAS),
-        config: Vec::new(),
-    }];
-    futures::executor::block_on(client.create_topics(topics, &admin_opts)).unwrap();
-    println!("topic created: {}", TOPIC.as_str());
-}
-
+#[derive(Debug, Copy, Clone)]
 pub enum Error {
     Snapshot
 }
@@ -73,8 +58,10 @@ pub enum Error {
 
 fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new(BOOTSTRAPS);
+    let mut counter = 0;
     while let Ok(block) = chan.recv() {
         block.flush(&mut producer);
+        counter += 1;
     }
 }
 
@@ -105,7 +92,7 @@ unsafe impl Send for BlockList {}
 
 impl BlockList {
     pub fn new() -> Self {
-        kafka::make_topic(BOOTSTRAPS, TOPIC.as_str());
+        kafka::make_topic(BOOTSTRAPS, TOPIC);
         BlockList {
             head_block: WpLock::new(Block::new()),
             id_set: RefCell::new(HashSet::new()),
@@ -116,7 +103,7 @@ impl BlockList {
     // Meant to be called from a separate reader thread. "as_read_only" makes an InnerBlockEntry
     // (copies). head_block.inner().into() locks the InnerBlockEntry and converts to a
     // ReadOnlyBlock - no contention here.
-    pub fn snapshot(&self, series_id: SeriesId) -> Result<ReadOnlyBlock, Error> {
+    pub fn snapshot(&self) -> Result<ReadOnlyBlock, Error> {
         // Protected because the block could be reset while making the copy
         let guard = self.head_block.protected_read();
 
@@ -174,7 +161,7 @@ struct Block {
     bytes: Box<[u8]>,
     len: AtomicUsize,
     items: AtomicUsize,
-    offsets: [(u64, usize); 256],
+    offsets: [(u64, usize); 1_000],
 }
 
 impl Block {
@@ -184,8 +171,7 @@ impl Block {
             bytes: vec![0u8; 2_000_000].into_boxed_slice(),
             len: AtomicUsize::new(std::mem::size_of::<u64>()), // id starts at 0
             items: AtomicUsize::new(0),
-            offsets: [(0, 0); 256],
-
+            offsets: [(0, 0); 1_000],
         }
     }
 
@@ -270,12 +256,21 @@ impl ReadOnlyBlockBytes {
         bincode::deserialize(&self.0[data_len..self.data_len_idx()]).unwrap()
     }
 
-    pub fn segment_at_offset(&self, offset: usize) -> Segment {
+    pub fn segment_at_offset(&self, offset: usize, segment: &mut Segment) {
         let bytes = &self.0[offset..];
         let mut offset = 0;
+
+        // Parse data per Block::push()
+
+        // series ID
         let series_id = SeriesId(u64::from_be_bytes(bytes[..8].try_into().unwrap()));
+
+        // size of data bytes
         let size = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
-        unimplemented!()
+
+        // decompress data
+        let bytes = &bytes[16..16 + size];
+        let _ = Compression::decompress(bytes, segment).unwrap();
     }
 }
 
@@ -302,11 +297,11 @@ impl std::convert::From<InnerBlockListEntry> for ReadOnlyBlock {
 }
 
 impl ReadOnlyBlock {
-    fn into_bytes(self, kafka: &kafka::BufferedConsumer) -> ReadOnlyBlockBytes {
+    pub fn as_bytes(&self, kafka: &kafka::BufferedConsumer) -> ReadOnlyBlockBytes {
         match self {
-            ReadOnlyBlock::Bytes(x) => ReadOnlyBlockBytes(x.into()),
+            ReadOnlyBlock::Bytes(x) => ReadOnlyBlockBytes(x.clone().into()),
             ReadOnlyBlock::Offset(p, o) => {
-                ReadOnlyBlockBytes(kafka.get(p, o))
+                ReadOnlyBlockBytes(kafka.get(*p, *o))
             }
         }
     }

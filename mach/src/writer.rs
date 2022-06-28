@@ -252,162 +252,162 @@ fn block_list_worker(block_list: Arc<BlockList>, chan: Receiver<FlushItem>) {
 //    }
 //}
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::compression::*;
-    use crate::constants::*;
-    use crate::id::*;
-    use crate::tags::*;
-    use crate::test_utils::*;
-    use crate::utils::*;
-    use rand::*;
-    use std::sync::Arc;
-    use tempfile::tempdir;
-
-    //#[test]
-    //fn test_vec_writer() {
-    //    let vec = Arc::new(Mutex::new(Vec::new()));
-    //    let mut persistent_writer = VectorWriter::new(vec.clone());
-    //    let mut persistent_reader = VectorReader::new(vec.clone());
-    //    sample_data(persistent_reader, persistent_writer);
-    //}
-
-    #[test]
-    fn test_file_writer() {
-        use crate::durable_queue::FileConfig;
-        let dir = tempdir().unwrap().into_path();
-        let file = String::from("test");
-        let queue_config = FileConfig { dir, file };
-        sample_data(queue_config.config());
-    }
-
-    #[test]
-    fn test_kafka_writer() {
-        use crate::durable_queue::KafkaConfig;
-        let bootstrap = String::from("localhost:9093,localhost:9094,localhost:9095");
-        let topic = random_id();
-        let queue_config = KafkaConfig { bootstrap, topic };
-        sample_data(queue_config.config());
-    }
-
-    //#[cfg(feature = "kafka-backend")]
-    //#[test]
-    //fn test_kafka_writer() {
-    //    let mut persistent_writer = KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
-    //    let mut persistent_reader = KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
-    //    sample_data(persistent_reader, persistent_writer);
-    //}
-
-    //#[cfg(feature = "redis-backend")]
-    //#[test]
-    //fn test_redis_writer() {
-    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
-    //    let map = Arc::new(DashMap::new());
-    //    let mut con = client.get_connection().unwrap();
-    //    let mut persistent_writer = RedisWriter::new(con, map.clone());
-
-    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
-    //    let mut con = client.get_connection().unwrap();
-    //    let mut persistent_reader = RedisReader::new(con, map.clone());
-    //    sample_data(persistent_reader, persistent_writer);
-    //}
-
-    fn sample_data(queue_config: QueueConfig) {
-        // Setup writer
-        //let active_block = Arc::new(WpLock::new(ActiveBlock::new(6000)));
-        let writer_config = WriterConfig {
-            queue_config: queue_config.clone(),
-            active_block_flush_sz: 6000,
-        };
-        let dict = Arc::new(DashMap::new());
-        let (mut write_thread, write_meta) = Writer::new(dict.clone(), writer_config);
-
-        // Setup series
-        let mut data = (*MULTIVARIATE_DATA[0].1).clone();
-        let mut rng = thread_rng();
-        for item in data.iter_mut() {
-            for val in item.values.iter_mut() {
-                *val = rng.gen::<f64>() * 100.0f64;
-            }
-        }
-        let nvars = data[0].values.len();
-        let mut compression = Vec::new();
-        for _ in 0..nvars {
-            compression.push(CompressFn::Decimal(3));
-        }
-        let compression = Compression::from(compression);
-        //let _id = SeriesId(thread_rng().gen());
-        let mut tags = HashMap::new();
-        tags.insert(String::from("attrib"), String::from("a"));
-
-        let series_conf = SeriesConfig {
-            id: Tags::from(tags).id(),
-            compression,
-            seg_count: 1,
-            nvars,
-            types: vec![Types::F64; nvars],
-        };
-        let list = List::new(write_meta.active_block.clone());
-        let series_meta = Series::new(series_conf, queue_config.clone(), list);
-        let serid = SeriesId(0);
-
-        // Register series
-        dict.insert(serid, series_meta.clone());
-        let series_ref = write_thread.get_reference(serid);
-
-        let to_values = |items: &[f64]| -> Vec<Type> {
-            let mut values = Vec::with_capacity(nvars);
-            for v in items.iter() {
-                values.push(Type::F64(*v));
-            }
-            values
-        };
-
-        let mut expected_timestamps = Vec::new();
-        let mut expected_field0 = Vec::new();
-        for item in data.iter() {
-            let v = to_values(&item.values[..]);
-            expected_timestamps.push(item.ts);
-            expected_field0.push(item.values[0]);
-            loop {
-                match write_thread.push(series_ref, item.ts, &v[..]) {
-                    Ok(_) => break,
-                    Err(_) => {}
-                }
-            }
-        }
-        expected_timestamps.reverse();
-        expected_field0.reverse();
-
-        let snapshot = dict.get(&serid).unwrap().snapshot().unwrap();
-        let durable_queue = queue_config.make().unwrap();
-        let durable_queue_reader = durable_queue.reader().unwrap();
-        let mut reader = snapshot.reader(durable_queue_reader);
-
-        //let count = 0;
-        //let buf = reader.next_item().unwrap().unwrap();
-        let mut timestamps: Vec<u64> = Vec::new();
-        let mut field0: Vec<f64> = Vec::new();
-        //let r = reader.next_item();
-        loop {
-            match reader.next_item() {
-                Ok(Some(item)) => {
-                    item.get_timestamps().for_each(|x| timestamps.push(*x));
-                    item.get_field(0)
-                        .1
-                        .for_each(|x| field0.push(f64::from_be_bytes(*x)));
-                }
-                Ok(None) => println!("OK NONE PROBLEM"),
-                Err(x) => {
-                    println!("{:?}", x);
-                    break;
-                }
-            }
-        }
-        assert_eq!(expected_timestamps, timestamps);
-        for (e, r) in expected_field0.iter().zip(field0.iter()) {
-            assert!((*e - *r).abs() < 0.001);
-        }
-    }
-}
+//#[cfg(test)]
+//mod test {
+//    use super::*;
+//    use crate::compression::*;
+//    use crate::constants::*;
+//    use crate::id::*;
+//    use crate::tags::*;
+//    use crate::test_utils::*;
+//    use crate::utils::*;
+//    use rand::*;
+//    use std::sync::Arc;
+//    use tempfile::tempdir;
+//
+//    //#[test]
+//    //fn test_vec_writer() {
+//    //    let vec = Arc::new(Mutex::new(Vec::new()));
+//    //    let mut persistent_writer = VectorWriter::new(vec.clone());
+//    //    let mut persistent_reader = VectorReader::new(vec.clone());
+//    //    sample_data(persistent_reader, persistent_writer);
+//    //}
+//
+//    #[test]
+//    fn test_file_writer() {
+//        use crate::durable_queue::FileConfig;
+//        let dir = tempdir().unwrap().into_path();
+//        let file = String::from("test");
+//        let queue_config = FileConfig { dir, file };
+//        sample_data(queue_config.config());
+//    }
+//
+//    #[test]
+//    fn test_kafka_writer() {
+//        use crate::durable_queue::KafkaConfig;
+//        let bootstrap = String::from("localhost:9093,localhost:9094,localhost:9095");
+//        let topic = random_id();
+//        let queue_config = KafkaConfig { bootstrap, topic };
+//        sample_data(queue_config.config());
+//    }
+//
+//    //#[cfg(feature = "kafka-backend")]
+//    //#[test]
+//    //fn test_kafka_writer() {
+//    //    let mut persistent_writer = KafkaWriter::new(KAFKA_BOOTSTRAP).unwrap();
+//    //    let mut persistent_reader = KafkaReader::new(KAFKA_BOOTSTRAP).unwrap();
+//    //    sample_data(persistent_reader, persistent_writer);
+//    //}
+//
+//    //#[cfg(feature = "redis-backend")]
+//    //#[test]
+//    //fn test_redis_writer() {
+//    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+//    //    let map = Arc::new(DashMap::new());
+//    //    let mut con = client.get_connection().unwrap();
+//    //    let mut persistent_writer = RedisWriter::new(con, map.clone());
+//
+//    //    let client = redis::Client::open(REDIS_ADDR).unwrap();
+//    //    let mut con = client.get_connection().unwrap();
+//    //    let mut persistent_reader = RedisReader::new(con, map.clone());
+//    //    sample_data(persistent_reader, persistent_writer);
+//    //}
+//
+//    fn sample_data(queue_config: QueueConfig) {
+//        // Setup writer
+//        //let active_block = Arc::new(WpLock::new(ActiveBlock::new(6000)));
+//        let writer_config = WriterConfig {
+//            queue_config: queue_config.clone(),
+//            active_block_flush_sz: 6000,
+//        };
+//        let dict = Arc::new(DashMap::new());
+//        let (mut write_thread, write_meta) = Writer::new(dict.clone(), writer_config);
+//
+//        // Setup series
+//        let mut data = (*MULTIVARIATE_DATA[0].1).clone();
+//        let mut rng = thread_rng();
+//        for item in data.iter_mut() {
+//            for val in item.values.iter_mut() {
+//                *val = rng.gen::<f64>() * 100.0f64;
+//            }
+//        }
+//        let nvars = data[0].values.len();
+//        let mut compression = Vec::new();
+//        for _ in 0..nvars {
+//            compression.push(CompressFn::Decimal(3));
+//        }
+//        let compression = Compression::from(compression);
+//        //let _id = SeriesId(thread_rng().gen());
+//        let mut tags = HashMap::new();
+//        tags.insert(String::from("attrib"), String::from("a"));
+//
+//        let series_conf = SeriesConfig {
+//            id: Tags::from(tags).id(),
+//            compression,
+//            seg_count: 1,
+//            nvars,
+//            types: vec![Types::F64; nvars],
+//        };
+//        let list = List::new(write_meta.active_block.clone());
+//        let series_meta = Series::new(series_conf, queue_config.clone(), list);
+//        let serid = SeriesId(0);
+//
+//        // Register series
+//        dict.insert(serid, series_meta.clone());
+//        let series_ref = write_thread.get_reference(serid);
+//
+//        let to_values = |items: &[f64]| -> Vec<Type> {
+//            let mut values = Vec::with_capacity(nvars);
+//            for v in items.iter() {
+//                values.push(Type::F64(*v));
+//            }
+//            values
+//        };
+//
+//        let mut expected_timestamps = Vec::new();
+//        let mut expected_field0 = Vec::new();
+//        for item in data.iter() {
+//            let v = to_values(&item.values[..]);
+//            expected_timestamps.push(item.ts);
+//            expected_field0.push(item.values[0]);
+//            loop {
+//                match write_thread.push(series_ref, item.ts, &v[..]) {
+//                    Ok(_) => break,
+//                    Err(_) => {}
+//                }
+//            }
+//        }
+//        expected_timestamps.reverse();
+//        expected_field0.reverse();
+//
+//        let snapshot = dict.get(&serid).unwrap().snapshot().unwrap();
+//        let durable_queue = queue_config.make().unwrap();
+//        let durable_queue_reader = durable_queue.reader().unwrap();
+//        let mut reader = snapshot.reader(durable_queue_reader);
+//
+//        //let count = 0;
+//        //let buf = reader.next_item().unwrap().unwrap();
+//        let mut timestamps: Vec<u64> = Vec::new();
+//        let mut field0: Vec<f64> = Vec::new();
+//        //let r = reader.next_item();
+//        loop {
+//            match reader.next_item() {
+//                Ok(Some(item)) => {
+//                    item.get_timestamps().for_each(|x| timestamps.push(*x));
+//                    item.get_field(0)
+//                        .1
+//                        .for_each(|x| field0.push(f64::from_be_bytes(*x)));
+//                }
+//                Ok(None) => println!("OK NONE PROBLEM"),
+//                Err(x) => {
+//                    println!("{:?}", x);
+//                    break;
+//                }
+//            }
+//        }
+//        assert_eq!(expected_timestamps, timestamps);
+//        for (e, r) in expected_field0.iter().zip(field0.iter()) {
+//            assert!((*e - *r).abs() < 0.001);
+//        }
+//    }
+//}

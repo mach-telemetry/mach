@@ -64,6 +64,7 @@ impl Producer {
     }
 }
 
+#[derive(Clone)]
 pub struct BufferedConsumer {
     data: DashMap<(i32, i64), Arc<[u8]>>
 }

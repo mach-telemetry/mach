@@ -35,70 +35,6 @@ const MAGIC: &[u8; 12] = b"202107280428";
 //    heap_flags: Vec<Types>,
 //}
 
-pub struct DecompressBuffer {
-    header: Header,
-    ts: Vec<u64>,
-    values: Vec<Vec<[u8; 8]>>,
-    heap: Vec<u8>,
-    len: usize,
-    nvars: usize,
-}
-
-impl DecompressBuffer {
-    fn clear(&mut self) {
-        self.header = Header::new();
-        self.ts.clear();
-        self.heap.clear();
-        self.values.iter_mut().for_each(|x| x.clear());
-        self.len = 0;
-    }
-
-    pub fn set_nvars(&mut self, nvars: usize) {
-        #[allow(clippy::comparison_chain)]
-        if self.nvars < nvars {
-            for _ in 0..nvars - self.nvars {
-                self.values.push(Vec::new());
-            }
-        } else if self.nvars > nvars {
-            for _ in 0..self.nvars - nvars {
-                self.values.pop();
-            }
-        }
-        self.nvars = nvars;
-    }
-
-    pub fn new() -> Self {
-        Self {
-            header: Header::new(),
-            ts: Vec::new(),
-            values: Vec::new(),
-            heap: Vec::new(),
-            len: 0,
-            nvars: 0,
-        }
-    }
-
-    pub fn timestamp_at(&self, i: usize) -> u64 {
-        self.ts[self.len - i - 1]
-    }
-
-    pub fn value_at(&self, var: usize, i: usize) -> [u8; 8] {
-        self.values[var][self.len - i - 1]
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn timestamps(&self) -> &[u64] {
-        &self.ts[..self.len]
-    }
-
-    pub fn variable(&self, var: usize) -> (Types, &[[u8; 8]]) {
-        (self.header.types[var], &self.values[var][..self.len])
-    }
-}
-
 #[derive(Copy, Clone)]
 pub enum CompressFn {
     Decimal(u8),
@@ -330,6 +266,9 @@ mod test {
     use crate::segment::Buffer;
     use crate::series::Types;
     use crate::test_utils::*;
+    use crate::snapshot::Segment;
+
+    type DecompressBuffer = Segment;
 
     #[test]
     fn test_decimal() {
@@ -360,7 +299,7 @@ mod test {
 
         let mut compressed = vec![0u8; 4096];
         let mut byte_buf = ByteBuffer::new(&mut compressed[..]);
-        let mut buf = DecompressBuffer::new();
+        let mut buf = DecompressBuffer::new_decompress_segment();
 
         //println!("COMPRESSING DECIMAL NVARS {}", nvars);
         compression.compress(&segment, &mut byte_buf);
@@ -371,7 +310,7 @@ mod test {
         Compression::decompress(&compressed[..len], &mut buf).unwrap();
 
         assert_eq!(&buf.ts[..], &timestamps[..]);
-        assert_eq!(buf.header.types.as_slice(), heaps.as_slice());
+        assert_eq!(buf.types.as_slice(), heaps.as_slice());
         for i in 0..nvars {
             let exp = segment.variable(i);
             let res = buf.variable(i);
@@ -408,7 +347,7 @@ mod test {
 
         let mut compressed = vec![0u8; 8192];
         let mut byte_buf = ByteBuffer::new(&mut compressed[..]);
-        let mut buf = DecompressBuffer::new();
+        let mut buf = DecompressBuffer::new_decompress_segment();
 
         compression.compress(&segment, &mut byte_buf);
         let len = byte_buf.len();

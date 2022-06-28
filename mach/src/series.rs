@@ -6,7 +6,7 @@ use crate::{
     //persistent_list,
     //reader::Snapshot,
     segment::{self, Segment, SegmentSnapshot},
-    //snapshot::Snapshot,
+    snapshot::Snapshot,
     id::SeriesId,
 };
 use serde::*;
@@ -72,53 +72,32 @@ pub struct SeriesConfig {
 pub struct Series {
     pub config: SeriesConfig,
     pub segment: Segment,
+    pub block_list: Arc<BlockList>,
     pub source_block_list: Arc<SourceBlockList>,
 }
 
 impl Series {
-    pub fn new(config: SeriesConfig, source_block_list: Arc<SourceBlockList>) -> Self {
+    pub fn new(config: SeriesConfig, block_list: Arc<BlockList>, source_block_list: Arc<SourceBlockList>) -> Self {
         assert_eq!(config.nvars, config.compression.len());
         Self {
             segment: segment::Segment::new(config.seg_count, config.types.as_slice()),
             config,
+            block_list,
             source_block_list,
         }
     }
 
-    //pub fn segment_snapshot(&self) -> Result<SegmentSnapshot, Error> {
-    //    Ok(self.segment.snapshot()?)
-    //}
-
-    //pub fn snapshot(&self) -> Result<Snapshot, Error> {
-    //    //let segment = self.segment.snapshot()?;
-    //    //let list = self.list.snapshot()?;
-    //    //Ok(Snapshot::new(segment, list))
-    //    Err(Error::Noop)
-    //}
-
-    //pub fn snapshot(&self) -> Result<Snapshot, Error> {
-    //    let segment = self.segment.snapshot()?;
-    //    let list = self.list.snapshot()?;
-    //    Ok(Snapshot::new(segment, list))
-    //}
-
-    //pub fn config(&self) -> &SeriesConfig {
-    //    &self.config
-    //}
-
-    ////pub fn queue(&self) -> &QueueConfig {
-    ////    &self.queue
-    ////}
-
-    //pub fn compression(&self) -> &Compression {
-    //    &self.config.compression
-    //}
-
-    //pub fn segment(&self) -> &Segment {
-    //    &self.segment
-    //}
-
-    //pub fn list(&self) -> &List {
-    //    &self.list
-    //}
+    pub fn snapshot(&self) -> Snapshot {
+        let active_segment = self.segment.snapshot().unwrap().inner;
+        let active_block = self.block_list.snapshot().unwrap();
+        let source_blocks = self.source_block_list.snapshot().unwrap();
+        //let list = self.list.snapshot()?;
+        //Ok(Snapshot::new(segment, list))
+        Snapshot {
+            active_segment,
+            active_block,
+            source_blocks,
+            id: self.config.id,
+        }
+    }
 }
