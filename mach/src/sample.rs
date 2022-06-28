@@ -1,5 +1,7 @@
 pub use crate::utils::bytes::*;
 pub use serde::*;
+pub use crate::series::FieldType;
+use std::convert::TryInto;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum SampleType {
@@ -8,21 +10,99 @@ pub enum SampleType {
     Timestamp(u64),
     F64(f64),
     Bytes(Vec<u8>),
-    BorrowedBytes(Vec<u8>),
-    U32(u32),
 }
 
 impl SampleType {
-    pub fn byte_vec_mut(&mut self) -> &mut Vec<u8> {
+    pub fn as_i64(&self) -> i64 {
         match self {
-            SampleType::Bytes(x) => x,
+            SampleType::I64(x) => *x,
             _ => unimplemented!(),
+        }
+    }
+
+    pub fn as_u64(&self) -> u64 {
+        match self {
+            SampleType::U64(x) => *x,
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn as_f64(&self) -> f64 {
+        match self {
+            SampleType::F64(x) => *x,
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            SampleType::Bytes(x) => std::str::from_utf8(&x[..]).unwrap(),
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn from_field_item(field_type: FieldType, bytes: [u8; 8]) -> Self {
+        match field_type {
+            FieldType::I64 => SampleType::I64(i64::from_be_bytes(bytes)),
+            FieldType::U64 => SampleType::U64(u64::from_be_bytes(bytes)),
+            FieldType::F64 => SampleType::F64(f64::from_be_bytes(bytes)),
+            FieldType::Timestamp => SampleType::Timestamp(u64::from_be_bytes(bytes)),
+            FieldType::Bytes => {
+                let ptr = usize::from_be_bytes(bytes) as *const u8;
+                let slice: &[u8] = unsafe { std::slice::from_raw_parts(ptr, 8) };
+                let sz = usize::from_be_bytes(slice.try_into().unwrap());
+                let v: Vec<u8> = unsafe {
+                    let ptr = ptr.offset(8);
+                    std::slice::from_raw_parts(ptr, sz).into()
+                };
+                SampleType::Bytes(v)
+            },
         }
     }
 }
 
-unsafe impl Sync for SampleType {}
-unsafe impl Send for SampleType {}
+//#[derive(PartialEq, Eq, Copy, Clone, Serialize, Deserialize, Debug)]
+//pub enum FieldType {
+//    I64 = 0,
+//    U64 = 1,
+//    F64 = 2,
+//    Bytes = 3,
+//    Timestamp = 4,
+//    U32 = 5,
+//}
+
+//pub struct HeapAlloc(*const u8);
+//
+//impl HeapAlloc {
+//    pub fn len(&self) -> usize {
+//        let slice: &[u8] = unsafe { std::slice::from_raw_parts(self.0, 8) };
+//        usize::from_be_bytes(slice.try_into().unwrap())
+//    }
+//
+//    pub fn as_bytes(&self) -> &[u8] {
+//        let sz = self.len();
+//        unsafe {
+//            let ptr = self.0.offset(8);
+//            std::slice::from_raw_parts(ptr, sz)
+//        }
+//    }
+//
+//    pub fn as_str(&self) -> &str {
+//        std::str::from_utf8(self.as_bytes()).unwrap()
+//    }
+//
+//    pub fn from_slice(data: &[u8]) -> Self {
+//        let usz = size_of::<usize>();
+//        let len = data.len();
+//        let total_len = usz + len;
+//        let layout = Layout::from_size_align(total_len, align_of::<u8>()).unwrap();
+//        let ptr = unsafe { alloc(layout) };
+//        let sl = unsafe { std::slice::from_raw_parts_mut(ptr, total_len) };
+//        sl[..usz].copy_from_slice(&len.to_be_bytes());
+//        sl[usz..].copy_from_slice(data);
+//        Self(ptr)
+//    }
+//}
 
 //#[derive(Copy, Clone)]
 //pub struct Sample<const V: usize> {

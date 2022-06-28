@@ -3,6 +3,7 @@ use crate::{
     utils::kafka,
     series::FieldType,
     id::SeriesId,
+    sample::SampleType,
 };
 use std::sync::Arc;
 
@@ -11,6 +12,79 @@ pub enum Heap {
     ActiveHeap(Vec<Option<Vec<u8>>>),
     DecompressHeap(Vec<u8>),
 }
+
+pub struct Field<'a> {
+    t: FieldType,
+    v: &'a [[u8; 8]]
+}
+
+impl<'a> std::ops::Deref for Field<'a> {
+    type Target = [[u8; 8]];
+    fn deref(&self) -> &Self::Target {
+        self.v
+    }
+}
+
+
+pub struct FieldIterator<'a> {
+    field: Field<'a>,
+    idx: usize,
+}
+
+impl<'a> FieldIterator<'a> {
+    pub fn new(field: Field<'a>) -> Self {
+        let idx = field.v.len();
+        Self {
+            field,
+            idx,
+        }
+    }
+
+    pub fn next_item(&mut self) -> Option<SampleType> {
+        if self.idx > 0 {
+            self.idx -= 1;
+            Some(SampleType::from_field_item(self.field.t, self.field[self.idx]))
+        } else {
+            None
+        }
+    }
+}
+
+pub struct Timestamps<'a> {
+    v: &'a [u64]
+}
+
+impl<'a> std::ops::Deref for Timestamps<'a> {
+    type Target = [u64];
+    fn deref(&self) -> &Self::Target {
+        self.v
+    }
+}
+
+pub struct TimestampsIterator<'a> {
+    timestamps: Timestamps<'a>,
+    idx: usize,
+}
+
+impl<'a> TimestampsIterator<'a> {
+    pub fn new(timestamps: Timestamps<'a>) -> Self {
+        let idx = timestamps.v.len();
+        Self {
+            timestamps,
+            idx,
+        }
+    }
+
+    pub fn next_timestamp(&mut self) -> Option<u64> {
+        if self.idx > 0 {
+            self.idx -= 1;
+            Some(self.timestamps[self.idx])
+        } else {
+            None
+        }
+    }
+}
+
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Segment {
@@ -53,23 +127,17 @@ impl Segment {
         self.len
     }
 
-    pub fn variable(&self, i: usize) -> (FieldType, &[[u8; 8]]) {
-        (self.types[i], &self.data[i][..self.len])
+    pub fn field(&self, i: usize) -> Field {
+        Field {
+            t: self.types[i],
+            v: &self.data[i][..self.len],
+        }
     }
 
-    pub fn get_timestamp_at(&self, i: usize) -> u64 {
-        let i = self.len - i - 1;
-        self.ts[i]
-    }
-
-    pub fn get_value_at(&self, var: usize, i: usize) -> (FieldType, [u8; 8]) {
-        let i = self.len - i - 1;
-        let (t, v) = self.variable(var);
-        (t, v[i])
-    }
-
-    pub fn timestamps(&self) -> &[u64] {
-        &self.ts[..self.len]
+    pub fn timestamps(&self) -> Timestamps {
+        Timestamps {
+            v: &self.ts[..self.len],
+        }
     }
 
     pub fn set_types(&mut self, types: &[FieldType]) {

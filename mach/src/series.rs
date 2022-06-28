@@ -38,7 +38,7 @@ pub enum FieldType {
     F64 = 2,
     Bytes = 3,
     Timestamp = 4,
-    U32 = 5,
+    //U32 = 5,
 }
 
 impl FieldType {
@@ -53,7 +53,7 @@ impl FieldType {
             2 => Self::F64,
             3 => Self::Bytes,
             4 => Self::Timestamp,
-            5 => Self::U32,
+            //5 => Self::U32,
             _ => unimplemented!(),
         }
     }

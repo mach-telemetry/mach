@@ -117,9 +117,9 @@ impl InnerBuffer {
                 SampleType::F64(x) => {
                     self.data[i][len] = x.to_be_bytes();
                 }
-                SampleType::U32(x) => {
-                    self.data[i][len] = (*x as u64).to_be_bytes();
-                }
+                //SampleType::U32(x) => {
+                //    self.data[i][len] = (*x as u64).to_be_bytes();
+                //}
                 SampleType::Timestamp(x) => {
                     self.data[i][len] = x.to_be_bytes();
                 }
@@ -135,20 +135,6 @@ impl InnerBuffer {
                     }
                     let item = ((&heap[cur_len..]).as_ptr() as u64).to_be_bytes();
                     self.data[i][len] = item;
-                }
-                SampleType::BorrowedBytes(b) => {
-                    //let b = unsafe { Bytes::from_raw(*x) };
-                    let bytes = &b;
-                    let heap = self.heap[i].as_mut().unwrap();
-                    let cur_len = heap.len();
-                    heap.extend_from_slice(&b.len().to_be_bytes());
-                    heap.extend_from_slice(bytes);
-                    if heap.len() > HEAP_TH {
-                        self.is_full = true;
-                    }
-                    let item = ((&heap[cur_len..]).as_ptr() as u64).to_be_bytes();
-                    self.data[i][len] = item;
-                    //b.into_raw_parts(); // don't drop the vec
                 }
             }
         }
