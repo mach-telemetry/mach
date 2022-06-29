@@ -38,6 +38,7 @@ uuid = { version = "1.1.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
 num-format = "0.4.0"
 kafka = "0.9.0"
 flume = "0.10.12"
+crossbeam-channel = "0.5.0"
 
 [build-dependencies]
 tonic-build = { version = "0.6.2", features = ["prost", "compression"] }
@@ -92,6 +93,10 @@ path = "src/mach-otlp-server.rs"
 [[bin]]
 name = "simple-bench"
 path = "src/simple_bench.rs"
+
+[[bin]]
+name = "write-bench"
+path = "src/write_bench.rs"
 
 [[bin]]
 name = "kafka_bench"
