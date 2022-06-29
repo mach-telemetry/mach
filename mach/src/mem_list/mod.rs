@@ -27,7 +27,7 @@ use rdkafka::{
 use rand::{Rng, thread_rng};
 use std::convert::TryInto;
 
-const FLUSHERS: usize = 1;
+const FLUSHERS: usize = 4;
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 const PARTITIONS: i32 = 3;
 const REPLICAS: i32 = 3;
