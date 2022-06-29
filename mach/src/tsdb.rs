@@ -107,6 +107,7 @@ mod test {
 
     #[test]
     fn end_to_end() {
+
         let mut mach = Mach::new();
         let writer_config = WriterConfig {
             active_block_flush_sz: 1_000
@@ -123,7 +124,7 @@ mod test {
         //}
         let mut compression = Vec::new();
         for _ in 0..nvars {
-            compression.push(CompressFn::Decimal(3));
+            compression.push(CompressFn::Decimal(10));
         }
         let compression = Compression::from(compression);
 
@@ -141,7 +142,7 @@ mod test {
         let mut expected_values = Vec::new();
         let epoch = std::time::UNIX_EPOCH;
         let mut rng = thread_rng();
-        for _ in 0..1_000_000 {
+        for _ in 0..256 * 1000 {
             let values: [SampleType; nvars] = [SampleType::F64(rng.gen()), SampleType::F64(rng.gen())];
             let time = epoch.elapsed().unwrap().as_micros() as u64;
             loop {
@@ -151,19 +152,45 @@ mod test {
                 }
             }
             expected_timestamps.push(time);
-            expected_values.push(values);
+            expected_values.push(values[0].as_f64());
         }
         expected_timestamps.reverse();
         expected_values.reverse();
+
+        std::thread::sleep(std::time::Duration::from_secs(1));
 
         let snapshot = mach.series_table.get(&series_conf.id).unwrap().value().snapshot();
         let bytes = bincode::serialize(&snapshot).unwrap();
         let snapshot: Snapshot = bincode::deserialize(bytes.as_slice()).unwrap();
 
         let consumer = BufferedConsumer::new(BOOTSTRAPS, TOPIC);
-
         let mut snapshot = snapshot.into_iterator(consumer);
-        assert!(snapshot.next_segment().is_some());
-        let seg = snapshot.get_segment();
+
+        let mut result_timestamps = Vec::new();
+        let mut result_field0 = Vec::new();
+        let mut last_timestamp = u64::MAX;
+        'segment: while let Some(_) = snapshot.next_segment() {
+            let seg = snapshot.get_segment();
+            let mut timestamps = seg.timestamps().iterator();
+            let mut field0 = seg.field(0).iterator();
+            while let Some(x) = timestamps.next_timestamp() {
+                if x > last_timestamp {
+                    continue 'segment;
+                }
+                result_timestamps.push(x);
+                last_timestamp = x;
+            }
+            while let Some(x) = field0.next_item() {
+                result_field0.push(x.as_f64());
+            }
+        }
+
+        println!("{} {}", result_timestamps.len(), expected_timestamps.len());
+        assert_eq!(&result_timestamps, &expected_timestamps);
+        for (a, b) in result_field0.iter().zip(expected_values.iter()) {
+            if (a-b).abs() > 0.001 {
+                panic!("{} - {} = {}", a, b, (a-b).abs());
+            }
+        }
     }
 }

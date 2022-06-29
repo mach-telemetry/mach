@@ -401,8 +401,9 @@ mod test {
         }
 
         let read = buf.read().unwrap();
-        assert_eq!(read.timestamps(), exp_ts.as_slice());
-        let (t, v) = read.variable(0);
+        assert_eq!(&*read.timestamps(), exp_ts.as_slice());
+        let v = read.field(0);
+        let t = v.field_type();
         let v: Vec<f64> = v.iter().map(|x| f64::from_be_bytes(*x)).collect();
         assert_eq!(t, FieldType::F64);
         assert_eq!(v.as_slice(), exp_f0.as_slice());

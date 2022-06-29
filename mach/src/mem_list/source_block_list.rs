@@ -54,10 +54,11 @@ impl InnerBuffer {
                 v.push(inner.into());
             }
         }
+        let idx = v.len();
         SourceBlocks {
             data: v,
             next: self.last,
-            idx: 0
+            idx,
         }
     }
 
@@ -111,17 +112,19 @@ pub struct SourceBlocks {
 
 impl SourceBlocks {
     pub fn next_block(&mut self, consumer: &kafka::BufferedConsumer) -> Option<&ReadOnlyBlock> {
-        if self.idx < self.data.len() {
-            let idx = self.idx;
-            self.idx += 1;
-            Some(&self.data[idx])
+        if self.idx > 0 {
+            self.idx -= 1;
+            Some(&self.data[self.idx])
         } else {
-            let next_blocks: SourceBlocks = bincode::deserialize(&*consumer.get(self.next.0, self.next.1)).unwrap();
-            self.data = next_blocks.data;
-            self.next = next_blocks.next;
-            self.idx = 1;
-            Some(&self.data[0])
+            if self.next.0 == -1 || self.next.1 == -1 {
+                None
+            } else {
+                let next_blocks: SourceBlocks = bincode::deserialize(&*consumer.get(self.next.0, self.next.1)).unwrap();
+                self.idx = next_blocks.data.len();
+                self.data = next_blocks.data;
+                self.next = next_blocks.next;
+                self.next_block(consumer)
+            }
         }
     }
 }
-

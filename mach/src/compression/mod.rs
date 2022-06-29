@@ -313,10 +313,10 @@ mod test {
         assert_eq!(buf.types.as_slice(), heaps.as_slice());
         for i in 0..nvars {
             let exp = segment.variable(i);
-            let res = buf.variable(i);
+            let res = buf.field(i);
             let diff = exp
                 .iter()
-                .zip(res.1.iter())
+                .zip(res.iter())
                 .map(|(x, y)| (f64::from_be_bytes(*x) - f64::from_be_bytes(*y)).abs())
                 .fold(f64::NAN, f64::max);
 
@@ -357,8 +357,8 @@ mod test {
 
         assert_eq!(&buf.ts[..], &timestamps[..]);
         let exp = &data[0..256];
-        let res = buf.variable(0);
-        for (r, e) in res.1.iter().zip(exp.iter()) {
+        let res = buf.field(0);
+        for (r, e) in res.iter().zip(exp.iter()) {
             let ptr = usize::from_be_bytes(*r) as *const u8;
             let bytes = unsafe { Bytes::from_raw(ptr) };
             let s = std::str::from_utf8(bytes.bytes()).unwrap();

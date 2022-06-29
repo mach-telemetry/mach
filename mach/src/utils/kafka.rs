@@ -60,18 +60,19 @@ impl Producer {
         TOTAL_MB_WRITTEN.fetch_add(item.len(), SeqCst);
         let part = resp[0].partition_confirms[0].partition;
         let offset = resp[0].partition_confirms[0].offset.unwrap();
+        println!("PRODUCING TO KAFKA {} {}", part, offset);
         (part, offset)
     }
 }
 
 #[derive(Clone)]
 pub struct BufferedConsumer {
-    data: DashMap<(i32, i64), Arc<[u8]>>
+    data: Arc<DashMap<(i32, i64), Arc<[u8]>>>
 }
 
 impl BufferedConsumer {
     pub fn new(bootstraps: &str, topic: &str) -> Self {
-        let data = DashMap::new();
+        let data = Arc::new(DashMap::new());
         init_consumer_worker(bootstraps, topic, data.clone());
         Self {
             data
@@ -79,11 +80,17 @@ impl BufferedConsumer {
     }
 
     pub fn get(&self, partition: i32, offset: i64) -> Arc<[u8]> {
-        self.data.get(&(partition, offset)).unwrap().value().clone()
+        println!("GETTING FROM KAFKA {} {}", partition, offset);
+        loop {
+            match self.data.get(&(partition, offset)) {
+                Some(x) => return x.value().clone(),
+                None => {}
+            }
+        }
     }
 }
 
-fn init_consumer_worker(bootstraps: &str, topic: &str, data: DashMap<(i32, i64), Arc<[u8]>>) {
+fn init_consumer_worker(bootstraps: &str, topic: &str, data: Arc<DashMap<(i32, i64), Arc<[u8]>>>) {
     use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
     let bootstraps = bootstraps.split(",").map(|x| String::from(x)).collect();
     let mut consumer =
@@ -92,6 +99,7 @@ fn init_consumer_worker(bootstraps: &str, topic: &str, data: DashMap<(i32, i64),
           .with_fallback_offset(FetchOffset::Earliest)
           .with_group(random_id())
           .with_offset_storage(GroupOffsetStorage::Kafka)
+          .with_fetch_max_bytes_per_partition(2_000_000)
           .create()
           .unwrap();
 
@@ -100,6 +108,7 @@ fn init_consumer_worker(bootstraps: &str, topic: &str, data: DashMap<(i32, i64),
           for ms in consumer.poll().unwrap().iter() {
             let partition = ms.partition();
             for m in ms.messages() {
+                println!("CONSUMING FROM KAFKA: {} {}", partition, m.offset);
                 data.insert((partition, m.offset), m.value.into());
             }
           }

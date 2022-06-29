@@ -454,8 +454,9 @@ mod test {
 
         let mut v = Vec::new();
         for i in read.inner.iter() {
-            for j in 0..i.len() {
-                v.push(i.get_timestamp_at(j));
+            let mut timestamps = i.timestamps().iterator();
+            while let Some(x) = timestamps.next_timestamp() {
+                v.push(x);
             }
         }
         assert_eq!(v, rev_exp_ts);

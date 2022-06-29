@@ -82,7 +82,7 @@ impl List {
 pub struct BlockList {
     head_block: WpLock<Block>,
     id_set: RefCell<HashSet<SeriesId>>,
-    series_map: DashMap<SeriesId, Arc<SourceBlockList>>,
+    series_map: Arc<DashMap<SeriesId, Arc<SourceBlockList>>>,
 }
 
 /// Safety
@@ -96,7 +96,7 @@ impl BlockList {
         BlockList {
             head_block: WpLock::new(Block::new()),
             id_set: RefCell::new(HashSet::new()),
-            series_map: DashMap::new(),
+            series_map: Arc::new(DashMap::new()),
         }
     }
 
@@ -127,7 +127,6 @@ impl BlockList {
         segment: &FlushSegment,
         compression: &Compression,
     ) {
-
         // Safety: id() is atomic
         let block_id = unsafe { self.head_block.unprotected_read().id.load(SeqCst) };
 
@@ -229,9 +228,9 @@ impl Block {
 
     fn as_read_only(&self) -> BlockListEntry {
         let len = self.len.load(SeqCst);
-        let items = self.items.load(SeqCst);
+        let item_count = self.items.load(SeqCst);
         let mut bytes: Vec<u8> = self.bytes[..len].into();
-        bincode::serialize_into(&mut bytes, &self.offsets[..self.items.load(SeqCst)]).unwrap();
+        bincode::serialize_into(&mut bytes, &self.offsets[..item_count]).unwrap();
         bytes.extend_from_slice(&len.to_be_bytes());
         BlockListEntry {
             inner: RwLock::new(InnerBlockListEntry::Bytes(bytes.into())),

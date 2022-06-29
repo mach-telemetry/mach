@@ -6,6 +6,7 @@ use crate::{
     sample::SampleType,
 };
 use std::sync::Arc;
+use std::convert::TryInto;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub enum Heap {
@@ -22,6 +23,16 @@ impl<'a> std::ops::Deref for Field<'a> {
     type Target = [[u8; 8]];
     fn deref(&self) -> &Self::Target {
         self.v
+    }
+}
+
+impl<'a> Field<'a> {
+    pub fn field_type(&self) -> FieldType {
+        self.t
+    }
+
+    pub fn iterator(self) -> FieldIterator<'a> {
+        FieldIterator::new(self)
     }
 }
 
@@ -52,6 +63,12 @@ impl<'a> FieldIterator<'a> {
 
 pub struct Timestamps<'a> {
     v: &'a [u64]
+}
+
+impl<'a> Timestamps<'a> {
+    pub fn iterator(self) -> TimestampsIterator<'a> {
+        TimestampsIterator::new(self)
+    }
 }
 
 impl<'a> std::ops::Deref for Timestamps<'a> {
@@ -229,69 +246,29 @@ impl ReadOnlyBlockReader {
                 offsets.push(item.1);
             }
         }
+        let current_idx = offsets.len().try_into().unwrap();
         Self {
             _offsets,
             offsets,
             block,
             id,
-            current_idx: 0,
+            current_idx,
             read_buffer: Segment::new_decompress_segment(),
         }
     }
 
     fn next_segment(&mut self) -> Option<()> {
-        let idx = self.current_idx + 1;
-        if idx as usize == self.offsets.len() {
-            None
-        } else {
-            self.current_idx = idx;
-            self.block.segment_at_offset(self.offsets[idx as usize], &mut self.read_buffer);
+        if self.current_idx > 0 {
+            self.current_idx -= 1;
+            self.block.segment_at_offset(self.offsets[self.current_idx as usize], &mut self.read_buffer);
             Some(())
+        } else {
+            None
         }
     }
 
     fn get_segment(&self) -> &Segment {
         &self.read_buffer
-    }
-
-    fn reset(&mut self, block: Option<ReadOnlyBlockBytes>, id: Option<SeriesId>) {
-        self.current_idx = -1;
-        match (block, id) {
-            (Some(block), Some(i)) => {
-                let _offsets = block.offsets();
-                self.offsets.clear();
-                for item in _offsets.iter() {
-                    if SeriesId(item.0) == i {
-                        self.offsets.push(item.1);
-                    }
-                }
-                self.block = block;
-                self._offsets = _offsets;
-            },
-            (Some(block), None) => {
-                let _offsets = block.offsets();
-                self.offsets.clear();
-                for item in _offsets.iter() {
-                    if SeriesId(item.0) != self.id {
-                        self.offsets.push(item.1);
-                    }
-                }
-                self.block = block;
-                self._offsets = _offsets;
-            }
-            (None, Some(id)) => {
-                if id != self.id {
-                    self.id = id;
-                    self.offsets.clear();
-                    for item in self._offsets.iter() {
-                        if SeriesId(item.0) != self.id {
-                            self.offsets.push(item.1);
-                        }
-                    }
-                }
-            }
-            (None, None) => {},
-        }
     }
 }
 
@@ -328,7 +305,9 @@ impl SnapshotIterator {
                         self.state = State::Blocks;
                         self.next_segment()
                     },
-                    Some(_) => Some(())
+                    Some(_) => {
+                        Some(())
+                    },
                 }
             },
             State::Blocks => {
@@ -336,13 +315,20 @@ impl SnapshotIterator {
                     None => {
                         if let Some(block) = self.source_blocks.next_block(&self.consumer) {
                             let bytes = block.as_bytes(&self.consumer);
-                            self.block_reader.reset(Some(bytes), None);
+                            let id = self.block_reader.id;
+                            let block_reader = ReadOnlyBlockReader::new(
+                                bytes,
+                                id,
+                            );
+                            self.block_reader = block_reader;
                             self.next_segment()
                         } else {
                             None
                         }
                     },
-                    Some(_) => Some(())
+                    Some(_) => {
+                        Some(())
+                    }
                 }
             },
         }
