@@ -342,7 +342,7 @@ impl BlockListEntry {
                 drop(guard);
                 self.set_partition_offset(part, offset);
             },
-            InnerBlockListEntry::Offset(x, y) => unimplemented!(),
+            InnerBlockListEntry::Offset(x, y) => {}, // already flushed
         }
     }
 

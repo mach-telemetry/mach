@@ -16,16 +16,16 @@ use mach::{
     compression::{CompressFn, Compression},
     id::{SeriesId, SeriesRef, WriterId},
     // kafka_utils::TOTAL_MB_WRITTEN,
-    sample::Type,
-    series::{SeriesConfig, Types},
+    sample::SampleType,
+    series::{SeriesConfig, FieldType},
     tsdb::Mach,
     utils::random_id,
     writer::{Writer, WriterConfig},
 };
 
 type TimeStamp = u64;
-type Sample = (SeriesId, TimeStamp, Vec<Type>);
-type RegisteredSample = (SeriesRef, TimeStamp, Vec<Type>);
+type Sample = (SeriesId, TimeStamp, Vec<SampleType>);
+type RegisteredSample = (SeriesRef, TimeStamp, Vec<SampleType>);
 
 fn load_data(path: &str, repeat_factor: usize) -> Vec<otlp::OtlpData> {
     let mut data = Vec::new();
@@ -203,16 +203,16 @@ fn kafka_ingest(samples: Vec<Sample>, args: Args) {
     // println!("Raw size written {}", raw_byte_sz);
 }
 
-fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
+fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
     let mut types = Vec::new();
     let mut compression = Vec::new();
     values.iter().for_each(|v| {
         let (t, c) = match v {
-            Type::U32(_) => (Types::U32, CompressFn::IntBitpack),
-            Type::U64(_) => (Types::U64, CompressFn::LZ4),
-            Type::F64(_) => (Types::F64, CompressFn::Decimal(3)),
-            Type::Bytes(_) => (Types::Bytes, CompressFn::BytesLZ4),
-            Type::BorrowedBytes(_) => (Types::Bytes, CompressFn::NOOP),
+            //SampleType::U32(_) => (FieldType::U32, CompressFn::IntBitpack),
+            SampleType::U64(_) => (FieldType::U64, CompressFn::LZ4),
+            SampleType::F64(_) => (FieldType::F64, CompressFn::Decimal(3)),
+            SampleType::Bytes(_) => (FieldType::Bytes, CompressFn::BytesLZ4),
+            //SampleType::BorrowedBytes(_) => (FieldType::Bytes, CompressFn::NOOP),
             _ => unimplemented!(),
         };
         types.push(t);
@@ -241,7 +241,7 @@ fn mach_ingest(samples: Vec<RegisteredSample>, mut writer: Writer) {
         let id_ref = *id_ref;
         let ts = *ts;
         raw_byte_sz += match &values[0] {
-            Type::Bytes(x) => x.len(),
+            SampleType::Bytes(x) => x.len(),
             _ => unimplemented!(),
         };
         loop {

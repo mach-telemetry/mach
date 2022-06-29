@@ -154,6 +154,7 @@ fn block_list_worker(block_list: Arc<BlockList>, chan: Receiver<FlushItem>) {
             x.segment.flushed();
         }
     }
+    println!("BLOCK WORKER EXITED");
 }
 
 //struct ListMakerMeta {

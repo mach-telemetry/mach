@@ -60,7 +60,7 @@ impl Producer {
         TOTAL_MB_WRITTEN.fetch_add(item.len(), SeqCst);
         let part = resp[0].partition_confirms[0].partition;
         let offset = resp[0].partition_confirms[0].offset.unwrap();
-        println!("PRODUCING TO KAFKA {} {}", part, offset);
+        //println!("PRODUCING TO KAFKA {} {}", part, offset);
         (part, offset)
     }
 }

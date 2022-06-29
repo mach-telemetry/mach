@@ -391,7 +391,7 @@ impl OtlpData {
 
 use mach::{
     id::SeriesId,
-    sample::Type,
+    sample::SampleType,
 };
 use std::collections::HashMap;
 use fxhash;
@@ -476,12 +476,12 @@ impl ResourceSpans {
         }
     }
 
-    pub fn get_samples(&self) -> Vec<(SeriesId, u64, Vec<Type>)> {
+    pub fn get_samples(&self) -> Vec<(SeriesId, u64, Vec<SampleType>)> {
         let mut spans = Vec::new();
         for scope in &self.scope_spans {
             for span in &scope.spans {
                 let mut v = Vec::with_capacity(1);
-                v.push(Type::Bytes(bincode::serialize(&span).unwrap()));
+                v.push(SampleType::Bytes(bincode::serialize(&span).unwrap()));
                 let mut missing_id = true;
                 for attrib in span.attributes.iter() {
                     if attrib.key.as_str() == "SourceId" {
@@ -514,13 +514,13 @@ impl Value {
     //        },
     //    }
     //}
-    fn as_mach_type(&self) -> Type {
+    fn as_mach_type(&self) -> SampleType {
         match self {
-            Value::StringValue(x) => Type::Bytes(x.clone().into_bytes()),
-            Value::BytesValue(x) => Type::Bytes(x.clone()),
-            Value::IntValue(x) => Type::U32((*x).try_into().unwrap()),
-            Value::DoubleValue(x) => Type::F64(*x),
-            Value::BoolValue(x) => Type::U32(*x as u32),
+            Value::StringValue(x) => SampleType::Bytes(x.clone().into_bytes()),
+            Value::BytesValue(x) => SampleType::Bytes(x.clone()),
+            Value::IntValue(x) => SampleType::U64((*x).try_into().unwrap()),
+            Value::DoubleValue(x) => SampleType::F64(*x),
+            Value::BoolValue(x) => SampleType::U64(*x as u64),
             _ => {
                 println!("Cant convert easily {:?}", self);
                 unimplemented!();
@@ -599,7 +599,7 @@ impl ResourceMetrics {
         } // scope loop
     }
 
-    pub fn get_samples(&self) -> Vec<(SeriesId, u64, Vec<Type>)> {
+    pub fn get_samples(&self) -> Vec<(SeriesId, u64, Vec<SampleType>)> {
         let mut items = Vec::new();
 
 
@@ -647,7 +647,7 @@ impl ResourceMetrics {
                                     x.into()
                                 }
                             };
-                            let value = vec![Type::F64(value)];
+                            let value = vec![SampleType::F64(value)];
                             items.push((id, timestamp, value));
                         }
                     },
@@ -663,9 +663,9 @@ impl ResourceMetrics {
 
                             // Push sample
                             let timestamp = point.time_unix_nano;
-                            let value: Vec<Type> = point.bucket_counts.iter().map(|x| {
+                            let value: Vec<SampleType> = point.bucket_counts.iter().map(|x| {
                                 let x: i32 = (*x).try_into().unwrap();
-                                Type::F64(x.into())
+                                SampleType::F64(x.into())
                             }).collect();
                             items.push((id, timestamp, value));
                         }
