@@ -4,6 +4,8 @@ mod kafka_utils;
 
 use clap::Parser;
 use crossbeam_channel::bounded;
+use crossbeam_channel::unbounded;
+use lzzzz::{lz4, lz4_hc};
 use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
@@ -134,7 +136,75 @@ fn new_writer(mach: &mut Mach, kafka_bootstraps: String) -> Writer {
 }
 
 #[inline(never)]
-fn kafka_ingest(samples: Vec<Sample>, args: Args) {
+fn kafka_ingest_seq(samples: Vec<Sample>, args: Args) {
+    let topic = random_id();
+    kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
+
+    let (flusher_tx, flusher_rx) = bounded::<Vec<u8>>(args.kafka_flush_queue_len);
+    let flushers: Vec<JoinHandle<()>> = (0..args.kafka_flushers)
+        .map(|_| {
+            let recv = flusher_rx.clone();
+            let topic = topic.clone();
+            let mut producer = kafka_utils::Producer::new(args.kafka_bootstraps.as_str());
+            std::thread::spawn(move || {
+                while let Ok(compressed) = recv.recv() {
+                    producer.send(topic.as_str(), 0, compressed.as_slice());
+                }
+            })
+        })
+        .collect();
+
+    let now = std::time::Instant::now();
+    let mut num_samples = 0;
+    let mut data = Vec::with_capacity(args.kafka_batch);
+    let mut raw_sz = 0;
+    let mut compressed_sz = 0;
+    loop {
+        for sample in &samples {
+            data.push(sample.clone());
+            if data.len() == args.kafka_batch {
+                num_samples += data.len();
+                let bytes = bincode::serialize(&data).unwrap();
+                raw_sz += bytes.len();
+                let compressed = zstd::encode_all(bytes.as_slice(), 0).unwrap();
+                compressed_sz += compressed.len();
+                flusher_tx.send(compressed);
+                data = Vec::with_capacity(args.kafka_batch);
+            }
+        }
+        if !data.is_empty() {
+            num_samples += data.len();
+            let bytes = bincode::serialize(&data).unwrap();
+            raw_sz += bytes.len();
+            let compressed = zstd::encode_all(bytes.as_slice(), 0).unwrap();
+            compressed_sz += compressed.len();
+            flusher_tx.send(compressed);
+            data = Vec::with_capacity(args.kafka_batch);
+        }
+        if now.elapsed().as_secs() > 60 {
+            break;
+        }
+    }
+    drop(flusher_tx);
+    for flusher in flushers {
+        flusher.join().unwrap();
+    }
+
+    let push_time = now.elapsed();
+    let elapsed = push_time;
+    let elapsed_sec = elapsed.as_secs_f64();
+    println!(
+        "Written Samples {}, Elapsed {:?}, Samples/sec {}, raw sz: {}, compressed sz: {}",
+        num_samples,
+        elapsed,
+        num_samples as f64 / elapsed_sec,
+        raw_sz,
+        compressed_sz
+    );
+}
+
+#[inline(never)]
+fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
     let topic = random_id();
     kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
 
@@ -147,44 +217,31 @@ fn kafka_ingest(samples: Vec<Sample>, args: Args) {
             std::thread::spawn(move || {
                 while let Ok(data) = recv.recv() {
                     let bytes = bincode::serialize(&data).unwrap();
-                    let compressed = zstd::encode_all(bytes.as_slice(), 0).unwrap();
+                    let mut compressed = Vec::new();
+                    lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT)
+                        .unwrap();
                     producer.send(topic.as_str(), 0, compressed.as_slice());
                 }
             })
         })
         .collect();
 
-    let (data_tx, data_rx) = bounded::<Vec<Sample>>(1);
-    let data_creator = std::thread::spawn(move || {
-        let now = std::time::Instant::now();
-        loop {
-            data_tx.send(samples.clone());
-            if now.elapsed().as_secs() > 60 {
-                break;
-            }
-        }
-        drop(data_tx);
-    });
-
     let now = std::time::Instant::now();
     let mut num_samples = 0;
-    while let Ok(new_samples) = data_rx.recv() {
-        let mut data = Vec::with_capacity(args.kafka_batch);
-        for sample in new_samples {
-            data.push(sample);
-            if data.len() == args.kafka_batch {
-                num_samples += data.len();
-                flusher_tx.send(data);
-                data = Vec::with_capacity(args.kafka_batch);
-            }
-        }
-        if !data.is_empty() {
+    let mut data = Vec::with_capacity(args.kafka_batch);
+    for sample in samples {
+        data.push(sample);
+        if data.len() == args.kafka_batch {
             num_samples += data.len();
             flusher_tx.send(data);
+            data = Vec::with_capacity(args.kafka_batch);
         }
     }
+    if !data.is_empty() {
+        num_samples += data.len();
+        flusher_tx.send(data);
+    }
     drop(flusher_tx);
-    data_creator.join().unwrap();
     for flusher in flushers {
         flusher.join().unwrap();
     }
@@ -198,9 +255,6 @@ fn kafka_ingest(samples: Vec<Sample>, args: Args) {
         elapsed,
         num_samples as f64 / elapsed_sec
     );
-    // let total_sz_written = TOTAL_SZ.load(std::sync::atomic::Ordering::SeqCst);
-    // println!("Total Size written: {}", total_sz_written);
-    // println!("Raw size written {}", raw_byte_sz);
 }
 
 fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
@@ -235,25 +289,31 @@ fn mach_ingest(samples: Vec<RegisteredSample>, mut writer: Writer) {
     let now = std::time::Instant::now();
     let mut last = now.clone();
     let mut raw_byte_sz = 0;
-    let mut fail_count = 0;
 
-    for (id_ref, ts, values) in samples.iter() {
-        let id_ref = *id_ref;
-        let ts = *ts;
-        raw_byte_sz += match &values[0] {
-            Type::Bytes(x) => x.len(),
-            _ => unimplemented!(),
-        };
-        loop {
-            if writer.push(id_ref, ts, values.as_slice()).is_ok() {
-                break;
-            } else {
-                fail_count += 1;
+    let mut ts_curr = 0;
+    let mut num_samples = 0;
+
+    loop {
+        for (id_ref, _, values) in samples.iter() {
+            let id_ref = *id_ref;
+            let ts = ts_curr;
+            ts_curr += 1;
+            raw_byte_sz += match &values[0] {
+                Type::Bytes(x) => x.len(),
+                _ => unimplemented!(),
+            };
+            loop {
+                if writer.push(id_ref, ts, values.as_slice()).is_ok() {
+                    num_samples += 1;
+                    break;
+                }
             }
+        }
+        if now.elapsed().as_secs() >= 60 {
+            break;
         }
     }
 
-    let num_samples = samples.len();
     let push_time = now.elapsed();
     let elapsed = push_time;
     let elapsed_sec = elapsed.as_secs_f64();
@@ -266,7 +326,6 @@ fn mach_ingest(samples: Vec<RegisteredSample>, mut writer: Writer) {
     // let total_sz_written = TOTAL_SZ.load(std::sync::atomic::Ordering::SeqCst);
     // println!("Total Size written: {}", total_sz_written);
     println!("Raw size written {}", raw_byte_sz);
-    println!("Fail count {}", fail_count);
 }
 
 fn validate_tsdb(s: &str) -> Result<BenchTarget, String> {
@@ -313,7 +372,7 @@ struct Args {
     #[clap(short, long, default_value_t = 4)]
     kafka_flushers: usize,
 
-    #[clap(short, long, default_value_t = 20)]
+    #[clap(short, long, default_value_t = 100)]
     kafka_flush_queue_len: usize,
 
     #[clap(short, long)]
@@ -327,9 +386,9 @@ fn main() {
     // println!("Args: {:#?}", args);
 
     println!("Loading data");
-    let mut data = load_data(args.file_path.as_str(), 4);
-    println!("Rewriting timestamps");
-    rewrite_timestamps(&mut data);
+    let mut data = load_data(args.file_path.as_str(), 8);
+    // println!("Rewriting timestamps");
+    // rewrite_timestamps(&mut data);
 
     match args.tsdb {
         BenchTarget::Mach => {
@@ -357,7 +416,8 @@ fn main() {
                     kafka_args.kafka_flushers = *num_flushers;
                     println!("Args: {:#?}", kafka_args);
                     let kafka_samples = samples.clone();
-                    kafka_ingest(kafka_samples, kafka_args);
+                    kafka_ingest_parallel(kafka_samples, kafka_args);
+                    // kafka_ingest_seq(kafka_samples, kafka_args);
                 }
             }
         }
