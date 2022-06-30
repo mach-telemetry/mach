@@ -61,20 +61,19 @@ impl Mach {
         //}
         let (writer, meta) = Writer::new(global_meta, writer_config);
         //let durability = DurabilityWorker::new(meta.id.clone(), meta.block_list.clone(), q);
-        self.writers.push(meta.id.clone());
+        self.writers.push(meta.id);
         self.writer_table
-            .insert(meta.id.clone(), meta);
+            .insert(meta.id, meta);
             //.insert(meta.id.clone(), (meta, durability));
         Ok(writer)
     }
 
     pub fn add_series(&mut self, config: SeriesConfig) -> Result<(WriterId, SeriesId), Error> {
         // For now, randomly choose a writer
-        let writer = self
+        let writer = *self
             .writers
             .choose(&mut rand::thread_rng())
-            .unwrap()
-            .clone();
+            .unwrap();
         //let (writer_meta, durability) = self.writer_table.get(&writer).unwrap();
         let writer_meta = self.writer_table.get(&writer).unwrap();
 
@@ -93,17 +92,15 @@ impl Mach {
 mod test {
     use super::*;
     use crate::{
-        writer::{Writer, WriterConfig},
+        writer::{WriterConfig},
         compression::*,
-        test_utils::*,
+        //test_utils::*,
         sample::SampleType,
         snapshot::Snapshot,
         mem_list::{BOOTSTRAPS, TOPIC},
         utils::kafka::BufferedConsumer,
     };
     use rand::{Rng, thread_rng};
-    use std::time::Instant;
-
 
     #[test]
     fn end_to_end() {
@@ -115,7 +112,7 @@ mod test {
         let mut writer = mach.add_writer(writer_config).unwrap();
 
         // Setup series
-        const nvars: usize = 2;
+        const NVARS: usize = 2;
         //let mut rng = thread_rng();
         //for item in data.iter_mut() {
         //    for val in item.values.iter_mut() {
@@ -123,27 +120,28 @@ mod test {
         //    }
         //}
         let mut compression = Vec::new();
-        for _ in 0..nvars {
+        for _ in 0..NVARS {
             compression.push(CompressFn::Decimal(10));
         }
         let compression = Compression::from(compression);
 
         let series_conf = SeriesConfig {
             id: SeriesId(0),
-            types: vec![FieldType::F64; nvars],
+            types: vec![FieldType::F64; NVARS],
             compression,
             seg_count: 1,
-            nvars,
+            nvars: NVARS,
         };
-        let (writer_id, series_id) = mach.add_series(series_conf.clone()).unwrap();
+        let (_writer_id, series_id) = mach.add_series(series_conf.clone()).unwrap();
         let series_ref = writer.get_reference(series_id);
 
         let mut expected_timestamps = Vec::new();
         let mut expected_values = Vec::new();
         let epoch = std::time::UNIX_EPOCH;
         let mut rng = thread_rng();
+        println!("PUSHING");
         for _ in 0..256 * 1000 {
-            let values: [SampleType; nvars] = [SampleType::F64(rng.gen()), SampleType::F64(rng.gen())];
+            let values: [SampleType; NVARS] = [SampleType::F64(rng.gen()), SampleType::F64(rng.gen())];
             let time = epoch.elapsed().unwrap().as_micros() as u64;
             loop {
                 match writer.push(series_ref, time, &values[..]) {

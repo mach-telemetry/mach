@@ -1,10 +1,8 @@
 use crate::compression::utils::{
-    bitpack_256_compress, bitpack_256_decompress, float_from_int, float_to_int, from_zigzag,
-    to_zigzag,
+    bitpack_256_compress, bitpack_256_decompress
 };
 use crate::utils::byte_buffer::ByteBuffer;
-use std::convert::{TryFrom, TryInto};
-use std::mem::size_of;
+use std::convert::{TryInto};
 
 pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) {
     let mut to_compress = [0u32; 256];
@@ -24,7 +22,7 @@ pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) {
 pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
     let count = usize::from_be_bytes(data[..8].try_into().unwrap());
     let mut unpacked = [0u32; 256];
-    let read = bitpack_256_decompress(&mut unpacked, &data[8..]);
+    let _read = bitpack_256_decompress(&mut unpacked, &data[8..]);
     unpacked[..count].iter().copied().for_each(|x| buf.push((x as u64).to_be_bytes()));
 }
 

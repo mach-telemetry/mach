@@ -75,7 +75,6 @@ impl CompressFn {
             CompressFn::LZ4 => lz4::decompress(data, col),
             CompressFn::BytesLZ4 => bytes_lz42::decompress(data, col, heap.unwrap()),
             CompressFn::NOOP => noop::decompress(data, col, heap.unwrap()),
-            _ => panic!("Error"),
         }
     }
 
@@ -111,15 +110,15 @@ struct Header {
     len: usize,
 }
 
-impl Header {
-    fn new() -> Self {
-        Self {
-            types: Vec::new(),
-            codes: Vec::new(),
-            len: 0,
-        }
-    }
-}
+//impl Header {
+//    fn new() -> Self {
+//        Self {
+//            types: Vec::new(),
+//            codes: Vec::new(),
+//            len: 0,
+//        }
+//    }
+//}
 
 #[derive(Clone)]
 pub struct Compression(Arc<Vec<CompressFn>>);

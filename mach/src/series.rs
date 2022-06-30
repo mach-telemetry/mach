@@ -5,7 +5,7 @@ use crate::{
     mem_list::{SourceBlockList, BlockList},
     //persistent_list,
     //reader::Snapshot,
-    segment::{self, Segment, SegmentSnapshot},
+    segment::{self, Segment},
     snapshot::Snapshot,
     id::SeriesId,
 };

@@ -1,21 +1,22 @@
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
+use std::sync::{Arc};
 use crate::{
     utils::{
         wp_lock::{WpLock, NoDealloc},
         kafka,
     },
-    mem_list::{BlockListEntry, ReadOnlyBlock, InnerBlockListEntry, Error, TOPIC, BOOTSTRAPS},
+    mem_list::{BlockListEntry, ReadOnlyBlock, Error, TOPIC, BOOTSTRAPS},
 };
 use std::mem::MaybeUninit;
 use rand::Rng;
-use std::convert::TryInto;
 
 struct InnerBuffer {
     data: Box<[MaybeUninit<Arc<BlockListEntry>>]>,
     offset: usize,
     producer: kafka::Producer,
     last: (i32, i64),
-    tmp: Vec<Arc<BlockListEntry>>,
+
+    // for memory utilization experiment
+    //tmp: Vec<Arc<BlockListEntry>>,
 }
 
 impl InnerBuffer {
@@ -31,16 +32,16 @@ impl InnerBuffer {
         }
     }
 
-    unsafe fn tmp_flush(&mut self) {
-        for item in self.data.iter() {
-            let r = item.assume_init_ref().clone();
-            self.tmp.push(r);
-        }
-    }
+    // for memory utilization experiment
+    //unsafe fn tmp_flush(&mut self) {
+    //    for item in self.data.iter() {
+    //        let r = item.assume_init_ref().clone();
+    //        self.tmp.push(r);
+    //    }
+    //}
 
     unsafe fn full_flush(&mut self) {
-        let mut v = Vec::new();
-        v.push((self.last.0.try_into().unwrap(), self.last.1.try_into().unwrap()));
+        let mut v = vec![self.last];
         for item in self.data.iter() {
             let r = item.assume_init_ref();
             r.flush(&mut self.producer);
@@ -57,7 +58,7 @@ impl InnerBuffer {
         let end = self.offset;
         let start = if end < 256 { 0 } else { end + 256 };
         for off in start..end {
-            /// Safety: offset ensures prior items are inited
+            // Safety: offset ensures prior items are inited
             unsafe {
                 let inner = self.data[off % 256].assume_init_ref().inner();
                 v.push(inner.into());
@@ -80,7 +81,8 @@ impl InnerBuffer {
             offset: 0,
             producer,
             last: (-1, -1),
-            tmp: Vec::new(),
+            // for memory utilization experiment
+            //tmp: Vec::new(),
         }
     }
 }
@@ -125,16 +127,14 @@ impl SourceBlocks {
         if self.idx > 0 {
             self.idx -= 1;
             Some(&self.data[self.idx])
+        } else if self.next.0 == -1 || self.next.1 == -1 {
+            None
         } else {
-            if self.next.0 == -1 || self.next.1 == -1 {
-                None
-            } else {
-                let next_blocks: SourceBlocks = bincode::deserialize(&*consumer.get(self.next.0, self.next.1)).unwrap();
-                self.idx = next_blocks.data.len();
-                self.data = next_blocks.data;
-                self.next = next_blocks.next;
-                self.next_block(consumer)
-            }
+            let next_blocks: SourceBlocks = bincode::deserialize(&*consumer.get(self.next.0, self.next.1)).unwrap();
+            self.idx = next_blocks.data.len();
+            self.data = next_blocks.data;
+            self.next = next_blocks.next;
+            self.next_block(consumer)
         }
     }
 }

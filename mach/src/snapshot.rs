@@ -5,7 +5,6 @@ use crate::{
     id::SeriesId,
     sample::SampleType,
 };
-use std::sync::Arc;
 use std::convert::TryInto;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -117,7 +116,7 @@ impl Segment {
 
     pub fn clear(&mut self) {
         self.ts.clear();
-        for mut col in self.data.iter_mut() {
+        for col in self.data.iter_mut() {
             col.clear();
         }
         match &mut self.heap {

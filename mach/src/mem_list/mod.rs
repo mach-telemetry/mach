@@ -8,29 +8,21 @@ use crate::{
     snapshot::Segment,
     utils::wp_lock::{WpLock, NoDealloc},
     utils::byte_buffer::ByteBuffer,
-    utils::random_id,
     utils::kafka,
 };
-use std::sync::{Arc, RwLock, Mutex, mpsc::{Sender, Receiver, channel}, atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst}};
+use std::sync::{Arc, RwLock, atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst}};
 use std::mem;
-use std::time::{Duration, SystemTime};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
-use rdkafka::{
-    config::ClientConfig,
-    producer::{FutureProducer, FutureRecord},
-    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
-    client::DefaultClientContext,
-};
 use rand::{Rng, thread_rng};
 use std::convert::TryInto;
 
-const FLUSHERS: usize = 4;
+#[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
-const PARTITIONS: i32 = 3;
-const REPLICAS: i32 = 3;
+
+const FLUSHERS: usize = 4;
 pub const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
 pub const TOPIC: &str = "MACH";
 
@@ -49,12 +41,10 @@ lazy_static! {
     };
 }
 
-
 #[derive(Debug, Copy, Clone)]
 pub enum Error {
     Snapshot
 }
-
 
 fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new(BOOTSTRAPS);
@@ -63,19 +53,19 @@ fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     }
 }
 
-pub struct List {
-    id: SeriesId,
-    head: AtomicU64,
-}
-
-impl List {
-    pub fn new(id: SeriesId) -> Self {
-        List {
-            id,
-            head: AtomicU64::new(u64::MAX)
-        }
-    }
-}
+//struct List {
+//    _id: SeriesId,
+//    head: AtomicU64,
+//}
+//
+//impl List {
+//    pub fn new(id: SeriesId) -> Self {
+//        List {
+//            _id,
+//            head: AtomicU64::new(u64::MAX)
+//        }
+//    }
+//}
 
 pub struct BlockList {
     head_block: WpLock<Block>,
@@ -126,7 +116,7 @@ impl BlockList {
         compression: &Compression,
     ) {
         // Safety: id() is atomic
-        let block_id = unsafe { self.head_block.unprotected_read().id.load(SeqCst) };
+        //let block_id = unsafe { self.head_block.unprotected_read().id.load(SeqCst) };
 
         // Safety: unprotected write because Block push only appends data and increments an atomic
         // read is bounded by the atomic
@@ -254,13 +244,12 @@ impl ReadOnlyBlockBytes {
     }
 
     pub fn segment_at_offset(&self, offset: usize, segment: &mut Segment) {
+
         let bytes = &self.0[offset..];
-        let mut offset = 0;
 
         // Parse data per Block::push()
-
         // series ID
-        let series_id = SeriesId(u64::from_be_bytes(bytes[..8].try_into().unwrap()));
+        let _series_id = SeriesId(u64::from_be_bytes(bytes[..8].try_into().unwrap()));
 
         // size of data bytes
         let size = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
@@ -320,7 +309,7 @@ impl BlockListEntry {
     fn set_partition_offset(&self, part: i32, off: i64) {
         let mut guard = self.inner.write().unwrap();
         match &mut *guard {
-            InnerBlockListEntry::Bytes(x) => {
+            InnerBlockListEntry::Bytes(_x) => {
                 let _x = std::mem::replace(&mut *guard, InnerBlockListEntry::Offset(part, off));
             },
             InnerBlockListEntry::Offset(..) => {},
@@ -336,11 +325,11 @@ impl BlockListEntry {
         match &*guard {
             InnerBlockListEntry::Bytes(bytes) => {
                 let part: i32= rand::thread_rng().gen_range(0..3);
-                let (part2, offset) = producer.send(&*TOPIC, part, bytes);
+                let (_part2, offset) = producer.send(&*TOPIC, part, bytes);
                 drop(guard);
                 self.set_partition_offset(part, offset);
             },
-            InnerBlockListEntry::Offset(x, y) => {}, // already flushed
+            InnerBlockListEntry::Offset(_x, _y) => {}, // already flushed
         }
     }
 

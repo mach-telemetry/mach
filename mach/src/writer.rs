@@ -5,16 +5,14 @@ use crate::{
     //durable_queue::{DurableQueue, DurableQueueWriter, QueueConfig},
     id::{SeriesId, SeriesRef, WriterId},
     //persistent_list::*,
-    mem_list::{List, BlockList},
+    mem_list::{BlockList},
     //runtime::*,
     sample::SampleType,
     segment::{self, FlushSegment, WriteSegment},
     series::*,
-    utils::wp_lock::WpLock,
 };
 use dashmap::DashMap;
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use std::sync::mpsc::{channel, Sender, Receiver};
 
 #[derive(Debug)]
@@ -44,11 +42,11 @@ pub struct WriterMetadata {
 
 pub struct Writer {
     global_meta: Arc<DashMap<SeriesId, Series>>,
-    local_meta: HashMap<SeriesId, Series>,
-    references: HashMap<SeriesId, usize>,
+    _local_meta: HashMap<SeriesId, Series>,
+    _references: HashMap<SeriesId, usize>,
     series: Vec<Series>,
     writers: Vec<WriteSegment>,
-    block_list: Arc<BlockList>,
+    _block_list: Arc<BlockList>,
     id: WriterId,
     block_worker: Sender<FlushItem>,
 }
@@ -58,7 +56,7 @@ impl Writer {
         global_meta: Arc<DashMap<SeriesId, Series>>,
         writer_config: WriterConfig,
     ) -> (Self, WriterMetadata) {
-        let block_flush_sz = writer_config.active_block_flush_sz;
+        let _block_flush_sz = writer_config.active_block_flush_sz;
         //let queue_config = writer_config.queue_config;
         let id = WriterId::new();
         let block_list = Arc::new(BlockList::new());
@@ -72,7 +70,7 @@ impl Writer {
         //let list_maker = ListMaker::new(durable_queue.writer().unwrap());
 
         let meta = WriterMetadata {
-            id: id.clone(),
+            id,
             block_list: block_list.clone(),
             //queue_config,
             //active_block,
@@ -81,11 +79,11 @@ impl Writer {
 
         let writer = Self {
             global_meta,
-            local_meta: HashMap::new(),
-            references: HashMap::new(),
+            _local_meta: HashMap::new(),
+            _references: HashMap::new(),
             writers: Vec::new(),
             series: Vec::new(),
-            block_list,
+            _block_list: block_list,
             block_worker,
             //list_maker,
             id,
@@ -98,7 +96,7 @@ impl Writer {
     }
 
     pub fn id(&self) -> WriterId {
-        self.id.clone()
+        self.id
     }
 
     pub fn get_reference(&mut self, id: SeriesId) -> SeriesRef {
@@ -106,7 +104,7 @@ impl Writer {
         let series = self.global_meta.get(&id).unwrap().clone();
         let writer = series.segment.writer().unwrap();
         self.writers.push(writer);
-        self.series.push(series.clone());
+        self.series.push(series);
         SeriesRef(series_ref)
 
 

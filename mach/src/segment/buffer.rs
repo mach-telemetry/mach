@@ -1,14 +1,9 @@
 use crate::constants::*;
-//use crate::segment::{full_segment::FullSegment, Error};
-//use crate::reader;
-//use crate::runtime::RUNTIME;
 use crate::sample::{Bytes, SampleType};
 use crate::segment::Error;
 use crate::series::FieldType;
 use crate::utils::wp_lock::*;
 use crate::snapshot::{Segment, Heap};
-//use crate::reader::SampleIterator;
-use serde::*;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 const HEAP_SZ: usize = 1_000_000;

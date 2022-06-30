@@ -10,7 +10,7 @@ pub fn compress(len: usize, to_compress: &[u8], buf: &mut ByteBuffer) {
     // Write total size of bytes
     buf.extend_from_slice(&to_compress.len().to_be_bytes());
 
-    buf.extend_from_slice(&to_compress);
+    buf.extend_from_slice(to_compress);
 
     // Place holder for compressed size
     //let csz_offset = buf.len();

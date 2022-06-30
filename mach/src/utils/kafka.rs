@@ -15,6 +15,9 @@ use crate::utils::random_id;
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 
+const PARTITIONS: i32 = 3;
+const REPLICAS: i32 = 3;
+
 pub fn make_topic(bootstrap: &str, topic: &str) {
     let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
     let client: AdminClient<DefaultClientContext> = ClientConfig::new()
@@ -22,11 +25,12 @@ pub fn make_topic(bootstrap: &str, topic: &str) {
         .create()
         .unwrap();
     let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(3)));
+    let replicas = format!("{}", REPLICAS);
     let topics = &[NewTopic {
         name: topic,
-        num_partitions: 3,
-        replication: TopicReplication::Fixed(3),
-        config: vec![("min.insync.replicas", "3")],
+        num_partitions: PARTITIONS,
+        replication: TopicReplication::Fixed(REPLICAS),
+        config: vec![("min.insync.replicas", replicas.as_str())],
     }];
     rt.block_on(client.create_topics(topics, &admin_opts)).unwrap();
 }
@@ -48,7 +52,7 @@ impl DerefMut for Producer {
 
 impl Producer {
     pub fn new(bootstraps: &str) -> Self {
-        let bootstraps = bootstraps.split(",").map(|x| String::from(x)).collect();
+        let bootstraps = bootstraps.split(',').map(String::from).collect();
         let mut client = KafkaClient::new(bootstraps);
         client.load_metadata_all().unwrap();
         Self(client)
@@ -65,9 +69,11 @@ impl Producer {
     }
 }
 
+type InnerDict = Arc<DashMap<(i32, i64), Arc<[u8]>>>;
+
 #[derive(Clone)]
 pub struct BufferedConsumer {
-    data: Arc<DashMap<(i32, i64), Arc<[u8]>>>
+    data: InnerDict
 }
 
 impl BufferedConsumer {
@@ -82,17 +88,16 @@ impl BufferedConsumer {
     pub fn get(&self, partition: i32, offset: i64) -> Arc<[u8]> {
         println!("GETTING FROM KAFKA {} {}", partition, offset);
         loop {
-            match self.data.get(&(partition, offset)) {
-                Some(x) => return x.value().clone(),
-                None => {}
+            if let Some(x) = self.data.get(&(partition, offset)) {
+                return x.value().clone()
             }
         }
     }
 }
 
-fn init_consumer_worker(bootstraps: &str, topic: &str, data: Arc<DashMap<(i32, i64), Arc<[u8]>>>) {
+fn init_consumer_worker(bootstraps: &str, topic: &str, data: InnerDict) {
     use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
-    let bootstraps = bootstraps.split(",").map(|x| String::from(x)).collect();
+    let bootstraps = bootstraps.split(',').map(String::from).collect();
     let mut consumer =
        Consumer::from_hosts(bootstraps)
           .with_topic(topic.to_owned())

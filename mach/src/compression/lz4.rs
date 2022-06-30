@@ -1,12 +1,6 @@
-use crate::compression::utils::{
-    bitpack_256_compress, bitpack_256_decompress, float_from_int, float_to_int, from_zigzag,
-    to_zigzag,
-};
 use crate::utils::byte_buffer::ByteBuffer;
-use crate::compression::timestamps;
-use std::convert::{TryFrom, TryInto};
-use std::mem::size_of;
-use lzzzz::{lz4, lz4_hc};
+use std::convert::{TryInto};
+use lzzzz::{lz4};
 
 pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) {
     let len = data.len();
@@ -22,10 +16,10 @@ pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) {
     let ptr = data.as_ptr() as *const u8;
     let data: &[u8] = unsafe { std::slice::from_raw_parts(ptr, bytes_len) };
 
-    let mut b = buf.unused();
-    let csz = lz4::compress(data, &mut b[..], 1).unwrap();
-    drop(b);
-    let l = buf.len();
+    let b = buf.unused();
+    let csz = lz4::compress(data, &mut *b, 1).unwrap();
+    //drop(b);
+    let _l = buf.len();
     buf.add_len(csz);
 
     //let mut decompress_buf: Vec<u8> = Vec::with_capacity(1_000_000_000);
