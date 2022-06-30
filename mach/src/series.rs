@@ -1,13 +1,13 @@
 use crate::{
     compression::Compression,
+    id::SeriesId,
     //durable_queue::QueueConfig,
     //persistent_list::{self, List, ListBuffer},
-    mem_list::{SourceBlockList, BlockList},
+    mem_list::{BlockList, SourceBlockList},
     //persistent_list,
     //reader::Snapshot,
     segment::{self, Segment},
     snapshot::Snapshot,
-    id::SeriesId,
 };
 use serde::*;
 use std::sync::Arc;
@@ -77,7 +77,11 @@ pub struct Series {
 }
 
 impl Series {
-    pub fn new(config: SeriesConfig, block_list: Arc<BlockList>, source_block_list: Arc<SourceBlockList>) -> Self {
+    pub fn new(
+        config: SeriesConfig,
+        block_list: Arc<BlockList>,
+        source_block_list: Arc<SourceBlockList>,
+    ) -> Self {
         assert_eq!(config.nvars, config.compression.len());
         Self {
             segment: segment::Segment::new(config.seg_count, config.types.as_slice()),

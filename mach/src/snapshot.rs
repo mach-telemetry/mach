@@ -1,9 +1,9 @@
 use crate::{
-    mem_list::{ReadOnlyBlock, ReadOnlyBlockBytes, SourceBlocks},
-    utils::kafka,
-    series::FieldType,
     id::SeriesId,
+    mem_list::{ReadOnlyBlock, ReadOnlyBlockBytes, SourceBlocks},
     sample::SampleType,
+    series::FieldType,
+    utils::kafka,
 };
 use std::convert::TryInto;
 
@@ -15,7 +15,7 @@ pub enum Heap {
 
 pub struct Field<'a> {
     t: FieldType,
-    v: &'a [[u8; 8]]
+    v: &'a [[u8; 8]],
 }
 
 impl<'a> std::ops::Deref for Field<'a> {
@@ -35,7 +35,6 @@ impl<'a> Field<'a> {
     }
 }
 
-
 pub struct FieldIterator<'a> {
     field: Field<'a>,
     idx: usize,
@@ -44,16 +43,16 @@ pub struct FieldIterator<'a> {
 impl<'a> FieldIterator<'a> {
     pub fn new(field: Field<'a>) -> Self {
         let idx = field.v.len();
-        Self {
-            field,
-            idx,
-        }
+        Self { field, idx }
     }
 
     pub fn next_item(&mut self) -> Option<SampleType> {
         if self.idx > 0 {
             self.idx -= 1;
-            Some(SampleType::from_field_item(self.field.t, self.field[self.idx]))
+            Some(SampleType::from_field_item(
+                self.field.t,
+                self.field[self.idx],
+            ))
         } else {
             None
         }
@@ -61,7 +60,7 @@ impl<'a> FieldIterator<'a> {
 }
 
 pub struct Timestamps<'a> {
-    v: &'a [u64]
+    v: &'a [u64],
 }
 
 impl<'a> Timestamps<'a> {
@@ -85,10 +84,7 @@ pub struct TimestampsIterator<'a> {
 impl<'a> TimestampsIterator<'a> {
     pub fn new(timestamps: Timestamps<'a>) -> Self {
         let idx = timestamps.v.len();
-        Self {
-            timestamps,
-            idx,
-        }
+        Self { timestamps, idx }
     }
 
     pub fn next_timestamp(&mut self) -> Option<u64> {
@@ -101,7 +97,6 @@ impl<'a> TimestampsIterator<'a> {
     }
 }
 
-
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Segment {
     pub len: usize,
@@ -113,7 +108,6 @@ pub struct Segment {
 }
 
 impl Segment {
-
     pub fn clear(&mut self) {
         self.ts.clear();
         for col in self.data.iter_mut() {
@@ -259,7 +253,10 @@ impl ReadOnlyBlockReader {
     fn next_segment(&mut self) -> Option<()> {
         if self.current_idx > 0 {
             self.current_idx -= 1;
-            self.block.segment_at_offset(self.offsets[self.current_idx as usize], &mut self.read_buffer);
+            self.block.segment_at_offset(
+                self.offsets[self.current_idx as usize],
+                &mut self.read_buffer,
+            );
             Some(())
         } else {
             None
@@ -283,10 +280,8 @@ impl SnapshotIterator {
     pub fn new(snapshot: Snapshot, id: SeriesId, mut consumer: kafka::BufferedConsumer) -> Self {
         let active_segment = ActiveSegmentReader::new(snapshot.active_segment);
         let source_blocks = snapshot.source_blocks;
-        let block_reader = ReadOnlyBlockReader::new(
-            snapshot.active_block.as_bytes(&mut consumer),
-            id,
-        );
+        let block_reader =
+            ReadOnlyBlockReader::new(snapshot.active_block.as_bytes(&mut consumer), id);
         Self {
             active_segment,
             source_blocks,
@@ -298,37 +293,26 @@ impl SnapshotIterator {
 
     pub fn next_segment(&mut self) -> Option<()> {
         match self.state {
-            State::ActiveSegment => {
-                match self.active_segment.next_segment() {
-                    None => {
-                        self.state = State::Blocks;
-                        self.next_segment()
-                    },
-                    Some(_) => {
-                        Some(())
-                    },
+            State::ActiveSegment => match self.active_segment.next_segment() {
+                None => {
+                    self.state = State::Blocks;
+                    self.next_segment()
                 }
+                Some(_) => Some(()),
             },
-            State::Blocks => {
-                match self.block_reader.next_segment() {
-                    None => {
-                        if let Some(block) = self.source_blocks.next_block(&mut self.consumer) {
-                            let bytes = block.as_bytes(&mut self.consumer);
-                            let id = self.block_reader.id;
-                            let block_reader = ReadOnlyBlockReader::new(
-                                bytes,
-                                id,
-                            );
-                            self.block_reader = block_reader;
-                            self.next_segment()
-                        } else {
-                            None
-                        }
-                    },
-                    Some(_) => {
-                        Some(())
+            State::Blocks => match self.block_reader.next_segment() {
+                None => {
+                    if let Some(block) = self.source_blocks.next_block(&mut self.consumer) {
+                        let bytes = block.as_bytes(&mut self.consumer);
+                        let id = self.block_reader.id;
+                        let block_reader = ReadOnlyBlockReader::new(bytes, id);
+                        self.block_reader = block_reader;
+                        self.next_segment()
+                    } else {
+                        None
                     }
                 }
+                Some(_) => Some(()),
             },
         }
     }

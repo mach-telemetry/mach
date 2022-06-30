@@ -5,15 +5,15 @@ use crate::{
     //durable_queue::{DurableQueue, DurableQueueWriter, QueueConfig},
     id::{SeriesId, SeriesRef, WriterId},
     //persistent_list::*,
-    mem_list::{BlockList},
+    mem_list::BlockList,
     //runtime::*,
     sample::SampleType,
     segment::{self, FlushSegment, WriteSegment},
     series::*,
 };
 use dashmap::DashMap;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::{collections::HashMap, sync::Arc};
-use std::sync::mpsc::{channel, Sender, Receiver};
 
 #[derive(Debug)]
 pub enum Error {
@@ -107,7 +107,6 @@ impl Writer {
         self.series.push(series);
         SeriesRef(series_ref)
 
-
         //let meta = self.global_meta.get(&id).unwrap().clone();
         //self.references.insert(id, len);
         //self.local_meta.insert(id, meta);
@@ -115,22 +114,28 @@ impl Writer {
         //self.list_maker_id.push(list_maker_id);
     }
 
-    pub fn push(&mut self, reference: SeriesRef, ts: u64, data: &[SampleType]) -> Result<(), Error> {
+    pub fn push(
+        &mut self,
+        reference: SeriesRef,
+        ts: u64,
+        data: &[SampleType],
+    ) -> Result<(), Error> {
         let reference = *reference;
         match self.writers[reference].push_type(ts, data)? {
-            segment::PushStatus::Done => {},
+            segment::PushStatus::Done => {}
             segment::PushStatus::Flush(_) => {
                 let series = &self.series[reference];
                 let id = series.config.id;
                 let compression = series.config.compression.clone();
                 let segment = self.writers[reference].flush();
-                self.block_worker.send( FlushItem {
-                    id,
-                    segment,
-                    compression,
-                }).unwrap();
-            }
-            //segment::PushStatus::Flush(_) => self.list_maker.flush(self.list_maker_id[reference]),
+                self.block_worker
+                    .send(FlushItem {
+                        id,
+                        segment,
+                        compression,
+                    })
+                    .unwrap();
+            } //segment::PushStatus::Flush(_) => self.list_maker.flush(self.list_maker_id[reference]),
         }
         Ok(())
     }

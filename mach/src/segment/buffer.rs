@@ -2,8 +2,8 @@ use crate::constants::*;
 use crate::sample::{Bytes, SampleType};
 use crate::segment::Error;
 use crate::series::FieldType;
+use crate::snapshot::{Heap, Segment};
 use crate::utils::wp_lock::*;
-use crate::snapshot::{Segment, Heap};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 const HEAP_SZ: usize = 1_000_000;
@@ -284,36 +284,36 @@ pub type BufferSnapshot = ReadBuffer;
 //     heap: Vec<Option<Vec<u8>>>,
 //     heap_flags: Vec<Types>,
 // }
-// 
+//
 // impl ReadBuffer {
 //     pub fn len(&self) -> usize {
 //         self.len
 //     }
-// 
+//
 //     pub fn variable(&self, i: usize) -> (Types, &[[u8; 8]]) {
 //         (self.heap_flags[i], &self.data[i][..self.len])
 //     }
-// 
+//
 //     pub fn get_timestamp_at(&self, i: usize) -> u64 {
 //         let i = self.len - i - 1;
 //         self.ts[i]
 //     }
-// 
+//
 //     pub fn get_value_at(&self, var: usize, i: usize) -> (Types, [u8; 8]) {
 //         let i = self.len - i - 1;
 //         let (t, v) = self.variable(var);
 //         (t, v[i])
 //     }
-// 
+//
 //     pub fn timestamps(&self) -> &[u64] {
 //         &self.ts[..self.len]
 //     }
-// 
+//
 //     //pub fn as_segment(&self) -> reader::Segment {
 //     //    let mut ts = self.ts[..self.len].into();
 //     //    let mut data = Vec::new();
 //     //    let mut heap = Vec::new();
-// 
+//
 //     //    for i in 0..self.data.len() {
 //     //        if self.heap_flags[i] {
 //     //            for j in 0..self.len {
@@ -331,19 +331,19 @@ pub type BufferSnapshot = ReadBuffer;
 //     //    }
 //     //    reader::Segment::new(ts, data, heap)
 //     //}
-// 
+//
 //     //pub fn reader(&self) -> reader::Segment {
 //     //    let mut ts = Vec::new();
 //     //    let mut data = Vec::new();
 //     //    let nvars = self.heap_flags.len();
-// 
+//
 //     //    for i in (0..self.len).rev() {
 //     //        ts.push(self.ts[i]);
 //     //        for col in self.data.iter() {
 //     //            data.push(col[i]);
 //     //        }
 //     //    }
-// 
+//
 //     //    reader::Segment {
 //     //        ts,
 //     //        data,
@@ -379,7 +379,9 @@ mod test {
         let mut exp_f0 = Vec::new();
         for (idx, item) in data[..255].iter().enumerate() {
             let mut vals = Vec::new();
-            item.values.iter().for_each(|x| vals.push(SampleType::F64(*x)));
+            item.values
+                .iter()
+                .for_each(|x| vals.push(SampleType::F64(*x)));
             exp_ts.push(item.ts);
             exp_f0.push(item.values[0]);
             if idx < 255 {

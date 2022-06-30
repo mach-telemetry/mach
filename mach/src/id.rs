@@ -1,13 +1,12 @@
+use lazy_static::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::ops::Deref;
-use lazy_static::*;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 lazy_static! {
     static ref WRITER_ID: AtomicUsize = AtomicUsize::new(0);
 }
-
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct WriterId(pub usize);

@@ -1,20 +1,19 @@
-use std::sync::{Arc};
 use crate::{
+    mem_list::{BlockListEntry, Error, ReadOnlyBlock, BOOTSTRAPS, TOPIC},
     utils::{
-        wp_lock::{WpLock, NoDealloc},
         kafka,
+        wp_lock::{NoDealloc, WpLock},
     },
-    mem_list::{BlockListEntry, ReadOnlyBlock, Error, TOPIC, BOOTSTRAPS},
 };
-use std::mem::MaybeUninit;
 use rand::Rng;
+use std::mem::MaybeUninit;
+use std::sync::Arc;
 
 struct InnerBuffer {
     data: Box<[MaybeUninit<Arc<BlockListEntry>>]>,
     offset: usize,
     producer: kafka::Producer,
     last: (i32, i64),
-
     // for memory utilization experiment
     //tmp: Vec<Arc<BlockListEntry>>,
 }
@@ -49,7 +48,7 @@ impl InnerBuffer {
             v.push(p);
         }
         let bytes = bincode::serialize(&v).unwrap();
-        let part: i32= rand::thread_rng().gen_range(0..3);
+        let part: i32 = rand::thread_rng().gen_range(0..3);
         self.last = self.producer.send(&*TOPIC, part, &bytes);
     }
 
@@ -90,7 +89,7 @@ impl InnerBuffer {
 unsafe impl NoDealloc for InnerBuffer {}
 
 pub struct SourceBlockList {
-    inner: WpLock<InnerBuffer>
+    inner: WpLock<InnerBuffer>,
 }
 
 impl SourceBlockList {
@@ -115,7 +114,7 @@ impl SourceBlockList {
     }
 }
 
-#[derive(serde::Serialize,serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct SourceBlocks {
     data: Vec<ReadOnlyBlock>,
     next: (i32, i64),
@@ -130,7 +129,8 @@ impl SourceBlocks {
         } else if self.next.0 == -1 || self.next.1 == -1 {
             None
         } else {
-            let next_blocks: SourceBlocks = bincode::deserialize(&*consumer.get(self.next.0, self.next.1)).unwrap();
+            let next_blocks: SourceBlocks =
+                bincode::deserialize(&*consumer.get(self.next.0, self.next.1)).unwrap();
             self.idx = next_blocks.data.len();
             self.data = next_blocks.data;
             self.next = next_blocks.next;

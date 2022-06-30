@@ -1,5 +1,5 @@
-use crate::utils::byte_buffer::ByteBuffer;
 use crate::compression::timestamps;
+use crate::utils::byte_buffer::ByteBuffer;
 
 pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) {
     let data: Vec<u64> = data.iter().map(|x| u64::from_be_bytes(*x)).collect();
@@ -14,5 +14,3 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
         buf.push(item.to_be_bytes());
     }
 }
-
-

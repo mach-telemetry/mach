@@ -6,18 +6,21 @@ use crate::{
     id::SeriesId,
     segment::FlushSegment,
     snapshot::Segment,
-    utils::wp_lock::{WpLock, NoDealloc},
     utils::byte_buffer::ByteBuffer,
     utils::kafka,
+    utils::wp_lock::{NoDealloc, WpLock},
 };
-use std::sync::{Arc, RwLock, atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst}};
-use std::mem;
-use std::cell::RefCell;
-use std::collections::HashSet;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
-use rand::{Rng, thread_rng};
+use rand::{thread_rng, Rng};
+use std::cell::RefCell;
+use std::collections::HashSet;
 use std::convert::TryInto;
+use std::mem;
+use std::sync::{
+    atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst},
+    Arc, RwLock,
+};
 
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -43,7 +46,7 @@ lazy_static! {
 
 #[derive(Debug, Copy, Clone)]
 pub enum Error {
-    Snapshot
+    Snapshot,
 }
 
 fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
@@ -109,19 +112,16 @@ impl BlockList {
         list
     }
 
-    pub fn push(
-        &self,
-        series_id: SeriesId,
-        segment: &FlushSegment,
-        compression: &Compression,
-    ) {
+    pub fn push(&self, series_id: SeriesId, segment: &FlushSegment, compression: &Compression) {
         // Safety: id() is atomic
         //let block_id = unsafe { self.head_block.unprotected_read().id.load(SeqCst) };
 
         // Safety: unprotected write because Block push only appends data and increments an atomic
         // read is bounded by the atomic
         let is_full = unsafe {
-            self.head_block.unprotected_write().push(series_id, segment, compression)
+            self.head_block
+                .unprotected_write()
+                .push(series_id, segment, compression)
         };
 
         self.id_set.borrow_mut().insert(series_id);
@@ -132,7 +132,9 @@ impl BlockList {
             for id in self.id_set.borrow_mut().drain() {
                 self.series_map.get(&id).unwrap().push(copy.clone());
             }
-            FLUSH_WORKERS[thread_rng().gen_range(0..FLUSHERS)].send(copy).unwrap();
+            FLUSH_WORKERS[thread_rng().gen_range(0..FLUSHERS)]
+                .send(copy)
+                .unwrap();
             // Mark current block as cleared
             self.head_block.protected_write().reset();
         }
@@ -141,7 +143,7 @@ impl BlockList {
 
 /// Safety:
 /// for internal use only. see use in Block struct
-unsafe impl NoDealloc for Block{}
+unsafe impl NoDealloc for Block {}
 
 struct Block {
     id: AtomicU64,
@@ -229,9 +231,8 @@ impl Block {
 pub struct ReadOnlyBlockBytes(Arc<[u8]>);
 
 impl ReadOnlyBlockBytes {
-
     fn data_len_idx(&self) -> usize {
-        self.0.len()-8
+        self.0.len() - 8
     }
 
     fn data_len(&self) -> usize {
@@ -244,7 +245,6 @@ impl ReadOnlyBlockBytes {
     }
 
     pub fn segment_at_offset(&self, offset: usize, segment: &mut Segment) {
-
         let bytes = &self.0[offset..];
 
         // Parse data per Block::push()
@@ -286,9 +286,7 @@ impl ReadOnlyBlock {
     pub fn as_bytes(&self, kafka: &mut kafka::BufferedConsumer) -> ReadOnlyBlockBytes {
         match self {
             ReadOnlyBlock::Bytes(x) => ReadOnlyBlockBytes(x.clone().into()),
-            ReadOnlyBlock::Offset(p, o) => {
-                ReadOnlyBlockBytes(kafka.get(*p, *o))
-            }
+            ReadOnlyBlock::Offset(p, o) => ReadOnlyBlockBytes(kafka.get(*p, *o)),
         }
     }
 }
@@ -299,20 +297,18 @@ enum InnerBlockListEntry {
     Offset(i32, i64),
 }
 
-
 pub struct BlockListEntry {
     inner: RwLock<InnerBlockListEntry>,
 }
 
 impl BlockListEntry {
-
     fn set_partition_offset(&self, part: i32, off: i64) {
         let mut guard = self.inner.write().unwrap();
         match &mut *guard {
             InnerBlockListEntry::Bytes(_x) => {
                 let _x = std::mem::replace(&mut *guard, InnerBlockListEntry::Offset(part, off));
-            },
-            InnerBlockListEntry::Offset(..) => {},
+            }
+            InnerBlockListEntry::Offset(..) => {}
         }
     }
 
@@ -324,19 +320,19 @@ impl BlockListEntry {
         let guard = self.inner.read().unwrap();
         match &*guard {
             InnerBlockListEntry::Bytes(bytes) => {
-                let part: i32= rand::thread_rng().gen_range(0..3);
+                let part: i32 = rand::thread_rng().gen_range(0..3);
                 let (_part2, offset) = producer.send(&*TOPIC, part, bytes);
                 drop(guard);
                 self.set_partition_offset(part, offset);
-            },
-            InnerBlockListEntry::Offset(_x, _y) => {}, // already flushed
+            }
+            InnerBlockListEntry::Offset(_x, _y) => {} // already flushed
         }
     }
 
     fn partition_offset(&self) -> (i32, i64) {
         match &*self.inner.read().unwrap() {
             InnerBlockListEntry::Bytes(_) => unimplemented!(),
-            InnerBlockListEntry::Offset(x, y) => (*x, *y)
+            InnerBlockListEntry::Offset(x, y) => (*x, *y),
         }
     }
 }
@@ -387,5 +383,3 @@ impl BlockListEntry {
 //        v
 //    }
 //}
-
-

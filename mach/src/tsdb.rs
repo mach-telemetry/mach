@@ -62,18 +62,14 @@ impl Mach {
         let (writer, meta) = Writer::new(global_meta, writer_config);
         //let durability = DurabilityWorker::new(meta.id.clone(), meta.block_list.clone(), q);
         self.writers.push(meta.id);
-        self.writer_table
-            .insert(meta.id, meta);
-            //.insert(meta.id.clone(), (meta, durability));
+        self.writer_table.insert(meta.id, meta);
+        //.insert(meta.id.clone(), (meta, durability));
         Ok(writer)
     }
 
     pub fn add_series(&mut self, config: SeriesConfig) -> Result<(WriterId, SeriesId), Error> {
         // For now, randomly choose a writer
-        let writer = *self
-            .writers
-            .choose(&mut rand::thread_rng())
-            .unwrap();
+        let writer = *self.writers.choose(&mut rand::thread_rng()).unwrap();
         //let (writer_meta, durability) = self.writer_table.get(&writer).unwrap();
         let writer_meta = self.writer_table.get(&writer).unwrap();
 
@@ -92,24 +88,22 @@ impl Mach {
 mod test {
     use super::*;
     use crate::{
-        writer::{WriterConfig},
         compression::*,
+        mem_list::{BOOTSTRAPS, TOPIC},
         //test_utils::*,
         sample::SampleType,
         snapshot::Snapshot,
-        mem_list::{BOOTSTRAPS, TOPIC},
         utils::kafka::{BufferedConsumer, FetchOffset},
+        writer::WriterConfig,
     };
-    use rand::{Rng, thread_rng};
+    use rand::{thread_rng, Rng};
     use std::convert::TryInto;
 
     #[test]
     fn end_to_end() {
-
-
         let mut mach = Mach::new();
         let writer_config = WriterConfig {
-            active_block_flush_sz: 1_000
+            active_block_flush_sz: 1_000,
         };
         let mut writer = mach.add_writer(writer_config).unwrap();
 
@@ -143,7 +137,8 @@ mod test {
         let mut rng = thread_rng();
         println!("PUSHING");
         for _ in 0..256 * 1000 {
-            let values: [SampleType; NVARS] = [SampleType::F64(rng.gen()), SampleType::F64(rng.gen())];
+            let values: [SampleType; NVARS] =
+                [SampleType::F64(rng.gen()), SampleType::F64(rng.gen())];
             let time = epoch.elapsed().unwrap().as_micros() as u64;
             loop {
                 match writer.push(series_ref, time, &values[..]) {
@@ -160,10 +155,20 @@ mod test {
         std::thread::sleep(std::time::Duration::from_secs(1));
 
         let start = std::time::SystemTime::now() - std::time::Duration::from_secs(120);
-        let dur = start.duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().try_into().unwrap();
+        let dur = start
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+            .try_into()
+            .unwrap();
         let consumer = BufferedConsumer::new(BOOTSTRAPS, TOPIC, FetchOffset::ByTime(dur));
 
-        let snapshot = mach.series_table.get(&series_conf.id).unwrap().value().snapshot();
+        let snapshot = mach
+            .series_table
+            .get(&series_conf.id)
+            .unwrap()
+            .value()
+            .snapshot();
         let bytes = bincode::serialize(&snapshot).unwrap();
         let snapshot: Snapshot = bincode::deserialize(bytes.as_slice()).unwrap();
 
@@ -191,8 +196,8 @@ mod test {
         println!("{} {}", result_timestamps.len(), expected_timestamps.len());
         assert_eq!(&result_timestamps, &expected_timestamps);
         for (a, b) in result_field0.iter().zip(expected_values.iter()) {
-            if (a-b).abs() > 0.001 {
-                panic!("{} - {} = {}", a, b, (a-b).abs());
+            if (a - b).abs() > 0.001 {
+                panic!("{} - {} = {}", a, b, (a - b).abs());
             }
         }
     }

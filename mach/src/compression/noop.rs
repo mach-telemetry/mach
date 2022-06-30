@@ -39,7 +39,7 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>, bytes: &mut Vec<u8>) {
     let bytes_sz = usize::from_be_bytes(data[off..end].try_into().unwrap());
     off += usz;
 
-    bytes.extend_from_slice(&data[off..off+bytes_sz]);
+    bytes.extend_from_slice(&data[off..off + bytes_sz]);
 
     let mut start = 0;
     for _ in 0..len {
@@ -50,4 +50,3 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>, bytes: &mut Vec<u8>) {
         start += b_sz;
     }
 }
-

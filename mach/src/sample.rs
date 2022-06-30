@@ -1,6 +1,6 @@
+pub use crate::series::FieldType;
 pub use crate::utils::bytes::*;
 pub use serde::*;
-pub use crate::series::FieldType;
 use std::convert::TryInto;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -56,7 +56,7 @@ impl SampleType {
                     std::slice::from_raw_parts(ptr, sz).into()
                 };
                 SampleType::Bytes(v)
-            },
+            }
         }
     }
 }

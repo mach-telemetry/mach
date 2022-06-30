@@ -1,6 +1,6 @@
 use crate::utils::byte_buffer::ByteBuffer;
-use std::convert::{TryInto};
-use lzzzz::{lz4};
+use lzzzz::lz4;
+use std::convert::TryInto;
 
 pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) {
     let len = data.len();
@@ -31,7 +31,6 @@ pub fn compress(data: &[[u8; 8]], buf: &mut ByteBuffer) {
 
 /// Decompresses data into buf
 pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
-
     let len = usize::from_be_bytes(data[..8].try_into().unwrap());
     let csz = usize::from_be_bytes(data[8..16].try_into().unwrap());
 
@@ -42,7 +41,6 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>) {
     let slice: &[[u8; 8]] = unsafe { std::slice::from_raw_parts(ptr, len) };
     buf.extend_from_slice(slice);
 }
-
 
 #[cfg(test)]
 mod test {
@@ -68,6 +66,3 @@ mod test {
         }
     }
 }
-
-
-

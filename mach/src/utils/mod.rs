@@ -1,7 +1,7 @@
 pub mod byte_buffer;
 pub mod bytes;
-pub mod wp_lock;
 pub mod kafka;
+pub mod wp_lock;
 
 use uuid::Uuid;
 

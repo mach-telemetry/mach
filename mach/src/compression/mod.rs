@@ -3,16 +3,16 @@ mod bytes_lz42;
 mod decimal;
 mod noop;
 //mod fixed;
-mod timestamps;
-mod utils;
-mod xor;
 mod bitpack;
 mod delta_of_delta;
 mod lz4;
+mod timestamps;
+mod utils;
+mod xor;
 
 use crate::segment::*;
-use crate::snapshot::{Segment, Heap};
 use crate::series::FieldType;
+use crate::snapshot::{Heap, Segment};
 use crate::utils::byte_buffer::ByteBuffer;
 use std::convert::TryInto;
 use std::sync::Arc;
@@ -264,8 +264,8 @@ mod test {
     use crate::sample::SampleType;
     use crate::segment::Buffer;
     use crate::series::FieldType;
-    use crate::test_utils::*;
     use crate::snapshot::Segment;
+    use crate::test_utils::*;
 
     type DecompressBuffer = Segment;
 
