@@ -12,9 +12,9 @@
 
 #![deny(unused_imports)]
 #![deny(unreachable_patterns)]
-#![deny(unused_variables)]
-#![deny(unused_mut)]
-#![deny(dead_code)]
+//#![deny(unused_variables)]
+//#![deny(unused_mut)]
+//#![deny(dead_code)]
 #![deny(non_upper_case_globals)]
 
 pub mod compression;

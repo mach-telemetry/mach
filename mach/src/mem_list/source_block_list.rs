@@ -123,7 +123,7 @@ pub struct SourceBlocks {
 }
 
 impl SourceBlocks {
-    pub fn next_block(&mut self, consumer: &kafka::BufferedConsumer) -> Option<&ReadOnlyBlock> {
+    pub fn next_block(&mut self, consumer: &mut kafka::BufferedConsumer) -> Option<&ReadOnlyBlock> {
         if self.idx > 0 {
             self.idx -= 1;
             Some(&self.data[self.idx])

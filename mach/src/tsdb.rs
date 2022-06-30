@@ -98,12 +98,14 @@ mod test {
         sample::SampleType,
         snapshot::Snapshot,
         mem_list::{BOOTSTRAPS, TOPIC},
-        utils::kafka::BufferedConsumer,
+        utils::kafka::{BufferedConsumer, FetchOffset},
     };
     use rand::{Rng, thread_rng};
+    use std::convert::TryInto;
 
     #[test]
     fn end_to_end() {
+
 
         let mut mach = Mach::new();
         let writer_config = WriterConfig {
@@ -157,11 +159,14 @@ mod test {
 
         std::thread::sleep(std::time::Duration::from_secs(1));
 
+        let start = std::time::SystemTime::now() - std::time::Duration::from_secs(120);
+        let dur = start.duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().try_into().unwrap();
+        let consumer = BufferedConsumer::new(BOOTSTRAPS, TOPIC, FetchOffset::ByTime(dur));
+
         let snapshot = mach.series_table.get(&series_conf.id).unwrap().value().snapshot();
         let bytes = bincode::serialize(&snapshot).unwrap();
         let snapshot: Snapshot = bincode::deserialize(bytes.as_slice()).unwrap();
 
-        let consumer = BufferedConsumer::new(BOOTSTRAPS, TOPIC);
         let mut snapshot = snapshot.into_iterator(consumer);
 
         let mut result_timestamps = Vec::new();

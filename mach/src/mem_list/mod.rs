@@ -283,7 +283,7 @@ impl std::convert::From<InnerBlockListEntry> for ReadOnlyBlock {
 }
 
 impl ReadOnlyBlock {
-    pub fn as_bytes(&self, kafka: &kafka::BufferedConsumer) -> ReadOnlyBlockBytes {
+    pub fn as_bytes(&self, kafka: &mut kafka::BufferedConsumer) -> ReadOnlyBlockBytes {
         match self {
             ReadOnlyBlock::Bytes(x) => ReadOnlyBlockBytes(x.clone().into()),
             ReadOnlyBlock::Offset(p, o) => {

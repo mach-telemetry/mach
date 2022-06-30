@@ -280,11 +280,11 @@ pub struct SnapshotIterator {
 }
 
 impl SnapshotIterator {
-    pub fn new(snapshot: Snapshot, id: SeriesId, consumer: kafka::BufferedConsumer) -> Self {
+    pub fn new(snapshot: Snapshot, id: SeriesId, mut consumer: kafka::BufferedConsumer) -> Self {
         let active_segment = ActiveSegmentReader::new(snapshot.active_segment);
         let source_blocks = snapshot.source_blocks;
         let block_reader = ReadOnlyBlockReader::new(
-            snapshot.active_block.as_bytes(&consumer),
+            snapshot.active_block.as_bytes(&mut consumer),
             id,
         );
         Self {
@@ -312,8 +312,8 @@ impl SnapshotIterator {
             State::Blocks => {
                 match self.block_reader.next_segment() {
                     None => {
-                        if let Some(block) = self.source_blocks.next_block(&self.consumer) {
-                            let bytes = block.as_bytes(&self.consumer);
+                        if let Some(block) = self.source_blocks.next_block(&mut self.consumer) {
+                            let bytes = block.as_bytes(&mut self.consumer);
                             let id = self.block_reader.id;
                             let block_reader = ReadOnlyBlockReader::new(
                                 bytes,

@@ -3,7 +3,8 @@ use rdkafka::{
     client::DefaultClientContext,
     config::ClientConfig,
 };
-pub use kafka::client::{KafkaClient, ProduceMessage, RequiredAcks};
+pub use kafka::client::{KafkaClient, ProduceMessage, RequiredAcks, FetchOffset, FetchPartition};
+use kafka::consumer::{Consumer, GroupOffsetStorage};
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 use std::sync::{
@@ -71,37 +72,83 @@ impl Producer {
 
 type InnerDict = Arc<DashMap<(i32, i64), Arc<[u8]>>>;
 
-#[derive(Clone)]
 pub struct BufferedConsumer {
-    data: InnerDict
+    data: InnerDict,
+    client: KafkaClient,
+    topic: String,
+    prefetcher: crossbeam::channel::Sender<(i32, i64)>,
 }
 
 impl BufferedConsumer {
-    pub fn new(bootstraps: &str, topic: &str) -> Self {
+    pub fn new(bootstraps: &str, topic: &str, from: FetchOffset) -> Self {
+
         let data = Arc::new(DashMap::new());
-        init_consumer_worker(bootstraps, topic, data.clone());
+        let (prefetcher, rx) = crossbeam::channel::unbounded();
+        let mut client = KafkaClient::new(bootstraps.split(',').map(String::from).collect());
+        client.load_metadata_all().unwrap();
+
+        init_consumer_worker(bootstraps, topic, data.clone(), from);
+        init_prefetcher(bootstraps, topic, data.clone(), rx);
+
         Self {
-            data
+            data,
+            client,
+            topic: topic.into(),
+            prefetcher,
         }
     }
 
-    pub fn get(&self, partition: i32, offset: i64) -> Arc<[u8]> {
+    pub fn get(&mut self, partition: i32, offset: i64) -> Arc<[u8]> {
         println!("GETTING FROM KAFKA {} {}", partition, offset);
-        loop {
-            if let Some(x) = self.data.get(&(partition, offset)) {
-                return x.value().clone()
-            }
+        if let Some(x) = self.data.get(&(partition, offset)) {
+            x.clone()
+        } else {
+            self.prefetcher.send((partition, offset)).unwrap();
+            println!("LOADING FROM KAFKA: {:?}", (partition, offset));
+            let reqs = &[FetchPartition::new(self.topic.as_str(), partition, offset).with_max_bytes(2_000_000)];
+            let resps = self.client.fetch_messages(reqs).unwrap();
+            let msg = &resps[0].topics()[0].partitions()[0].data().unwrap().messages()[0];
+            let res: Arc<[u8]> = msg.value.into();
+            self.data.insert((partition, offset), res.clone());
+            res
         }
     }
 }
 
-fn init_consumer_worker(bootstraps: &str, topic: &str, data: InnerDict) {
-    use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
+fn init_prefetcher(
+    bootstraps: &str,
+    topic: &str,
+    data: InnerDict,
+    recv: crossbeam::channel::Receiver<(i32, i64)>
+) {
     let bootstraps = bootstraps.split(',').map(String::from).collect();
+    let mut client = KafkaClient::new(bootstraps);
+    client.load_metadata_all().unwrap();
+    let topic: String = topic.into();
+    std::thread::spawn(move || {
+        let mut reqs = Vec::new();
+        while let Ok((part, o)) = recv.recv() {
+            println!("PREFETCHING: {:?}", (part, o));
+            let start = if o < 10 { 0 } else { o - 10 };
+            for offset in start..=o {
+                reqs.push(FetchPartition::new(topic.as_str(), part, offset).with_max_bytes(2_000_000));
+            }
+            let resps = client.fetch_messages(&reqs).unwrap();
+            for msg in resps[0].topics()[0].partitions()[0].data().unwrap().messages() {
+                data.insert((part, msg.offset), msg.value.into());
+            }
+            reqs.clear();
+        }
+    });
+}
+
+fn init_consumer_worker(bootstraps: &str, topic: &str, data: InnerDict, from: FetchOffset) {
+    let bootstraps = bootstraps.split(',').map(String::from).collect();
+
     let mut consumer =
        Consumer::from_hosts(bootstraps)
           .with_topic(topic.to_owned())
-          .with_fallback_offset(FetchOffset::Earliest)
+          .with_fallback_offset(from)
           .with_group(random_id())
           .with_offset_storage(GroupOffsetStorage::Kafka)
           .with_fetch_max_bytes_per_partition(2_000_000)
