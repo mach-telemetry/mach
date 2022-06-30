@@ -15,6 +15,7 @@ struct InnerBuffer {
     offset: usize,
     producer: kafka::Producer,
     last: (i32, i64),
+    tmp: Vec<Arc<BlockListEntry>>,
 }
 
 impl InnerBuffer {
@@ -25,7 +26,15 @@ impl InnerBuffer {
         if self.offset % self.data.len() == 0 {
             unsafe {
                 self.full_flush();
+                //self.tmp_flush();
             }
+        }
+    }
+
+    unsafe fn tmp_flush(&mut self) {
+        for item in self.data.iter() {
+            let r = item.assume_init_ref().clone();
+            self.tmp.push(r);
         }
     }
 
@@ -71,6 +80,7 @@ impl InnerBuffer {
             offset: 0,
             producer,
             last: (-1, -1),
+            tmp: Vec::new(),
         }
     }
 }

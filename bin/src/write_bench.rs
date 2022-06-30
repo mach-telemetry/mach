@@ -390,6 +390,7 @@ fn main() {
     // println!("Rewriting timestamps");
     // rewrite_timestamps(&mut data);
 
+
     match args.tsdb {
         BenchTarget::Mach => {
             let mut mach = Mach::new();
@@ -398,7 +399,8 @@ fn main() {
             println!("Extracting samples");
             let samples = prepare_mach_samples(data, &mut mach, &mut writer);
             println!("{} samples ready", samples.len());
-
+            std::thread::sleep(std::time::Duration::from_secs(10));
+            println!("starting push");
             mach_ingest(samples, writer);
         }
         BenchTarget::Kafka => {

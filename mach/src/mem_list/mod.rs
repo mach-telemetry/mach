@@ -58,10 +58,8 @@ pub enum Error {
 
 fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new(BOOTSTRAPS);
-    let mut counter = 0;
     while let Ok(block) = chan.recv() {
         block.flush(&mut producer);
-        counter += 1;
     }
 }
 
