@@ -6,6 +6,8 @@ mod rdtsc;
 use clap::Parser;
 use crossbeam_channel::bounded;
 use crossbeam_channel::unbounded;
+use crossbeam_channel::Receiver;
+use kafka_utils::Producer;
 use lzzzz::{lz4, lz4_hc};
 use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::fs::File;
@@ -125,7 +127,7 @@ struct Workload {
     duration_secs: u64,
 }
 
-fn workload_gen(samples: Vec<Sample>, workload_schedule: &[Workload]) {
+fn kafka_seq_workload(samples: Vec<Sample>, workload_schedule: &[Workload]) {
     const MICROSECONDS_IN_SEC: u64 = 1_000_000;
     const KAFKA_BOOTSTRAP: &str = "localhost:9093,localhost:9094,localhost:9095";
     let num_flushers = 10;
@@ -134,30 +136,34 @@ fn workload_gen(samples: Vec<Sample>, workload_schedule: &[Workload]) {
 
     kafka_utils::make_topic(KAFKA_BOOTSTRAP, &topic);
 
-    let (tx, rx) = bounded::<Vec<Sample>>(100);
-
-    let flushers: Vec<JoinHandle<()>> = (0..num_flushers)
-        .map(|_| {
-            let recv = rx.clone();
-            let topic = topic.clone();
-            let mut producer = kafka_utils::Producer::new(KAFKA_BOOTSTRAP);
-            std::thread::spawn(move || {
-                while let Ok(data) = recv.recv() {
-                    let bytes = bincode::serialize(&data).unwrap();
-                    let mut compressed = Vec::new();
-                    lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT)
-                        .unwrap();
-                    producer.send(topic.as_str(), 0, compressed.as_slice());
-                }
-            })
-        })
-        .collect();
-
     let mut throughputs = Vec::new();
     let mut samples_dropped = Vec::new();
 
     let mut samples_iter = samples.into_iter();
     'outer: for workload in workload_schedule {
+        let (tx, rx) = bounded::<Vec<Sample>>(100);
+
+        let flushers: Vec<JoinHandle<()>> = (0..num_flushers)
+            .map(|_| {
+                let receiver = rx.clone();
+                let topic = topic.clone();
+                let mut producer = kafka_utils::Producer::new(KAFKA_BOOTSTRAP);
+                std::thread::spawn(move || {
+                    while let Ok(data) = receiver.recv() {
+                        let bytes = bincode::serialize(&data).unwrap();
+                        let mut compressed = Vec::new();
+                        lz4::compress_to_vec(
+                            bytes.as_slice(),
+                            &mut compressed,
+                            lz4::ACC_LEVEL_DEFAULT,
+                        )
+                        .unwrap();
+                        producer.send(topic.as_str(), 0, compressed.as_slice());
+                    }
+                })
+            })
+            .collect();
+
         let sample_min_dur_micros: u128 = (MICROSECONDS_IN_SEC / workload.samples_per_sec).into();
         let batch_min_dur_micros = sample_min_dur_micros * batch_sz as u128;
 
@@ -191,16 +197,16 @@ fn workload_gen(samples: Vec<Sample>, workload_schedule: &[Workload]) {
                 };
             });
         });
+        drop(tx);
+        for flusher in flushers {
+            flusher.join().unwrap();
+        }
+
         let elapsed = start.elapsed();
 
         let samples_per_sec = num_samples_pushed as f64 / elapsed.as_secs_f64();
         throughputs.push(samples_per_sec);
         samples_dropped.push(num_samples_dropped);
-    }
-
-    drop(tx);
-    for flusher in flushers {
-        flusher.join().unwrap();
     }
 
     for (workload, (throughput, num_samples_dropped)) in workload_schedule
@@ -228,31 +234,31 @@ fn main() {
     println!("Extracting samples");
     let samples = prepare_kafka_samples(data);
     println!("{} samples extracted", samples.len());
-    let samples = repeat_data(samples, 32);
+    let samples = repeat_data(samples, 16);
     println!("{} samples ready after cloning", samples.len());
 
     let workload = vec![
         Workload {
             samples_per_sec: 10_000,
-            duration_secs: 20,
+            duration_secs: 40,
         },
         Workload {
             samples_per_sec: 100_000,
-            duration_secs: 20,
+            duration_secs: 40,
         },
         Workload {
             samples_per_sec: 800_000,
-            duration_secs: 50,
+            duration_secs: 40,
         },
         Workload {
             samples_per_sec: 1_000_000,
-            duration_secs: 50,
+            duration_secs: 40,
         },
         Workload {
             samples_per_sec: 1_200_000,
-            duration_secs: 50,
+            duration_secs: 80,
         },
     ];
 
-    workload_gen(samples, &workload);
+    kafka_seq_workload(samples, &workload);
 }
