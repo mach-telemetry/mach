@@ -127,7 +127,7 @@ struct Workload {
     duration_secs: u64,
 }
 
-fn kafka_seq_workload(samples: Vec<Sample>, workload_schedule: &[Workload]) {
+fn kafka_parallel_workload(samples: Vec<Sample>, workload_schedule: &[Workload]) {
     const MICROSECONDS_IN_SEC: u64 = 1_000_000;
     const KAFKA_BOOTSTRAP: &str = "localhost:9093,localhost:9094,localhost:9095";
     let num_flushers = 10;
@@ -260,5 +260,5 @@ fn main() {
         },
     ];
 
-    kafka_seq_workload(samples, &workload);
+    kafka_parallel_workload(samples, &workload);
 }
