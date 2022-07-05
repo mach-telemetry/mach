@@ -50,18 +50,17 @@ pub use opentelemetry::proto::*;
 
 use opentelemetry::proto as otlp;
 
-
 pub use otlp::*;
 
+use dashmap::DashMap;
 use otlp::{
-    common::v1::{KeyValue, any_value::Value, ArrayValue, AnyValue, KeyValueList},
+    common::v1::{any_value::Value, AnyValue, ArrayValue, KeyValue, KeyValueList},
     logs::v1::ResourceLogs,
-    metrics::v1::{number_data_point, metric::Data, ResourceMetrics},
+    metrics::v1::{metric::Data, number_data_point, ResourceMetrics},
     trace::v1::ResourceSpans,
 };
-use std::hash::{Hash, Hasher, BuildHasher};
+use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering::SeqCst};
-use dashmap::DashMap;
 
 impl Hash for AnyValue {
     fn hash<H: Hasher>(&self, hasher: &mut H) {
@@ -105,14 +104,12 @@ impl KeyValue {
     }
 }
 
-
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub enum OtlpData {
     Logs(Vec<ResourceLogs>),
     Metrics(Vec<ResourceMetrics>),
     Spans(Vec<ResourceSpans>),
 }
-
 
 impl OtlpData {
     pub fn sample_count(&self) -> usize {
@@ -127,35 +124,35 @@ impl OtlpData {
                                     for _ in &x.data_points {
                                         count += 1;
                                     }
-                                },
+                                }
                                 Data::Sum(x) => {
                                     for _ in &x.data_points {
                                         count += 1;
                                     }
-                                },
+                                }
 
                                 Data::Histogram(x) => {
                                     for _ in &x.data_points {
                                         count += 1;
                                     }
-                                },
+                                }
 
                                 Data::ExponentialHistogram(x) => {
                                     for _ in &x.data_points {
                                         count += 1;
                                     }
-                                },
+                                }
 
                                 Data::Summary(x) => {
                                     for _ in &x.data_points {
                                         count += 1;
                                     }
-                                },
+                                }
                             } // match brace
                         } // metric loop
                     } // scope loop
                 } // resource loop
-            }, // match Metric
+            } // match Metric
 
             OtlpData::Logs(resource_logs) => {
                 for resource in resource_logs.iter() {
@@ -165,7 +162,7 @@ impl OtlpData {
                         } // log loop
                     } // scope loop
                 } // resource loop
-            }, // match Logs
+            } // match Logs
 
             OtlpData::Spans(resource_spans) => {
                 for resource in resource_spans.iter() {
@@ -175,8 +172,7 @@ impl OtlpData {
                         } // span loop
                     } // scope loop
                 } // resource loop
-            }, // match Span
-
+            } // match Span
         } // match item
         count
     }
@@ -191,11 +187,11 @@ impl OtlpData {
                         } // metric loop
                     } // scope loop
                 } // resource loop
-            }, // match Metric
+            } // match Metric
 
             OtlpData::Logs(resource_logs) => {
                 unimplemented!();
-            }, // match Logs
+            } // match Logs
 
             OtlpData::Spans(resource_spans) => {
                 for resource in resource_spans.iter_mut() {
@@ -205,172 +201,148 @@ impl OtlpData {
                         } // span loop
                     } // scope loop
                 } // resource loop
-            }, // match Span
+            } // match Span
         } // match item
     }
 
     pub fn add_attribute(&mut self, kv: KeyValue) {
         match self {
             OtlpData::Metrics(resource_metrics) => {
-
                 // Iterate over each resource
                 for resource in resource_metrics.iter_mut() {
-
                     // Iterate over each scope
                     for scope in resource.scope_metrics.iter_mut() {
-
                         // Iterate over each metric
                         for metric in scope.metrics.iter_mut() {
-
                             // There are several types of metrics
                             match metric.data.as_mut().unwrap() {
-
                                 Data::Gauge(x) => {
                                     for point in &mut x.data_points {
                                         point.attributes.push(kv.clone());
                                     }
-                                },
+                                }
 
                                 Data::Sum(x) => {
                                     for point in &mut x.data_points {
                                         point.attributes.push(kv.clone());
                                     }
-                                },
+                                }
 
                                 Data::Histogram(x) => {
                                     for point in &mut x.data_points {
                                         point.attributes.push(kv.clone());
                                     }
-                                },
+                                }
 
                                 Data::ExponentialHistogram(x) => {
                                     for point in &mut x.data_points {
                                         point.attributes.push(kv.clone());
                                     }
-                                },
+                                }
 
                                 Data::Summary(x) => {
                                     for point in &mut x.data_points {
                                         point.attributes.push(kv.clone());
                                     }
-                                },
+                                }
                             } // match brace
                         } // metric loop
                     } // scope loop
                 } // resource loop
-            }, // match Metric
+            } // match Metric
 
             OtlpData::Logs(resource_logs) => {
-
                 // Iterate over each resource
                 for resource in resource_logs.iter_mut() {
-
                     // Iterate over each scope
                     for scope in resource.scope_logs.iter_mut() {
-
                         // Iterate over each log
                         for log in &mut scope.log_records.iter_mut() {
                             log.attributes.push(kv.clone());
                         } // log loop
                     } // scope loop
                 } // resource loop
-            }, // match Logs
+            } // match Logs
 
             OtlpData::Spans(resource_spans) => {
-
                 // Iterate over each resource
                 for resource in resource_spans.iter_mut() {
-
                     // Iterate over each scope
                     for scope in resource.scope_spans.iter_mut() {
-
                         // Iterate over each span
                         for span in scope.spans.iter_mut() {
                             span.attributes.push(kv.clone());
                         } // span loop
                     } // scope loop
                 } // resource loop
-            }, // match Span
-
+            } // match Span
         } // match item
     }
-
 
     pub fn update_timestamp(&mut self, timestamp: u64) {
         match self {
             OtlpData::Metrics(resource_metrics) => {
-
                 // Iterate over each resource
                 for resource in resource_metrics.iter_mut() {
-
                     // Iterate over each scope
                     for scope in resource.scope_metrics.iter_mut() {
-
                         // Iterate over each metric
                         for metric in scope.metrics.iter_mut() {
-
                             // There are several types of metrics
                             match metric.data.as_mut().unwrap() {
-
                                 Data::Gauge(x) => {
                                     for point in &mut x.data_points {
                                         point.time_unix_nano = timestamp;
                                     }
-                                },
+                                }
 
                                 Data::Sum(x) => {
                                     for point in &mut x.data_points {
                                         point.time_unix_nano = timestamp;
                                     }
-                                },
+                                }
 
                                 Data::Histogram(x) => {
                                     for point in &mut x.data_points {
                                         point.time_unix_nano = timestamp;
                                     }
-                                },
+                                }
 
                                 Data::ExponentialHistogram(x) => {
                                     for point in &mut x.data_points {
                                         point.time_unix_nano = timestamp;
                                     }
-                                },
+                                }
 
                                 Data::Summary(x) => {
                                     for point in &mut x.data_points {
                                         point.time_unix_nano = timestamp;
                                     }
-                                },
+                                }
                             } // match brace
                         } // metric loop
                     } // scope loop
                 } // resource loop
-            }, // match Metric
+            } // match Metric
 
             OtlpData::Logs(resource_logs) => {
-
                 // Iterate over each resource
                 for resource in resource_logs.iter_mut() {
-
                     // Iterate over each scope
                     for scope in resource.scope_logs.iter_mut() {
-
                         // Iterate over each log
                         for log in &mut scope.log_records.iter_mut() {
                             log.time_unix_nano = timestamp;
                         } // log loop
                     } // scope loop
                 } // resource loop
-            }, // match Logs
+            } // match Logs
 
             OtlpData::Spans(resource_spans) => {
-
                 // Iterate over each resource
                 for resource in resource_spans.iter_mut() {
-
                     // Iterate over each scope
                     for scope in resource.scope_spans.iter_mut() {
-
                         // Iterate over each span
                         for span in scope.spans.iter_mut() {
                             let start = span.start_time_unix_nano;
@@ -383,29 +355,23 @@ impl OtlpData {
                         } // span loop
                     } // scope loop
                 } // resource loop
-            }, // match Span
-
+            } // match Span
         } // match item
     }
 }
 
-use mach::{
-    id::SeriesId,
-    sample::SampleType,
-};
-use std::collections::HashMap;
 use fxhash;
+use mach::{id::SeriesId, sample::SampleType};
+use std::collections::HashMap;
 
 #[derive(Clone)]
 struct NoopHash {
-    data: [u8; 8]
+    data: [u8; 8],
 }
 
 impl NoopHash {
     fn new() -> Self {
-        Self {
-            data: [0u8; 8]
-        }
+        Self { data: [0u8; 8] }
     }
 }
 
@@ -465,12 +431,9 @@ impl ResourceSpans {
                 hash ^= fxhash::hash64(&span.name);
                 let key = String::from("SourceId");
                 let value = Some(AnyValue {
-                    value: Some(Value::IntValue(hash as i64))
+                    value: Some(Value::IntValue(hash as i64)),
                 });
-                let attrib = KeyValue {
-                    key,
-                    value
-                };
+                let attrib = KeyValue { key, value };
                 span.attributes.push(attrib);
             }
         }
@@ -524,7 +487,7 @@ impl Value {
             _ => {
                 println!("Cant convert easily {:?}", self);
                 unimplemented!();
-            },
+            }
         }
     }
 }
@@ -549,7 +512,7 @@ impl ResourceMetrics {
                 match metric.data.as_mut().unwrap() {
                     Data::Gauge(x) => {
                         unimplemented!();
-                    },
+                    }
 
                     Data::Sum(x) => {
                         for point in x.data_points.iter_mut() {
@@ -559,15 +522,12 @@ impl ResourceMetrics {
                             }
                             let key = String::from("SourceId");
                             let value = Some(AnyValue {
-                                value: Some(Value::IntValue(hash as i64))
+                                value: Some(Value::IntValue(hash as i64)),
                             });
-                            let attrib = KeyValue {
-                                key,
-                                value
-                            };
+                            let attrib = KeyValue { key, value };
                             point.attributes.push(attrib);
                         }
-                    },
+                    }
 
                     Data::Histogram(x) => {
                         for point in x.data_points.iter_mut() {
@@ -577,23 +537,20 @@ impl ResourceMetrics {
                             }
                             let key = String::from("SourceId");
                             let value = Some(AnyValue {
-                                value: Some(Value::IntValue(hash as i64))
+                                value: Some(Value::IntValue(hash as i64)),
                             });
-                            let attrib = KeyValue {
-                                key,
-                                value
-                            };
+                            let attrib = KeyValue { key, value };
                             point.attributes.push(attrib);
                         }
-                    },
+                    }
 
                     Data::ExponentialHistogram(x) => {
                         unimplemented!();
-                    },
+                    }
 
                     Data::Summary(x) => {
                         unimplemented!();
-                    },
+                    }
                 } // match brace
             } // metric loop
         } // scope loop
@@ -601,7 +558,6 @@ impl ResourceMetrics {
 
     pub fn get_samples(&self) -> Vec<(SeriesId, u64, Vec<SampleType>)> {
         let mut items = Vec::new();
-
 
         let resource_attribs = &self.resource.as_ref().unwrap().attributes;
         let mut hash = 0;
@@ -627,7 +583,7 @@ impl ResourceMetrics {
                 match metric.data.as_ref().unwrap() {
                     Data::Gauge(x) => {
                         unimplemented!();
-                    },
+                    }
 
                     Data::Sum(x) => {
                         for point in &x.data_points {
@@ -650,7 +606,7 @@ impl ResourceMetrics {
                             let value = vec![SampleType::F64(value)];
                             items.push((id, timestamp, value));
                         }
-                    },
+                    }
 
                     Data::Histogram(x) => {
                         for point in &x.data_points {
@@ -663,25 +619,28 @@ impl ResourceMetrics {
 
                             // Push sample
                             let timestamp = point.time_unix_nano;
-                            let value: Vec<SampleType> = point.bucket_counts.iter().map(|x| {
-                                let x: i32 = (*x).try_into().unwrap();
-                                SampleType::F64(x.into())
-                            }).collect();
+                            let value: Vec<SampleType> = point
+                                .bucket_counts
+                                .iter()
+                                .map(|x| {
+                                    let x: i32 = (*x).try_into().unwrap();
+                                    SampleType::F64(x.into())
+                                })
+                                .collect();
                             items.push((id, timestamp, value));
                         }
-                    },
+                    }
 
                     Data::ExponentialHistogram(x) => {
                         unimplemented!();
-                    },
+                    }
 
                     Data::Summary(x) => {
                         unimplemented!();
-                    },
+                    }
                 } // match brace
             } // metric loop
         } // scope loop
         items
     }
 }
-

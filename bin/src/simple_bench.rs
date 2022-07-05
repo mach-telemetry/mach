@@ -32,8 +32,8 @@ mod kafka_utils;
 //use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 //use std::sync::{Arc, RwLock, atomic::{AtomicUsize, Ordering::SeqCst}};
 //use std::sync::mpsc;
+use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::time::Duration;
-use std::collections::{HashMap, HashSet, hash_map::DefaultHasher};
 //use std::hash::{Hash, Hasher};
 use std::fs::File;
 use std::io::prelude::*;
@@ -42,15 +42,15 @@ use std::sync::atomic::Ordering::SeqCst;
 use clap::Parser;
 
 use mach::{
-    durable_queue::{NoopConfig, KafkaConfig, TOTAL_SZ},
-    series::{Types, SeriesConfig},
     compression::{CompressFn, Compression},
-    id::{WriterId, SeriesId, SeriesRef},
-    utils::random_id,
-    tsdb::Mach,
-    writer::{Writer, WriterConfig},
-    sample::Type,
+    durable_queue::{KafkaConfig, NoopConfig, TOTAL_SZ},
+    id::{SeriesId, SeriesRef, WriterId},
     kafka_utils::TOTAL_MB_WRITTEN,
+    sample::Type,
+    series::{SeriesConfig, Types},
+    tsdb::Mach,
+    utils::random_id,
+    writer::{Writer, WriterConfig},
 };
 
 //fn kafka_ingest_worker(rx: flume::Receiver<mach_otlp::OtlpData>) {
@@ -86,8 +86,7 @@ fn get_samples(data: &[mach_otlp::OtlpData]) -> Vec<(SeriesId, u64, Vec<Type>)> 
                 for item in x {
                     item.get_samples(&mut vec);
                 }
- 
-            },
+            }
             _ => unimplemented!(),
         }
     }
@@ -197,7 +196,6 @@ fn get_series_config(id: SeriesId, values: &[Type]) -> SeriesConfig {
     conf
 }
 
-
 #[inline(never)]
 fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
     let mut mach = Mach::new();
@@ -207,7 +205,8 @@ fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
     let queue_config = KafkaConfig {
         bootstrap: args.kafka_bootstraps.clone(),
         topic: random_id(),
-    }.config();
+    }
+    .config();
 
     //let queue_config = NoopConfig{}.config();
 
@@ -230,8 +229,7 @@ fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
                     item.get_samples(&mut spans);
                     //spans.append(&mut samples);
                 }
- 
-            },
+            }
             _ => unimplemented!(),
         }
     }
@@ -268,7 +266,7 @@ fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
                 //last = std::time::Instant::now();
                 break;
             }
-        };
+        }
         //tries.push(try_count);
         //skipped += failed;
     }
@@ -276,7 +274,12 @@ fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
     let elapsed = extract_time + push_time;
     let elapsed_sec = elapsed.as_secs_f64();
     let written: f64 = written.try_into().unwrap();
-    println!("Written {}, Elapsed {:?}, Samples/sec {}", written, elapsed, written/elapsed_sec);
+    println!(
+        "Written {}, Elapsed {:?}, Samples/sec {}",
+        written,
+        elapsed,
+        written / elapsed_sec
+    );
     println!("Sample extraction {:?}, Push {:?}", extract_time, push_time);
     let total_sz_written = TOTAL_SZ.load(std::sync::atomic::Ordering::SeqCst);
     println!("Total Size written: {}", total_sz_written);
@@ -292,7 +295,6 @@ fn mach_ingest(args: Args, mut data: &[mach_otlp::OtlpData]) {
 
 #[derive(Parser, Debug, Clone)]
 struct Args {
-
     #[clap(short, long, default_value_t = String::from("mach"))]
     tsdb: String,
 
@@ -313,10 +315,8 @@ struct Args {
 
     //#[clap(short, long, default_value_t = 8192)]
     //kafka_batch: usize,
-
     #[clap(short, long)]
     file_path: String,
-
     //#[clap(short, long, default_value_t = 1000000)]
     //mach_active_block_sz: usize,
 }
@@ -327,24 +327,34 @@ fn main() {
 
     let mut data = Vec::new();
     println!("Loading data");
-    File::open(args.file_path.as_str()).unwrap().read_to_end(&mut data).unwrap();
+    File::open(args.file_path.as_str())
+        .unwrap()
+        .read_to_end(&mut data)
+        .unwrap();
     let mut data: Vec<otlp::OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
 
     let mut now = std::time::SystemTime::now();
     for item in data.iter_mut() {
-        let ts: u64 = (now.duration_since(std::time::UNIX_EPOCH)).unwrap().as_nanos().try_into().unwrap();
+        let ts: u64 = (now.duration_since(std::time::UNIX_EPOCH))
+            .unwrap()
+            .as_nanos()
+            .try_into()
+            .unwrap();
         item.update_timestamp(ts);
         now += std::time::Duration::from_secs(1);
     }
 
-    let mut data: Vec<mach_otlp::OtlpData> = data.iter().map(|x| {
-        let mut x: mach_otlp::OtlpData = x.into();
-        match &mut x {
-            mach_otlp::OtlpData::Spans(x) => x.iter_mut().for_each(|x| x.set_source_id()),
-            _ => unimplemented!(),
-        }
-        x
-    }).collect();
+    let mut data: Vec<mach_otlp::OtlpData> = data
+        .iter()
+        .map(|x| {
+            let mut x: mach_otlp::OtlpData = x.into();
+            match &mut x {
+                mach_otlp::OtlpData::Spans(x) => x.iter_mut().for_each(|x| x.set_source_id()),
+                _ => unimplemented!(),
+            }
+            x
+        })
+        .collect();
 
     println!("data items: {}", data.len());
     //kafka_ingest(args.clone(), data);

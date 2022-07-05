@@ -18,6 +18,8 @@ mod zipf;
 
 use config::*;
 use lazy_static::lazy_static;
+#[allow(unused_imports)]
+use mach::durable_queue::{FileConfig, KafkaConfig};
 use mach::{
     compression::{CompressFn, Compression},
     id::{SeriesId, SeriesRef, WriterId},
@@ -25,12 +27,10 @@ use mach::{
     sample::Type,
     series::{SeriesConfig, Types},
     tags::Tags,
-    tsdb::{Mach},
-    utils::{random_id, bytes::Bytes},
+    tsdb::Mach,
+    utils::{bytes::Bytes, random_id},
     writer::{Writer, WriterConfig},
 };
-#[allow(unused_imports)]
-use mach::durable_queue::{KafkaConfig, FileConfig};
 use num_format::{Locale, ToFormattedString};
 use rtrb::{Consumer, Producer, RingBuffer};
 use serde::*;
@@ -43,7 +43,7 @@ use std::{
     io::prelude::*,
     io::BufReader,
     iter,
-    path::{Path},
+    path::Path,
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc, Barrier,
@@ -252,7 +252,7 @@ impl IngestionWorker {
             pop_busy += now.elapsed();
 
             match r {
-            //match self.r.pop() {
+                //match self.r.pop() {
                 Ok(sample) => {
                     counter += 1;
                     let now = Instant::now();
@@ -283,11 +283,16 @@ impl IngestionWorker {
         }
         let dur = start.elapsed();
 
-
         //let end = rdtsc!();
         //let dur = end - start;
-        println!("overall loops: {}", counter.to_formatted_string(&Locale::en));
-        println!("loops that missed: {}", miss.to_formatted_string(&Locale::en));
+        println!(
+            "overall loops: {}",
+            counter.to_formatted_string(&Locale::en)
+        );
+        println!(
+            "loops that missed: {}",
+            miss.to_formatted_string(&Locale::en)
+        );
         println!("overall time: {:.2}s", dur.as_secs_f64());
         println!("time doing push: {:.2}s", busy.as_secs_f64());
         println!("time doing pop: {:.2}s", pop_busy.as_secs_f64());
@@ -471,12 +476,15 @@ impl Microbench {
             let queue_config = KafkaConfig {
                 bootstrap: String::from("localhost:9093,localhost:9094,localhost:9095"),
                 topic: random_id(),
-            }.config();
+            }
+            .config();
             let writer_config = WriterConfig {
                 queue_config,
                 active_block_flush_sz: 1_000_000,
             };
-            let writer = mach.add_writer(writer_config).expect("writer creation failed");
+            let writer = mach
+                .add_writer(writer_config)
+                .expect("writer creation failed");
             writer_map.insert(writer.id(), BenchWriterMeta::new(writer));
         }
 

@@ -19,7 +19,7 @@ use mach::{
     id::{SeriesId, SeriesRef, WriterId},
     // kafka_utils::TOTAL_MB_WRITTEN,
     sample::SampleType,
-    series::{SeriesConfig, FieldType},
+    series::{FieldType, SeriesConfig},
     tsdb::Mach,
     utils::random_id,
     writer::{Writer, WriterConfig},
@@ -383,13 +383,9 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    // println!("Args: {:#?}", args);
 
     println!("Loading data");
     let mut data = load_data(args.file_path.as_str(), 8);
-    // println!("Rewriting timestamps");
-    // rewrite_timestamps(&mut data);
-
 
     match args.tsdb {
         BenchTarget::Mach => {
