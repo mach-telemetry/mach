@@ -136,7 +136,7 @@ mod test {
         let epoch = std::time::UNIX_EPOCH;
         let mut rng = thread_rng();
         println!("PUSHING");
-        for _ in 0..256 * 1000 {
+        for _ in 0..10_000_000 {
             let values: [SampleType; NVARS] =
                 [SampleType::F64(rng.gen()), SampleType::F64(rng.gen())];
             let time = epoch.elapsed().unwrap().as_micros() as u64;
@@ -193,7 +193,7 @@ mod test {
             }
         }
 
-        println!("{} {}", result_timestamps.len(), expected_timestamps.len());
+        assert_eq!(result_timestamps.len(), expected_timestamps.len());
         assert_eq!(&result_timestamps, &expected_timestamps);
         for (a, b) in result_field0.iter().zip(expected_values.iter()) {
             if (a - b).abs() > 0.001 {

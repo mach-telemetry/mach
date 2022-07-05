@@ -104,12 +104,10 @@ impl BufferedConsumer {
     }
 
     pub fn get(&mut self, partition: i32, offset: i64) -> Arc<[u8]> {
-        println!("GETTING FROM KAFKA {} {}", partition, offset);
         if let Some(x) = self.data.get(&(partition, offset)) {
             x.clone()
         } else {
             self.prefetcher.send((partition, offset)).unwrap();
-            println!("LOADING FROM KAFKA: {:?}", (partition, offset));
             let reqs = &[FetchPartition::new(self.topic.as_str(), partition, offset)
                 .with_max_bytes(2_000_000)];
             let resps = self.client.fetch_messages(reqs).unwrap();
@@ -137,7 +135,6 @@ fn init_prefetcher(
     std::thread::spawn(move || {
         let mut reqs = Vec::new();
         while let Ok((part, o)) = recv.recv() {
-            println!("PREFETCHING: {:?}", (part, o));
             let start = if o < 10 { 0 } else { o - 10 };
             for offset in start..=o {
                 reqs.push(
@@ -160,9 +157,10 @@ fn init_prefetcher(
 fn init_consumer_worker(bootstraps: &str, topic: &str, data: InnerDict, from: FetchOffset) {
     let bootstraps = bootstraps.split(',').map(String::from).collect();
 
+    println!("OFFSET {:?}", from);
     let mut consumer = Consumer::from_hosts(bootstraps)
         .with_topic(topic.to_owned())
-        .with_fallback_offset(from)
+        .with_fallback_offset(FetchOffset::Latest)
         .with_group(random_id())
         .with_offset_storage(GroupOffsetStorage::Kafka)
         .with_fetch_max_bytes_per_partition(2_000_000)
