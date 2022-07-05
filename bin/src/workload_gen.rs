@@ -127,7 +127,7 @@ struct Workload {
     duration_secs: u64,
 }
 
-fn kafka_parallel_workload(samples: Vec<Sample>, workload_schedule: &[Workload]) {
+fn kafka_parallel_workload(samples: Receiver<Vec<Sample>>, workload_schedule: &[Workload]) {
     const MICROSECONDS_IN_SEC: u64 = 1_000_000;
     const KAFKA_BOOTSTRAP: &str = "localhost:9093,localhost:9094,localhost:9095";
     let num_flushers = 10;
@@ -136,11 +136,8 @@ fn kafka_parallel_workload(samples: Vec<Sample>, workload_schedule: &[Workload])
 
     kafka_utils::make_topic(KAFKA_BOOTSTRAP, &topic);
 
-    let mut throughputs = Vec::new();
-    let mut samples_dropped = Vec::new();
-
-    let mut samples_iter = samples.into_iter();
-    'outer: for workload in workload_schedule {
+    let mut samples_iter = samples.recv().unwrap().into_iter();
+    for workload in workload_schedule {
         let (tx, rx) = bounded::<Vec<Sample>>(100);
 
         let flushers: Vec<JoinHandle<()>> = (0..num_flushers)
@@ -177,13 +174,16 @@ fn kafka_parallel_workload(samples: Vec<Sample>, workload_schedule: &[Workload])
                 while batch.len() < batch_sz {
                     match samples_iter.next() {
                         Some(sample) => batch.push(sample),
-                        None => break,
+                        None => {
+                            let next_samples =
+                                samples.try_recv().expect("data producer failed to keep up");
+                            samples_iter = next_samples.into_iter();
+                        }
                     }
                 }
                 let num_samples = batch.len();
                 if num_samples == 0 {
-                    println!("no samples left");
-                    break 'outer;
+                    unreachable!();
                 }
                 match tx.try_send(batch) {
                     Ok(_) => num_samples_pushed += num_samples,
@@ -204,18 +204,12 @@ fn kafka_parallel_workload(samples: Vec<Sample>, workload_schedule: &[Workload])
 
         let elapsed = start.elapsed();
 
-        let samples_per_sec = num_samples_pushed as f64 / elapsed.as_secs_f64();
-        throughputs.push(samples_per_sec);
-        samples_dropped.push(num_samples_dropped);
-    }
-
-    for (workload, (throughput, num_samples_dropped)) in workload_schedule
-        .iter()
-        .zip(throughputs.iter().zip(samples_dropped.iter()))
-    {
+        let pushed_samples_per_sec = num_samples_pushed as f64 / elapsed.as_secs_f64();
+        let produced_samples_per_sec =
+            (num_samples_pushed + num_samples_dropped) as f64 / elapsed.as_secs_f64();
         println!(
-            "workload: {:?}, Actual Samples/sec, {}, Num samples dropped: {}",
-            workload, throughput, num_samples_dropped
+            "workload: {:?}, produced samples/sec: {}, pushed samples/sec: {}, num samples dropped: {}",
+            workload, produced_samples_per_sec, pushed_samples_per_sec, num_samples_dropped
         );
     }
 }
@@ -234,31 +228,43 @@ fn main() {
     println!("Extracting samples");
     let samples = prepare_kafka_samples(data);
     println!("{} samples extracted", samples.len());
-    let samples = repeat_data(samples, 16);
-    println!("{} samples ready after cloning", samples.len());
+
+    let (data_tx, data_rx) = bounded::<Vec<Sample>>(25);
+    let _data_producer = std::thread::spawn(move || loop {
+        let new_samples = repeat_data(samples.clone(), 4);
+        data_tx.send(new_samples).unwrap();
+    });
 
     let workload = vec![
         Workload {
             samples_per_sec: 10_000,
-            duration_secs: 40,
+            duration_secs: 120,
         },
         Workload {
             samples_per_sec: 100_000,
-            duration_secs: 40,
+            duration_secs: 120,
+        },
+        Workload {
+            samples_per_sec: 200_000,
+            duration_secs: 120,
+        },
+        Workload {
+            samples_per_sec: 400_000,
+            duration_secs: 120,
         },
         Workload {
             samples_per_sec: 800_000,
-            duration_secs: 40,
+            duration_secs: 120,
         },
         Workload {
             samples_per_sec: 1_000_000,
-            duration_secs: 40,
+            duration_secs: 120,
         },
         Workload {
             samples_per_sec: 1_200_000,
-            duration_secs: 80,
+            duration_secs: 120,
         },
     ];
 
-    kafka_parallel_workload(samples, &workload);
+    kafka_parallel_workload(data_rx, &workload);
 }
