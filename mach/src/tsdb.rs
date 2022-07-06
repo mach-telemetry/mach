@@ -6,6 +6,7 @@ use crate::{
     series::{self, *},
     writer::{Writer, WriterConfig, WriterMetadata},
     //durable_queue::QueueConfig,
+    snapshotter::Snapshotter,
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
@@ -81,6 +82,10 @@ impl Mach {
         self.series_table.insert(series_id, series);
 
         Ok((writer, series_id))
+    }
+
+    pub fn init_snapshotter(&self) -> Snapshotter {
+        Snapshotter::new(self.series_table.clone())
     }
 }
 

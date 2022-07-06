@@ -25,6 +25,7 @@ pub mod sample;
 pub mod segment;
 pub mod series;
 pub mod snapshot;
+pub mod snapshotter;
 pub mod tsdb;
 pub mod utils;
 pub mod writer;
