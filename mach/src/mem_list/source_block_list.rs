@@ -12,12 +12,10 @@ use crossbeam::channel::{Sender, Receiver, unbounded};
 
 fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Producer) {
     while let Ok(list_item) = channel.recv() {
-        println!("GOT SOMETHING");
         let guard = list_item.read().unwrap();
         match &*guard {
             ListItem::Offset{..} => unimplemented!(),
             ListItem::Block { data, next } => {
-                println!("Flushing!");
                 let last = match &*next.read().unwrap() {
                     ListItem::Offset{partition, offset} => (*partition, *offset),
                     _ => panic!("Expected offset, got unflushed data"),
@@ -36,7 +34,6 @@ fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Produc
                 let bytes = bincode::serialize(&to_serialize).unwrap();
                 let part: i32 = rand::thread_rng().gen_range(0..3);
                 let (partition, offset) = producer.send(&*TOPIC, part, &bytes);
-                println!("FLUSHED TO {} {}", partition, offset);
                 drop(guard);
                 *list_item.write().unwrap() = ListItem::Offset { partition, offset };
             }
@@ -52,12 +49,6 @@ enum ListItem {
     Offset {
         partition: i32,
         offset: i64,
-    }
-}
-
-impl std::ops::Drop for ListItem {
-    fn drop(&mut self) {
-        println!("DROPPING");
     }
 }
 
@@ -91,7 +82,6 @@ impl InnerBuffer {
     //}
 
     unsafe fn full_flush(&mut self) {
-        println!("FULL FLUSHING");
         let mut v = Vec::new();
         for item in self.data.iter() {
             v.push(item.assume_init_ref().clone());
@@ -118,9 +108,7 @@ impl InnerBuffer {
     fn snapshot(&self) -> SourceBlocks {
         let mut v = Vec::with_capacity(256);
         let end = self.offset.load(SeqCst);
-        println!("end {}", end);
         let start = if end < 256 { 0 } else { end - 256 };
-        println!("Start {}", start);
         for off in start..end {
             // Safety: offset ensures prior items are inited
             unsafe {
@@ -128,7 +116,6 @@ impl InnerBuffer {
                 v.push(inner.into());
             }
         }
-        println!("VLEN: {}", v.len());
         let mut current = self.last.clone();
         #[allow(unused_assignments)]
         let mut next = (-1, -1);
@@ -138,7 +125,6 @@ impl InnerBuffer {
             match &*guard {
                 ListItem::Offset{ partition, offset } => {
                     next = (*partition, *offset);
-                    println!("FOUND PART OFFSET {} {}", next.0, next.1);
                     break;
                 }
                 ListItem::Block{ data, next } => {
@@ -220,7 +206,6 @@ impl SourceBlocks {
         } else if self.next.0 == -1 || self.next.1 == -1 {
             None
         } else {
-            println!("next: {:?}", self.next);
             let next_blocks: SourceBlocks =
                 bincode::deserialize(&*consumer.get(self.next.0, self.next.1)).unwrap();
             self.idx = next_blocks.data.len();
