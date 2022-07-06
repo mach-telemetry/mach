@@ -4,9 +4,9 @@ use crate::{
     //persistent_list::{self, List},
     //reader::ReadServer,
     series::{self, *},
-    writer::{Writer, WriterConfig, WriterMetadata},
     //durable_queue::QueueConfig,
     snapshotter::Snapshotter,
+    writer::{Writer, WriterConfig, WriterMetadata},
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
