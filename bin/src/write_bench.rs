@@ -10,6 +10,8 @@ use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
 use std::sync::atomic::Ordering::SeqCst;
+use std::sync::Arc;
+use std::sync::Barrier;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use zstd::zstd_safe::WriteBuf;
@@ -207,12 +209,15 @@ fn kafka_ingest_seq(samples: Vec<Sample>, args: Args) {
 fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
     let topic = random_id();
     kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
+    let barr = Arc::new(Barrier::new(args.kafka_flushers + 1));
 
     let (flusher_tx, flusher_rx) = bounded::<Vec<Sample>>(args.kafka_flush_queue_len);
     let flushers: Vec<JoinHandle<()>> = (0..args.kafka_flushers)
         .map(|_| {
             let recv = flusher_rx.clone();
             let topic = topic.clone();
+            let barr = barr.clone();
+            let mut v = Vec::with_capacity(256);
             let mut producer = kafka_utils::Producer::new(args.kafka_bootstraps.as_str());
             std::thread::spawn(move || {
                 while let Ok(data) = recv.recv() {
@@ -221,7 +226,9 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
                     lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT)
                         .unwrap();
                     producer.send(topic.as_str(), 0, compressed.as_slice());
+                    v.push(data);
                 }
+                barr.wait();
             })
         })
         .collect();
@@ -242,9 +249,7 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
         flusher_tx.send(data);
     }
     drop(flusher_tx);
-    for flusher in flushers {
-        flusher.join().unwrap();
-    }
+    barr.wait();
 
     let push_time = now.elapsed();
     let elapsed = push_time;
@@ -255,6 +260,10 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
         elapsed,
         num_samples as f64 / elapsed_sec
     );
+
+    for flusher in flushers {
+        flusher.join().unwrap();
+    }
 }
 
 fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
@@ -287,7 +296,6 @@ fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
 #[inline(never)]
 fn mach_ingest(samples: Vec<RegisteredSample>, mut writer: Writer) {
     let now = std::time::Instant::now();
-    let mut last = now.clone();
     let mut raw_byte_sz = 0;
 
     let mut ts_curr = 0;
@@ -406,7 +414,7 @@ fn main() {
 
             //let batch_sizes = vec![100, 1024, 2048, 4096, 8192, 100_000];
             //let flushers = vec![1, 2, 4, 8, 12, 16];
-            let batch_sizes = vec![100_000];
+            let batch_sizes = vec![8096];
             let flushers = vec![4];
 
             for batch_sz in &batch_sizes {
@@ -417,7 +425,7 @@ fn main() {
                     println!("Args: {:#?}", kafka_args);
                     let kafka_samples = samples.clone();
                     kafka_ingest_parallel(kafka_samples, kafka_args);
-                    //kafka_ingest_seq(kafka_samples, kafka_args);
+                    // kafka_ingest_seq(kafka_samples, kafka_args);
                 }
             }
         }
