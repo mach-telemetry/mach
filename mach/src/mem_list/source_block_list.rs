@@ -5,19 +5,22 @@ use crate::{
         wp_lock::{NoDealloc, WpLock},
     },
 };
+use crossbeam::channel::{unbounded, Receiver, Sender};
 use rand::Rng;
 use std::mem::MaybeUninit;
-use std::sync::{Arc, RwLock, atomic::{AtomicUsize, Ordering::SeqCst}};
-use crossbeam::channel::{Sender, Receiver, unbounded};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc, RwLock,
+};
 
 fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Producer) {
     while let Ok(list_item) = channel.recv() {
         let guard = list_item.read().unwrap();
         match &*guard {
-            ListItem::Offset{..} => unimplemented!(),
+            ListItem::Offset { .. } => unimplemented!(),
             ListItem::Block { data, next } => {
                 let last = match &*next.read().unwrap() {
-                    ListItem::Offset{partition, offset} => (*partition, *offset),
+                    ListItem::Offset { partition, offset } => (*partition, *offset),
                     _ => panic!("Expected offset, got unflushed data"),
                 };
                 let mut v = Vec::new();
@@ -49,7 +52,7 @@ enum ListItem {
     Offset {
         partition: i32,
         offset: i64,
-    }
+    },
 }
 
 struct InnerBuffer {
@@ -120,14 +123,15 @@ impl InnerBuffer {
         #[allow(unused_assignments)]
         let mut next = (-1, -1);
 
-        loop { // loop will end because this was inited with Offset.
+        loop {
+            // loop will end because this was inited with Offset.
             let guard = current.read().unwrap();
             match &*guard {
-                ListItem::Offset{ partition, offset } => {
+                ListItem::Offset { partition, offset } => {
                     next = (*partition, *offset);
                     break;
                 }
-                ListItem::Block{ data, next } => {
+                ListItem::Block { data, next } => {
                     data.iter().cloned().for_each(|x| v.push(x.inner().into()));
                     let x = next.clone();
                     drop(guard);
@@ -137,11 +141,7 @@ impl InnerBuffer {
             }
         }
         let idx = v.len();
-        SourceBlocks {
-            data: v,
-            next,
-            idx,
-        }
+        SourceBlocks { data: v, next, idx }
     }
 
     fn new() -> Self {
@@ -149,14 +149,15 @@ impl InnerBuffer {
         vec.resize_with(256, MaybeUninit::uninit);
         let producer = kafka::Producer::new(&*BOOTSTRAPS);
         let (tx, rx) = unbounded();
-        std::thread::spawn(move || {
-            flusher(rx, producer)
-        });
+        std::thread::spawn(move || flusher(rx, producer));
         Self {
             data: vec.into_boxed_slice(),
             offset: AtomicUsize::new(0),
             flusher: tx,
-            last: Arc::new(RwLock::new(ListItem::Offset { partition: -1, offset: -1 } )),
+            last: Arc::new(RwLock::new(ListItem::Offset {
+                partition: -1,
+                offset: -1,
+            })),
             // for memory utilization experiment
             //tmp: Vec::new(),
         }
