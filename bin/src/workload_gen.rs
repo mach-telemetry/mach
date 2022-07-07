@@ -36,7 +36,7 @@ lazy_static! {
         println!("Extracting samples");
         let samples = prepare_kafka_samples(data);
         println!("{} samples extracted", samples.len());
-        repeat_data(samples, 16)
+        samples
     };
 }
 
@@ -137,108 +137,108 @@ macro_rules! second_to_micros {
 
 #[derive(Debug)]
 struct Workload {
-    samples_per_sec: u64,
+    samples_per_sec: f64,
     duration_secs: u64,
 }
 
-fn kafka_parallel_workload(samples: Receiver<Vec<Sample>>, workload_schedule: &[Workload]) {
-    const MICROSECONDS_IN_SEC: u64 = 1_000_000;
-    const KAFKA_BOOTSTRAP: &str = "localhost:9093,localhost:9094,localhost:9095";
-    let num_flushers = 10;
-    let batch_sz: usize = 100_000;
-    let topic = random_id();
+//fn kafka_parallel_workload(samples: Receiver<Vec<Sample>>, workload_schedule: &[Workload]) {
+//    const MICROSECONDS_IN_SEC: u64 = 1_000_000;
+//    const KAFKA_BOOTSTRAP: &str = "localhost:9093,localhost:9094,localhost:9095";
+//    let num_flushers = 10;
+//    let batch_sz: usize = 100_000;
+//    let topic = random_id();
+//
+//    kafka_utils::make_topic(KAFKA_BOOTSTRAP, &topic);
+//
+//    let mut samples_iter = samples.recv().unwrap().into_iter();
+//    let (tx, rx) = unbounded::<Vec<Sample>>();
+//    let flushers: Vec<JoinHandle<()>> = (0..num_flushers)
+//        .map(|_| {
+//            let receiver = rx.clone();
+//            // let topic = topic.clone();
+//            // let mut producer = kafka_utils::Producer::new(KAFKA_BOOTSTRAP);
+//            std::thread::spawn(move || {
+//                while let Ok(data) = receiver.recv() {
+//                    // println!("queue len: {}", receiver.len());
+//                    // let bytes = bincode::serialize(&data).unwrap();
+//                    // let mut compressed = Vec::new();
+//                    // lz4::compress_to_vec(
+//                    //     bytes.as_slice(),
+//                    //     &mut compressed,
+//                    //     lz4::ACC_LEVEL_DEFAULT,
+//                    // )
+//                    // .unwrap();
+//                    // producer.send(topic.as_str(), 0, compressed.as_slice());
+//                }
+//            })
+//        })
+//        .collect();
+//
+//    let mut num_samples_pushed = 0;
+//    let mut num_samples_dropped = 0;
+//    let mut recv_cycles = 0;
+//
+//    let start = std::time::Instant::now();
+//    for workload in workload_schedule {
+//        let sample_min_dur_micros: u128 = (MICROSECONDS_IN_SEC / workload.samples_per_sec).into();
+//
+//        let mut batch = Vec::new();
+//        repeat_for_micros!(second_to_micros!(workload.duration_secs), {
+//            ensure_dur_micros!(sample_min_dur_micros, {
+//                if batch.len() < batch_sz {
+//                    match samples_iter.next() {
+//                        Some(sample) => batch.push(sample),
+//                        None => {
+//                            let start = rdtsc!();
+//                            loop {
+//                                if let Ok(next_samples) = samples.try_recv() {
+//                                    samples_iter = next_samples.into_iter();
+//                                    let delta = rdtsc!() - start;
+//                                    recv_cycles += delta;
+//                                    break;
+//                                }
+//                            }
+//                        }
+//                    }
+//                } else {
+//                    let num_samples = batch.len();
+//                    match tx.try_send(batch) {
+//                        Ok(_) => num_samples_pushed += num_samples,
+//                        Err(e) => {
+//                            if e.is_full() {
+//                                num_samples_dropped += num_samples;
+//                            } else {
+//                                unreachable!()
+//                            }
+//                        }
+//                    };
+//                    batch = Vec::new();
+//                }
+//            });
+//        });
+//    }
+//
+//    let t1 = std::time::Instant::now();
+//    drop(tx);
+//    for flusher in flushers {
+//        flusher.join().unwrap();
+//    }
+//
+//    let elapsed = start.elapsed();
+//    let join_time = t1.elapsed();
+//
+//    let wait_new_data_time = rdtsc::cycles_to_seconds(recv_cycles);
+//
+//    let pushed_samples_per_sec = num_samples_pushed as f64 / elapsed.as_secs_f64();
+//    let produced_samples_per_sec =
+//        (num_samples_pushed + num_samples_dropped) as f64 / elapsed.as_secs_f64();
+//    println!(
+//        "Elapsed time secs: {}, join time: {}, recv seconds: {}, produced samples/sec: {}, pushed samples/sec: {}, num samples dropped: {}",
+//         elapsed.as_secs_f64(), join_time.as_secs_f64(), wait_new_data_time, produced_samples_per_sec, pushed_samples_per_sec, num_samples_dropped
+//        );
+//}
 
-    kafka_utils::make_topic(KAFKA_BOOTSTRAP, &topic);
-
-    let mut samples_iter = samples.recv().unwrap().into_iter();
-    let (tx, rx) = unbounded::<Vec<Sample>>();
-    let flushers: Vec<JoinHandle<()>> = (0..num_flushers)
-        .map(|_| {
-            let receiver = rx.clone();
-            // let topic = topic.clone();
-            // let mut producer = kafka_utils::Producer::new(KAFKA_BOOTSTRAP);
-            std::thread::spawn(move || {
-                while let Ok(data) = receiver.recv() {
-                    // println!("queue len: {}", receiver.len());
-                    // let bytes = bincode::serialize(&data).unwrap();
-                    // let mut compressed = Vec::new();
-                    // lz4::compress_to_vec(
-                    //     bytes.as_slice(),
-                    //     &mut compressed,
-                    //     lz4::ACC_LEVEL_DEFAULT,
-                    // )
-                    // .unwrap();
-                    // producer.send(topic.as_str(), 0, compressed.as_slice());
-                }
-            })
-        })
-        .collect();
-
-    let mut num_samples_pushed = 0;
-    let mut num_samples_dropped = 0;
-    let mut recv_cycles = 0;
-
-    let start = std::time::Instant::now();
-    for workload in workload_schedule {
-        let sample_min_dur_micros: u128 = (MICROSECONDS_IN_SEC / workload.samples_per_sec).into();
-
-        let mut batch = Vec::new();
-        repeat_for_micros!(second_to_micros!(workload.duration_secs), {
-            ensure_dur_micros!(sample_min_dur_micros, {
-                if batch.len() < batch_sz {
-                    match samples_iter.next() {
-                        Some(sample) => batch.push(sample),
-                        None => {
-                            let start = rdtsc!();
-                            loop {
-                                if let Ok(next_samples) = samples.try_recv() {
-                                    samples_iter = next_samples.into_iter();
-                                    let delta = rdtsc!() - start;
-                                    recv_cycles += delta;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    let num_samples = batch.len();
-                    match tx.try_send(batch) {
-                        Ok(_) => num_samples_pushed += num_samples,
-                        Err(e) => {
-                            if e.is_full() {
-                                num_samples_dropped += num_samples;
-                            } else {
-                                unreachable!()
-                            }
-                        }
-                    };
-                    batch = Vec::new();
-                }
-            });
-        });
-    }
-
-    let t1 = std::time::Instant::now();
-    drop(tx);
-    for flusher in flushers {
-        flusher.join().unwrap();
-    }
-
-    let elapsed = start.elapsed();
-    let join_time = t1.elapsed();
-
-    let wait_new_data_time = rdtsc::cycles_to_seconds(recv_cycles);
-
-    let pushed_samples_per_sec = num_samples_pushed as f64 / elapsed.as_secs_f64();
-    let produced_samples_per_sec =
-        (num_samples_pushed + num_samples_dropped) as f64 / elapsed.as_secs_f64();
-    println!(
-        "Elapsed time secs: {}, join time: {}, recv seconds: {}, produced samples/sec: {}, pushed samples/sec: {}, num samples dropped: {}",
-         elapsed.as_secs_f64(), join_time.as_secs_f64(), wait_new_data_time, produced_samples_per_sec, pushed_samples_per_sec, num_samples_dropped
-        );
-}
-
-fn kafka_parallel_workload_vec(samples: Vec<Sample>, workload_schedule: &[Workload]) {
+fn kafka_parallel_workload_vec(workload_schedule: &[Workload]) {
     const MICROSECONDS_IN_SEC: u64 = 1_000_000;
     const KAFKA_BOOTSTRAP: &str = "localhost:9093,localhost:9094,localhost:9095";
     let num_flushers = 4;
@@ -248,8 +248,9 @@ fn kafka_parallel_workload_vec(samples: Vec<Sample>, workload_schedule: &[Worklo
 
     let barr = Arc::new(Barrier::new(num_flushers + 1));
 
-    let mut samples_iter = samples.into_iter();
-    let (tx, rx) = unbounded::<Vec<Sample>>();
+    let mut samples_iter = 0..DATA.len();
+    //let (tx, rx) = unbounded::<Vec<(SeriesId, TimeStamp, &'static [SampleType])>>();
+    let (tx, rx) = bounded::<Vec<(SeriesId, TimeStamp, &'static [SampleType])>>(1);
     let flushers: Vec<JoinHandle<()>> = (0..num_flushers)
         .map(|i| {
             let receiver = rx.clone();
@@ -259,13 +260,13 @@ fn kafka_parallel_workload_vec(samples: Vec<Sample>, workload_schedule: &[Worklo
             std::thread::spawn(move || {
                 // let mut v = Vec::with_capacity(256);
                 while let Ok(data) = receiver.recv() {
-                    // let bytes = bincode::serialize(&data).unwrap();
-                    // let mut compressed = Vec::new();
-                    // lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT)
-                    //     .unwrap();
-                    // producer.send(topic.as_str(), 0, compressed.as_slice());
-                    // v.push(data);
-                    // println!("thread {}: queue len: {}", i, receiver.len());
+                    let bytes = bincode::serialize(&data).unwrap();
+                    let mut compressed = Vec::new();
+                    lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT)
+                        .unwrap();
+                    producer.send(topic.as_str(), 0, compressed.as_slice());
+                    //v.push(data);
+                    //println!("thread {}: queue len: {}", i, receiver.len());
                 }
                 barr.wait();
             })
@@ -277,36 +278,50 @@ fn kafka_parallel_workload_vec(samples: Vec<Sample>, workload_schedule: &[Worklo
 
     let start = std::time::Instant::now();
     'outer: for workload in workload_schedule {
-        let sample_min_dur_micros: u128 = (MICROSECONDS_IN_SEC / workload.samples_per_sec).into();
-        let batch_min_dur_micros = sample_min_dur_micros * batch_sz as u128;
+        //let sample_min_dur_micros: u128 = (MICROSECONDS_IN_SEC / workload.samples_per_sec).into();
+        //let batch_min_dur_micros = sample_min_dur_micros * batch_sz as u128;
+        let batch_interval = Duration::from_secs_f64(1.0 / workload.samples_per_sec) * batch_sz.try_into().unwrap();
 
+        let mut last_batch = std::time::Instant::now();
         let mut batch = Vec::with_capacity(batch_sz);
-        repeat_for_micros!(second_to_micros!(workload.duration_secs), {
-            ensure_dur_micros!(sample_min_dur_micros, {
-                if batch.len() < batch_sz {
-                    match samples_iter.next() {
-                        Some(sample) => batch.push(sample),
-                        None => {
-                            println!("no samples left");
-                            break 'outer;
-                        }
-                    }
-                } else {
-                    let num_samples = batch.len();
-                    match tx.try_send(batch) {
-                        Ok(_) => num_samples_pushed += num_samples,
-                        Err(e) => {
-                            if e.is_full() {
-                                num_samples_dropped += num_samples;
-                            } else {
-                                unreachable!()
-                            }
-                        }
-                    };
-                    batch = Vec::with_capacity(batch_sz);
+        for idx in 0..DATA.len() {
+            batch.push((DATA[idx].0, DATA[idx].1, DATA[idx].2.as_slice()));
+            if batch.len() == batch_sz {
+                while last_batch.elapsed() < batch_interval {}
+                match tx.try_send(batch) {
+                    Ok(_) => num_samples_pushed += batch_sz,
+                    Err(_) => num_samples_dropped += batch_sz
                 }
-            });
-        });
+                batch = Vec::with_capacity(batch_sz);
+                last_batch = std::time::Instant::now();
+            }
+        }
+        //repeat_for_micros!(second_to_micros!(workload.duration_secs), {
+        //    ensure_dur_micros!(sample_min_dur_micros, {
+        //        if batch.len() < batch_sz {
+        //            match samples_iter.next() {
+        //                Some(idx) => batch.push((DATA[idx].0, DATA[idx].1, DATA[idx].2.as_slice())),
+        //                None => {
+        //                    println!("no samples left");
+        //                    break 'outer;
+        //                }
+        //            }
+        //        } else {
+        //            let num_samples = batch.len();
+        //            match tx.try_send(batch) {
+        //                Ok(_) => num_samples_pushed += num_samples,
+        //                Err(e) => {
+        //                    if e.is_full() {
+        //                        num_samples_dropped += num_samples;
+        //                    } else {
+        //                        unreachable!()
+        //                    }
+        //                }
+        //            };
+        //            batch = Vec::with_capacity(batch_sz);
+        //        }
+        //    });
+        //});
     }
     let produce_end = start.elapsed();
     drop(tx);
@@ -322,21 +337,22 @@ fn kafka_parallel_workload_vec(samples: Vec<Sample>, workload_schedule: &[Worklo
     let pushed_samples_per_sec = num_samples_pushed as f64 / consume_end.as_secs_f64();
     let produced_samples_per_sec =
         (num_samples_pushed + num_samples_dropped) as f64 / produce_end.as_secs_f64();
+    let completeness = num_samples_pushed as f64 / (num_samples_pushed + num_samples_dropped) as f64;
     println!(
-        "Elapsed time secs: {}, join time: {}, produced samples/sec: {}, pushed samples/sec: {}, num samples dropped: {}",
-         produce_end.as_secs_f64(), join_time.as_secs_f64(), produced_samples_per_sec, pushed_samples_per_sec, num_samples_dropped
+        "Elapsed time secs: {}, join time: {}, produced samples/sec: {}, pushed samples/sec: {}, produced samples: {}, num samples dropped: {}, completeness: {}",
+         produce_end.as_secs_f64(), join_time.as_secs_f64(), produced_samples_per_sec, pushed_samples_per_sec, num_samples_pushed + num_samples_dropped, num_samples_dropped, completeness
         );
 }
 
-#[derive(Parser, Debug, Clone)]
-struct Args {
-    #[clap(short, long)]
-    file_path: String,
-}
+//#[derive(Parser, Debug, Clone)]
+//struct Args {
+//    #[clap(short, long)]
+//    file_path: String,
+//}
 
 fn main() {
     let workload = vec![Workload {
-        samples_per_sec: 1_000_000,
+        samples_per_sec: 2_000_000.,
         duration_secs: 60,
     }];
 
@@ -357,12 +373,12 @@ fn main() {
     // }
     // kafka_parallel_workload(data_rx, &workload);
 
-    println!("Loading data");
-    let data = load_data("/home/sli/data/train-ticket-data", 1);
-    println!("Extracting samples");
-    let samples = prepare_kafka_samples(data);
-    println!("{} samples extracted", samples.len());
-    let samples = repeat_data(samples, 32);
-    println!("{} samples after cloning", samples.len());
-    kafka_parallel_workload_vec(samples, &workload);
+    //println!("Loading data");
+    //let data = load_data("/home/sli/data/train-ticket-data", 1);
+    //println!("Extracting samples");
+    //let samples = prepare_kafka_samples(data);
+    //println!("{} samples extracted", samples.len());
+    //let samples = repeat_data(samples, 32);
+    //println!("{} samples after cloning", samples.len());
+    kafka_parallel_workload_vec(&workload);
 }
