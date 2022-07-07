@@ -331,7 +331,47 @@ fn kafka_parallel_workload_vec(workload: Workload) {
 fn main() {
     let workload = vec![
         Workload {
-            samples_per_sec: 100_000.,
+            samples_per_sec: 500_000.,
+            duration_secs: Duration::from_secs(60),
+        },
+        Workload {
+            samples_per_sec: 600_000.,
+            duration_secs: Duration::from_secs(60),
+        },
+        Workload {
+            samples_per_sec: 700_000.,
+            duration_secs: Duration::from_secs(60),
+        },
+        Workload {
+            samples_per_sec: 800_000.,
+            duration_secs: Duration::from_secs(60),
+        },
+        Workload {
+            samples_per_sec: 900_000.,
+            duration_secs: Duration::from_secs(60),
+        },
+        Workload {
+            samples_per_sec: 1_000_000.,
+            duration_secs: Duration::from_secs(60),
+        },
+        Workload {
+            samples_per_sec: 1_100_000.,
+            duration_secs: Duration::from_secs(60),
+        },
+        Workload {
+            samples_per_sec: 1_200_000.,
+            duration_secs: Duration::from_secs(60),
+        },
+        Workload {
+            samples_per_sec: 1_300_000.,
+            duration_secs: Duration::from_secs(60),
+        },
+        Workload {
+            samples_per_sec: 1_400_000.,
+            duration_secs: Duration::from_secs(60),
+        },
+        Workload {
+            samples_per_sec: 1_500_000.,
             duration_secs: Duration::from_secs(60),
         },
         Workload {
@@ -339,6 +379,8 @@ fn main() {
             duration_secs: Duration::from_secs(60),
         },
     ];
-    kafka_parallel_workload_vec(workload[0]);
-    kafka_parallel_workload_vec(workload[1]);
+    //for w in workload {
+    //    kafka_parallel_workload_vec(w);
+    //}
+    kafka_parallel_workload_vec(workload[workload.len()-1]);
 }

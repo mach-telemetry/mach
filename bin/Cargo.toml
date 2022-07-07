@@ -104,6 +104,11 @@ name = "workload-gen"
 path = "src/workload_gen.rs"
 
 [[bin]]
+name = "mach-workload-gen"
+path = "src/mach_workload_gen.rs"
+
+
+[[bin]]
 name = "kafka_bench"
 path = "src/kafka_bench.rs"
 
