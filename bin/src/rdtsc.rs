@@ -1,4 +1,3 @@
-use lazy_static::*;
 use num::NumCast;
 
 // Taken from: journalctl --boot | grep 'kernel: tsc:' -i | cut -d' ' -f5-
