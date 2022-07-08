@@ -1,14 +1,16 @@
 pub mod rpc {
     // The string specified here must match the proto package name
-    tonic::include_proto!("mach_rpc"); 
+    tonic::include_proto!("mach_rpc");
 }
 
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock, Mutex, mpsc::{Sender, Receiver, channel}};
-use std::thread;
-use rpc::tsdb_service_client::TsdbServiceClient;
 use lazy_static::*;
-
+use rpc::tsdb_service_client::TsdbServiceClient;
+use std::collections::HashMap;
+use std::sync::{
+    mpsc::{channel, Receiver, Sender},
+    Arc, Mutex, RwLock,
+};
+use std::thread;
 
 //use tonic::{Request, Response, Status};
 //use rpc::tsdb_service_server::TsdbServiceServer;
@@ -22,7 +24,6 @@ lazy_static! {
         Arc::new(Mutex::new(tx))
     };
 }
-
 
 // TODO: Some async central loop
 
@@ -43,7 +44,10 @@ impl Source {
         };
 
         // Todo send registration, receive back PushMetadata
-        let push_metadata = rpc::PushMetadata { writer: 0, reference: 0 };
+        let push_metadata = rpc::PushMetadata {
+            writer: 0,
+            reference: 0,
+        };
         Self {
             push_metadata,
             sender: (*SAMPLE_SENDER).lock().unwrap().clone(),
@@ -74,9 +78,7 @@ fn init_client_worker(rx: Receiver<Sample>) {
     });
 }
 
-struct Client {
-}
-
+struct Client {}
 
 #[cfg(test)]
 mod tests {

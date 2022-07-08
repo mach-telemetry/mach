@@ -1,13 +1,12 @@
-
-use tonic::{transport::Server, Request, Response, Status};
-use tokio_stream::wrappers::UnboundedReceiverStream;
-use prost::Message;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender, UnboundedReceiver};
-use std::sync::{Arc, Mutex};
-use std::hash::{Hasher};
-use std::fs::File;
-use std::io::prelude::*;
 use clap::Parser;
+use prost::Message;
+use std::fs::File;
+use std::hash::Hasher;
+use std::io::prelude::*;
+use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio_stream::wrappers::UnboundedReceiverStream;
+use tonic::{transport::Server, Request, Response, Status};
 
 //use mach::{
 //    durable_queue::{KafkaConfig},
@@ -20,17 +19,13 @@ use clap::Parser;
 //    sample::Type,
 //};
 
-use mach_otlp::collector::{
-    trace::v1::{
-        trace_service_server::{TraceService, TraceServiceServer},
-        ExportTraceServiceRequest, ExportTraceServiceResponse,
-    },
+use mach_otlp::collector::trace::v1::{
+    trace_service_server::{TraceService, TraceServiceServer},
+    ExportTraceServiceRequest, ExportTraceServiceResponse,
 };
-
 
 #[derive(Parser, Debug, Clone)]
 struct Args {
-
     #[clap(short, long, default_value_t = String::from("0.0.0.0"))]
     server_addr: String,
 
@@ -57,13 +52,11 @@ struct Args {
 
     //#[clap(short, long, default_value_t = 8192)]
     //kafka_batch: usize,
-
     #[clap(short, long)]
     file_path: Option<String>,
 
     #[clap(short, long, default_value_t = 1000000)]
     file_item_count: usize,
-
     //#[clap(short, long, default_value_t = 1000000)]
     //mach_active_block_sz: usize,
 }
@@ -74,7 +67,12 @@ fn validate_tsdb(s: &str) -> Result<String, String> {
         //"kafka" => s.into(),
         "example" => s.into(),
         "file" => s.into(),
-        _ => return Err(format!("Invalid option {}, valid options are \"example\", \"file\".", s))
+        _ => {
+            return Err(format!(
+                "Invalid option {}, valid options are \"example\", \"file\".",
+                s
+            ))
+        }
     })
 }
 
@@ -138,7 +136,7 @@ impl OtlpProcessor for FileOtlpProcessor {
 
 #[derive(Clone)]
 struct OtlpServer<P: OtlpProcessor> {
-    processor: P
+    processor: P,
 }
 
 #[tonic::async_trait]
@@ -174,7 +172,7 @@ impl<P: OtlpProcessor + 'static> TraceService for OtlpServer<P> {
 //}
 
 #[tokio::main]
-async fn main()  -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     println!("Args: {:#?}", args);
     let mut addr = String::from(args.server_addr.as_str());
@@ -183,15 +181,15 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
     let addr = addr.parse().unwrap();
     match args.tsdb.as_str() {
         "example" => {
-            let server = OtlpServer{
-                processor: ExampleOtlpProcessor{},
+            let server = OtlpServer {
+                processor: ExampleOtlpProcessor {},
             };
             let trace_server = TraceServiceServer::new(server);
             Server::builder()
                 .add_service(trace_server)
                 .serve(addr)
                 .await?;
-            },
+        }
         _ => unimplemented!(),
     };
     Ok(())
@@ -232,5 +230,3 @@ async fn main()  -> Result<(), Box<dyn std::error::Error>> {
 //    pub static ref MACH: Arc<RwLock<Mach>> = Arc::new(RwLock::new(Mach::new()));
 //    pub static ref TAG_INDEX: TagIndex = TagIndex::new();
 //}
-
-

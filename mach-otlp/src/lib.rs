@@ -60,7 +60,6 @@ impl From<&otlp::logs::v1::ResourceLogs> for logs::v1::ResourceLogs {
     }
 }
 
-
 impl From<&otlp::logs::v1::ScopeLogs> for logs::v1::ScopeLogs {
     fn from(item: &otlp::logs::v1::ScopeLogs) -> Self {
         Self {
@@ -128,7 +127,7 @@ impl From<&otlp::trace::v1::span::Event> for trace::v1::span::Event {
             time_unix_nano: item.time_unix_nano,
             name: item.name.clone(),
             attributes: item.attributes.clone(),
-            dropped_attributes_count: item.dropped_attributes_count
+            dropped_attributes_count: item.dropped_attributes_count,
         }
     }
 }
@@ -149,7 +148,7 @@ impl From<&otlp::trace::v1::Status> for trace::v1::Status {
     fn from(item: &otlp::trace::v1::Status) -> Self {
         Self {
             message: item.message.clone(),
-            code: item.code.into()
+            code: item.code.into(),
         }
     }
 }
@@ -240,11 +239,16 @@ impl trace::v1::ResourceSpans {
     //    }
     //}
 
-    pub fn get_samples(&self, samples: &mut Vec<(mach::id::SeriesId, u64, Vec<mach::sample::SampleType>)>,) {
+    pub fn get_samples(
+        &self,
+        samples: &mut Vec<(mach::id::SeriesId, u64, Vec<mach::sample::SampleType>)>,
+    ) {
         for scope in &self.scope_spans {
             for span in &scope.spans {
                 let mut v = Vec::with_capacity(1);
-                v.push(mach::sample::SampleType::Bytes(bincode::serialize(&span).unwrap()));
+                v.push(mach::sample::SampleType::Bytes(
+                    bincode::serialize(&span).unwrap(),
+                ));
                 let series_id = mach::id::SeriesId(span.source_id);
                 samples.push((series_id, span.start_time_unix_nano, v));
             }
@@ -269,6 +273,3 @@ impl From<&otlp::OtlpData> for OtlpData {
         }
     }
 }
-
-
-
