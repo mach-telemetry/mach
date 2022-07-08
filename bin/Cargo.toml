@@ -40,6 +40,7 @@ kafka = "0.9.0"
 flume = "0.10.12"
 crossbeam-channel = "0.5.0"
 lzzzz = "0.8.0"
+crossbeam = "0.8.1"
 
 [build-dependencies]
 tonic-build = { version = "0.6.2", features = ["prost", "compression"] }
@@ -62,6 +63,10 @@ debug = true
 #[[bin]]
 #name = "data-latency-bench"
 #path = "src/data_latency_bench.rs"
+
+[[bin]]
+name = "completeness-workload"
+path = "src/completeness-workload.rs"
 
 [[bin]]
 name = "otlp-server"
