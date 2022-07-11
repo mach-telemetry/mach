@@ -7,8 +7,10 @@
 #![feature(box_syntax)]
 #![feature(thread_id_value)]
 #![feature(trait_alias)]
+#![feature(maybe_uninit_slice)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
+#![feature(new_uninit)]
 
 //#![deny(unused_imports)]
 //#![deny(unreachable_patterns)]

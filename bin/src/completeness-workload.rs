@@ -8,6 +8,7 @@ use mach::{
     utils::kafka,
     tsdb::Mach,
     writer::{Writer as MachWriter, WriterConfig},
+    mem_list::UNFLUSHED_COUNT,
 };
 use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -75,6 +76,7 @@ struct Args {
 struct Counters {
     samples_pushed: Arc<AtomicUsize>,
     samples_dropped: Arc<AtomicUsize>,
+    unflushed_count: Arc<AtomicUsize>,
     last_timestamp: u64,
     start_gate: Arc<Barrier>,
 }
@@ -84,6 +86,7 @@ impl Counters {
         let r = Self {
             samples_pushed: Arc::new(AtomicUsize::new(0)),
             samples_dropped: Arc::new(AtomicUsize::new(0)),
+            unflushed_count: UNFLUSHED_COUNT.clone(),
             last_timestamp: micros_from_epoch().try_into().unwrap(),
             start_gate: Arc::new(Barrier::new(2)),
         };
@@ -132,7 +135,7 @@ fn completeness_watcher(pushed: Arc<AtomicUsize>, dropped: Arc<AtomicUsize>, sta
         last_dropped = dropped;
         //counter += 1;
 
-        println!("Completeness: {}", completeness);
+        println!("Completeness: {}, Unflushed: {}", completeness, UNFLUSHED_COUNT.load(SeqCst));
         thread::sleep(interval);
     }
 }
@@ -285,21 +288,24 @@ fn main() {
     let mut counters = Counters::new();
     let workloads = &[
         Workload::new(500_000., Duration::from_secs(60)),
-        Workload::new(600_000., Duration::from_secs(60)),
-        Workload::new(700_000., Duration::from_secs(60)),
-        Workload::new(800_000., Duration::from_secs(60)),
-        Workload::new(900_000., Duration::from_secs(60)),
-        Workload::new(1_000_000., Duration::from_secs(60)),
-        Workload::new(1_100_000., Duration::from_secs(60)),
-        Workload::new(1_200_000., Duration::from_secs(60)),
-        Workload::new(1_300_000., Duration::from_secs(60)),
-        Workload::new(1_400_000., Duration::from_secs(60)),
-        Workload::new(1_500_000., Duration::from_secs(60)),
+        //Workload::new(600_000., Duration::from_secs(60)),
+        //Workload::new(700_000., Duration::from_secs(60)),
+        //Workload::new(800_000., Duration::from_secs(60)),
+        //Workload::new(900_000., Duration::from_secs(60)),
+        //Workload::new(1_000_000., Duration::from_secs(60)),
+        //Workload::new(1_100_000., Duration::from_secs(60)),
+        //Workload::new(1_200_000., Duration::from_secs(60)),
+        //Workload::new(1_300_000., Duration::from_secs(60)),
+        //Workload::new(1_400_000., Duration::from_secs(60)),
+        //Workload::new(1_500_000., Duration::from_secs(60)),
         //Workload::new(1_600_000., Duration::from_secs(60)),
         //Workload::new(1_700_000., Duration::from_secs(60)),
         //Workload::new(1_800_000., Duration::from_secs(60)),
         //Workload::new(1_900_000., Duration::from_secs(60)),
-        //Workload::new(2_000_000., Duration::from_secs(60)),
+        Workload::new(2_000_000., Duration::from_secs(60)),
+        Workload::new(500_000., Duration::from_secs(60)),
+        Workload::new(2_000_000., Duration::from_secs(60)),
+        Workload::new(500_000., Duration::from_secs(60)),
     ];
     match ARGS.tsdb.as_str() {
         "kafka" => {

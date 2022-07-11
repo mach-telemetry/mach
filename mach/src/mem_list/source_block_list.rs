@@ -1,3 +1,4 @@
+
 use crate::{
     mem_list::{BlockListEntry, Error, ReadOnlyBlock, BOOTSTRAPS, TOPIC},
     utils::{
@@ -12,41 +13,58 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc, RwLock,
 };
+use std::convert::TryInto;
+
+lazy_static::lazy_static! {
+    pub static ref UNFLUSHED_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    static ref LIST_ITEM_FLUSHER: Sender<Arc<RwLock<ListItem>>> = {
+        let producer = kafka::Producer::new(&*BOOTSTRAPS);
+        let (tx, rx) = unbounded();
+        std::thread::spawn(move || flusher(rx, producer));
+        tx
+    };
+}
 
 fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Producer) {
     while let Ok(list_item) = channel.recv() {
-        let guard = list_item.read().unwrap();
-        match &*guard {
-            ListItem::Offset { .. } => unimplemented!(),
-            ListItem::Block { data, next } => {
-                let last = match &*next.read().unwrap() {
-                    ListItem::Offset { partition, offset } => (*partition, *offset),
-                    _ => panic!("Expected offset, got unflushed data"),
-                };
-                let mut v = Vec::new();
-                for item in data.iter() {
-                    item.flush(&mut producer);
-                    let x = item.partition_offset();
-                    v.push(ReadOnlyBlock::Offset(x.0, x.1));
+        let (data, next) = {
+            let guard = list_item.read().unwrap();
+            match &*guard {
+                ListItem::Offset { .. } => unimplemented!(),
+                ListItem::Block { data, next } => {
+                    let data = data.clone();
+                    let next = next.clone();
+                    (data, next)
                 }
-                let to_serialize = SourceBlocks {
-                    idx: v.len(),
-                    data: v,
-                    next: last,
-                };
-                let bytes = bincode::serialize(&to_serialize).unwrap();
-                let part: i32 = rand::thread_rng().gen_range(0..3);
-                let (partition, offset) = producer.send(&*TOPIC, part, &bytes);
-                drop(guard);
-                *list_item.write().unwrap() = ListItem::Offset { partition, offset };
             }
+        };
+        let last = match &*next.read().unwrap() {
+            ListItem::Offset { partition, offset } => (*partition, *offset),
+            _ => panic!("Expected offset, got unflushed data"),
+        };
+        let mut v = Vec::new();
+        for item in data.iter() {
+            item.flush(&mut producer);
+            let x = item.partition_offset();
+            v.push(ReadOnlyBlock::Offset(x.0, x.1));
         }
+        let to_serialize = SourceBlocks {
+            idx: v.len(),
+            data: v,
+            next: last,
+        };
+        let bytes = bincode::serialize(&to_serialize).unwrap();
+        let part: i32 = rand::thread_rng().gen_range(0..3);
+        let (partition, offset) = producer.send(&*TOPIC, part, &bytes);
+        //drop(guard);
+        *list_item.write().unwrap() = ListItem::Offset { partition, offset };
+        UNFLUSHED_COUNT.fetch_sub(1, SeqCst);
     }
 }
 
 enum ListItem {
     Block {
-        data: Box<[Arc<BlockListEntry>]>,
+        data: Arc<[Arc<BlockListEntry>]>,
         next: Arc<RwLock<ListItem>>,
     },
     Offset {
@@ -56,9 +74,8 @@ enum ListItem {
 }
 
 struct InnerBuffer {
-    data: Box<[MaybeUninit<Arc<BlockListEntry>>]>,
+    data: Box<[MaybeUninit<Arc<BlockListEntry>>; 256]>,
     offset: AtomicUsize,
-    flusher: Sender<Arc<RwLock<ListItem>>>,
     last: Arc<RwLock<ListItem>>,
 }
 
@@ -85,15 +102,24 @@ impl InnerBuffer {
     //}
 
     unsafe fn full_flush(&mut self) {
-        let mut v = Vec::new();
-        for item in self.data.iter() {
-            v.push(item.assume_init_ref().clone());
-        }
+        //let mut v = vec![None; 256].into_boxed_slice();
+        //std::mem::swap(&mut v, &mut self.data);
+        //v.resize_with(256, MaybeUninit::uninit);
+        let data: Arc<[Arc<BlockListEntry>]> = {
+            let mut arr: Arc<[MaybeUninit<Arc<BlockListEntry>>]>  = Arc::new_uninit_slice(256);
+            let arr_ref = Arc::get_mut_unchecked(&mut arr);
+            for (a, b) in self.data.iter().zip(arr_ref.iter_mut()) {
+                b.write(a.assume_init_ref().clone());
+            }
+            arr.assume_init()
+        };
+
         let item = Arc::new(RwLock::new(ListItem::Block {
-            data: v.into_boxed_slice(),
+            data,
             next: self.last.clone(),
         }));
-        self.flusher.send(item.clone()).unwrap();
+        UNFLUSHED_COUNT.fetch_add(1, SeqCst);
+        LIST_ITEM_FLUSHER.send(item.clone()).unwrap();
         self.last = item;
 
         //let mut v = vec![self.last];
@@ -145,15 +171,12 @@ impl InnerBuffer {
     }
 
     fn new() -> Self {
-        let mut vec = Vec::with_capacity(256);
-        vec.resize_with(256, MaybeUninit::uninit);
         let producer = kafka::Producer::new(&*BOOTSTRAPS);
         let (tx, rx) = unbounded();
         std::thread::spawn(move || flusher(rx, producer));
         Self {
-            data: vec.into_boxed_slice(),
+            data: Box::new(MaybeUninit::uninit_array()),
             offset: AtomicUsize::new(0),
-            flusher: tx,
             last: Arc::new(RwLock::new(ListItem::Offset {
                 partition: -1,
                 offset: -1,

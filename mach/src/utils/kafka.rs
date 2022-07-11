@@ -20,6 +20,7 @@ const PARTITIONS: i32 = 3;
 const REPLICAS: i32 = 3;
 
 pub fn make_topic(bootstrap: &str, topic: &str) {
+    println!("BOOTSTRAPS: {}", bootstrap);
     let rt = tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap();

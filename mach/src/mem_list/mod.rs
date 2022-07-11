@@ -1,5 +1,5 @@
 mod source_block_list;
-pub use source_block_list::{SourceBlockList, SourceBlocks};
+pub use source_block_list::{SourceBlockList, SourceBlocks, UNFLUSHED_COUNT};
 
 use crate::{
     compression::Compression,
