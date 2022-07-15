@@ -1,0 +1,110 @@
+Loading data from: /home/sli/data/train-ticket-data
+Converting data to samples
+BOOTSTRAPS: localhost:9093,localhost:9094,localhost:9095
+Running rate: 500000
+Completeness: NaN, Unflushed: 0, Data age (seconds): 0.0
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.404013
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.484574
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.499303
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.667999
+Completeness: 1, Unflushed: 0, Data age (seconds): 2.029677
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.4645000000000001
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.4826869999999999
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.481646
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.474587
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.41194
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.550907
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.479469
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.714906
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.424218
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.386625
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.484752
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.456536
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.673196
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.4894370000000001
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.489992
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.405586
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.463883
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.48644
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.430677
+Expected rate: 500000, measured rate: 499812.8107100734
+Running rate: 2000000
+Completeness: 0.41, Unflushed: 0, Data age (seconds): 1.9950480000000002
+Completeness: 0.4, Unflushed: 0, Data age (seconds): 1.253628
+Completeness: 0.4, Unflushed: 0, Data age (seconds): 1.489362
+Completeness: 0.39, Unflushed: 0, Data age (seconds): 1.823792
+Completeness: 0.36, Unflushed: 0, Data age (seconds): 1.527873
+Completeness: 0.39, Unflushed: 0, Data age (seconds): 1.552968
+Completeness: 0.38, Unflushed: 0, Data age (seconds): 1.42432
+Completeness: 0.39, Unflushed: 0, Data age (seconds): 2.337008
+Completeness: 0.36363636363636365, Unflushed: 0, Data age (seconds): 1.506056
+Completeness: 0.38, Unflushed: 0, Data age (seconds): 1.3246069999999999
+Completeness: 0.39, Unflushed: 0, Data age (seconds): 1.419864
+Completeness: 0.41, Unflushed: 0, Data age (seconds): 1.293674
+Expected rate: 2000000, measured rate: 1998950.7857475157
+Running rate: 500000
+Completeness: 0.9230769230769231, Unflushed: 0, Data age (seconds): 1.353228
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.438059
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.3958439999999999
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.486316
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.350483
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.422182
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.3411870000000001
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.355747
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.416112
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.364204
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.4585810000000001
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.525178
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.468937
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.492304
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.433702
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.406735
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.399702
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.381504
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.664385
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.4573800000000001
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.609674
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.478821
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.382205
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.4133390000000001
+Expected rate: 500000, measured rate: 499935.3687554756
+Running rate: 3000000
+Completeness: 0.28378378378378377, Unflushed: 0, Data age (seconds): 1.382349
+Completeness: 0.2847682119205298, Unflushed: 0, Data age (seconds): 1.317757
+Completeness: 0.2953020134228188, Unflushed: 0, Data age (seconds): 1.6369829999999999
+Completeness: 0.28, Unflushed: 0, Data age (seconds): 1.765742
+Completeness: 0.26666666666666666, Unflushed: 0, Data age (seconds): 1.5045009999999999
+Completeness: 0.26490066225165565, Unflushed: 0, Data age (seconds): 1.423994
+Completeness: 0.26666666666666666, Unflushed: 0, Data age (seconds): 1.817059
+Completeness: 0.26666666666666666, Unflushed: 0, Data age (seconds): 2.325961
+Completeness: 0.2733333333333333, Unflushed: 0, Data age (seconds): 1.78758
+Completeness: 0.26666666666666666, Unflushed: 0, Data age (seconds): 1.767954
+Completeness: 0.26666666666666666, Unflushed: 0, Data age (seconds): 1.201562
+Completeness: 0.2733333333333333, Unflushed: 0, Data age (seconds): 1.551203
+Expected rate: 3000000, measured rate: 3001418.288348129
+Running rate: 500000
+Completeness: 0.8888888888888888, Unflushed: 0, Data age (seconds): 1.5003790000000001
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.425964
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.405248
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.624271
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.389154
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.608527
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.202129
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.922604
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.247222
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.7415479999999999
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.3782320000000001
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.413857
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.42441
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.436004
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.47712
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.41308
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.4419
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.4482140000000001
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.418407
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.402709
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.433892
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.41683
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.397324
+Completeness: 1, Unflushed: 0, Data age (seconds): 1.421186
+Expected rate: 500000, measured rate: 499942.9136476142

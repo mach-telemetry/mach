@@ -172,16 +172,16 @@ impl Segment {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Snapshot {
-    pub active_segment: Vec<Segment>,
-    pub active_block: ReadOnlyBlock,
+    pub active_segment: Option<Vec<Segment>>,
+    pub active_block: Option<ReadOnlyBlock>,
     pub source_blocks: SourceBlocks,
     pub id: SeriesId,
 }
 
 impl Snapshot {
-    pub fn into_iterator(self, consumer: kafka::BufferedConsumer) -> SnapshotIterator {
+    pub fn into_iterator<'a>(self, consumer: &'a mut kafka::BufferedConsumer) -> SnapshotIterator<'a> {
         let id = self.id;
         SnapshotIterator::new(self, id, consumer)
     }
@@ -268,32 +268,47 @@ impl ReadOnlyBlockReader {
     }
 }
 
-pub struct SnapshotIterator {
-    active_segment: ActiveSegmentReader,
+pub struct SnapshotIterator<'a> {
+    active_segment: Option<ActiveSegmentReader>,
     block_reader: ReadOnlyBlockReader,
     source_blocks: SourceBlocks,
-    consumer: kafka::BufferedConsumer,
+    consumer: &'a mut kafka::BufferedConsumer,
     state: State,
 }
 
-impl SnapshotIterator {
-    pub fn new(snapshot: Snapshot, id: SeriesId, mut consumer: kafka::BufferedConsumer) -> Self {
-        let active_segment = ActiveSegmentReader::new(snapshot.active_segment);
-        let source_blocks = snapshot.source_blocks;
-        let block_reader =
-            ReadOnlyBlockReader::new(snapshot.active_block.as_bytes(&mut consumer), id);
+impl<'a> SnapshotIterator<'a> {
+    pub fn new(snapshot: Snapshot, id: SeriesId, consumer: &'a mut kafka::BufferedConsumer) -> Self {
+        let active_segment = match snapshot.active_segment {
+            Some(x) => Some(ActiveSegmentReader::new(x)),
+            None => None,
+        };
+        let mut source_blocks = snapshot.source_blocks;
+        let block_reader = match snapshot.active_block {
+            Some(x) => ReadOnlyBlockReader::new(x.as_bytes(consumer), id),
+            None => {
+                let block = source_blocks.next_block(consumer).unwrap();
+                        let bytes = block.as_bytes(consumer);
+                        ReadOnlyBlockReader::new(bytes, id)
+            }
+        };
+        let state = if active_segment.is_some() {
+            State::ActiveSegment
+        } else {
+            State::Blocks
+        };
+
         Self {
             active_segment,
             source_blocks,
             block_reader,
             consumer,
-            state: State::ActiveSegment,
+            state,
         }
     }
 
     pub fn next_segment(&mut self) -> Option<()> {
         match self.state {
-            State::ActiveSegment => match self.active_segment.next_segment() {
+            State::ActiveSegment => match self.active_segment.as_mut().unwrap().next_segment() {
                 None => {
                     self.state = State::Blocks;
                     self.next_segment()
@@ -319,7 +334,7 @@ impl SnapshotIterator {
 
     pub fn get_segment(&self) -> &Segment {
         match self.state {
-            State::ActiveSegment => self.active_segment.get_segment(),
+            State::ActiveSegment => self.active_segment.as_ref().unwrap().get_segment(),
             State::Blocks => self.block_reader.get_segment(),
         }
     }

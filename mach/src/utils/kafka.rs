@@ -1,6 +1,6 @@
 use crate::utils::random_id;
 use dashmap::DashMap;
-pub use kafka::client::{FetchOffset, FetchPartition, KafkaClient, ProduceMessage, RequiredAcks};
+use kafka::client::{FetchOffset, FetchPartition, KafkaClient, ProduceMessage, RequiredAcks};
 use kafka::consumer::{Consumer, GroupOffsetStorage};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
@@ -12,7 +12,8 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
 };
-use std::time::Duration;
+use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use std::convert::TryInto;
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 
@@ -87,7 +88,7 @@ pub struct BufferedConsumer {
 }
 
 impl BufferedConsumer {
-    pub fn new(bootstraps: &str, topic: &str, from: FetchOffset) -> Self {
+    pub fn new(bootstraps: &str, topic: &str, from: ConsumerOffset) -> Self {
         let data = Arc::new(DashMap::new());
         let (prefetcher, rx) = crossbeam::channel::unbounded();
         let mut client = KafkaClient::new(bootstraps.split(',').map(String::from).collect());
@@ -155,13 +156,32 @@ fn init_prefetcher(
     });
 }
 
-fn init_consumer_worker(bootstraps: &str, topic: &str, data: InnerDict, from: FetchOffset) {
+pub enum ConsumerOffset {
+    Latest,
+    Earliest,
+    From(SystemTime),
+}
+
+impl std::convert::Into<FetchOffset> for ConsumerOffset {
+    fn into(self) -> FetchOffset {
+        match self {
+            ConsumerOffset::Latest => FetchOffset::Latest,
+            ConsumerOffset::Earliest => FetchOffset::Earliest,
+            ConsumerOffset::From(time) => {
+                let time = time.duration_since(UNIX_EPOCH).unwrap();
+                let millis = time.as_millis().try_into().unwrap();
+                FetchOffset::ByTime(millis)
+            }
+        }
+    }
+}
+
+fn init_consumer_worker(bootstraps: &str, topic: &str, data: InnerDict, from: ConsumerOffset) {
     let bootstraps = bootstraps.split(',').map(String::from).collect();
 
-    println!("OFFSET {:?}", from);
     let mut consumer = Consumer::from_hosts(bootstraps)
         .with_topic(topic.to_owned())
-        .with_fallback_offset(FetchOffset::Latest)
+        .with_fallback_offset(from.into())
         .with_group(random_id())
         .with_offset_storage(GroupOffsetStorage::Kafka)
         .with_fetch_max_bytes_per_partition(2_000_000)
@@ -172,7 +192,6 @@ fn init_consumer_worker(bootstraps: &str, topic: &str, data: InnerDict, from: Fe
         for ms in consumer.poll().unwrap().iter() {
             let partition = ms.partition();
             for m in ms.messages() {
-                println!("CONSUMING FROM KAFKA: {} {}", partition, m.offset);
                 data.insert((partition, m.offset), m.value.into());
             }
         }

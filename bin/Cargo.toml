@@ -121,6 +121,9 @@ path = "src/kafka_bench.rs"
 name = "kafka-otlp-bench"
 path = "src/kafka_otlp_bench.rs"
 
+[[bin]]
+name = "kafka_test"
+path = "src/kafka_test.rs"
 
 #[[bin]]
 #name = "convert-otlp-data"

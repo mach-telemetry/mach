@@ -25,20 +25,22 @@ use std::sync::{
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 
-const FLUSHERS: usize = 4;
 pub const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
 pub const TOPIC: &str = "MACH";
+pub const INIT_FLUSHERS: usize = 1;
+pub const BLOCK_SZ: usize = 1_000_000;
 
 lazy_static! {
     //static ref TOPIC: String = random_id();
-    static ref FLUSH_WORKERS: Vec<crossbeam::channel::Sender<Arc<BlockListEntry>>> = {
-        let mut flushers = Vec::new();
-        for _ in 0..FLUSHERS {
+    static ref N_FLUSHERS: AtomicUsize = AtomicUsize::new(INIT_FLUSHERS);
+    static ref FLUSH_WORKERS: DashMap<usize, crossbeam::channel::Sender<Arc<BlockListEntry>>> = {
+        let flushers = DashMap::new();
+        for idx in 0..N_FLUSHERS.load(SeqCst) {
             let (tx, rx) = crossbeam::channel::unbounded();
             std::thread::spawn(move || {
                 flush_worker(rx);
             });
-            flushers.push(tx);
+            flushers.insert(idx, tx);
         }
         flushers
     };
@@ -47,6 +49,16 @@ lazy_static! {
 #[derive(Debug, Copy, Clone)]
 pub enum Error {
     Snapshot,
+}
+
+pub(self) fn add_flush_worker() {
+    let idx = N_FLUSHERS.fetch_add(1, SeqCst);
+    let (tx, rx) = crossbeam::channel::unbounded();
+    std::thread::spawn(move || {
+        flush_worker(rx);
+    });
+    FLUSH_WORKERS.insert(idx, tx);
+    println!("ADDED FLUSH WORKER: {}", idx);
 }
 
 fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
@@ -132,7 +144,10 @@ impl BlockList {
             for id in self.id_set.borrow_mut().drain() {
                 self.series_map.get(&id).unwrap().push(copy.clone());
             }
-            FLUSH_WORKERS[thread_rng().gen_range(0..FLUSHERS)]
+            let n_flushers = N_FLUSHERS.load(SeqCst);
+            FLUSH_WORKERS.get(&thread_rng().gen_range(0..n_flushers))
+                .unwrap()
+                .value()
                 .send(copy)
                 .unwrap();
             // Mark current block as cleared
@@ -157,7 +172,7 @@ impl Block {
     fn new() -> Self {
         Self {
             id: AtomicU64::new(0),
-            bytes: vec![0u8; 2_000_000].into_boxed_slice(),
+            bytes: vec![0u8; BLOCK_SZ].into_boxed_slice(),
             len: AtomicUsize::new(std::mem::size_of::<u64>()), // id starts at 0
             items: AtomicUsize::new(0),
             offsets: [(0, 0); 1_000],
@@ -205,7 +220,7 @@ impl Block {
         self.len.store(offset, SeqCst);
 
         // return true if full
-        offset > 1_000_000
+        offset > BLOCK_SZ
     }
 
     fn reset(&mut self) {
@@ -267,7 +282,7 @@ impl std::ops::Deref for ReadOnlyBlockBytes {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum ReadOnlyBlock {
     Bytes(Box<[u8]>),
     Offset(i32, i64),

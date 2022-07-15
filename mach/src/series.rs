@@ -92,15 +92,31 @@ impl Series {
     }
 
     pub fn snapshot(&self) -> Snapshot {
-        let active_segment = self.segment.snapshot().unwrap().inner;
-        let active_block = self.block_list.snapshot().unwrap();
-        let source_blocks = self.source_block_list.snapshot().unwrap();
+        let active_segment = match self.segment.snapshot() {
+            Ok(x) => Some(x.inner),
+            Err(_) => None,
+        };
+        let active_block = match self.block_list.snapshot() {
+            Ok(x) => Some(x),
+            Err(_) => None,
+        };
+        let mut source_blocks = None;
+        let start = std::time::Instant::now();
+        while source_blocks.is_none() {
+            if let Ok(blocks) = self.source_block_list.snapshot() {
+                source_blocks = Some(blocks);
+            }
+            if std::time::Instant::now() - start >= std::time::Duration::from_secs(1) {
+                source_blocks = Some(self.source_block_list.periodic_snapshot());
+            }
+        }
+
         //let list = self.list.snapshot()?;
         //Ok(Snapshot::new(segment, list))
         Snapshot {
             active_segment,
             active_block,
-            source_blocks,
+            source_blocks: source_blocks.unwrap(),
             id: self.config.id,
         }
     }

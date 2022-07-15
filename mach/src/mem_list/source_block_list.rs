@@ -1,6 +1,6 @@
 
 use crate::{
-    mem_list::{BlockListEntry, Error, ReadOnlyBlock, BOOTSTRAPS, TOPIC},
+    mem_list::{BlockListEntry, Error, ReadOnlyBlock, BOOTSTRAPS, TOPIC, add_flush_worker, },
     utils::{
         kafka,
         wp_lock::{NoDealloc, WpLock},
@@ -11,9 +11,10 @@ use rand::Rng;
 use std::mem::MaybeUninit;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
-    Arc, RwLock,
+    Arc, RwLock, Mutex,
 };
-use std::convert::TryInto;
+use std::cell::RefCell;
+use std::time::{Instant, Duration};
 
 lazy_static::lazy_static! {
     pub static ref UNFLUSHED_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -26,7 +27,14 @@ lazy_static::lazy_static! {
 }
 
 fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Producer) {
+    let mut last_len = channel.len();
     while let Ok(list_item) = channel.recv() {
+        let len = channel.len();
+        if len > last_len {
+            println!("LEN: {}", len);
+            add_flush_worker();
+            last_len = len;
+        }
         let (data, next) = {
             let guard = list_item.read().unwrap();
             match &*guard {
@@ -73,79 +81,82 @@ enum ListItem {
     },
 }
 
-struct InnerBuffer {
+struct InnerData {
     data: Box<[MaybeUninit<Arc<BlockListEntry>>; 256]>,
-    offset: AtomicUsize,
     last: Arc<RwLock<ListItem>>,
 }
 
+unsafe impl NoDealloc for InnerData {}
+unsafe impl Sync for InnerBuffer{} // last_update is only accessed by one writer
+
+struct InnerBuffer {
+    data: WpLock<InnerData>,
+    offset: AtomicUsize,
+    periodic: Arc<Mutex<Arc<RwLock<ListItem>>>>,
+    last_update: RefCell<Instant>,
+}
+
 impl InnerBuffer {
-    fn push(&mut self, item: Arc<BlockListEntry>) {
+    fn push(&self, item: Arc<BlockListEntry>) {
+        let guard = unsafe { self.data.unprotected_write() };
         let offset = self.offset.load(SeqCst);
-        let idx = offset % self.data.len();
-        self.data[idx].write(item);
+        let idx = offset % guard.data.len();
+        guard.data[idx].write(item);
         self.offset.fetch_add(1, SeqCst);
-        if (offset + 1) % self.data.len() == 0 {
+        if (offset + 1) % guard.data.len() == 0 {
+            drop(guard);
             unsafe {
                 self.full_flush();
-                //self.tmp_flush();
             }
         }
     }
 
-    // for memory utilization experiment
-    //unsafe fn tmp_flush(&mut self) {
-    //    for item in self.data.iter() {
-    //        let r = item.assume_init_ref().clone();
-    //        self.tmp.push(r);
-    //    }
-    //}
-
-    unsafe fn full_flush(&mut self) {
-        //let mut v = vec![None; 256].into_boxed_slice();
-        //std::mem::swap(&mut v, &mut self.data);
-        //v.resize_with(256, MaybeUninit::uninit);
+    unsafe fn full_flush(&self) {
+        let guard = self.data.unprotected_read();
         let data: Arc<[Arc<BlockListEntry>]> = {
             let mut arr: Arc<[MaybeUninit<Arc<BlockListEntry>>]>  = Arc::new_uninit_slice(256);
             let arr_ref = Arc::get_mut_unchecked(&mut arr);
-            for (a, b) in self.data.iter().zip(arr_ref.iter_mut()) {
+            for (a, b) in guard.data.iter().zip(arr_ref.iter_mut()) {
                 b.write(a.assume_init_ref().clone());
             }
             arr.assume_init()
         };
-
         let item = Arc::new(RwLock::new(ListItem::Block {
             data,
-            next: self.last.clone(),
+            next: guard.last.clone(),
         }));
+        drop(guard);
         UNFLUSHED_COUNT.fetch_add(1, SeqCst);
         LIST_ITEM_FLUSHER.send(item.clone()).unwrap();
-        self.last = item;
-
-        //let mut v = vec![self.last];
-        //for item in self.data.iter() {
-        //    let r = item.assume_init_ref();
-        //    r.flush(&mut self.producer);
-        //    let p = r.partition_offset();
-        //    v.push(p);
-        //}
-        //let bytes = bincode::serialize(&v).unwrap();
-        //let part: i32 = rand::thread_rng().gen_range(0..3);
-        //self.last = self.producer.send(&*TOPIC, part, &bytes);
+        let mut guard = self.data.protected_write();
+        guard.last = item.clone();
+        drop(guard);
+        let now = Instant::now();
+        let mut last_update = self.last_update.borrow_mut(); // this is the only thing accessing last_update
+        if now - *last_update >= Duration::from_secs_f64(0.5) {
+            *self.periodic.lock().unwrap() = item.clone();
+            *last_update = now; 
+        }
     }
 
-    fn snapshot(&self) -> SourceBlocks {
+    fn snapshot(&self) -> Result<SourceBlocks, Error> {
         let mut v = Vec::with_capacity(256);
         let end = self.offset.load(SeqCst);
+        let guard = self.data.protected_read();
         let start = if end < 256 { 0 } else { end - 256 };
         for off in start..end {
             // Safety: offset ensures prior items are inited
             unsafe {
-                let inner = self.data[off % 256].assume_init_ref().inner();
+                let inner = guard.data[off % 256].assume_init_ref().inner();
                 v.push(inner.into());
             }
         }
-        let mut current = self.last.clone();
+        let mut current = guard.last.clone();
+        match guard.release() {
+            Ok(_) => {},
+            Err(_) => return Err(Error::Snapshot),
+        }
+
         #[allow(unused_assignments)]
         let mut next = (-1, -1);
 
@@ -167,22 +178,52 @@ impl InnerBuffer {
             }
         }
         let idx = v.len();
+        Ok(SourceBlocks { data: v, next, idx })
+    }
+
+    fn periodic_snapshot(&self) -> SourceBlocks {
+        let mut v = Vec::with_capacity(256);
+        let mut current = self.periodic.lock().unwrap().clone();
+        #[allow(unused_assignments)]
+        let mut next = (-1, -1);
+        loop {
+            // loop will end because this was inited with Offset.
+            let guard = current.read().unwrap();
+            match &*guard {
+                ListItem::Offset { partition, offset } => {
+                    next = (*partition, *offset);
+                    break;
+                }
+                ListItem::Block { data, next } => {
+                    data.iter().cloned().for_each(|x| v.push(x.inner().into()));
+                    let x = next.clone();
+                    drop(guard);
+                    current = x;
+                    continue;
+                }
+            }
+        }
+        let idx = v.len();
         SourceBlocks { data: v, next, idx }
     }
 
+
     fn new() -> Self {
-        let producer = kafka::Producer::new(&*BOOTSTRAPS);
-        let (tx, rx) = unbounded();
-        std::thread::spawn(move || flusher(rx, producer));
-        Self {
-            data: Box::new(MaybeUninit::uninit_array()),
-            offset: AtomicUsize::new(0),
-            last: Arc::new(RwLock::new(ListItem::Offset {
+        let last = Arc::new(RwLock::new(ListItem::Offset {
                 partition: -1,
                 offset: -1,
-            })),
-            // for memory utilization experiment
-            //tmp: Vec::new(),
+            }));
+        let periodic = Arc::new(Mutex::new(last.clone()));
+        let data = Box::new(MaybeUninit::uninit_array());
+        let data = WpLock::new(InnerData {
+            data,
+            last,
+        });
+        Self {
+            data,
+            offset: AtomicUsize::new(0),
+            periodic,
+            last_update: RefCell::new(Instant::now()),
         }
     }
 }
@@ -190,32 +231,31 @@ impl InnerBuffer {
 unsafe impl NoDealloc for InnerBuffer {}
 
 pub struct SourceBlockList {
-    inner: WpLock<InnerBuffer>,
+    inner: InnerBuffer,
 }
 
 impl SourceBlockList {
     pub fn new() -> Self {
         Self {
-            inner: WpLock::new(InnerBuffer::new()),
+            inner: InnerBuffer::new(),
         }
     }
 
     pub fn push(&self, item: Arc<BlockListEntry>) {
-        self.inner.protected_write().push(item);
+        self.inner.push(item);
     }
 
     pub fn snapshot(&self) -> Result<SourceBlocks, Error> {
-        let guard = self.inner.protected_read();
-        let data = guard.snapshot();
-        if guard.release().is_err() {
-            Err(Error::Snapshot)
-        } else {
-            Ok(data)
-        }
+        self.inner.snapshot()
+    }
+
+    pub fn periodic_snapshot(&self) -> SourceBlocks {
+        // Safety: periodic snapshot accesses locked data
+        self.inner.periodic_snapshot()
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct SourceBlocks {
     data: Vec<ReadOnlyBlock>,
     next: (i32, i64),

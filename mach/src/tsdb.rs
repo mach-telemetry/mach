@@ -10,7 +10,7 @@ use crate::{
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
-use std::{collections::HashMap, sync::Arc};
+use std::{sync::Arc};
 
 #[derive(Debug)]
 pub enum Error {
@@ -34,8 +34,7 @@ impl From<series::Error> for Error {
 
 pub struct Mach {
     writers: Vec<WriterId>,
-    //writer_table: HashMap<WriterId, (WriterMetadata, DurabilityWorker)>,
-    writer_table: HashMap<WriterId, WriterMetadata>,
+    writer_table: Arc<DashMap<WriterId, WriterMetadata>>,
     series_table: Arc<DashMap<SeriesId, Series>>,
 }
 
@@ -43,7 +42,7 @@ impl Mach {
     pub fn new() -> Self {
         Mach {
             writers: Vec::new(),
-            writer_table: HashMap::new(),
+            writer_table: Arc::new(DashMap::new()),
             series_table: Arc::new(DashMap::new()),
         }
     }
@@ -82,6 +81,10 @@ impl Mach {
         self.series_table.insert(series_id, series);
 
         Ok((writer, series_id))
+    }
+
+    pub fn series_table(&self) -> Arc<DashMap<SeriesId, Series>> {
+        self.series_table.clone()
     }
 
     pub fn init_snapshotter(&self) -> Snapshotter {
