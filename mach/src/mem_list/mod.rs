@@ -172,7 +172,7 @@ impl Block {
     fn new() -> Self {
         Self {
             id: AtomicU64::new(0),
-            bytes: vec![0u8; BLOCK_SZ].into_boxed_slice(),
+            bytes: vec![0u8; BLOCK_SZ * 2].into_boxed_slice(),
             len: AtomicUsize::new(std::mem::size_of::<u64>()), // id starts at 0
             items: AtomicUsize::new(0),
             offsets: [(0, 0); 1_000],
