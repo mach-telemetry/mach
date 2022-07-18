@@ -69,6 +69,10 @@ name = "completeness-workload"
 path = "src/completeness-workload.rs"
 
 [[bin]]
+name = "scratch"
+path = "src/scratch.rs"
+
+[[bin]]
 name = "otlp-server"
 path = "src/otlp_server.rs"
 

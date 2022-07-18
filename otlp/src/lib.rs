@@ -76,6 +76,22 @@ impl Hash for AnyValue {
     }
 }
 
+impl AnyValue {
+    pub fn as_str(&self) -> &str {
+        match self.value.as_ref().unwrap() {
+            Value::StringValue(x) => x.as_str(),
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        match self.value.as_ref().unwrap() {
+            Value::BytesValue(x) => x.as_slice(),
+            _ => unimplemented!(),
+        }
+    }
+}
+
 //impl Hash for KeyValueList {
 //    fn hash<H: Hasher>(&self, hasher: &mut H) {
 //        self.values.hash(hasher)
