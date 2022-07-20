@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package BytesService;
+
+service BytesService {
+  rpc Send(BytesMessage) returns (BytesMessage) {}
+}
+
+message BytesMessage {
+  optional bytes data = 2;
+}

@@ -2,10 +2,15 @@ use crate::utils::random_id;
 use dashmap::DashMap;
 use kafka::client::{FetchOffset, FetchPartition, KafkaClient, ProduceMessage, RequiredAcks};
 use kafka::consumer::{Consumer, GroupOffsetStorage};
+use kafka::producer::{Producer as OgProducer, Record};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
     config::ClientConfig,
+    consumer::{Consumer as RdKConsumer, DefaultConsumerContext, BaseConsumer},
+    topic_partition_list::{TopicPartitionList, Offset},
+    util::Timeout,
+    Message,
 };
 use std::ops::{Deref, DerefMut};
 use std::sync::{
@@ -14,11 +19,58 @@ use std::sync::{
 };
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use std::convert::TryInto;
+use rand::{Rng, thread_rng};
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 
 const PARTITIONS: i32 = 3;
 const REPLICAS: i32 = 3;
+pub const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
+pub const TOPIC: &str = "MACH";
+
+pub struct Client(KafkaClient);
+
+impl std::ops::Deref for Client {
+    type Target = KafkaClient;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Client {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Client {
+    pub fn new(bootstraps: &str) -> Self {
+        let bootstraps = bootstraps.split(',').map(String::from).collect();
+        let mut client = KafkaClient::new(bootstraps);
+        Self(client)
+    }
+
+    pub fn load(&mut self, topic: &str, partition: i32, offset: i64, max_bytes: usize) -> Arc<[u8]> {
+        let mut topic_partition_list = TopicPartitionList::new();
+        topic_partition_list.add_partition_offset(topic, partition, Offset::Offset(offset)).unwrap();
+        let consumer: BaseConsumer<DefaultConsumerContext> = ClientConfig::new()
+            .set("bootstrap.servers", BOOTSTRAPS)
+            .set("group.id", "random_consumer")
+            .create().unwrap();
+        consumer.assign(&topic_partition_list).unwrap();
+        loop {
+            match consumer.poll(Timeout::After(std::time::Duration::from_secs(1))) {
+                Some(Ok(msg)) => return msg.payload().unwrap().into(),
+                None => panic!("NONE"),
+                Some(Err(x)) => panic!("{:?}", x),
+            }
+        }
+    }
+}
+
+pub fn random_partition() -> i32 {
+    thread_rng().gen_range(0..PARTITIONS)
+}
 
 pub fn make_topic(bootstrap: &str, topic: &str) {
     println!("BOOTSTRAPS: {}", bootstrap);
@@ -41,10 +93,10 @@ pub fn make_topic(bootstrap: &str, topic: &str) {
         .unwrap();
 }
 
-pub struct Producer(KafkaClient);
+pub struct Producer(OgProducer);
 
 impl Deref for Producer {
-    type Target = KafkaClient;
+    type Target = OgProducer;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -59,20 +111,28 @@ impl DerefMut for Producer {
 impl Producer {
     pub fn new(bootstraps: &str) -> Self {
         let bootstraps = bootstraps.split(',').map(String::from).collect();
-        let mut client = KafkaClient::new(bootstraps);
-        client.load_metadata_all().unwrap();
+        let mut client = OgProducer::from_hosts(bootstraps)
+            .with_ack_timeout(Duration::from_millis(1000))
+            .with_required_acks(RequiredAcks::All)
+            .create()
+            .unwrap();
         Self(client)
     }
 
     pub fn send(&mut self, topic: &str, partition: i32, item: &[u8]) -> (i32, i64) {
-        let req = &[ProduceMessage::new(topic, partition, None, Some(item))];
-        let resp = self
-            .0
-            .produce_messages(RequiredAcks::All, Duration::from_millis(1000), req)
-            .unwrap();
+        let req = &[Record::from_value(topic, item)];
+        let resp = self.0.send_all(req).unwrap();
         TOTAL_MB_WRITTEN.fetch_add(item.len(), SeqCst);
         let part = resp[0].partition_confirms[0].partition;
         let offset = resp[0].partition_confirms[0].offset.unwrap();
+        //std::thread::sleep(std::time::Duration::from_secs(5));
+        //let reqs = &[FetchPartition::new(topic, part, offset)
+        //    .with_max_bytes(item.len().try_into().unwrap())];
+        //let resps = self.0.fetch_messages(reqs).unwrap();
+        //println!("here {}", resps.len());
+        //println!("here {}", resps[0].topics().len());
+        //println!("here {}", resps[0].topics()[0].partitions().len());
+        //println!("here {}", resps[0].topics()[0].partitions()[0].data().unwrap().messages().len());
         //println!("PRODUCING TO KAFKA {} {}", part, offset);
         (part, offset)
     }
@@ -177,23 +237,26 @@ impl std::convert::Into<FetchOffset> for ConsumerOffset {
 }
 
 fn init_consumer_worker(bootstraps: &str, topic: &str, data: InnerDict, from: ConsumerOffset) {
-    let bootstraps = bootstraps.split(',').map(String::from).collect();
 
-    let mut consumer = Consumer::from_hosts(bootstraps)
-        .with_topic(topic.to_owned())
-        .with_fallback_offset(from.into())
-        .with_group(random_id())
-        .with_offset_storage(GroupOffsetStorage::Kafka)
-        .with_fetch_max_bytes_per_partition(2_000_000)
-        .create()
-        .unwrap();
-
-    std::thread::spawn(move || loop {
-        for ms in consumer.poll().unwrap().iter() {
-            let partition = ms.partition();
-            for m in ms.messages() {
-                data.insert((partition, m.offset), m.value.into());
+    let mut topic_partition_list = TopicPartitionList::new();
+    for i in 0..PARTITIONS {
+        topic_partition_list.add_partition(topic, i);
+    }
+    let consumer: BaseConsumer<DefaultConsumerContext> = ClientConfig::new()
+        .set("bootstrap.servers", BOOTSTRAPS)
+        .set("group.id", random_id())
+        .create().unwrap();
+    consumer.assign(&topic_partition_list).unwrap();
+    std::thread::spawn(move || {
+        loop {
+            match consumer.poll(Timeout::After(std::time::Duration::from_secs(1))) {
+                Some(Ok(msg)) => {
+                    data.insert((msg.partition(), msg.offset()), msg.payload().unwrap().into());
+                },
+                Some(Err(x)) => panic!("{:?}", x),
+                None => {}
             }
         }
     });
+
 }

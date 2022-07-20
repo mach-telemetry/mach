@@ -1,4 +1,9 @@
-use crate::{id::SeriesId, series::Series, snapshot::Snapshot};
+use crate::{
+    id::SeriesId,
+    series::Series,
+    snapshot::Snapshot,
+    utils::kafka::{Producer, BOOTSTRAPS, TOPIC, random_partition, Client},
+};
 use dashmap::DashMap;
 use std::{
     sync::{
@@ -9,13 +14,23 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SnapshotterId(usize);
+
+#[derive(serde::Serialize, serde::Deserialize, Copy, Clone)]
+pub struct SnapshotId((i32, i64, usize));
+
+impl SnapshotId {
+    pub fn load(&self, client: &mut Client) -> Snapshot {
+        let bytes = client.load(TOPIC, self.0.0, self.0.1, self.0.2);
+        bincode::deserialize(&bytes[..]).unwrap()
+    }
+}
 
 type SnapshotTable = Arc<DashMap<SnapshotterId, Arc<Mutex<SnapshotWorkerData>>>>;
 
 struct SnapshotWorkerData {
-    snapshot: Arc<Snapshot>,
+    snapshot_id: SnapshotId,
     series: Series,
     last_request: Instant,
     interval: Duration,
@@ -50,11 +65,17 @@ impl Snapshotter {
             let worker_id = SnapshotterId(self.worker_id.fetch_add(1, SeqCst));
 
             let series = self.series_table.get(&series_id).unwrap().clone();
-            let snapshot = Arc::new(series.snapshot());
             let last_request = Instant::now();
 
+            let mut producer = Producer::new(BOOTSTRAPS);
+            let snapshot = series.snapshot();
+            let bytes = bincode::serialize(&snapshot).unwrap();
+            let l = bytes.len();
+            let partition = random_partition();
+            let (p, o) = producer.send(TOPIC, partition, bytes.as_slice());
+
             let snapshot_worker_data = Arc::new(Mutex::new(SnapshotWorkerData {
-                snapshot,
+                snapshot_id: SnapshotId((p, o, l)),
                 series,
                 last_request,
                 interval,
@@ -70,11 +91,11 @@ impl Snapshotter {
         })
     }
 
-    pub fn get(&self, id: SnapshotterId) -> Option<Arc<Snapshot>> {
+    pub fn get(&self, id: SnapshotterId) -> Option<SnapshotId> {
         let data = self.snapshot_table.get(&id)?.value().clone();
         let mut guard = data.lock().unwrap();
         guard.last_request = Instant::now();
-        Some(guard.snapshot.clone())
+        Some(guard.snapshot_id)
     }
 }
 
@@ -86,6 +107,8 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
     let interval = guard.interval;
     drop(guard);
 
+    let mut producer = Producer::new(BOOTSTRAPS);
+
     loop {
         {
             let mut guard = data.lock().unwrap();
@@ -94,8 +117,16 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
                 snapshot_table.remove(&worker_id);
                 break;
             }
-            let snapshot = Arc::new(series.snapshot());
-            guard.snapshot = snapshot;
+        }
+        {
+            let snapshot = series.snapshot();
+            let bytes = bincode::serialize(&snapshot).unwrap();
+            let l = bytes.len();
+            let partition = random_partition();
+            let (p, o) = producer.send(TOPIC, partition, bytes.as_slice());
+            let snapshot = Arc::new(snapshot);
+            let mut guard = data.lock().unwrap();
+            guard.snapshot_id = SnapshotId((p, o, l));
         }
         thread::sleep(interval);
     }

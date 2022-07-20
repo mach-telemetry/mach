@@ -7,7 +7,7 @@ use crate::{
     segment::FlushSegment,
     snapshot::Segment,
     utils::byte_buffer::ByteBuffer,
-    utils::kafka,
+    utils::kafka::{self, BOOTSTRAPS, TOPIC},
     utils::wp_lock::{NoDealloc, WpLock},
 };
 use dashmap::DashMap;
@@ -25,8 +25,6 @@ use std::sync::{
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 
-pub const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
-pub const TOPIC: &str = "MACH";
 pub const INIT_FLUSHERS: usize = 1;
 pub const BLOCK_SZ: usize = 1_000_000;
 
