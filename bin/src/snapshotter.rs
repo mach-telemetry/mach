@@ -62,6 +62,9 @@ impl BytesHandler for SnapshotterHandler {
 
 pub fn initialize_snapshot_server(mach: &Mach) {
     let server = BytesServer::new(SnapshotterHandler(mach.init_snapshotter()));
+    std::thread::spawn(move || {
+        server.serve()
+    });
 }
 
 

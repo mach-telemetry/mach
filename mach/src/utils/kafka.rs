@@ -19,6 +19,7 @@ use std::sync::{
 };
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use std::convert::TryInto;
+use std::collections::HashSet;
 use rand::{Rng, thread_rng};
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
@@ -154,8 +155,8 @@ impl BufferedConsumer {
         let mut client = KafkaClient::new(bootstraps.split(',').map(String::from).collect());
         client.load_metadata_all().unwrap();
 
-        init_consumer_worker(bootstraps, topic, data.clone(), from);
-        init_prefetcher(bootstraps, topic, data.clone(), rx);
+        init_consumer_worker(data.clone(), from);
+        init_prefetcher(data.clone(), rx);
 
         Self {
             data,
@@ -185,33 +186,53 @@ impl BufferedConsumer {
 }
 
 fn init_prefetcher(
-    bootstraps: &str,
-    topic: &str,
+    //bootstraps: &str,
+    //topic: &str,
     data: InnerDict,
     recv: crossbeam::channel::Receiver<(i32, i64)>,
 ) {
-    let bootstraps = bootstraps.split(',').map(String::from).collect();
-    let mut client = KafkaClient::new(bootstraps);
-    client.load_metadata_all().unwrap();
-    let topic: String = topic.into();
+    //let bootstraps = bootstraps.split(',').map(String::from).collect();
+    //let mut client = KafkaClient::new(bootstraps);
+    //client.load_metadata_all().unwrap();
+    //let topic: String = topic.into();
+    let mut consumer: BaseConsumer<DefaultConsumerContext> = ClientConfig::new()
+        .set("bootstrap.servers", BOOTSTRAPS)
+        .set("group.id", random_id())
+        .create().unwrap();
     std::thread::spawn(move || {
-        let mut reqs = Vec::new();
+        let mut partition_offset_list = HashSet::new();
         while let Ok((part, o)) = recv.recv() {
+            let mut topic_partition_list = TopicPartitionList::new();
             let start = if o < 10 { 0 } else { o - 10 };
             for offset in start..=o {
-                reqs.push(
-                    FetchPartition::new(topic.as_str(), part, offset).with_max_bytes(2_000_000),
-                );
+                topic_partition_list.add_partition_offset(TOPIC, part, Offset::Offset(offset)).unwrap();
+                partition_offset_list.insert((part, offset));
             }
-            let resps = client.fetch_messages(&reqs).unwrap();
-            for msg in resps[0].topics()[0].partitions()[0]
-                .data()
-                .unwrap()
-                .messages()
-            {
-                data.insert((part, msg.offset), msg.value.into());
+            consumer.assign(&topic_partition_list).unwrap();
+            loop {
+                match consumer.poll(Timeout::After(std::time::Duration::from_secs(1))) {
+                    Some(Ok(msg)) => {
+                        data.insert((msg.partition(), msg.offset()), msg.payload().unwrap().into());
+                        if msg.partition() == part {
+                            assert!(partition_offset_list.remove(&(part, msg.offset())));
+                            if partition_offset_list.len() == 0 {
+                                break;
+                            }
+                        }
+                    },
+                    Some(Err(x)) => panic!("{:?}", x),
+                    None => {}
+                }
             }
-            reqs.clear();
+            //let resps = client.fetch_messages(&reqs).unwrap();
+            //for msg in resps[0].topics()[0].partitions()[0]
+            //    .data()
+            //    .unwrap()
+            //    .messages()
+            //{
+            //    data.insert((part, msg.offset), msg.value.into());
+            //}
+            //reqs.clear();
         }
     });
 }
@@ -236,11 +257,10 @@ impl std::convert::Into<FetchOffset> for ConsumerOffset {
     }
 }
 
-fn init_consumer_worker(bootstraps: &str, topic: &str, data: InnerDict, from: ConsumerOffset) {
-
+fn init_consumer_worker(data: InnerDict, from: ConsumerOffset) {
     let mut topic_partition_list = TopicPartitionList::new();
     for i in 0..PARTITIONS {
-        topic_partition_list.add_partition(topic, i);
+        topic_partition_list.add_partition(TOPIC, i);
     }
     let consumer: BaseConsumer<DefaultConsumerContext> = ClientConfig::new()
         .set("bootstrap.servers", BOOTSTRAPS)
