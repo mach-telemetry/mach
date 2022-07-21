@@ -4,7 +4,8 @@ pub mod bytes_service {
     tonic::include_proto!("bytes_service");
 }
 use bytes_service::bytes_service_server::{BytesService, BytesServiceServer};
-use bytes_service::{BytesMessage};
+use bytes_service::bytes_service_client::BytesServiceClient;
+use bytes_service::BytesMessage;
 use tokio::runtime::Runtime;
 
 struct ResultWrapper(Result<Option<Vec<u8>>, Status>);
@@ -47,3 +48,19 @@ impl<B: BytesHandler> BytesService for BytesServer<B> {
         ResultWrapper(self.handler.handle_bytes(request.into_inner().data)).into()
     }
 }
+
+pub struct BytesClient(BytesServiceClient<tonic::transport::Channel>);
+
+impl BytesClient {
+    pub async fn new() -> Self {
+        let mut client = BytesServiceClient::connect("http://[::1]:50051").await.unwrap();
+        Self(client)
+    }
+
+    pub async fn send(&mut self, data: Option<Vec<u8>>) -> Option<Vec<u8>> {
+        let request = tonic::Request::new(BytesMessage { data });
+        let response = self.0.send(request).await.unwrap();
+        response.into_inner().data
+    }
+}
+
