@@ -14,10 +14,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SnapshotterId(usize);
 
-#[derive(serde::Serialize, serde::Deserialize, Copy, Clone)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Copy, Clone)]
 pub struct SnapshotId((i32, i64, usize));
 
 impl SnapshotId {

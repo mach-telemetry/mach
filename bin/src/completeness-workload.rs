@@ -34,7 +34,9 @@ lazy_static! {
         for sample in SAMPLES.iter() {
             set.insert(sample.0);
         }
-        set.drain().collect()
+        let ids = set.drain().collect();
+        println!("IDs {:?}", ids);
+        ids
     };
     static ref MACH_SAMPLES: Vec<prep_data::RegisteredSample> = {
         let mach = MACH.clone(); // ensure MACH is initialized (prevent deadlock)
@@ -440,6 +442,7 @@ fn main() {
             let mach = init_mach();
             COUNTERS.init_mach_querier();
             COUNTERS.start_watcher();
+            snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap());
             for workload in workloads {
                 workload.run(&mach, samples);
             }

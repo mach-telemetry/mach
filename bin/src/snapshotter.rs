@@ -61,23 +61,47 @@ impl BytesHandler for SnapshotterHandler {
 }
 
 pub fn initialize_snapshot_server(mach: &Mach) {
+    println!("INITTING SERVER");
     let server = BytesServer::new(SnapshotterHandler(mach.init_snapshotter()));
     std::thread::spawn(move || {
         server.serve()
     });
+    println!("INITTED SERVER");
 }
 
 
 pub struct SnapshotClient(BytesClient);
 
 impl SnapshotClient {
-    pub fn new() -> Self {
-        Self(block_on(BytesClient::new()))
+    pub async fn new() -> Self {
+        Self(BytesClient::new().await)
     }
 
-    pub fn request(&mut self, request: SnapshotRequest) -> Option<SnapshotResponse> {
+    pub async fn initialize(&mut self, series_id: SeriesId, interval: Duration, timeout: Duration) -> Option<SnapshotterId> {
+        let request = SnapshotRequest::Initialize {
+            series_id,
+            interval,
+            timeout,
+        };
+
+        match self.request(request).await? {
+            SnapshotResponse::SnapshotterId(x) => Some(x),
+            _ => panic!("Unexpected returned type")
+        }
+
+    }
+
+    pub async fn get(&mut self, snapshotter_id: SnapshotterId) -> Option<SnapshotId> {
+        let request = SnapshotRequest::Get(snapshotter_id);
+        match self.request(request).await? {
+            SnapshotResponse::SnapshotId(x) => Some(x),
+            _ => panic!("Unexpected returned type")
+        }
+    }
+
+    async fn request(&mut self, request: SnapshotRequest) -> Option<SnapshotResponse> {
         let bytes = bincode::serialize(&request).unwrap();
-        match block_on(self.0.send(Some(bytes))) {
+        match self.0.send(Some(bytes)).await {
             None => None,
             Some(result) => Some(bincode::deserialize(&result).unwrap())
         }
