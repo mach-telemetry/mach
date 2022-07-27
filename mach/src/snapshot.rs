@@ -181,7 +181,10 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn into_iterator<'a>(self, consumer: &'a mut kafka::BufferedConsumer) -> SnapshotIterator<'a> {
+    pub fn into_iterator<'a>(
+        self,
+        consumer: &'a mut kafka::BufferedConsumer,
+    ) -> SnapshotIterator<'a> {
         let id = self.id;
         SnapshotIterator::new(self, id, consumer)
     }
@@ -277,7 +280,11 @@ pub struct SnapshotIterator<'a> {
 }
 
 impl<'a> SnapshotIterator<'a> {
-    pub fn new(snapshot: Snapshot, id: SeriesId, consumer: &'a mut kafka::BufferedConsumer) -> Self {
+    pub fn new(
+        snapshot: Snapshot,
+        id: SeriesId,
+        consumer: &'a mut kafka::BufferedConsumer,
+    ) -> Self {
         let active_segment = match snapshot.active_segment {
             Some(x) => Some(ActiveSegmentReader::new(x)),
             None => None,
@@ -287,8 +294,8 @@ impl<'a> SnapshotIterator<'a> {
             Some(x) => ReadOnlyBlockReader::new(x.as_bytes(consumer), id),
             None => {
                 let block = source_blocks.next_block(consumer).unwrap();
-                        let bytes = block.as_bytes(consumer);
-                        ReadOnlyBlockReader::new(bytes, id)
+                let bytes = block.as_bytes(consumer);
+                ReadOnlyBlockReader::new(bytes, id)
             }
         };
         let state = if active_segment.is_some() {

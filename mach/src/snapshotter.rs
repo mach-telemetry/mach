@@ -2,7 +2,7 @@ use crate::{
     id::SeriesId,
     series::Series,
     snapshot::Snapshot,
-    utils::kafka::{Producer, BOOTSTRAPS, TOPIC, random_partition, Client},
+    utils::kafka::{random_partition, Client, Producer, BOOTSTRAPS, TOPIC},
 };
 use dashmap::DashMap;
 use std::{
@@ -22,7 +22,7 @@ pub struct SnapshotId((i32, i64, usize));
 
 impl SnapshotId {
     pub fn load(&self, client: &mut Client) -> Snapshot {
-        let bytes = client.load(TOPIC, self.0.0, self.0.1, self.0.2);
+        let bytes = client.load(TOPIC, self.0 .0, self.0 .1, self.0 .2);
         bincode::deserialize(&bytes[..]).unwrap()
     }
 }

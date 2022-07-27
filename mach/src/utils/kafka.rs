@@ -3,24 +3,24 @@ use dashmap::DashMap;
 use kafka::client::{FetchOffset, FetchPartition, KafkaClient, ProduceMessage, RequiredAcks};
 use kafka::consumer::{Consumer, GroupOffsetStorage};
 use kafka::producer::{Producer as OgProducer, Record};
+use rand::{thread_rng, Rng};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
     config::ClientConfig,
-    consumer::{Consumer as RdKConsumer, DefaultConsumerContext, BaseConsumer},
-    topic_partition_list::{TopicPartitionList, Offset},
+    consumer::{BaseConsumer, Consumer as RdKConsumer, DefaultConsumerContext},
+    topic_partition_list::{Offset, TopicPartitionList},
     util::Timeout,
     Message,
 };
+use std::collections::HashSet;
+use std::convert::TryInto;
 use std::ops::{Deref, DerefMut};
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
 };
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
-use std::convert::TryInto;
-use std::collections::HashSet;
-use rand::{Rng, thread_rng};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 
@@ -51,13 +51,22 @@ impl Client {
         Self(client)
     }
 
-    pub fn load(&mut self, topic: &str, partition: i32, offset: i64, max_bytes: usize) -> Arc<[u8]> {
+    pub fn load(
+        &mut self,
+        topic: &str,
+        partition: i32,
+        offset: i64,
+        max_bytes: usize,
+    ) -> Arc<[u8]> {
         let mut topic_partition_list = TopicPartitionList::new();
-        topic_partition_list.add_partition_offset(topic, partition, Offset::Offset(offset)).unwrap();
+        topic_partition_list
+            .add_partition_offset(topic, partition, Offset::Offset(offset))
+            .unwrap();
         let consumer: BaseConsumer<DefaultConsumerContext> = ClientConfig::new()
             .set("bootstrap.servers", BOOTSTRAPS)
             .set("group.id", "random_consumer")
-            .create().unwrap();
+            .create()
+            .unwrap();
         consumer.assign(&topic_partition_list).unwrap();
         loop {
             match consumer.poll(Timeout::After(std::time::Duration::from_secs(1))) {
@@ -198,28 +207,34 @@ fn init_prefetcher(
     let mut consumer: BaseConsumer<DefaultConsumerContext> = ClientConfig::new()
         .set("bootstrap.servers", BOOTSTRAPS)
         .set("group.id", random_id())
-        .create().unwrap();
+        .create()
+        .unwrap();
     std::thread::spawn(move || {
         let mut partition_offset_list = HashSet::new();
         while let Ok((part, o)) = recv.recv() {
             let mut topic_partition_list = TopicPartitionList::new();
             let start = if o < 10 { 0 } else { o - 10 };
             for offset in start..=o {
-                topic_partition_list.add_partition_offset(TOPIC, part, Offset::Offset(offset)).unwrap();
+                topic_partition_list
+                    .add_partition_offset(TOPIC, part, Offset::Offset(offset))
+                    .unwrap();
                 partition_offset_list.insert((part, offset));
             }
             consumer.assign(&topic_partition_list).unwrap();
             loop {
                 match consumer.poll(Timeout::After(std::time::Duration::from_secs(1))) {
                     Some(Ok(msg)) => {
-                        data.insert((msg.partition(), msg.offset()), msg.payload().unwrap().into());
+                        data.insert(
+                            (msg.partition(), msg.offset()),
+                            msg.payload().unwrap().into(),
+                        );
                         if msg.partition() == part {
                             assert!(partition_offset_list.remove(&(part, msg.offset())));
                             if partition_offset_list.len() == 0 {
                                 break;
                             }
                         }
-                    },
+                    }
                     Some(Err(x)) => panic!("{:?}", x),
                     None => {}
                 }
@@ -265,18 +280,19 @@ fn init_consumer_worker(data: InnerDict, from: ConsumerOffset) {
     let consumer: BaseConsumer<DefaultConsumerContext> = ClientConfig::new()
         .set("bootstrap.servers", BOOTSTRAPS)
         .set("group.id", random_id())
-        .create().unwrap();
+        .create()
+        .unwrap();
     consumer.assign(&topic_partition_list).unwrap();
-    std::thread::spawn(move || {
-        loop {
-            match consumer.poll(Timeout::After(std::time::Duration::from_secs(1))) {
-                Some(Ok(msg)) => {
-                    data.insert((msg.partition(), msg.offset()), msg.payload().unwrap().into());
-                },
-                Some(Err(x)) => panic!("{:?}", x),
-                None => {}
+    std::thread::spawn(move || loop {
+        match consumer.poll(Timeout::After(std::time::Duration::from_secs(1))) {
+            Some(Ok(msg)) => {
+                data.insert(
+                    (msg.partition(), msg.offset()),
+                    msg.payload().unwrap().into(),
+                );
             }
+            Some(Err(x)) => panic!("{:?}", x),
+            None => {}
         }
     });
-
 }

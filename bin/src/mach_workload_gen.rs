@@ -14,8 +14,8 @@ use lzzzz::{lz4, lz4_hc};
 use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
-use std::sync::atomic::Ordering::SeqCst;
 use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering::SeqCst;
 use std::sync::Arc;
 use std::sync::Barrier;
 use std::thread::JoinHandle;
@@ -35,16 +35,14 @@ type TimeStamp = u64;
 type Sample = (SeriesId, TimeStamp, Vec<SampleType>);
 type RegisteredSample = (SeriesRef, TimeStamp, Vec<SampleType>);
 
-lazy_static!{
+lazy_static! {
     static ref DATA: Vec<Sample> = {
         println!("Loading data");
         let data = load_data("/home/sli/data/train-ticket-data", 1);
         println!("Extracting samples");
         otlp_data_to_samples(data)
     };
-
 }
-
 
 fn repeat_data<T: Clone>(data: Vec<T>, repeat_factor: usize) -> Vec<T> {
     match repeat_factor {
@@ -167,7 +165,7 @@ fn mach_workload_vec(workload: Workload) {
     let mut writer = mach.add_writer(writer_config.clone()).unwrap();
     let data = load_mach_samples(&mut mach, &mut writer);
 
-    let (data, cap): (&'static[RegisteredSample], usize) = unsafe {
+    let (data, cap): (&'static [RegisteredSample], usize) = unsafe {
         let (ptr, len, cap) = data.into_raw_parts();
         (std::slice::from_raw_parts(ptr, len), cap)
     };
@@ -176,7 +174,8 @@ fn mach_workload_vec(workload: Workload) {
 
     ////let sample_min_dur_micros: u128 = (MICROSECONDS_IN_SEC / workload.samples_per_sec).into();
     ////let batch_min_dur_micros = sample_min_dur_micros * batch_sz as u128;
-    let interval = Duration::from_secs_f64(1.0 / workload.samples_per_sec) * (batch_sz.try_into().unwrap());
+    let interval =
+        Duration::from_secs_f64(1.0 / workload.samples_per_sec) * (batch_sz.try_into().unwrap());
     println!("Interval: {:?}", interval);
     let mut num_samples_pushed = 0;
     let mut num_samples_dropped = 0;
@@ -222,7 +221,6 @@ fn mach_workload_vec(workload: Workload) {
     drop(tx);
     barr.wait();
     let consume_end = start.elapsed();
-
 
     //let jt = std::time::Instant::now();
     //for flusher in flushers {
@@ -306,5 +304,5 @@ fn main() {
     //for w in workload {
     //    mach_workload_vec(w);
     //}
-    mach_workload_vec(workload[workload.len()-1]);
+    mach_workload_vec(workload[workload.len() - 1]);
 }
