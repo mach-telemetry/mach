@@ -5,12 +5,10 @@ use mach::{
     mem_list::UNFLUSHED_COUNT,
     sample::SampleType,
     utils::kafka::{make_topic, Producer, BOOTSTRAPS, TOPIC},
-    tsdb::Mach,
     series::Series,
     snapshot::Snapshot,
     snapshotter::{SnapshotId, Snapshotter, SnapshotterId},
     tsdb::Mach,
-    utils::kafka::{make_topic, BufferedConsumer, ConsumerOffset, Producer, BOOTSTRAPS, TOPIC},
     writer::{Writer as MachWriter, WriterConfig},
 };
 use std::time::Duration;

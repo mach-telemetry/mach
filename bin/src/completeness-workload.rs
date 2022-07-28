@@ -11,19 +11,12 @@ use lazy_static::lazy_static;
 use lzzzz::lz4;
 use mach::{
     id::{SeriesId, SeriesRef},
-    mem_list::UNFLUSHED_COUNT,
+    mem_list::{ UNFLUSHED_COUNT, TOTAL_BYTES_FLUSHED },
     sample::SampleType,
-<<<<<<< HEAD
     utils::kafka::{make_topic, Producer, BOOTSTRAPS, TOPIC},
     tsdb::Mach,
-=======
->>>>>>> 59576bc839e5b82b763e6c60a73e4a810b0f9739
     series::Series,
     snapshotter::{Snapshotter, SnapshotterId},
-    tsdb::Mach,
-    utils::kafka::{
-        make_topic, BufferedConsumer, Client, ConsumerOffset, Producer, BOOTSTRAPS, TOPIC,
-    },
     writer::{Writer as MachWriter, WriterConfig},
 };
 use rand::{seq::SliceRandom, Rng};
@@ -107,6 +100,7 @@ struct Counters {
     samples_dropped: Arc<AtomicUsize>,
     samples_written: Arc<AtomicUsize>,
     unflushed_count: Arc<AtomicUsize>,
+    bytes_flushed: Arc<AtomicUsize>,
     raw_data_size: Arc<AtomicUsize>,
     data_age: Arc<AtomicUsize>,
     //last_timestamp: u64,
@@ -123,6 +117,7 @@ impl Counters {
             data_age: Arc::new(AtomicUsize::new(0)),
             //last_timestamp: micros_from_epoch().try_into().unwrap(),
             unflushed_count: UNFLUSHED_COUNT.clone(),
+            bytes_flushed: TOTAL_BYTES_FLUSHED.clone(),
             start_gate: Arc::new(Barrier::new(2)),
         };
         r
@@ -166,9 +161,7 @@ fn watcher(start_gate: Arc<Barrier>) {
         let pushed = COUNTERS.samples_enqueued.load(SeqCst);
         let dropped = COUNTERS.samples_dropped.load(SeqCst);
         let written = COUNTERS.samples_written.load(SeqCst);
-        let raw_data_size: i32 = COUNTERS.raw_data_size.load(SeqCst).try_into().unwrap();
-        let raw_data_size: f64 = raw_data_size.try_into().unwrap();
-        let raw_data_size = raw_data_size / 1_000_000f64;
+        let raw_data_size = COUNTERS.raw_data_size.load(SeqCst);
 
         let pushed_since = pushed - last_pushed;
         let dropped_since = dropped - last_dropped;
@@ -191,17 +184,9 @@ fn watcher(start_gate: Arc<Barrier>) {
         last_dropped = dropped;
         //counter += 1;
 
-<<<<<<< HEAD
-        println!("Completeness: {}, Unflushed: {}, Throughput: {}, Data age (seconds): {:?}, Raw data size: {} mb", completeness, UNFLUSHED_COUNT.load(SeqCst), rate, delay.as_secs_f64(), raw_data_size);
-=======
-        println!(
-            "Completeness: {}, Unflushed: {}, Throughput: {}, Data age (seconds): {:?}",
-            completeness,
-            UNFLUSHED_COUNT.load(SeqCst),
-            rate,
-            delay.as_secs_f64()
-        );
->>>>>>> 59576bc839e5b82b763e6c60a73e4a810b0f9739
+        let bytes_flushed = COUNTERS.bytes_flushed.load(SeqCst);
+
+        println!("Completeness: {}, Unflushed: {}, Throughput: {}, Data age (seconds): {:?}, Raw data size: {} bytes, Data flushed: {} bytes", completeness, UNFLUSHED_COUNT.load(SeqCst), rate, delay.as_secs_f64(), raw_data_size, bytes_flushed);
         thread::sleep(interval);
     }
 }
@@ -267,18 +252,9 @@ fn init_mach_querier() {
     //let consumer_offset = ConsumerOffset::Latest;
     //let mut consumer = BufferedConsumer::new(BOOTSTRAPS, TOPIC);
     let snapshotter = MACH.lock().unwrap().init_snapshotter();
-<<<<<<< HEAD
     //let mut kafka_client = Client::new(BOOTSTRAPS);
     let snapshotter_id = snapshotter.initialize_snapshotter(SERIES_IDS[0], Duration::from_millis(500), Duration::from_secs(300));
-=======
-    let mut kafka_client = Client::new(BOOTSTRAPS);
-    let snapshotter_id = snapshotter.initialize_snapshotter(
-        SERIES_IDS[0],
-        Duration::from_millis(500),
-        Duration::from_secs(300),
-    );
->>>>>>> 59576bc839e5b82b763e6c60a73e4a810b0f9739
-    thread::sleep(Duration::from_secs(1));
+    thread::sleep(Duration::from_secs(2));
     loop {
         let start = Instant::now();
         let now: usize = micros_from_epoch().try_into().unwrap();
@@ -327,7 +303,7 @@ impl<I> Writer<I> {
 
 fn kafka_writer(barrier: Arc<Barrier>, receiver: Receiver<Vec<Sample<SeriesId>>>) {
     let topic = ARGS.kafka_topic.clone();
-    let mut producer = Producer::new(&ARGS.kafka_bootstraps);
+    let mut producer = Producer::new();
     let partitions: i32 = ARGS.kafka_partitions.try_into().unwrap();
     let mut rng = rand::thread_rng();
     while let Ok(data) = receiver.recv() {
@@ -335,15 +311,7 @@ fn kafka_writer(barrier: Arc<Barrier>, receiver: Receiver<Vec<Sample<SeriesId>>>
         let mut compressed: Vec<u8> = Vec::new();
         lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
         compressed.extend_from_slice(&bytes.len().to_be_bytes()[..]); // Size of uncompressed bytes
-<<<<<<< HEAD
         producer.send(compressed.as_slice());
-=======
-        producer.send(
-            topic.as_str(),
-            rng.gen_range(0i32..partitions),
-            compressed.as_slice(),
-        );
->>>>>>> 59576bc839e5b82b763e6c60a73e4a810b0f9739
         COUNTERS.samples_written.fetch_add(data.len(), SeqCst);
     }
     barrier.wait();
@@ -376,7 +344,7 @@ fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<Vec<Sample<SeriesRef>>>
         for item in data.iter() {
             'push_loop: loop {
                 if writer.push(item.0, item.1, item.2).is_ok() {
-                    COUNTERS.raw_data_size.fetch_add(item.2.len(), SeqCst);
+                    COUNTERS.raw_data_size.fetch_add(item.2[0].as_bytes().len(), SeqCst);
                     break 'push_loop;
                 }
             }
@@ -481,7 +449,7 @@ fn main() {
     //let mut counters = Counters::new();
     COUNTERS.init_watcher();
     let workloads = &[
-        //Workload::new(500_000., Duration::from_secs(1500)),
+        Workload::new(500_000., Duration::from_secs(120)),
         Workload::new(2_000_000., Duration::from_secs(70)),
         //Workload::new(2_000_000., Duration::from_secs(60)),
         //Workload::new(500_000., Duration::from_secs(120)),

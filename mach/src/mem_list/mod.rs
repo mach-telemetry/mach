@@ -22,6 +22,7 @@ use std::sync::{
     Arc, RwLock,
 };
 
+
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 
@@ -30,6 +31,7 @@ pub const BLOCK_SZ: usize = 1_000_000;
 
 lazy_static! {
     //static ref TOPIC: String = random_id();
+    pub static ref TOTAL_BYTES_FLUSHED: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     static ref N_FLUSHERS: AtomicUsize = AtomicUsize::new(INIT_FLUSHERS);
     static ref FLUSH_WORKERS: DashMap<usize, crossbeam::channel::Sender<Arc<BlockListEntry>>> = {
         let flushers = DashMap::new();
@@ -339,6 +341,7 @@ impl BlockListEntry {
         match &*guard {
             InnerBlockListEntry::Bytes(bytes) => {
                 let kafka_entry = producer.send(bytes);
+                TOTAL_BYTES_FLUSHED.fetch_add(bytes.len(), SeqCst);
                 drop(guard);
                 self.set_partition_offset(kafka_entry);
             }

@@ -25,7 +25,6 @@ pub struct SnapshotId {
 
 impl SnapshotId {
     pub fn load(&self) -> Snapshot {
-        println!("Snapshotid {:?}", self);
         let mut vec = Vec::new();
         self.kafka.load(&mut vec).unwrap();
         bincode::deserialize(&vec[..]).unwrap()
