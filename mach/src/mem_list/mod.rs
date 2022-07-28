@@ -60,7 +60,7 @@ pub(self) fn add_flush_worker() {
 }
 
 fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
-    let mut producer = kafka::Producer::new(BOOTSTRAPS);
+    let mut producer = kafka::Producer::new();
     while let Ok(block) = chan.recv() {
         block.flush(&mut producer);
     }
@@ -283,23 +283,27 @@ impl std::ops::Deref for ReadOnlyBlockBytes {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum ReadOnlyBlock {
     Bytes(Box<[u8]>),
-    Offset(i32, i64),
+    Offset(kafka::KafkaEntry),
 }
 
 impl std::convert::From<InnerBlockListEntry> for ReadOnlyBlock {
     fn from(item: InnerBlockListEntry) -> Self {
         match item {
             InnerBlockListEntry::Bytes(x) => ReadOnlyBlock::Bytes(x[..].into()),
-            InnerBlockListEntry::Offset(x, y) => ReadOnlyBlock::Offset(x, y),
+            InnerBlockListEntry::Offset(entry) => ReadOnlyBlock::Offset(entry),
         }
     }
 }
 
 impl ReadOnlyBlock {
-    pub fn as_bytes(&self, kafka: &mut kafka::BufferedConsumer) -> ReadOnlyBlockBytes {
+    pub fn as_bytes(&self) -> ReadOnlyBlockBytes {
         match self {
             ReadOnlyBlock::Bytes(x) => ReadOnlyBlockBytes(x.clone().into()),
-            ReadOnlyBlock::Offset(p, o) => ReadOnlyBlockBytes(kafka.get(*p, *o)),
+            ReadOnlyBlock::Offset(entry) => {
+                let mut vec = Vec::new();
+                entry.load(&mut vec).unwrap();
+                ReadOnlyBlockBytes(vec.into())
+            }
         }
     }
 }
@@ -307,7 +311,7 @@ impl ReadOnlyBlock {
 #[derive(Clone)]
 enum InnerBlockListEntry {
     Bytes(Arc<[u8]>),
-    Offset(i32, i64),
+    Offset(kafka::KafkaEntry),
 }
 
 pub struct BlockListEntry {
@@ -315,11 +319,11 @@ pub struct BlockListEntry {
 }
 
 impl BlockListEntry {
-    fn set_partition_offset(&self, part: i32, off: i64) {
+    fn set_partition_offset(&self, entry: kafka::KafkaEntry) {
         let mut guard = self.inner.write().unwrap();
         match &mut *guard {
             InnerBlockListEntry::Bytes(_x) => {
-                let _x = std::mem::replace(&mut *guard, InnerBlockListEntry::Offset(part, off));
+                let _x = std::mem::replace(&mut *guard, InnerBlockListEntry::Offset(entry));
             }
             InnerBlockListEntry::Offset(..) => {}
         }
@@ -333,19 +337,18 @@ impl BlockListEntry {
         let guard = self.inner.read().unwrap();
         match &*guard {
             InnerBlockListEntry::Bytes(bytes) => {
-                let part: i32 = rand::thread_rng().gen_range(0..3);
-                let (_part2, offset) = producer.send(&*TOPIC, part, bytes);
+                let kafka_entry = producer.send(bytes);
                 drop(guard);
-                self.set_partition_offset(part, offset);
+                self.set_partition_offset(kafka_entry);
             }
-            InnerBlockListEntry::Offset(_x, _y) => {} // already flushed
+            InnerBlockListEntry::Offset(_) => {} // already flushed
         }
     }
 
-    fn partition_offset(&self) -> (i32, i64) {
+    fn partition_offset(&self) -> kafka::KafkaEntry {
         match &*self.inner.read().unwrap() {
             InnerBlockListEntry::Bytes(_) => unimplemented!(),
-            InnerBlockListEntry::Offset(x, y) => (*x, *y),
+            InnerBlockListEntry::Offset(entry) => entry.clone(),
         }
     }
 }

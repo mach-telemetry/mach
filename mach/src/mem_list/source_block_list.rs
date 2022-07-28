@@ -19,7 +19,7 @@ use std::time::{Instant, Duration};
 lazy_static::lazy_static! {
     pub static ref UNFLUSHED_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     static ref LIST_ITEM_FLUSHER: Sender<Arc<RwLock<ListItem>>> = {
-        let producer = kafka::Producer::new(&*BOOTSTRAPS);
+        let producer = kafka::Producer::new();
         let (tx, rx) = unbounded();
         std::thread::spawn(move || flusher(rx, producer));
         tx
@@ -38,7 +38,7 @@ fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Produc
         let (data, next) = {
             let guard = list_item.read().unwrap();
             match &*guard {
-                ListItem::Offset { .. } => unimplemented!(),
+                ListItem::Kafka(_) => unimplemented!(),
                 ListItem::Block { data, next } => {
                     let data = data.clone();
                     let next = next.clone();
@@ -47,14 +47,14 @@ fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Produc
             }
         };
         let last = match &*next.read().unwrap() {
-            ListItem::Offset { partition, offset } => (*partition, *offset),
+            ListItem::Kafka(entry) => entry.clone(),
             _ => panic!("Expected offset, got unflushed data"),
         };
         let mut v = Vec::new();
         for item in data.iter() {
             item.flush(&mut producer);
             let x = item.partition_offset();
-            v.push(ReadOnlyBlock::Offset(x.0, x.1));
+            v.push(ReadOnlyBlock::Offset(x));
         }
         let to_serialize = SourceBlocks {
             idx: v.len(),
@@ -62,10 +62,9 @@ fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Produc
             next: last,
         };
         let bytes = bincode::serialize(&to_serialize).unwrap();
-        let part: i32 = rand::thread_rng().gen_range(0..3);
-        let (partition, offset) = producer.send(&*TOPIC, part, &bytes);
+        let kafka_entry = producer.send(&bytes);
         //drop(guard);
-        *list_item.write().unwrap() = ListItem::Offset { partition, offset };
+        *list_item.write().unwrap() = ListItem::Kafka(kafka_entry);
         UNFLUSHED_COUNT.fetch_sub(1, SeqCst);
     }
 }
@@ -75,10 +74,7 @@ enum ListItem {
         data: Arc<[Arc<BlockListEntry>]>,
         next: Arc<RwLock<ListItem>>,
     },
-    Offset {
-        partition: i32,
-        offset: i64,
-    },
+    Kafka(kafka::KafkaEntry),
 }
 
 struct InnerData {
@@ -158,14 +154,14 @@ impl InnerBuffer {
         }
 
         #[allow(unused_assignments)]
-        let mut next = (-1, -1);
+        let mut next = kafka::KafkaEntry::new();
 
         loop {
             // loop will end because this was inited with Offset.
             let guard = current.read().unwrap();
             match &*guard {
-                ListItem::Offset { partition, offset } => {
-                    next = (*partition, *offset);
+                ListItem::Kafka(entry) => {
+                    next = entry.clone();
                     break;
                 }
                 ListItem::Block { data, next } => {
@@ -185,13 +181,13 @@ impl InnerBuffer {
         let mut v = Vec::with_capacity(256);
         let mut current = self.periodic.lock().unwrap().clone();
         #[allow(unused_assignments)]
-        let mut next = (-1, -1);
+        let mut next = kafka::KafkaEntry::new();
         loop {
             // loop will end because this was inited with Offset.
             let guard = current.read().unwrap();
             match &*guard {
-                ListItem::Offset { partition, offset } => {
-                    next = (*partition, *offset);
+                ListItem::Kafka(entry) => {
+                    next = entry.clone();
                     break;
                 }
                 ListItem::Block { data, next } => {
@@ -209,10 +205,7 @@ impl InnerBuffer {
 
 
     fn new() -> Self {
-        let last = Arc::new(RwLock::new(ListItem::Offset {
-                partition: -1,
-                offset: -1,
-            }));
+        let last = Arc::new(RwLock::new(ListItem::Kafka(kafka::KafkaEntry::new())));
         let periodic = Arc::new(Mutex::new(last.clone()));
         let data = Box::new(MaybeUninit::uninit_array());
         let data = WpLock::new(InnerData {
@@ -258,24 +251,25 @@ impl SourceBlockList {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct SourceBlocks {
     data: Vec<ReadOnlyBlock>,
-    next: (i32, i64),
+    next: kafka::KafkaEntry,
     idx: usize,
 }
 
 impl SourceBlocks {
-    pub fn next_block(&mut self, consumer: &mut kafka::BufferedConsumer) -> Option<&ReadOnlyBlock> {
+    pub fn next_block(&mut self) -> Option<&ReadOnlyBlock> {
         if self.idx > 0 {
             self.idx -= 1;
             Some(&self.data[self.idx])
-        } else if self.next.0 == -1 || self.next.1 == -1 {
+        } else if self.next.is_empty() {
             None
         } else {
-            let next_blocks: SourceBlocks =
-                bincode::deserialize(&*consumer.get(self.next.0, self.next.1)).unwrap();
+            let mut vec = Vec::new();
+            self.next.load(&mut vec).unwrap();
+            let next_blocks: SourceBlocks = bincode::deserialize(vec.as_slice()).unwrap();
             self.idx = next_blocks.data.len();
             self.data = next_blocks.data;
             self.next = next_blocks.next;
-            self.next_block(consumer)
+            self.next_block()
         }
     }
 }

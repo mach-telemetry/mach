@@ -97,11 +97,11 @@ mod test {
     use super::*;
     use crate::{
         compression::*,
-        mem_list::{BOOTSTRAPS, TOPIC},
+        //mem_list::{BOOTSTRAPS, TOPIC},
         //test_utils::*,
         sample::SampleType,
         snapshot::Snapshot,
-        utils::kafka::{BufferedConsumer, FetchOffset},
+        utils::kafka::{BOOTSTRAPS, TOPIC},
         writer::WriterConfig,
     };
     use rand::{thread_rng, Rng};
@@ -160,16 +160,16 @@ mod test {
         expected_timestamps.reverse();
         expected_values.reverse();
 
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        //std::thread::sleep(std::time::Duration::from_secs(100));
 
-        let start = std::time::SystemTime::now() - std::time::Duration::from_secs(120);
-        let dur = start
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis()
-            .try_into()
-            .unwrap();
-        let consumer = BufferedConsumer::new(BOOTSTRAPS, TOPIC, FetchOffset::ByTime(dur));
+        //let start = std::time::SystemTime::now() - std::time::Duration::from_secs(120);
+        //let dur = start
+        //    .duration_since(std::time::UNIX_EPOCH)
+        //    .unwrap()
+        //    .as_millis()
+        //    .try_into()
+        //    .unwrap();
+        //let mut consumer = BufferedConsumer::new(BOOTSTRAPS, TOPIC);
 
         let snapshot = mach
             .series_table
@@ -180,7 +180,7 @@ mod test {
         let bytes = bincode::serialize(&snapshot).unwrap();
         let snapshot: Snapshot = bincode::deserialize(bytes.as_slice()).unwrap();
 
-        let mut snapshot = snapshot.into_iterator(consumer);
+        let mut snapshot = snapshot.into_iterator();
 
         let mut result_timestamps = Vec::new();
         let mut result_field0 = Vec::new();

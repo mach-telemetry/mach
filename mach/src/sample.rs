@@ -49,17 +49,23 @@ impl SampleType {
     }
 
     pub fn from_field_item(field_type: FieldType, bytes: [u8; 8]) -> Self {
+        //println!("from field item");
         match field_type {
             FieldType::I64 => SampleType::I64(i64::from_be_bytes(bytes)),
             FieldType::U64 => SampleType::U64(u64::from_be_bytes(bytes)),
             FieldType::F64 => SampleType::F64(f64::from_be_bytes(bytes)),
             FieldType::Timestamp => SampleType::Timestamp(u64::from_be_bytes(bytes)),
             FieldType::Bytes => {
+                //println!("bytes");
                 let ptr = usize::from_be_bytes(bytes) as *const u8;
+                //println!("pointer");
                 let slice: &[u8] = unsafe { std::slice::from_raw_parts(ptr, 8) };
+                //println!("slice");
                 let sz = usize::from_be_bytes(slice.try_into().unwrap());
+                //println!("size");
                 let v: Vec<u8> = unsafe {
                     let ptr = ptr.offset(8);
+                    //println!("setting raw parts");
                     std::slice::from_raw_parts(ptr, sz).into()
                 };
                 SampleType::Bytes(v)

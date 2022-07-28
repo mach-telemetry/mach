@@ -58,10 +58,10 @@ impl CompressFn {
         };
     }
 
-    pub fn compress_heap(&self, len: usize, heap: &[u8], buf: &mut ByteBuffer) {
+    pub fn compress_heap(&self, len: usize, indexes: &[[u8; 8]], heap: &[u8], buf: &mut ByteBuffer) {
         match self {
-            CompressFn::BytesLZ4 => bytes_lz42::compress(len, heap, buf),
-            CompressFn::NOOP => noop::compress(len, heap, buf),
+            CompressFn::BytesLZ4 => bytes_lz42::compress(len, indexes, heap, buf),
+            CompressFn::NOOP => unimplemented!(),
             _ => unimplemented!(),
         };
     }
@@ -74,7 +74,7 @@ impl CompressFn {
             CompressFn::DeltaDelta => delta_of_delta::decompress(data, col),
             CompressFn::LZ4 => lz4::decompress(data, col),
             CompressFn::BytesLZ4 => bytes_lz42::decompress(data, col, heap.unwrap()),
-            CompressFn::NOOP => noop::decompress(data, col, heap.unwrap()),
+            CompressFn::NOOP => unimplemented!(),
         }
     }
 
@@ -188,7 +188,7 @@ impl Compression {
             let start_len = buf.len();
             match variable {
                 Variable::Var(x) => compression.compress(x, buf),
-                Variable::Heap(x) => compression.compress_heap(seg_len, x, buf),
+                Variable::Heap { indexes, bytes } => compression.compress_heap(seg_len, indexes, bytes, buf),
             }
 
             // write size

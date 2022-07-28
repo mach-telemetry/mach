@@ -128,7 +128,8 @@ impl InnerBuffer {
                     if heap.len() > HEAP_TH {
                         self.is_full = true;
                     }
-                    let item = ((&heap[cur_len..]).as_ptr() as u64).to_be_bytes();
+                    //let item = ((&heap[cur_len..]).as_ptr() as u64).to_be_bytes();
+                    let item = cur_len.to_be_bytes();
                     self.data[i][len] = item;
                 }
             }
@@ -236,7 +237,10 @@ impl Buffer {
 
 pub enum Variable<'a> {
     Var(&'a [[u8; 8]]),
-    Heap(&'a [u8]),
+    Heap {
+        indexes: &'a[[u8; 8]],
+        bytes: &'a [u8]
+    }
 }
 
 pub struct FlushBuffer<'a> {
@@ -255,7 +259,10 @@ impl<'a> FlushBuffer<'a> {
 
     pub fn get_variable(&self, i: usize) -> Variable {
         match &self.inner.heap[i] {
-            Some(x) => Variable::Heap(x.as_slice()),
+            Some(x) => Variable::Heap {
+                indexes: self.variable(i),
+                bytes: x.as_slice()
+            },
             None => Variable::Var(self.variable(i)),
         }
     }

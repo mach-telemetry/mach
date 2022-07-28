@@ -47,6 +47,7 @@ impl<'a> FieldIterator<'a> {
     }
 
     pub fn next_item(&mut self) -> Option<SampleType> {
+        //println!("Next item");
         if self.idx > 0 {
             self.idx -= 1;
             Some(SampleType::from_field_item(
@@ -58,6 +59,14 @@ impl<'a> FieldIterator<'a> {
         }
     }
 }
+
+impl<'a> Iterator for FieldIterator<'a> {
+    type Item = SampleType;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_item()
+    }
+}
+
 
 pub struct Timestamps<'a> {
     v: &'a [u64],
@@ -94,6 +103,13 @@ impl<'a> TimestampsIterator<'a> {
         } else {
             None
         }
+    }
+}
+
+impl<'a> Iterator for TimestampsIterator<'a> {
+    type Item = u64;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_timestamp()
     }
 }
 
@@ -181,9 +197,9 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn into_iterator<'a>(self, consumer: &'a mut kafka::BufferedConsumer) -> SnapshotIterator<'a> {
+    pub fn into_iterator(self) -> SnapshotIterator {
         let id = self.id;
-        SnapshotIterator::new(self, id, consumer)
+        SnapshotIterator::new(self, id)
     }
 }
 
@@ -268,26 +284,26 @@ impl ReadOnlyBlockReader {
     }
 }
 
-pub struct SnapshotIterator<'a> {
+pub struct SnapshotIterator {
     active_segment: Option<ActiveSegmentReader>,
     block_reader: ReadOnlyBlockReader,
     source_blocks: SourceBlocks,
-    consumer: &'a mut kafka::BufferedConsumer,
+    //consumer: &'a mut kafka::Client,
     state: State,
 }
 
-impl<'a> SnapshotIterator<'a> {
-    pub fn new(snapshot: Snapshot, id: SeriesId, consumer: &'a mut kafka::BufferedConsumer) -> Self {
+impl SnapshotIterator {
+    pub fn new(snapshot: Snapshot, id: SeriesId) -> Self {
         let active_segment = match snapshot.active_segment {
             Some(x) => Some(ActiveSegmentReader::new(x)),
             None => None,
         };
         let mut source_blocks = snapshot.source_blocks;
         let block_reader = match snapshot.active_block {
-            Some(x) => ReadOnlyBlockReader::new(x.as_bytes(consumer), id),
+            Some(x) => ReadOnlyBlockReader::new(x.as_bytes(), id),
             None => {
-                let block = source_blocks.next_block(consumer).unwrap();
-                        let bytes = block.as_bytes(consumer);
+                let block = source_blocks.next_block().unwrap();
+                        let bytes = block.as_bytes();
                         ReadOnlyBlockReader::new(bytes, id)
             }
         };
@@ -301,7 +317,7 @@ impl<'a> SnapshotIterator<'a> {
             active_segment,
             source_blocks,
             block_reader,
-            consumer,
+            //consumer,
             state,
         }
     }
@@ -317,8 +333,8 @@ impl<'a> SnapshotIterator<'a> {
             },
             State::Blocks => match self.block_reader.next_segment() {
                 None => {
-                    if let Some(block) = self.source_blocks.next_block(&mut self.consumer) {
-                        let bytes = block.as_bytes(&mut self.consumer);
+                    if let Some(block) = self.source_blocks.next_block() {
+                        let bytes = block.as_bytes();
                         let id = self.block_reader.id;
                         let block_reader = ReadOnlyBlockReader::new(bytes, id);
                         self.block_reader = block_reader;

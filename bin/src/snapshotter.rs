@@ -1,7 +1,7 @@
 use mach::{
     id::{SeriesId, SeriesRef},
     sample::SampleType,
-    utils::kafka::{make_topic, Producer, BufferedConsumer, ConsumerOffset, BOOTSTRAPS, TOPIC},
+    utils::kafka::{make_topic, Producer, BOOTSTRAPS, TOPIC},
     tsdb::Mach,
     series::Series,
     writer::{Writer as MachWriter, WriterConfig},

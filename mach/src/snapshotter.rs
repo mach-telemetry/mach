@@ -2,7 +2,7 @@ use crate::{
     id::SeriesId,
     series::Series,
     snapshot::Snapshot,
-    utils::kafka::{Producer, BOOTSTRAPS, TOPIC, random_partition, Client},
+    utils::kafka::{Producer, BOOTSTRAPS, TOPIC, random_partition, KafkaEntry},
 };
 use dashmap::DashMap;
 use std::{
@@ -13,17 +13,22 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+use lzzzz::{lz4, lz4_hc};
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SnapshotterId(usize);
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Copy, Clone)]
-pub struct SnapshotId((i32, i64, usize));
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct SnapshotId {
+    kafka: KafkaEntry,
+}
 
 impl SnapshotId {
-    pub fn load(&self, client: &mut Client) -> Snapshot {
-        let bytes = client.load(TOPIC, self.0.0, self.0.1, self.0.2);
-        bincode::deserialize(&bytes[..]).unwrap()
+    pub fn load(&self) -> Snapshot {
+        println!("Snapshotid {:?}", self);
+        let mut vec = Vec::new();
+        self.kafka.load(&mut vec).unwrap();
+        bincode::deserialize(&vec[..]).unwrap()
     }
 }
 
@@ -67,15 +72,15 @@ impl Snapshotter {
             let series = self.series_table.get(&series_id).unwrap().clone();
             let last_request = Instant::now();
 
-            let mut producer = Producer::new(BOOTSTRAPS);
+            let mut producer = Producer::new();
             let snapshot = series.snapshot();
             let bytes = bincode::serialize(&snapshot).unwrap();
-            let l = bytes.len();
-            let partition = random_partition();
-            let (p, o) = producer.send(TOPIC, partition, bytes.as_slice());
+            let kafka_entry = producer.send(bytes.as_slice());
 
             let snapshot_worker_data = Arc::new(Mutex::new(SnapshotWorkerData {
-                snapshot_id: SnapshotId((p, o, l)),
+                snapshot_id: SnapshotId {
+                    kafka: kafka_entry
+                },
                 series,
                 last_request,
                 interval,
@@ -95,7 +100,7 @@ impl Snapshotter {
         let data = self.snapshot_table.get(&id)?.value().clone();
         let mut guard = data.lock().unwrap();
         guard.last_request = Instant::now();
-        Some(guard.snapshot_id)
+        Some(guard.snapshot_id.clone())
     }
 }
 
@@ -107,7 +112,7 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
     let interval = guard.interval;
     drop(guard);
 
-    let mut producer = Producer::new(BOOTSTRAPS);
+    let mut producer = Producer::new();
 
     loop {
         {
@@ -121,12 +126,13 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
         {
             let snapshot = series.snapshot();
             let bytes = bincode::serialize(&snapshot).unwrap();
-            let l = bytes.len();
-            let partition = random_partition();
-            let (p, o) = producer.send(TOPIC, partition, bytes.as_slice());
+            let entry = producer.send(bytes.as_slice());
             let snapshot = Arc::new(snapshot);
+            let id = SnapshotId {
+                kafka: entry,
+            };
             let mut guard = data.lock().unwrap();
-            guard.snapshot_id = SnapshotId((p, o, l));
+            guard.snapshot_id = id;
         }
         thread::sleep(interval);
     }
