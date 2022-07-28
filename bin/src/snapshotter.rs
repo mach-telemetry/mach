@@ -1,17 +1,19 @@
+use crate::bytes_server::{BytesClient, BytesHandler, BytesServer, Status};
+use futures::executor::block_on;
 use mach::{
     id::{SeriesId, SeriesRef},
+    mem_list::UNFLUSHED_COUNT,
     sample::SampleType,
     utils::kafka::{make_topic, Producer, BOOTSTRAPS, TOPIC},
     tsdb::Mach,
     series::Series,
-    writer::{Writer as MachWriter, WriterConfig},
-    mem_list::{UNFLUSHED_COUNT},
-    snapshotter::{Snapshotter, SnapshotId, SnapshotterId},
     snapshot::Snapshot,
+    snapshotter::{SnapshotId, Snapshotter, SnapshotterId},
+    tsdb::Mach,
+    utils::kafka::{make_topic, BufferedConsumer, ConsumerOffset, Producer, BOOTSTRAPS, TOPIC},
+    writer::{Writer as MachWriter, WriterConfig},
 };
-use crate::bytes_server::{BytesServer, BytesHandler, Status, BytesClient};
 use std::time::Duration;
-use futures::executor::block_on;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum SnapshotRequest {
@@ -20,7 +22,7 @@ pub enum SnapshotRequest {
         interval: Duration,
         timeout: Duration,
     },
-    Get(SnapshotterId)
+    Get(SnapshotterId),
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -33,23 +35,23 @@ pub struct SnapshotterHandler(Snapshotter);
 
 impl BytesHandler for SnapshotterHandler {
     fn handle_bytes(&self, bytes: Option<Vec<u8>>) -> Result<Option<Vec<u8>>, Status> {
-        let result: Option<SnapshotResponse> = 
+        let result: Option<SnapshotResponse> =
             match bincode::deserialize(bytes.unwrap().as_slice()).unwrap() {
                 SnapshotRequest::Initialize {
                     series_id,
                     interval,
-                    timeout
+                    timeout,
                 } => {
                     let id = self.0.initialize_snapshotter(series_id, interval, timeout);
                     Some(SnapshotResponse::SnapshotterId(id))
-                },
-                    SnapshotRequest::Get(id) => {
-                        if let Some(id) = self.0.get(id) {
-                            Some(SnapshotResponse::SnapshotId(id))
-                        } else {
-                            None
-                        }
+                }
+                SnapshotRequest::Get(id) => {
+                    if let Some(id) = self.0.get(id) {
+                        Some(SnapshotResponse::SnapshotId(id))
+                    } else {
+                        None
                     }
+                }
             };
 
         if let Some(x) = result {
@@ -63,12 +65,9 @@ impl BytesHandler for SnapshotterHandler {
 pub fn initialize_snapshot_server(mach: &Mach) {
     println!("INITTING SERVER");
     let server = BytesServer::new(SnapshotterHandler(mach.init_snapshotter()));
-    std::thread::spawn(move || {
-        server.serve()
-    });
+    std::thread::spawn(move || server.serve());
     println!("INITTED SERVER");
 }
-
 
 pub struct SnapshotClient(BytesClient);
 
@@ -77,7 +76,12 @@ impl SnapshotClient {
         Self(BytesClient::new().await)
     }
 
-    pub async fn initialize(&mut self, series_id: SeriesId, interval: Duration, timeout: Duration) -> Option<SnapshotterId> {
+    pub async fn initialize(
+        &mut self,
+        series_id: SeriesId,
+        interval: Duration,
+        timeout: Duration,
+    ) -> Option<SnapshotterId> {
         let request = SnapshotRequest::Initialize {
             series_id,
             interval,
@@ -86,16 +90,15 @@ impl SnapshotClient {
 
         match self.request(request).await? {
             SnapshotResponse::SnapshotterId(x) => Some(x),
-            _ => panic!("Unexpected returned type")
+            _ => panic!("Unexpected returned type"),
         }
-
     }
 
     pub async fn get(&mut self, snapshotter_id: SnapshotterId) -> Option<SnapshotId> {
         let request = SnapshotRequest::Get(snapshotter_id);
         match self.request(request).await? {
             SnapshotResponse::SnapshotId(x) => Some(x),
-            _ => panic!("Unexpected returned type")
+            _ => panic!("Unexpected returned type"),
         }
     }
 
@@ -103,7 +106,7 @@ impl SnapshotClient {
         let bytes = bincode::serialize(&request).unwrap();
         match self.0.send(Some(bytes)).await {
             None => None,
-            Some(result) => Some(bincode::deserialize(&result).unwrap())
+            Some(result) => Some(bincode::deserialize(&result).unwrap()),
         }
     }
 }

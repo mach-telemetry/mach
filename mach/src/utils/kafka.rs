@@ -3,24 +3,24 @@ use dashmap::DashMap;
 use kafka::client::{FetchOffset, FetchPartition, KafkaClient, ProduceMessage, RequiredAcks};
 use kafka::consumer::{Consumer, GroupOffsetStorage};
 use kafka::producer::{Producer as OgProducer, Record};
+use rand::{thread_rng, Rng};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
     config::ClientConfig,
-    consumer::{Consumer as RdKConsumer, DefaultConsumerContext, BaseConsumer},
-    topic_partition_list::{TopicPartitionList, Offset},
+    consumer::{BaseConsumer, Consumer as RdKConsumer, DefaultConsumerContext},
+    topic_partition_list::{Offset, TopicPartitionList},
     util::Timeout,
     Message,
 };
+use std::convert::TryInto;
 use std::ops::{Deref, DerefMut};
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
 };
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
-use std::convert::TryInto;
 use std::collections::{HashSet, HashMap};
-use rand::{Rng, thread_rng};
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 

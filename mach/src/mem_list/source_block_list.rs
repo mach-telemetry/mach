@@ -1,6 +1,5 @@
-
 use crate::{
-    mem_list::{BlockListEntry, Error, ReadOnlyBlock, BOOTSTRAPS, TOPIC, add_flush_worker, },
+    mem_list::{add_flush_worker, BlockListEntry, Error, ReadOnlyBlock, BOOTSTRAPS, TOPIC},
     utils::{
         kafka,
         wp_lock::{NoDealloc, WpLock},
@@ -8,13 +7,13 @@ use crate::{
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use rand::Rng;
+use std::cell::RefCell;
 use std::mem::MaybeUninit;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
-    Arc, RwLock, Mutex,
+    Arc, Mutex, RwLock,
 };
-use std::cell::RefCell;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 lazy_static::lazy_static! {
     pub static ref UNFLUSHED_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -83,7 +82,7 @@ struct InnerData {
 }
 
 unsafe impl NoDealloc for InnerData {}
-unsafe impl Sync for InnerBuffer{} // last_update is only accessed by one writer
+unsafe impl Sync for InnerBuffer {} // last_update is only accessed by one writer
 
 struct InnerBuffer {
     data: WpLock<InnerData>,
@@ -110,7 +109,7 @@ impl InnerBuffer {
     unsafe fn full_flush(&self) {
         let guard = self.data.unprotected_read();
         let data: Arc<[Arc<BlockListEntry>]> = {
-            let mut arr: Arc<[MaybeUninit<Arc<BlockListEntry>>]>  = Arc::new_uninit_slice(256);
+            let mut arr: Arc<[MaybeUninit<Arc<BlockListEntry>>]> = Arc::new_uninit_slice(256);
             let arr_ref = Arc::get_mut_unchecked(&mut arr);
             for (a, b) in guard.data.iter().zip(arr_ref.iter_mut()) {
                 b.write(a.assume_init_ref().clone());
@@ -131,7 +130,7 @@ impl InnerBuffer {
         let mut last_update = self.last_update.borrow_mut(); // this is the only thing accessing last_update
         if now - *last_update >= Duration::from_secs_f64(0.5) {
             *self.periodic.lock().unwrap() = item.clone();
-            *last_update = now; 
+            *last_update = now;
         }
     }
 
@@ -149,7 +148,7 @@ impl InnerBuffer {
         }
         let mut current = guard.last.clone();
         match guard.release() {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(_) => return Err(Error::Snapshot),
         }
 
@@ -203,15 +202,11 @@ impl InnerBuffer {
         SourceBlocks { data: v, next, idx }
     }
 
-
     fn new() -> Self {
         let last = Arc::new(RwLock::new(ListItem::Kafka(kafka::KafkaEntry::new())));
         let periodic = Arc::new(Mutex::new(last.clone()));
         let data = Box::new(MaybeUninit::uninit_array());
-        let data = WpLock::new(InnerData {
-            data,
-            last,
-        });
+        let data = WpLock::new(InnerData { data, last });
         Self {
             data,
             offset: AtomicUsize::new(0),

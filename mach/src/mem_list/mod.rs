@@ -143,7 +143,8 @@ impl BlockList {
                 self.series_map.get(&id).unwrap().push(copy.clone());
             }
             let n_flushers = N_FLUSHERS.load(SeqCst);
-            FLUSH_WORKERS.get(&thread_rng().gen_range(0..n_flushers))
+            FLUSH_WORKERS
+                .get(&thread_rng().gen_range(0..n_flushers))
                 .unwrap()
                 .value()
                 .send(copy)

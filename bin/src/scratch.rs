@@ -1,23 +1,25 @@
-mod prep_data;
 mod bytes_server;
+mod prep_data;
 mod snapshotter;
 
-use regex::Regex;
 use mach::{
-    utils::{random_id, kafka::{Client, BOOTSTRAPS, TOPIC, BufferedConsumer, ConsumerOffset}},
     id::SeriesId,
+    utils::{
+        kafka::{BufferedConsumer, Client, ConsumerOffset, BOOTSTRAPS, TOPIC},
+        random_id,
+    },
 };
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
     config::ClientConfig,
-    consumer::{Consumer as RdKConsumer, DefaultConsumerContext, BaseConsumer},
-    topic_partition_list::{TopicPartitionList, Offset},
+    consumer::{BaseConsumer, Consumer as RdKConsumer, DefaultConsumerContext},
+    topic_partition_list::{Offset, TopicPartitionList},
     util::Timeout,
     Message,
 };
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
-
+use regex::Regex;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 fn main() {
     //let data: Vec<prep_data::Sample> = prep_data::load_samples("/home/sli/data/train-ticket-data");
@@ -65,7 +67,9 @@ fn main() {
     let id = SeriesId(4560055620737106128);
     let interval = Duration::from_secs_f64(0.5);
     let timeout = Duration::from_secs(300);
-    let snapshotter_id = runtime.block_on(client.initialize(id, interval, timeout)).unwrap();
+    let snapshotter_id = runtime
+        .block_on(client.initialize(id, interval, timeout))
+        .unwrap();
     println!("snapshotter id: {:?}", snapshotter_id);
     let mut kafka_client = Client::new(BOOTSTRAPS);
     let consumer_offset = ConsumerOffset::Latest;
@@ -109,12 +113,11 @@ fn main() {
     //let duration = Duration::from_micros((end - start) as u64);
     //let age = Duration::from_micros((start - ts) as u64);
     //println!("snapshot id: {:?}, query latency: {:?}, data age: {:?}", snapshot_id, duration, age);
-
-
-
-
 }
 
 fn micros_from_epoch() -> u128 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_micros()
 }

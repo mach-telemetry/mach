@@ -1,18 +1,14 @@
 use mach::{
+    compression::{CompressFn, Compression},
     id::SeriesId,
     id::SeriesRef,
     sample::SampleType,
     series::{FieldType, SeriesConfig},
-    compression::{CompressFn, Compression},
     tsdb::Mach,
     writer::{Writer, WriterConfig},
 };
 
-use std::{
-    fs::File,
-    io::prelude::*,
-    collections::HashMap,
-};
+use std::{collections::HashMap, fs::File, io::prelude::*};
 
 pub type TimeStamp = u64;
 pub type Sample = (SeriesId, TimeStamp, Vec<SampleType>);
