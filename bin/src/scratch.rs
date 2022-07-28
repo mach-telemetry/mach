@@ -1,22 +1,11 @@
+#[allow(dead_code)]
 mod bytes_server;
-mod prep_data;
+//mod prep_data;
+#[allow(dead_code)]
 mod snapshotter;
 
 use mach::{
     id::SeriesId,
-    utils::{
-        kafka::{BOOTSTRAPS, TOPIC},
-        random_id,
-    },
-};
-use rdkafka::{
-    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
-    client::DefaultClientContext,
-    config::ClientConfig,
-    consumer::{BaseConsumer, Consumer as RdKConsumer, DefaultConsumerContext},
-    topic_partition_list::{Offset, TopicPartitionList},
-    util::Timeout,
-    Message,
 };
 use regex::Regex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -92,17 +81,17 @@ fn main() {
     //}
 
     // Search query
-    let re = Regex::new(r"Error").unwrap();
-    let start: usize = micros_from_epoch().try_into().unwrap();
+    let _re = Regex::new(r"Error").unwrap();
+    let _start: usize = micros_from_epoch().try_into().unwrap();
     let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
     let mut snapshot = snapshot_id.load().into_iterator();
     //loop {
         snapshot.next_segment().unwrap();
         let seg = snapshot.get_segment();
-        let mut timestamps = seg.timestamps().iterator();
-        let mut field = seg.field(0).iterator();
+        let timestamps = seg.timestamps().iterator();
+        let field = seg.field(0).iterator();
         println!("HERE");
-        for (idx, (ts, f)) in timestamps.zip(field).enumerate() {
+        for (_idx, (ts, f)) in timestamps.zip(field).enumerate() {
             let span = mach_otlp::trace::v1::Span::from(&f);
             println!("TS {:?}", ts);
             println!("Span: {:?}", span);

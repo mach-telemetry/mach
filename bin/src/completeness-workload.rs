@@ -1,5 +1,8 @@
+#[allow(dead_code)]
 mod bytes_server;
+#[allow(dead_code)]
 mod prep_data;
+#[allow(dead_code)]
 mod snapshotter;
 
 use clap::*;
@@ -13,15 +16,13 @@ use mach::{
     id::{SeriesId, SeriesRef},
     mem_list::{ UNFLUSHED_COUNT, TOTAL_BYTES_FLUSHED },
     sample::SampleType,
-    utils::kafka::{make_topic, Producer, BOOTSTRAPS, TOPIC},
+    utils::kafka::{make_topic, Producer},
     tsdb::Mach,
     series::Series,
-    snapshotter::{Snapshotter, SnapshotterId},
     writer::{Writer as MachWriter, WriterConfig},
 };
-use rand::{seq::SliceRandom, Rng};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashSet},
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc, Barrier, Mutex,
@@ -30,7 +31,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
+use crossbeam::channel::{bounded, Receiver, Sender};
 
 lazy_static! {
     static ref ARGS: Args = Args::parse();
@@ -141,7 +142,7 @@ impl Counters {
     }
 
     fn init_mach_querier(&self) {
-        let k = self.data_age.clone();
+        //let k = self.data_age.clone();
         thread::spawn(move || {
             init_mach_querier();
         });
@@ -149,18 +150,18 @@ impl Counters {
 }
 
 fn watcher(start_gate: Arc<Barrier>) {
-    const look_back: usize = 5;
+    //const look_back: usize = 5;
     let interval = Duration::from_secs_f64(ARGS.counter_interval_seconds);
-    let look_back_f64: f64 = (look_back as u32).try_into().unwrap();
+    //let look_back_f64: f64 = (look_back as u32).try_into().unwrap();
     start_gate.wait();
     //let mut look_back_array: [f64; look_back] = [0.; look_back];
     let mut last_pushed = 0;
     let mut last_dropped = 0;
-    let mut counter = 0;
+    //let mut counter = 0;
     loop {
         let pushed = COUNTERS.samples_enqueued.load(SeqCst);
         let dropped = COUNTERS.samples_dropped.load(SeqCst);
-        let written = COUNTERS.samples_written.load(SeqCst);
+        let _written = COUNTERS.samples_written.load(SeqCst);
         let raw_data_size = COUNTERS.raw_data_size.load(SeqCst);
 
         let pushed_since = pushed - last_pushed;
@@ -185,8 +186,9 @@ fn watcher(start_gate: Arc<Barrier>) {
         //counter += 1;
 
         let bytes_flushed = COUNTERS.bytes_flushed.load(SeqCst);
+        let unflushed_count = COUNTERS.unflushed_count.load(SeqCst);
 
-        println!("Completeness: {}, Unflushed: {}, Throughput: {}, Data age (seconds): {:?}, Raw data size: {} bytes, Data flushed: {} bytes", completeness, UNFLUSHED_COUNT.load(SeqCst), rate, delay.as_secs_f64(), raw_data_size, bytes_flushed);
+        println!("Completeness: {}, Unflushed: {}, Throughput: {}, Data age (seconds): {:?}, Raw data size: {} bytes, Data flushed: {} bytes", completeness, unflushed_count, rate, delay.as_secs_f64(), raw_data_size, bytes_flushed);
         thread::sleep(interval);
     }
 }
@@ -217,7 +219,7 @@ fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> usize {
     let mut buffer = vec![0u8; 500_000_000];
     let mut max_ts = 0;
     for set in consumer.poll().unwrap().iter() {
-        let p = set.partition();
+        let _p = set.partition();
         for msg in set.messages().iter() {
             let original_sz = usize::from_be_bytes(
                 msg.value[msg.value.len() - 8..msg.value.len()]
@@ -237,6 +239,7 @@ fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> usize {
     max_ts
 }
 
+#[allow(dead_code)]
 fn mach_query(series: Series) -> Option<usize> {
     let snapshot = series.snapshot();
     let mut snapshot = snapshot.into_iterator();
@@ -256,7 +259,7 @@ fn init_mach_querier() {
     let snapshotter_id = snapshotter.initialize_snapshotter(SERIES_IDS[0], Duration::from_millis(500), Duration::from_secs(300));
     thread::sleep(Duration::from_secs(2));
     loop {
-        let start = Instant::now();
+        //let start = Instant::now();
         let now: usize = micros_from_epoch().try_into().unwrap();
         let offset = snapshotter.get(snapshotter_id).unwrap();
         let mut snapshot = offset.load().into_iterator();
@@ -277,7 +280,7 @@ fn init_kafka_consumer() {
         let bootstraps = ARGS.kafka_bootstraps.clone();
         //let latest_timestamp = latest_timestamp.clone();
         std::thread::spawn(move || {
-            let start = Instant::now();
+            //let _start = Instant::now();
             let max_ts = get_last_kafka_timestamp(topic.as_str(), bootstraps.as_str());
             let now: usize = micros_from_epoch().try_into().unwrap();
             if max_ts > 0 {
@@ -302,10 +305,10 @@ impl<I> Writer<I> {
 }
 
 fn kafka_writer(barrier: Arc<Barrier>, receiver: Receiver<Vec<Sample<SeriesId>>>) {
-    let topic = ARGS.kafka_topic.clone();
+    //let topic = ARGS.kafka_topic.clone();
     let mut producer = Producer::new();
-    let partitions: i32 = ARGS.kafka_partitions.try_into().unwrap();
-    let mut rng = rand::thread_rng();
+    //let partitions: i32 = ARGS.kafka_partitions.try_into().unwrap();
+    //let mut rng = rand::thread_rng();
     while let Ok(data) = receiver.recv() {
         let bytes = bincode::serialize(&data).unwrap();
         let mut compressed: Vec<u8> = Vec::new();
@@ -384,7 +387,7 @@ fn micros_from_epoch() -> u128 {
 struct Workload {
     samples_per_second: f64,
     duration: Duration,
-    sample_interval: Duration,
+    //sample_interval: Duration,
     batch_interval: Duration,
     batch_size: usize,
 }
@@ -396,7 +399,7 @@ impl Workload {
         Self {
             samples_per_second,
             duration,
-            sample_interval,
+            //sample_interval,
             batch_interval,
             batch_size: ARGS.batch_size as usize,
         }
@@ -407,8 +410,8 @@ impl Workload {
         let start = Instant::now();
         let mut last_batch = start;
         let mut batch = Vec::with_capacity(self.batch_size);
-        let interval_increment: u64 = self.sample_interval.as_micros().try_into().unwrap();
-        let mut timestamp: u64 = micros_from_epoch().try_into().unwrap();
+        //let interval_increment: u64 = self.sample_interval.as_micros().try_into().unwrap();
+        //let mut timestamp: u64 = micros_from_epoch().try_into().unwrap();
         let mut produced_samples = 0u32;
         'outer: loop {
             for item in samples {

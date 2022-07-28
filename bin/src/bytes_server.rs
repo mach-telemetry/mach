@@ -23,6 +23,7 @@ pub trait BytesHandler: Sync + Send + 'static {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct BytesServer<B: BytesHandler> {
     handler: B,
 }
@@ -34,7 +35,7 @@ impl<B: BytesHandler> BytesServer<B> {
 
     pub fn serve(self) {
         let addr = "[::1]:50051".parse().unwrap();
-        let mut rt = Runtime::new().expect("failed to obtain a new RunTime object");
+        let rt = Runtime::new().expect("failed to obtain a new RunTime object");
         let server_future = Server::builder()
             .add_service(BytesServiceServer::new(self))
             .serve(addr);
@@ -50,16 +51,19 @@ impl<B: BytesHandler> BytesService for BytesServer<B> {
     }
 }
 
+#[allow(dead_code)]
 pub struct BytesClient(BytesServiceClient<tonic::transport::Channel>);
 
 impl BytesClient {
+    #[allow(dead_code)]
     pub async fn new() -> Self {
-        let mut client = BytesServiceClient::connect("http://[::1]:50051")
+        let client = BytesServiceClient::connect("http://[::1]:50051")
             .await
             .unwrap();
         Self(client)
     }
 
+    #[allow(dead_code)]
     pub async fn send(&mut self, data: Option<Vec<u8>>) -> Option<Vec<u8>> {
         let request = tonic::Request::new(BytesMessage { data });
         let response = self.0.send(request).await.unwrap();

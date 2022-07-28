@@ -1,7 +1,7 @@
 //mod bytes_lz4;
 mod bytes_lz42;
 mod decimal;
-mod noop;
+//mod noop;
 //mod fixed;
 mod bitpack;
 mod delta_of_delta;
@@ -12,7 +12,7 @@ mod xor;
 
 use crate::segment::*;
 use crate::series::FieldType;
-use crate::snapshot::{Heap, Segment};
+use crate::snapshot::Segment;
 use crate::utils::byte_buffer::ByteBuffer;
 use std::convert::TryInto;
 use std::sync::Arc;

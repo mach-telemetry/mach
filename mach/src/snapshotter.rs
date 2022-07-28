@@ -2,7 +2,7 @@ use crate::{
     id::SeriesId,
     series::Series,
     snapshot::Snapshot,
-    utils::kafka::{Producer, BOOTSTRAPS, TOPIC, random_partition, KafkaEntry},
+    utils::kafka::{Producer, KafkaEntry},
 };
 use dashmap::DashMap;
 use std::{
@@ -13,7 +13,6 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use lzzzz::{lz4, lz4_hc};
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SnapshotterId(usize);
@@ -115,7 +114,7 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
 
     loop {
         {
-            let mut guard = data.lock().unwrap();
+            let guard = data.lock().unwrap();
             let last = guard.last_request;
             if Instant::now() - last > time_out {
                 snapshot_table.remove(&worker_id);
@@ -126,7 +125,7 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
             let snapshot = series.snapshot();
             let bytes = bincode::serialize(&snapshot).unwrap();
             let entry = producer.send(bytes.as_slice());
-            let snapshot = Arc::new(snapshot);
+            //let snapshot = Arc::new(snapshot);
             let id = SnapshotId {
                 kafka: entry,
             };

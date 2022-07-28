@@ -1,12 +1,11 @@
 use crate::{
-    mem_list::{add_flush_worker, BlockListEntry, Error, ReadOnlyBlock, BOOTSTRAPS, TOPIC},
+    mem_list::{add_flush_worker, BlockListEntry, Error, ReadOnlyBlock},
     utils::{
         kafka,
         wp_lock::{NoDealloc, WpLock},
     },
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
-use rand::Rng;
 use std::cell::RefCell;
 use std::mem::MaybeUninit;
 use std::sync::{

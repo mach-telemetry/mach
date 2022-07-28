@@ -1,25 +1,24 @@
 use crate::utils::random_id;
-use dashmap::DashMap;
-use kafka::client::{FetchOffset, FetchPartition, KafkaClient, ProduceMessage, RequiredAcks};
-use kafka::consumer::{Consumer, GroupOffsetStorage};
+use kafka::client::{FetchPartition, KafkaClient, RequiredAcks};
+use kafka::consumer::{GroupOffsetStorage};
 use kafka::producer::{Producer as OgProducer, Record};
 use rand::{thread_rng, Rng};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
     config::ClientConfig,
-    consumer::{BaseConsumer, Consumer as RdKConsumer, DefaultConsumerContext},
-    topic_partition_list::{Offset, TopicPartitionList},
-    util::Timeout,
-    Message,
+    //consumer::{BaseConsumer, Consumer as RdKConsumer, DefaultConsumerContext},
+    //topic_partition_list::{Offset, TopicPartitionList},
+    //util::Timeout,
+    //Message,
 };
-use std::convert::TryInto;
+//use std::convert::TryInto;
 use std::ops::{Deref, DerefMut};
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
-    Arc,
+    //Arc,
 };
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use std::time::Duration;
 use std::collections::{HashSet, HashMap};
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
@@ -190,7 +189,7 @@ impl DerefMut for Producer {
 impl Producer {
     pub fn new() -> Self {
         let bootstraps = BOOTSTRAPS.split(',').map(String::from).collect();
-        let mut client = OgProducer::from_hosts(bootstraps)
+        let client = OgProducer::from_hosts(bootstraps)
             .with_ack_timeout(Duration::from_millis(1000))
             .with_required_acks(RequiredAcks::All)
             .create()
@@ -200,7 +199,6 @@ impl Producer {
 
     pub fn send(&mut self, item: &[u8]) -> KafkaEntry {
         let mut start = 0;
-        let mut end = MAX_MSG_SZ;
 
         let producer: &mut OgProducer = &mut self.0;
 

@@ -1,15 +1,8 @@
 use crate::bytes_server::{BytesClient, BytesHandler, BytesServer, Status};
-use futures::executor::block_on;
 use mach::{
-    id::{SeriesId, SeriesRef},
-    mem_list::UNFLUSHED_COUNT,
-    sample::SampleType,
-    utils::kafka::{make_topic, Producer, BOOTSTRAPS, TOPIC},
-    series::Series,
-    snapshot::Snapshot,
+    id::{SeriesId},
     snapshotter::{SnapshotId, Snapshotter, SnapshotterId},
     tsdb::Mach,
-    writer::{Writer as MachWriter, WriterConfig},
 };
 use std::time::Duration;
 

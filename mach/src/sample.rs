@@ -57,7 +57,6 @@ impl SampleType {
             FieldType::Bytes => {
                 let heap = heap.as_ref().unwrap();
                 let idx = usize::from_be_bytes(bytes);
-                println!("index: {}", idx);
                 let sz = usize::from_be_bytes(heap[idx..idx+8].try_into().unwrap());
                 let bytes: Vec<u8> = heap[idx+8..idx+8+sz].into();
                 SampleType::Bytes(bytes)

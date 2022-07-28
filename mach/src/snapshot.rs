@@ -3,7 +3,6 @@ use crate::{
     mem_list::{ReadOnlyBlock, ReadOnlyBlockBytes, SourceBlocks},
     sample::SampleType,
     series::FieldType,
-    utils::kafka,
 };
 use std::convert::TryInto;
 
@@ -139,8 +138,8 @@ impl Segment {
     }
 
     pub fn new_empty() -> Self {
-        let mut heap = Vec::new();
-        let mut data = Vec::new();
+        let heap = Vec::new();
+        let data = Vec::new();
         Self {
             len: 0,
             ts: Vec::with_capacity(256),
@@ -151,29 +150,28 @@ impl Segment {
         }
     }
 
-    pub fn new_with_types(types: &[FieldType]) -> Self {
-        let mut heap = Vec::new();
-        let mut data = Vec::new();
-        for t in types {
-            data.push(Vec::with_capacity(256));
-            match t {
-                FieldType::Bytes => heap.push(Some(Vec::with_capacity(1024))),
-                FieldType::I64 => heap.push(None),
-                FieldType::U64 => heap.push(None),
-                FieldType::F64 => heap.push(None),
-                FieldType::Timestamp => heap.push(None),
-                _ => unimplemented!(),
-            }
-        }
-        Self {
-            len: 0,
-            ts: Vec::with_capacity(256),
-            data,
-            heap,
-            types: types.into(),
-            nvars: 0,
-        }
-    }
+    //pub fn new_with_types(types: &[FieldType]) -> Self {
+    //    let mut heap = Vec::new();
+    //    let mut data = Vec::new();
+    //    for t in types {
+    //        data.push(Vec::with_capacity(256));
+    //        match t {
+    //            FieldType::Bytes => heap.push(Some(Vec::with_capacity(1024))),
+    //            FieldType::I64 => heap.push(None),
+    //            FieldType::U64 => heap.push(None),
+    //            FieldType::F64 => heap.push(None),
+    //            FieldType::Timestamp => heap.push(None),
+    //        }
+    //    }
+    //    Self {
+    //        len: 0,
+    //        ts: Vec::with_capacity(256),
+    //        data,
+    //        heap,
+    //        types: types.into(),
+    //        nvars: 0,
+    //    }
+    //}
 
     pub fn len(&self) -> usize {
         self.len
@@ -226,7 +224,6 @@ impl Segment {
                 FieldType::U64 => self.heap.push(None),
                 FieldType::F64 => self.heap.push(None),
                 FieldType::Timestamp => self.heap.push(None),
-                _ => unimplemented!(),
             }
         }
         self.nvars = nvars;

@@ -5,7 +5,7 @@ use mach::{
     sample::SampleType,
     series::{FieldType, SeriesConfig},
     tsdb::Mach,
-    writer::{Writer, WriterConfig},
+    writer::Writer,
 };
 
 use std::{collections::HashMap, fs::File, io::prelude::*};
@@ -64,9 +64,9 @@ pub fn mach_register_samples(
     let mut refmap: HashMap<SeriesId, SeriesRef> = HashMap::new();
 
     for (id, _, values) in samples.iter() {
-        let id_ref = *refmap.entry(*id).or_insert_with(|| {
+        let _id_ref = *refmap.entry(*id).or_insert_with(|| {
             let conf = get_series_config(*id, values.as_slice());
-            let (wid, _) = mach.add_series(conf).unwrap();
+            let (_, _) = mach.add_series(conf).unwrap();
             let id_ref = writer.get_reference(*id);
             id_ref
         });

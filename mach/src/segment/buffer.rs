@@ -2,7 +2,7 @@ use crate::constants::*;
 use crate::sample::{Bytes, SampleType};
 use crate::segment::Error;
 use crate::series::FieldType;
-use crate::snapshot::{Heap, Segment};
+use crate::snapshot::Segment;
 use crate::utils::wp_lock::*;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
