@@ -7,15 +7,12 @@ use crate::{
 };
 use std::convert::TryInto;
 
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub enum Heap {
-    ActiveHeap(Vec<Option<Vec<u8>>>),
-    DecompressHeap(Vec<u8>),
-}
+pub type Heap = Vec<Option<Vec<u8>>>;
 
 pub struct Field<'a> {
     t: FieldType,
     v: &'a [[u8; 8]],
+    h: Option<&'a [u8]>,
 }
 
 impl<'a> std::ops::Deref for Field<'a> {
@@ -47,12 +44,13 @@ impl<'a> FieldIterator<'a> {
     }
 
     pub fn next_item(&mut self) -> Option<SampleType> {
-        //println!("Next item");
+        println!("Next item");
         if self.idx > 0 {
             self.idx -= 1;
             Some(SampleType::from_field_item(
                 self.field.t,
                 self.field[self.idx],
+                self.field.h,
             ))
         } else {
             None
@@ -129,22 +127,50 @@ impl Segment {
         for col in self.data.iter_mut() {
             col.clear();
         }
-        match &mut self.heap {
-            Heap::ActiveHeap(x) => x.clear(),
-            Heap::DecompressHeap(x) => x.clear(),
+        for h in self.heap.iter_mut() {
+            match h {
+                Some(x) => x.clear(),
+                None => {}
+            }
         }
         self.types.clear();
         self.len = 0;
         self.nvars = 0;
     }
 
-    pub fn new_decompress_segment() -> Self {
+    pub fn new_empty() -> Self {
+        let mut heap = Vec::new();
+        let mut data = Vec::new();
         Self {
             len: 0,
             ts: Vec::with_capacity(256),
-            data: Vec::new(),
-            heap: Heap::DecompressHeap(Vec::with_capacity(1024)),
+            data,
+            heap,
             types: Vec::new(),
+            nvars: 0,
+        }
+    }
+
+    pub fn new_with_types(types: &[FieldType]) -> Self {
+        let mut heap = Vec::new();
+        let mut data = Vec::new();
+        for t in types {
+            data.push(Vec::with_capacity(256));
+            match t {
+                FieldType::Bytes => heap.push(Some(Vec::with_capacity(1024))),
+                FieldType::I64 => heap.push(None),
+                FieldType::U64 => heap.push(None),
+                FieldType::F64 => heap.push(None),
+                FieldType::Timestamp => heap.push(None),
+                _ => unimplemented!(),
+            }
+        }
+        Self {
+            len: 0,
+            ts: Vec::with_capacity(256),
+            data,
+            heap,
+            types: types.into(),
             nvars: 0,
         }
     }
@@ -154,9 +180,14 @@ impl Segment {
     }
 
     pub fn field(&self, i: usize) -> Field {
+        let h = match &self.heap[i] {
+            Some(x) => Some(x.as_slice()),
+            None => None,
+        };
         Field {
             t: self.types[i],
             v: &self.data[i][..self.len],
+            h,
         }
     }
 
@@ -166,11 +197,13 @@ impl Segment {
         }
     }
 
-    pub fn set_types(&mut self, types: &[FieldType]) {
-        if types != self.types.as_slice() {
-            self.types.clear();
-            self.types.extend_from_slice(types);
+    pub fn reset_types(&mut self, types: &[FieldType]) {
+        if types == self.types.as_slice() {
+            return;
         }
+
+        self.types.clear();
+        self.types.extend_from_slice(types);
 
         let nvars = types.len();
 
@@ -184,7 +217,20 @@ impl Segment {
                 self.data.pop();
             }
         }
+
+        self.heap.clear();
+        for t in types {
+            match t {
+                FieldType::Bytes => self.heap.push(Some(Vec::with_capacity(1024))),
+                FieldType::I64 => self.heap.push(None),
+                FieldType::U64 => self.heap.push(None),
+                FieldType::F64 => self.heap.push(None),
+                FieldType::Timestamp => self.heap.push(None),
+                _ => unimplemented!(),
+            }
+        }
         self.nvars = nvars;
+        self.len = 0;
     }
 }
 
@@ -262,7 +308,7 @@ impl ReadOnlyBlockReader {
             block,
             id,
             current_idx,
-            read_buffer: Segment::new_decompress_segment(),
+            read_buffer: Segment::new_empty(),
         }
     }
 

@@ -163,7 +163,7 @@ impl InnerBuffer {
 
     fn read(&self) -> ReadBuffer {
         let len = self.atomic_len.load(SeqCst);
-        let heap = Heap::ActiveHeap(self.heap.clone());
+        let heap = self.heap.clone();
         ReadBuffer {
             len,
             ts: self.ts.into(),

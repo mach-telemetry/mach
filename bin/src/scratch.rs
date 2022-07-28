@@ -5,7 +5,7 @@ mod snapshotter;
 use mach::{
     id::SeriesId,
     utils::{
-        kafka::{BufferedConsumer, Client, ConsumerOffset, BOOTSTRAPS, TOPIC},
+        kafka::{BOOTSTRAPS, TOPIC},
         random_id,
     },
 };
@@ -71,9 +71,9 @@ fn main() {
         .block_on(client.initialize(id, interval, timeout))
         .unwrap();
     println!("snapshotter id: {:?}", snapshotter_id);
-    let mut kafka_client = Client::new(BOOTSTRAPS);
-    let consumer_offset = ConsumerOffset::Latest;
-    let mut consumer = BufferedConsumer::new(BOOTSTRAPS, TOPIC, consumer_offset);
+    //let mut kafka_client = Client::new(BOOTSTRAPS);
+    //let consumer_offset = ConsumerOffset::Latest;
+    //let mut consumer = BufferedConsumer::new(BOOTSTRAPS, TOPIC, consumer_offset);
 
     // Freshness query
     //loop {
@@ -95,7 +95,7 @@ fn main() {
     let re = Regex::new(r"Error").unwrap();
     let start: usize = micros_from_epoch().try_into().unwrap();
     let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
-    let mut snapshot = snapshot_id.load(&mut kafka_client).into_iterator(&mut consumer);
+    let mut snapshot = snapshot_id.load().into_iterator();
     //loop {
         snapshot.next_segment().unwrap();
         let seg = snapshot.get_segment();

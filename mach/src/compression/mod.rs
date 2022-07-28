@@ -66,14 +66,14 @@ impl CompressFn {
         };
     }
 
-    pub fn decompress(&self, data: &[u8], col: &mut Vec<[u8; 8]>, heap: Option<&mut Vec<u8>>) {
+    pub fn decompress(&self, data: &[u8], col: &mut Vec<[u8; 8]>, heap: &mut Option<Vec<u8>>) {
         match self {
             CompressFn::XOR => xor::decompress(data, col),
             CompressFn::Decimal(_) => decimal::decompress(data, col),
             CompressFn::IntBitpack => bitpack::decompress(data, col),
             CompressFn::DeltaDelta => delta_of_delta::decompress(data, col),
             CompressFn::LZ4 => lz4::decompress(data, col),
-            CompressFn::BytesLZ4 => bytes_lz42::decompress(data, col, heap.unwrap()),
+            CompressFn::BytesLZ4 => bytes_lz42::decompress(data, col, heap.as_mut().unwrap()),
             CompressFn::NOOP => unimplemented!(),
         }
     }
@@ -230,7 +230,7 @@ impl Compression {
         let (header, mut off) = Self::get_header(data)?;
 
         buf.len = header.len as usize;
-        buf.set_types(header.types.as_slice());
+        buf.reset_types(header.types.as_slice());
 
         // decompress timestamps
         let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
@@ -245,13 +245,10 @@ impl Compression {
             let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
             off += 8;
             let d = &data[off..off + sz];
-            let h = match &mut buf.heap {
-                Heap::DecompressHeap(x) => x,
-                _ => unimplemented!(),
-            };
+            let h = &mut buf.heap[i];
             let v = &mut buf.data[i];
             let code = CompressFn::from_id(*code);
-            code.decompress(d, v, Some(h));
+            code.decompress(d, v, h);
             off += sz;
         }
         Ok(off)
