@@ -452,7 +452,7 @@ fn main() {
     //let mut counters = Counters::new();
     COUNTERS.init_watcher();
     let workloads = &[
-        Workload::new(500_000., Duration::from_secs(300)),
+        Workload::new(500_000., Duration::from_secs(60 * 60)),
         //Workload::new(2_000_000., Duration::from_secs(70)),
         //Workload::new(2_000_000., Duration::from_secs(60)),
         //Workload::new(500_000., Duration::from_secs(120)),

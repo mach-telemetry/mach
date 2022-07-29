@@ -3,30 +3,35 @@ use lzzzz::lz4;
 use std::convert::TryInto;
 use crate::compression::delta_of_delta;
 
-pub fn compress(_len: usize, indexes: &[[u8; 8]], to_compress: &[u8], buf: &mut ByteBuffer) {
+pub fn compress(_len: usize, indexes: &[[u8; 8]], to_compress: &[u8], byte_buf: &mut ByteBuffer) {
     //let start = buf.len();
 
+    let buf = byte_buf.unused();
+
     // write offsets
-    buf.extend_from_slice(&0u64.to_be_bytes()); // offset for compressed index
-    buf.extend_from_slice(&0u64.to_be_bytes()); // compressed index size
-    buf.extend_from_slice(&0u64.to_be_bytes()); // offset for compressed data
-    buf.extend_from_slice(&0u64.to_be_bytes()); // compressed data size
-    buf.extend_from_slice(&to_compress.len().to_be_bytes()); // raw data size
+    buf[0..8].copy_from_slice(&0u64.to_be_bytes()); // offset for compressed index
+    buf[8..16].copy_from_slice(&0u64.to_be_bytes()); // compressed index size
+    buf[16..24].copy_from_slice(&0u64.to_be_bytes()); // offset for compressed data
+    buf[24..32].copy_from_slice(&0u64.to_be_bytes()); // compressed data size
+    buf[32..40].copy_from_slice(&to_compress.len().to_be_bytes()); // raw_data size
 
     // Compress index
-    let compressed_idx_offset = buf.len();
-    delta_of_delta::compress(indexes, buf);
-    let compressed_idx_sz = buf.len() - compressed_idx_offset;
-    buf.as_mut_slice()[0..8].copy_from_slice(&compressed_idx_offset.to_be_bytes());
-    buf.as_mut_slice()[8..16].copy_from_slice(&compressed_idx_sz.to_be_bytes());
+    //let compressed_idx_offset = buf.len();
+    let compressed_idx_sz = {
+        let mut byte_buffer = ByteBuffer::new(&mut buf[40..]);
+        delta_of_delta::compress(indexes, &mut byte_buffer);
+        byte_buffer.len()
+    };
+    buf[0..8].copy_from_slice(&40usize.to_be_bytes());
+    buf[8..16].copy_from_slice(&compressed_idx_sz.to_be_bytes());
 
     // Compress data
-    let compressed_data_offset = buf.len();
-    let b = buf.unused();
-    let csz = lz4::compress(to_compress, &mut *b, 1).unwrap();
-    buf.add_len(csz);
-    buf.as_mut_slice()[16..24].copy_from_slice(&compressed_data_offset.to_be_bytes());
-    buf.as_mut_slice()[24..32].copy_from_slice(&csz.to_be_bytes());
+    let compressed_data_offset = 40 + compressed_idx_sz;
+    let compressed_data_sz = lz4::compress(to_compress, &mut buf[compressed_data_offset..], 1).unwrap();
+    buf[16..24].copy_from_slice(&compressed_data_offset.to_be_bytes());
+    buf[24..32].copy_from_slice(&compressed_data_sz.to_be_bytes());
+
+    byte_buf.add_len(compressed_data_offset + compressed_data_sz);
 }
 
 /// Decompresses data into buf

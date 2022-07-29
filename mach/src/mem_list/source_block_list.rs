@@ -251,6 +251,7 @@ pub struct SourceBlocks {
 
 impl SourceBlocks {
     pub fn next_block(&mut self) -> Option<&ReadOnlyBlock> {
+        //println!("source block next block");
         if self.idx > 0 {
             self.idx -= 1;
             Some(&self.data[self.idx])

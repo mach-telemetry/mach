@@ -186,45 +186,47 @@ impl Block {
         segment: &FlushSegment,
         compression: &Compression,
     ) -> bool {
-        let mut offset = self.len.load(SeqCst);
-        let start_offset = offset;
+        let start_offset = self.len.load(SeqCst);
+
+        let mut bytes = &mut self.bytes[start_offset..];
         let items = self.items.load(SeqCst);
         let u64sz = mem::size_of::<u64>();
 
-        // Write SeriesId
-        let end = offset + u64sz;
-        self.bytes[offset..end].copy_from_slice(&series_id.0.to_be_bytes());
-        offset = end;
-
-        // Reserve space for the size of the chunk
-        let end = offset + u64sz;
-        self.bytes[offset..end].copy_from_slice(&0u64.to_be_bytes());
-        let size_offset = offset;
-        offset = end;
+        bytes[0..8].copy_from_slice(&1234567890u64.to_be_bytes());
+        bytes[8..16].copy_from_slice(&series_id.0.to_be_bytes()); // series ID
+        bytes[16..24].copy_from_slice(&0u64.to_be_bytes()); // place holder for chunk size
 
         // Compress the data into the buffer
-        offset += {
-            let mut byte_buffer = ByteBuffer::new(&mut self.bytes[offset..]);
+        let size = {
+            let mut byte_buffer = ByteBuffer::new(&mut bytes[24..]);
+            assert!(byte_buffer.len() == 0);
             compression.compress(&segment.to_flush().unwrap(), &mut byte_buffer);
             byte_buffer.len()
         };
 
-        // Write the chunk
-        let size = (offset - size_offset) as u64;
-        self.bytes[size_offset..size_offset + u64sz].copy_from_slice(&size.to_be_bytes());
+        // Write the chunk size
+        bytes[16..24].copy_from_slice(&size.to_be_bytes());
 
-        // Write the seriesID and offset
+        // store location of this thing
+        //if series_id.0 == 4560055620737106128 {
+        //    println!("start offset: {}", start_offset);
+        //    println!("magic: {:?}", &bytes[24..24+12]);
+        //}
         self.offsets[items] = (series_id.0, start_offset);
 
+        //calculate new length
+        let new_length = start_offset + 24 + size;
+
         // update length
+        self.len.store(new_length, SeqCst);
         self.items.store(items + 1, SeqCst);
-        self.len.store(offset, SeqCst);
 
         // return true if full
-        offset > BLOCK_SZ
+        new_length > BLOCK_SZ
     }
 
     fn reset(&mut self) {
+        //println!("resetting");
         let u64sz = mem::size_of::<u64>();
         let new_id = self.id.fetch_add(1, SeqCst) + 1;
         self.bytes[..u64sz].copy_from_slice(&new_id.to_be_bytes());
@@ -257,21 +259,25 @@ impl ReadOnlyBlockBytes {
 
     pub fn offsets(&self) -> Box<[(u64, usize)]> {
         let data_len = self.data_len();
-        bincode::deserialize(&self.0[data_len..self.data_len_idx()]).unwrap()
+        let segments = bincode::deserialize(&self.0[data_len..self.data_len_idx()]).unwrap();
+        //println!("{:?}", segments);
+        segments
     }
 
     pub fn segment_at_offset(&self, offset: usize, segment: &mut Segment) {
+        //println!("getting segment at offset: {}", offset);
+
         let bytes = &self.0[offset..];
 
-        // Parse data per Block::push()
-        // series ID
-        let _series_id = SeriesId(u64::from_be_bytes(bytes[..8].try_into().unwrap()));
+        let magic = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
+        let series_id = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
+        let chunk_size = u64::from_be_bytes(bytes[16..24].try_into().unwrap()) as usize;
 
-        // size of data bytes
-        let size = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
+        assert_eq!(magic, 1234567890);
+        //println!("{} {}",series_id, chunk_size);
 
         // decompress data
-        let bytes = &bytes[16..16 + size];
+        let bytes = &bytes[24..24 + chunk_size];
         let _ = Compression::decompress(bytes, segment).unwrap();
     }
 }
