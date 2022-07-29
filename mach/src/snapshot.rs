@@ -43,7 +43,6 @@ impl<'a> FieldIterator<'a> {
     }
 
     pub fn next_item(&mut self) -> Option<SampleType> {
-        println!("Next item");
         if self.idx > 0 {
             self.idx -= 1;
             Some(SampleType::from_field_item(
@@ -365,6 +364,7 @@ impl SnapshotIterator {
     }
 
     pub fn next_segment(&mut self) -> Option<()> {
+        //println!("getting next segment");
         match self.state {
             State::ActiveSegment => match self.active_segment.as_mut().unwrap().next_segment() {
                 None => {

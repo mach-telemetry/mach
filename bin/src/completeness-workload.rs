@@ -7,7 +7,6 @@ mod snapshotter;
 
 use clap::*;
 use elasticsearch::{http::request::JsonBody, BulkParts, Elasticsearch, IndexParts, SearchParts};
-use serde::{Deserialize, Serialize};
 use kafka::{
     client::{FetchOffset, KafkaClient},
     consumer::{Consumer, Message},
@@ -23,6 +22,7 @@ use mach::{
     utils::kafka::{make_topic, Producer},
     writer::{Writer as MachWriter, WriterConfig},
 };
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{
     collections::HashSet,
@@ -205,7 +205,6 @@ fn timestamp_now() -> u64 {
         .try_into()
         .unwrap()
 }
-
 
 type Sample<'s, I> = (I, u64, &'s [SampleType]);
 type SampleOwned<I> = (I, u64, Vec<SampleType>);
@@ -637,7 +636,7 @@ fn main() {
     //let mut counters = Counters::new();
     COUNTERS.init_watcher();
     let workloads = &[
-        Workload::new(500_000., Duration::from_secs(300)),
+        Workload::new(500_000., Duration::from_secs(60 * 60)),
         //Workload::new(2_000_000., Duration::from_secs(70)),
         //Workload::new(2_000_000., Duration::from_secs(60)),
         //Workload::new(500_000., Duration::from_secs(120)),

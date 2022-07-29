@@ -6,7 +6,7 @@ mod snapshotter;
 
 use mach::id::SeriesId;
 use regex::Regex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 fn main() {
     //let data: Vec<prep_data::Sample> = prep_data::load_samples("/home/sli/data/train-ticket-data");
@@ -82,8 +82,12 @@ fn main() {
     //}
 
     // Search query
-    let _re = Regex::new(r"Error").unwrap();
-    let _start: usize = micros_from_epoch().try_into().unwrap();
+    let re = Regex::new(r"Shang").unwrap();
+
+    let now = micros_from_epoch();
+    let last_5 = now - Duration::from_secs(5 * 60).as_micros();
+
+    let start = Instant::now();
     let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
     let mut snapshot = snapshot_id.load().into_iterator();
     //loop {
@@ -104,6 +108,8 @@ fn main() {
     //let age = Duration::from_micros((start - ts) as u64);
     //println!("snapshot id: {:?}, query latency: {:?}, data age: {:?}", snapshot_id, duration, age);
 }
+
+fn find_span(span: &mach_otlp::trace::v1::Span) {}
 
 fn micros_from_epoch() -> u128 {
     SystemTime::now()

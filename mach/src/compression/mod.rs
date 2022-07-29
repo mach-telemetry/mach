@@ -162,6 +162,8 @@ impl Compression {
 
     pub fn compress(&self, segment: &FullSegment, buf: &mut ByteBuffer) {
         self.set_header(segment, buf);
+        //println!("after header {:?}", &buf.as_mut_slice()[0..12]);
+        //println!("len after header {}", buf.len());
 
         // compress the timestamps
 
@@ -177,7 +179,10 @@ impl Compression {
 
         // write size
         let len = (end_len - start_len) as u64;
+        //println!("timestamps compressed len {} {:?}", len, len.to_be_bytes());
         buf.as_mut_slice()[len_offset..len_offset + 8].copy_from_slice(&len.to_be_bytes()[..]);
+        //println!("after timetsamps {:?}", &buf.as_mut_slice()[0..12]);
+        //buf.add_len(8);
 
         // compress each variable
         let seg_len = segment.len();
@@ -192,22 +197,28 @@ impl Compression {
 
             // compress
             let start_len = buf.len();
+            //println!("before variable {:?}", &buf.as_mut_slice()[0..12]);
             match variable {
                 Variable::Var(x) => compression.compress(x, buf),
                 Variable::Heap { indexes, bytes } => {
                     compression.compress_heap(seg_len, indexes, bytes, buf)
                 }
             }
+            //println!("after variable {:?}", &buf.as_mut_slice()[0..12]);
 
             // write size
             let len = (buf.len() - start_len) as u64;
             buf.as_mut_slice()[len_offset..len_offset + 8].copy_from_slice(&len.to_be_bytes()[..]);
+            //buf.add_len(8);
         }
+        //println!("after everything {:?}", &buf.as_mut_slice()[0..12]);
     }
 
     fn get_header(data: &[u8]) -> Result<(Header, usize), Error> {
         let mut off = 0;
         if data[off..MAGIC.len()] != MAGIC[..] {
+            //println!("{:?} {:?}", &data[off..MAGIC.len()], MAGIC);
+            //println!("{:?} {:?}", u64::from_be_bytes(data[0..8].try_into().unwrap()), u64::from_be_bytes(data[8..16].try_into().unwrap()));
             return Err(Error::UnrecognizedMagic);
         }
         off += MAGIC.len();
