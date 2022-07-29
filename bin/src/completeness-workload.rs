@@ -4,6 +4,7 @@ mod bytes_server;
 mod prep_data;
 #[allow(dead_code)]
 mod snapshotter;
+mod kafka_utils;
 
 use clap::*;
 use elasticsearch::{http::request::JsonBody, BulkParts, Elasticsearch, IndexParts, SearchParts};
@@ -201,7 +202,7 @@ fn timestamp_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_millis()
+        .as_secs()
         .try_into()
         .unwrap()
 }
@@ -290,6 +291,7 @@ fn init_kafka_consumer() {
             //let _start = Instant::now();
             let max_ts = get_last_kafka_timestamp(topic.as_str(), bootstraps.as_str());
             let now: usize = micros_from_epoch().try_into().unwrap();
+            println!("max ts: {}, age: {}", max_ts, now - max_ts);
             if max_ts > 0 {
                 COUNTERS.data_age.store(now - max_ts, SeqCst);
             }
@@ -312,16 +314,13 @@ impl<I> Writer<I> {
 }
 
 fn kafka_writer(barrier: Arc<Barrier>, receiver: Receiver<Vec<Sample<SeriesId>>>) {
-    //let topic = ARGS.kafka_topic.clone();
-    let mut producer = Producer::new();
-    //let partitions: i32 = ARGS.kafka_partitions.try_into().unwrap();
-    //let mut rng = rand::thread_rng();
+    let mut producer = kafka_utils::Producer::new(ARGS.kafka_bootstraps.as_str());
     while let Ok(data) = receiver.recv() {
         let bytes = bincode::serialize(&data).unwrap();
         let mut compressed: Vec<u8> = Vec::new();
         lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
         compressed.extend_from_slice(&bytes.len().to_be_bytes()[..]); // Size of uncompressed bytes
-        producer.send(compressed.as_slice());
+        producer.send(ARGS.kafka_topic.as_str(), 0, compressed.as_slice());
         COUNTERS.samples_written.fetch_add(data.len(), SeqCst);
     }
     barrier.wait();
@@ -636,8 +635,8 @@ fn main() {
     //let mut counters = Counters::new();
     COUNTERS.init_watcher();
     let workloads = &[
-        Workload::new(500_000., Duration::from_secs(60 * 60)),
-        //Workload::new(2_000_000., Duration::from_secs(70)),
+        Workload::new(500_000., Duration::from_secs(30)),
+        Workload::new(2_000_000., Duration::from_secs(70)),
         //Workload::new(2_000_000., Duration::from_secs(60)),
         //Workload::new(500_000., Duration::from_secs(120)),
         //Workload::new(3_000_000., Duration::from_secs(60)),
@@ -647,8 +646,6 @@ fn main() {
         "es" => {
             let samples = SAMPLES.as_slice();
             let kafka_es = init_kafka_es();
-            COUNTERS.init_kafka_consumer();
-            COUNTERS.start_watcher();
             for workload in workloads {
                 workload.run(&kafka_es, samples);
             }
