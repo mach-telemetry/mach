@@ -1,6 +1,6 @@
 use crate::utils::random_id;
 use kafka::client::{FetchPartition, KafkaClient, RequiredAcks};
-use kafka::consumer::{GroupOffsetStorage};
+use kafka::consumer::GroupOffsetStorage;
 use kafka::producer::{Producer as OgProducer, Record};
 use rand::{thread_rng, Rng};
 use rdkafka::{
@@ -13,13 +13,10 @@ use rdkafka::{
     //Message,
 };
 //use std::convert::TryInto;
+use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering::SeqCst},
-    //Arc,
-};
+use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::time::Duration;
-use std::collections::{HashSet, HashMap};
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 
@@ -32,14 +29,12 @@ pub const MAX_MSG_SZ: usize = 2_000_000;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct KafkaEntry {
-    items: Vec<(i32, i64)>
+    items: Vec<(i32, i64)>,
 }
 
 impl KafkaEntry {
     pub fn new() -> Self {
-        KafkaEntry {
-            items: Vec::new(),
-        }
+        KafkaEntry { items: Vec::new() }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -47,7 +42,6 @@ impl KafkaEntry {
     }
 
     pub fn load(&self, buffer: &mut Vec<u8>) -> Result<usize, &'static str> {
-
         let mut hashset = HashSet::new();
         //let mut hashmap = HashMap::new();
 
@@ -61,7 +55,9 @@ impl KafkaEntry {
         client.set_client_id(random_id());
         client.set_group_offset_storage(GroupOffsetStorage::Kafka);
         client.set_fetch_max_bytes_per_partition(5_000_000);
-        client.set_fetch_max_wait_time(std::time::Duration::from_secs(1)).unwrap();
+        client
+            .set_fetch_max_wait_time(std::time::Duration::from_secs(1))
+            .unwrap();
         client.set_fetch_min_bytes(0);
 
         let mut hashmap: HashMap<(i32, i64), Vec<u8>> = HashMap::new();
@@ -75,7 +71,12 @@ impl KafkaEntry {
                             for p in t.partitions() {
                                 match p.data() {
                                     Err(ref e) => {
-                                        panic!("partition error: {}:{}: {}", t.topic(), p.partition(), e)
+                                        panic!(
+                                            "partition error: {}:{}: {}",
+                                            t.topic(),
+                                            p.partition(),
+                                            e
+                                        )
                                     }
                                     Ok(ref data) => {
                                         for msg in data.messages() {
@@ -207,8 +208,12 @@ impl Producer {
         let mut items = Vec::new();
         while start < item.len() {
             let end = item.len().min(start + MAX_MSG_SZ);
-            data.push(Record::from_value(TOPIC, &item[start..end]).with_partition(rng.gen_range(0..PARTITIONS)));
-            let reqs = &[Record::from_value(TOPIC, &item[start..end]).with_partition(rng.gen_range(0..PARTITIONS))];
+            data.push(
+                Record::from_value(TOPIC, &item[start..end])
+                    .with_partition(rng.gen_range(0..PARTITIONS)),
+            );
+            let reqs = &[Record::from_value(TOPIC, &item[start..end])
+                .with_partition(rng.gen_range(0..PARTITIONS))];
             let result = producer.send_all(reqs).unwrap();
             for topic in result.iter() {
                 for partition in topic.partition_confirms.iter() {
@@ -230,9 +235,7 @@ impl Producer {
         //    }
         //}
         TOTAL_MB_WRITTEN.fetch_add(item.len(), SeqCst);
-        let produced = KafkaEntry {
-            items,
-        };
+        let produced = KafkaEntry { items };
         produced
     }
 }
@@ -240,9 +243,8 @@ impl Producer {
 #[cfg(test)]
 mod test {
     use super::*;
-    use rand::{Rng, Fill, thread_rng};
     use kafka::consumer::{Consumer, FetchOffset};
-
+    use rand::{thread_rng, Fill, Rng};
 
     #[test]
     fn test_big() {
@@ -263,4 +265,3 @@ mod test {
         assert_eq!(result, data);
     }
 }
-

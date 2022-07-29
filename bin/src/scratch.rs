@@ -4,9 +4,7 @@ mod bytes_server;
 #[allow(dead_code)]
 mod snapshotter;
 
-use mach::{
-    id::SeriesId,
-};
+use mach::id::SeriesId;
 use regex::Regex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -51,7 +49,10 @@ fn main() {
     //}
 
     // Setup query
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
     let mut client = runtime.block_on(snapshotter::SnapshotClient::new());
     let id = SeriesId(4560055620737106128);
     let interval = Duration::from_secs_f64(0.5);
@@ -86,17 +87,17 @@ fn main() {
     let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
     let mut snapshot = snapshot_id.load().into_iterator();
     //loop {
-        snapshot.next_segment().unwrap();
-        let seg = snapshot.get_segment();
-        let timestamps = seg.timestamps().iterator();
-        let field = seg.field(0).iterator();
-        println!("HERE");
-        for (_idx, (ts, f)) in timestamps.zip(field).enumerate() {
-            let span = mach_otlp::trace::v1::Span::from(&f);
-            println!("TS {:?}", ts);
-            println!("Span: {:?}", span);
-        }
-        //let ts: usize = timestamps.next_timestamp().unwrap().try_into().unwrap();
+    snapshot.next_segment().unwrap();
+    let seg = snapshot.get_segment();
+    let timestamps = seg.timestamps().iterator();
+    let field = seg.field(0).iterator();
+    println!("HERE");
+    for (_idx, (ts, f)) in timestamps.zip(field).enumerate() {
+        let span = mach_otlp::trace::v1::Span::from(&f);
+        println!("TS {:?}", ts);
+        println!("Span: {:?}", span);
+    }
+    //let ts: usize = timestamps.next_timestamp().unwrap().try_into().unwrap();
     //}
     //let end: usize = micros_from_epoch().try_into().unwrap();
     //let duration = Duration::from_micros((end - start) as u64);

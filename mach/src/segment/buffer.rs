@@ -238,9 +238,9 @@ impl Buffer {
 pub enum Variable<'a> {
     Var(&'a [[u8; 8]]),
     Heap {
-        indexes: &'a[[u8; 8]],
-        bytes: &'a [u8]
-    }
+        indexes: &'a [[u8; 8]],
+        bytes: &'a [u8],
+    },
 }
 
 pub struct FlushBuffer<'a> {
@@ -261,7 +261,7 @@ impl<'a> FlushBuffer<'a> {
         match &self.inner.heap[i] {
             Some(x) => Variable::Heap {
                 indexes: self.variable(i),
-                bytes: x.as_slice()
+                bytes: x.as_slice(),
             },
             None => Variable::Var(self.variable(i)),
         }

@@ -22,7 +22,6 @@ use std::sync::{
     Arc, RwLock,
 };
 
-
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 

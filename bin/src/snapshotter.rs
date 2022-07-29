@@ -1,6 +1,6 @@
 use crate::bytes_server::{BytesClient, BytesHandler, BytesServer, Status};
 use mach::{
-    id::{SeriesId},
+    id::SeriesId,
     snapshotter::{SnapshotId, Snapshotter, SnapshotterId},
     tsdb::Mach,
 };

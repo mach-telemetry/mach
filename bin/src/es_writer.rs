@@ -122,8 +122,8 @@ async fn es_watch_freshness(index_name: &String, start_barr: Arc<Barrier>) {
                 let ts_curr = timestamp_now();
                 let ts_got = ts.as_u64().unwrap();
                 println!("got ts {}, freshness: {}", ts_got, ts_curr - ts_got);
-            },
-            _ => unreachable!("unexpected timestamp type")
+            }
+            _ => unreachable!("unexpected timestamp type"),
         }
         std::thread::sleep(one_sec);
     }

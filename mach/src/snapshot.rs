@@ -64,7 +64,6 @@ impl<'a> Iterator for FieldIterator<'a> {
     }
 }
 
-
 pub struct Timestamps<'a> {
     v: &'a [u64],
 }
@@ -346,8 +345,8 @@ impl SnapshotIterator {
             Some(x) => ReadOnlyBlockReader::new(x.as_bytes(), id),
             None => {
                 let block = source_blocks.next_block().unwrap();
-                        let bytes = block.as_bytes();
-                        ReadOnlyBlockReader::new(bytes, id)
+                let bytes = block.as_bytes();
+                ReadOnlyBlockReader::new(bytes, id)
             }
         };
         let state = if active_segment.is_some() {

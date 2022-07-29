@@ -2,7 +2,7 @@ use crate::{
     id::SeriesId,
     series::Series,
     snapshot::Snapshot,
-    utils::kafka::{Producer, KafkaEntry},
+    utils::kafka::{KafkaEntry, Producer},
 };
 use dashmap::DashMap;
 use std::{
@@ -76,9 +76,7 @@ impl Snapshotter {
             let kafka_entry = producer.send(bytes.as_slice());
 
             let snapshot_worker_data = Arc::new(Mutex::new(SnapshotWorkerData {
-                snapshot_id: SnapshotId {
-                    kafka: kafka_entry
-                },
+                snapshot_id: SnapshotId { kafka: kafka_entry },
                 series,
                 last_request,
                 interval,
@@ -126,9 +124,7 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
             let bytes = bincode::serialize(&snapshot).unwrap();
             let entry = producer.send(bytes.as_slice());
             //let snapshot = Arc::new(snapshot);
-            let id = SnapshotId {
-                kafka: entry,
-            };
+            let id = SnapshotId { kafka: entry };
             let mut guard = data.lock().unwrap();
             guard.snapshot_id = id;
         }

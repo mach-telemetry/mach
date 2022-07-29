@@ -40,8 +40,8 @@ pub mod opentelemetry {
         use otlp::resource;
     }
 }
-pub use opentelemetry::proto::*;
 use mach::sample::SampleType;
+pub use opentelemetry::proto::*;
 
 impl From<&otlp::logs::v1::SeverityNumber> for logs::v1::SeverityNumber {
     fn from(item: &otlp::logs::v1::SeverityNumber) -> Self {
@@ -184,11 +184,10 @@ impl From<&SampleType> for trace::v1::Span {
     fn from(item: &SampleType) -> Self {
         match item {
             SampleType::Bytes(x) => bincode::deserialize(x).unwrap(),
-            _ => panic!("unsupported sample type")
+            _ => panic!("unsupported sample type"),
         }
     }
 }
-
 
 impl From<&otlp::trace::v1::ScopeSpans> for trace::v1::ScopeSpans {
     fn from(item: &otlp::trace::v1::ScopeSpans) -> Self {
@@ -250,16 +249,11 @@ impl trace::v1::ResourceSpans {
     //    }
     //}
 
-    pub fn get_samples(
-        &self,
-        samples: &mut Vec<(mach::id::SeriesId, u64, Vec<SampleType>)>,
-    ) {
+    pub fn get_samples(&self, samples: &mut Vec<(mach::id::SeriesId, u64, Vec<SampleType>)>) {
         for scope in &self.scope_spans {
             for span in &scope.spans {
                 let mut v = Vec::with_capacity(1);
-                v.push(SampleType::Bytes(
-                    bincode::serialize(&span).unwrap(),
-                ));
+                v.push(SampleType::Bytes(bincode::serialize(&span).unwrap()));
                 let series_id = mach::id::SeriesId(span.source_id);
                 samples.push((series_id, span.start_time_unix_nano, v));
             }

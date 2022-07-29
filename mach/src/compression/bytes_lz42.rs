@@ -1,7 +1,7 @@
+use crate::compression::delta_of_delta;
 use crate::utils::byte_buffer::ByteBuffer;
 use lzzzz::lz4;
 use std::convert::TryInto;
-use crate::compression::delta_of_delta;
 
 pub fn compress(_len: usize, indexes: &[[u8; 8]], to_compress: &[u8], buf: &mut ByteBuffer) {
     //let start = buf.len();
@@ -31,7 +31,6 @@ pub fn compress(_len: usize, indexes: &[[u8; 8]], to_compress: &[u8], buf: &mut 
 
 /// Decompresses data into buf
 pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>, bytes: &mut Vec<u8>) {
-
     //let usz = std::mem::size_of::<usize>();
 
     let compressed_idx_offset = u64::from_be_bytes(data[0..8].try_into().unwrap());

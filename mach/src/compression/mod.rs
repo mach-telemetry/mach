@@ -58,7 +58,13 @@ impl CompressFn {
         };
     }
 
-    pub fn compress_heap(&self, len: usize, indexes: &[[u8; 8]], heap: &[u8], buf: &mut ByteBuffer) {
+    pub fn compress_heap(
+        &self,
+        len: usize,
+        indexes: &[[u8; 8]],
+        heap: &[u8],
+        buf: &mut ByteBuffer,
+    ) {
         match self {
             CompressFn::BytesLZ4 => bytes_lz42::compress(len, indexes, heap, buf),
             CompressFn::NOOP => unimplemented!(),
@@ -188,7 +194,9 @@ impl Compression {
             let start_len = buf.len();
             match variable {
                 Variable::Var(x) => compression.compress(x, buf),
-                Variable::Heap { indexes, bytes } => compression.compress_heap(seg_len, indexes, bytes, buf),
+                Variable::Heap { indexes, bytes } => {
+                    compression.compress_heap(seg_len, indexes, bytes, buf)
+                }
             }
 
             // write size
