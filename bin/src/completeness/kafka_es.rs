@@ -11,7 +11,7 @@ use elasticsearch::{
         transport::{SingleNodeConnectionPool, Transport, TransportBuilder},
         Url,
     },
-    BulkParts, Elasticsearch, IndexParts, SearchParts,
+    BulkParts, CountParts, Elasticsearch, IndexParts, SearchParts,
 };
 use kafka::{client::KafkaClient, consumer::Consumer};
 use lazy_static::lazy_static;
@@ -197,6 +197,27 @@ impl ESIndexQuerier {
             _ => unreachable!("unexpected timestamp type"),
         }
     }
+
+    async fn query_index_doc_count(
+        &self,
+        index_name: &str,
+    ) -> Result<Option<u64>, elasticsearch::Error> {
+        let r = self
+            .client
+            .count(CountParts::Index(&[index_name]))
+            .body(json!({"query": { "match_all": {} }}))
+            .send()
+            .await?;
+        let r_body = r
+            .json::<serde_json::Value>()
+            .await
+            .expect("Failed to parse response as json");
+        match &r_body["count"] {
+            serde_json::Value::Null => Ok(None),
+            serde_json::Value::Number(doc_count) => Ok(Some(doc_count.as_u64().unwrap())),
+            _ => unreachable!("unexpected doc count type"),
+        }
+    }
 }
 
 fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>>) {
@@ -289,6 +310,32 @@ fn es_freshness_watcher(es_client_builder: ESClientBuilder, index_name: &String)
     });
 }
 
+async fn es_watch_docs_count(client: ESIndexQuerier, index_name: &String) {
+    let one_sec = std::time::Duration::from_secs(1);
+    loop {
+        match client.query_index_doc_count(index_name).await {
+            Ok(resp) => match resp {
+                None => println!("index not ready yet"),
+                Some(doc_count) => {
+                    println!("indexed doc count: {doc_count}");
+                }
+            },
+            Err(e) => {
+                println!("query doc count err: {:?}", e);
+            }
+        }
+        tokio::time::sleep(one_sec).await;
+    }
+}
+
+fn es_docs_count_watcher(es_client_builder: ESClientBuilder, index_name: &String) {
+    let querier = ESIndexQuerier::new(es_client_builder.build().unwrap());
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        es_watch_docs_count(querier, index_name).await;
+    });
+}
+
 pub fn init_kafka_es(
     kafka_bootstraps: &'static str,
     kafka_topic: &'static str,
@@ -308,18 +355,20 @@ pub fn init_kafka_es(
         });
     }
 
-    let ingestor_es_builder = es_client_builder.clone();
     let (consume_tx, consume_rx) = bounded(10);
     thread::spawn(move || kafka_es_consumer(kafka_topic, &kafka_bootstraps, consume_tx));
+    let es_builder_clone = es_client_builder.clone();
     thread::spawn(move || {
         es_ingestor(
-            ingestor_es_builder,
+            es_builder_clone,
             &ES_INDEX_NAME,
             es_ingest_batch_size,
             consume_rx,
         )
     });
-    thread::spawn(move || es_freshness_watcher(es_client_builder, &ES_INDEX_NAME));
+    let es_builder_clone = es_client_builder.clone();
+    thread::spawn(move || es_freshness_watcher(es_builder_clone, &ES_INDEX_NAME));
+    thread::spawn(move || es_docs_count_watcher(es_client_builder, &ES_INDEX_NAME));
 
     Writer {
         sender: tx,
