@@ -40,6 +40,74 @@ impl Into<JsonBody<serde_json::Value>> for ESSample {
     }
 }
 
+type ESResponse = Result<elasticsearch::http::response::Response, elasticsearch::Error>;
+
+enum IngestResponse {
+    Batched,
+    Flushed(ESResponse),
+}
+
+struct ESBatchedIndexClient {
+    client: Elasticsearch,
+    batch: Vec<ESSample>,
+    batch_size: usize,
+    index_name: String,
+    index_created: bool,
+}
+
+impl Drop for ESBatchedIndexClient {
+    fn drop(&mut self) {
+        assert!(self.batch.len() == 0, "Some samples were not flushed");
+    }
+}
+
+impl ESBatchedIndexClient {
+    fn new(index_name: String, batch_size: usize) -> Self {
+        Self {
+            client: Elasticsearch::default(),
+            batch: Vec::with_capacity(batch_size),
+            batch_size,
+            index_name,
+            index_created: false,
+        }
+    }
+
+    async fn ingest(&mut self, doc: ESSample) -> IngestResponse {
+        self.batch.push(doc);
+        match self.batch.len() == self.batch_size {
+            true => IngestResponse::Flushed(self.flush().await),
+            false => IngestResponse::Batched,
+        }
+    }
+
+    async fn flush(&mut self) -> ESResponse {
+        if !self.index_created {
+            self._create_index(self.index_name.as_str())
+                .await
+                .expect("index creation failed");
+            self.index_created = true;
+        }
+
+        let batch = self.batch.clone();
+        self.batch.clear();
+        let mut bulk_msg_body: Vec<JsonBody<_>> = Vec::with_capacity(self.batch_size * 2);
+        for (item_no, item) in batch.into_iter().enumerate() {
+            bulk_msg_body.push(json!({"index": {"_id": item_no}}).into());
+            bulk_msg_body.push(item.into());
+        }
+
+        self.client
+            .bulk(BulkParts::Index(self.index_name.as_str()))
+            .body(bulk_msg_body)
+            .send()
+            .await
+    }
+
+    async fn _create_index(&self, name: &str) -> ESResponse {
+        self.client.index(IndexParts::Index(name)).send().await
+    }
+}
+
 fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>>) {
     let mut kafka_client = KafkaClient::new(bootstraps.split(',').map(String::from).collect());
     kafka_client.load_metadata_all().unwrap();
@@ -66,44 +134,24 @@ async fn es_ingest(
     consumer: Receiver<Vec<ESSample>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let batch_size = 1024;
-    let client = Elasticsearch::default();
-    client
-        .index(IndexParts::Index(index_name))
-        .send()
-        .await
-        .unwrap();
-    println!("index {} created", index_name);
+    let mut client = ESBatchedIndexClient::new(index_name.clone(), batch_size);
 
-    let mut batch_item_no = 0;
-    let mut body: Vec<JsonBody<_>> = Vec::with_capacity(batch_size * 2);
     while let Ok(samples) = consumer.recv() {
         for sample in samples {
-            body.push(json!({"index": {"_id": batch_item_no}}).into());
-            body.push(sample.into());
-            batch_item_no += 1;
-            if batch_item_no == batch_size {
-                let r = client
-                    .bulk(BulkParts::Index(index_name.as_str()))
-                    .body(body)
-                    .send()
-                    .await
-                    .unwrap();
-                assert!(r.error_for_status_code().is_ok());
-                batch_item_no = 0;
-                body = Vec::with_capacity(batch_size * 2);
+            match client.ingest(sample).await {
+                IngestResponse::Batched => {}
+                IngestResponse::Flushed(r) => {
+                    assert!(r
+                        .expect("could not submit samples to ES")
+                        .error_for_status_code()
+                        .is_ok());
+                }
             }
         }
     }
 
-    if !body.is_empty() {
-        let r = client
-            .bulk(BulkParts::Index(index_name.as_str()))
-            .body(body)
-            .send()
-            .await
-            .unwrap();
-        assert!(r.error_for_status_code().is_ok());
-    }
+    let r = client.flush().await.unwrap();
+    assert!(r.error_for_status_code().is_ok());
 
     Ok(())
 }
