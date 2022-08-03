@@ -144,8 +144,8 @@ impl ESBatchedIndexClient {
         let batch = self.batch.clone();
         self.batch.clear();
         let mut bulk_msg_body: Vec<JsonBody<_>> = Vec::with_capacity(self.batch_size * 2);
-        for (item_no, item) in batch.into_iter().enumerate() {
-            bulk_msg_body.push(json!({"index": {"_id": item_no}}).into());
+        for item in batch.into_iter() {
+            bulk_msg_body.push(json!({"index": {}}).into());
             bulk_msg_body.push(item.into());
         }
 
