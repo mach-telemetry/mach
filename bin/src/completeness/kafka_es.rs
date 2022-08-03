@@ -115,6 +115,46 @@ impl ESBatchedIndexClient {
     }
 }
 
+struct ESIndexQuerier {
+    client: Elasticsearch,
+}
+
+impl ESIndexQuerier {
+    fn new(es_endpoint: &str) -> Self {
+        let transport = Transport::single_node(es_endpoint).unwrap();
+        let client = Elasticsearch::new(transport);
+        Self { client }
+    }
+
+    async fn query_latest_timestamp(
+        &self,
+        index_name: &str,
+    ) -> Result<Option<u64>, elasticsearch::Error> {
+        let r = self
+            .client
+            .search(SearchParts::Index(&[index_name]))
+            .sort(&["timestamp:desc"])
+            .size(1)
+            .body(json!({
+                "query": {
+                    "match_all": {}
+                }
+            }))
+            .send()
+            .await?;
+
+        let r_body = r
+            .json::<serde_json::Value>()
+            .await
+            .expect("Failed to parse response as json");
+        match &r_body["hits"]["hits"][0]["sort"][0] {
+            serde_json::Value::Null => Ok(None),
+            serde_json::Value::Number(ts) => Ok(Some(ts.as_u64().unwrap())),
+            _ => unreachable!("unexpected timestamp type"),
+        }
+    }
+}
+
 fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>>) {
     let mut kafka_client = KafkaClient::new(bootstraps.split(',').map(String::from).collect());
     kafka_client.load_metadata_all().unwrap();
@@ -173,31 +213,20 @@ fn es_ingestor(es_endpoint: &str, index_name: &String, consumer: Receiver<Vec<ES
 
 async fn es_watch_freshness(es_endpoint: &str, index_name: &String) {
     let one_sec = std::time::Duration::from_secs(1);
-    let transport = Transport::single_node(es_endpoint).unwrap();
-    let client = Elasticsearch::new(transport);
+    let client = ESIndexQuerier::new(es_endpoint);
     loop {
-        let r = client
-            .search(SearchParts::Index(&[index_name.as_str()]))
-            .sort(&["timestamp:desc"])
-            .size(1)
-            .body(json!({
-                "query": {
-                    "match_all": {}
+        match client.query_latest_timestamp(index_name).await {
+            Ok(resp) => match resp {
+                None => println!("index not ready yet"),
+                Some(ts_got) => {
+                    let ts_curr = timestamp_now_micros();
+                    let delta = Duration::from_micros(ts_curr - ts_got);
+                    println!("got ts {}, freshness: {}", ts_got, delta.as_secs_f64());
                 }
-            }))
-            .send()
-            .await
-            .unwrap();
-        let r_body = r.json::<serde_json::Value>().await.unwrap();
-        match &r_body["hits"]["hits"][0]["sort"][0] {
-            serde_json::Value::Null => println!("es query erred; index not ready yet?"),
-            serde_json::Value::Number(ts) => {
-                let ts_curr = timestamp_now_micros();
-                let ts_got = ts.as_u64().unwrap();
-                let delta = Duration::from_micros(ts_curr - ts_got);
-                println!("got ts {}, freshness: {}", ts_got, delta.as_secs_f64());
+            },
+            Err(e) => {
+                println!("query latest timestamp err: {:?}", e);
             }
-            _ => unreachable!("unexpected timestamp type"),
         }
         tokio::time::sleep(one_sec).await;
     }
