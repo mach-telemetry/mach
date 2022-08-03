@@ -105,7 +105,7 @@ struct ESBatchedIndexClient {
     batch: Vec<ESSample>,
     batch_size: usize,
     index_name: String,
-    index_created: bool,
+    doc_count: usize,
 }
 
 impl Drop for ESBatchedIndexClient {
@@ -121,12 +121,13 @@ impl ESBatchedIndexClient {
             batch: Vec::with_capacity(batch_size),
             batch_size,
             index_name,
-            index_created: false,
+            doc_count: 0,
         }
     }
 
     async fn ingest(&mut self, doc: ESSample) -> IngestResponse {
         self.batch.push(doc);
+        self.doc_count += 1;
         match self.batch.len() == self.batch_size {
             true => IngestResponse::Flushed(self.flush().await),
             false => IngestResponse::Batched,
@@ -134,13 +135,6 @@ impl ESBatchedIndexClient {
     }
 
     async fn flush(&mut self) -> ESResponse {
-        if !self.index_created {
-            self._create_index(self.index_name.as_str())
-                .await
-                .expect("index creation failed");
-            self.index_created = true;
-        }
-
         let batch = self.batch.clone();
         self.batch.clear();
         let mut bulk_msg_body: Vec<JsonBody<_>> = Vec::with_capacity(self.batch_size * 2);
@@ -148,6 +142,7 @@ impl ESBatchedIndexClient {
             bulk_msg_body.push(json!({"index": {}}).into());
             bulk_msg_body.push(item.into());
         }
+        println!("sent doc count: {}", self.doc_count);
 
         self.client
             .bulk(BulkParts::Index(self.index_name.as_str()))
