@@ -75,14 +75,14 @@ struct Args {
     #[clap(short, long, default_value_t = 5.0)]
     counter_interval_seconds: f64,
 
-    #[clap(short, long, default_value_t = String::from("localhost"))]
+    #[clap(short, long, default_value_t = String::from("localhost:9200"))]
     es_endpoint: String,
 
-    #[clap(short, long, default_value_t = String::from(""))]
-    es_username: String,
+    #[clap(short, long)]
+    es_username: Option<String>,
 
-    #[clap(short, long, default_value_t = String::from(""))]
-    es_password: String,
+    #[clap(short, long)]
+    es_password: Option<String>,
 
     #[clap(short, long, default_value_t = 1024)]
     es_ingest_batch_size: usize,
@@ -101,8 +101,8 @@ fn main() {
         "es" => {
             let samples = SAMPLES.as_slice();
             let es_client_config = ESClientBuilder::default()
-                .username(ARGS.es_username.clone())
-                .password(ARGS.es_password.clone())
+                .username_optional(ARGS.es_username.clone())
+                .password_optional(ARGS.es_password.clone())
                 .endpoint(ARGS.es_endpoint.clone());
             let kafka_es = init_kafka_es(
                 ARGS.kafka_bootstraps.as_str(),

@@ -8,7 +8,7 @@ use elasticsearch::{
     auth::Credentials,
     http::{
         request::JsonBody,
-        transport::{SingleNodeConnectionPool, TransportBuilder},
+        transport::{SingleNodeConnectionPool, Transport, TransportBuilder},
         Url,
     },
     BulkParts, Elasticsearch, IndexParts, SearchParts,
@@ -34,13 +34,13 @@ pub struct ESClientBuilder {
 }
 
 impl ESClientBuilder {
-    pub fn username(mut self, username: String) -> Self {
-        self.username = Some(username);
+    pub fn username_optional(mut self, username: Option<String>) -> Self {
+        self.username = username;
         self
     }
 
-    pub fn password(mut self, password: String) -> Self {
-        self.password = Some(password);
+    pub fn password_optional(mut self, password: Option<String>) -> Self {
+        self.password = password;
         self
     }
 
@@ -50,6 +50,14 @@ impl ESClientBuilder {
     }
 
     pub fn build(self) -> Option<Elasticsearch> {
+        if self.es_endpoint.is_none() {
+            return Some(Elasticsearch::default());
+        }
+        if self.username.is_none() || self.password.is_none() {
+            let transport = Transport::single_node(&self.es_endpoint?).ok()?;
+            return Some(Elasticsearch::new(transport));
+        }
+
         let url = Url::parse(self.es_endpoint?.as_str()).ok()?;
         let conn_pool = SingleNodeConnectionPool::new(url);
         let transport = TransportBuilder::new(conn_pool)
