@@ -5,7 +5,12 @@ use crate::completeness::{
 use crate::{kafka_utils::make_topic, prep_data, utils::timestamp_now_micros};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use elasticsearch::{
-    http::{request::JsonBody, transport::Transport},
+    auth::Credentials,
+    http::{
+        request::JsonBody,
+        transport::{SingleNodeConnectionPool, TransportBuilder},
+        Url,
+    },
     BulkParts, Elasticsearch, IndexParts, SearchParts,
 };
 use kafka::{client::KafkaClient, consumer::Consumer};
@@ -19,6 +24,42 @@ use std::time::Duration;
 
 lazy_static! {
     static ref ES_INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
+}
+
+#[derive(Default, Clone)]
+pub struct ESClientBuilder {
+    username: Option<String>,
+    password: Option<String>,
+    es_endpoint: Option<String>,
+}
+
+impl ESClientBuilder {
+    pub fn username(mut self, username: String) -> Self {
+        self.username = Some(username);
+        self
+    }
+
+    pub fn password(mut self, password: String) -> Self {
+        self.password = Some(password);
+        self
+    }
+
+    pub fn endpoint(mut self, endpoint: String) -> Self {
+        self.es_endpoint = Some(endpoint);
+        self
+    }
+
+    pub fn build(self) -> Option<Elasticsearch> {
+        let url = Url::parse(self.es_endpoint?.as_str()).ok()?;
+        let conn_pool = SingleNodeConnectionPool::new(url);
+        let transport = TransportBuilder::new(conn_pool)
+            .disable_proxy()
+            .auth(Credentials::Basic(self.username?, self.password?))
+            .build()
+            .ok()?;
+        let client = Elasticsearch::new(transport);
+        Some(client)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -66,10 +107,7 @@ impl Drop for ESBatchedIndexClient {
 }
 
 impl ESBatchedIndexClient {
-    fn new(url: &str, index_name: String, batch_size: usize) -> Self {
-        let transport = Transport::single_node(url).unwrap();
-        let client = Elasticsearch::new(transport);
-
+    fn new(client: Elasticsearch, index_name: String, batch_size: usize) -> Self {
         Self {
             client,
             batch: Vec::with_capacity(batch_size),
@@ -120,9 +158,7 @@ struct ESIndexQuerier {
 }
 
 impl ESIndexQuerier {
-    fn new(es_endpoint: &str) -> Self {
-        let transport = Transport::single_node(es_endpoint).unwrap();
-        let client = Elasticsearch::new(transport);
+    fn new(client: Elasticsearch) -> Self {
         Self { client }
     }
 
@@ -177,13 +213,9 @@ fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>
 }
 
 async fn es_ingest(
-    es_endpoint: &str,
-    index_name: &String,
+    mut client: ESBatchedIndexClient,
     consumer: Receiver<Vec<ESSample>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let batch_size = 1024;
-    let mut client = ESBatchedIndexClient::new(&es_endpoint, index_name.clone(), batch_size);
-
     while let Ok(samples) = consumer.recv() {
         for sample in samples {
             match client.ingest(sample).await {
@@ -204,16 +236,25 @@ async fn es_ingest(
     Ok(())
 }
 
-fn es_ingestor(es_endpoint: &str, index_name: &String, consumer: Receiver<Vec<ESSample>>) {
+fn es_ingestor(
+    es_client_builder: ESClientBuilder,
+    index_name: &String,
+    ingest_batch_size: usize,
+    consumer: Receiver<Vec<ESSample>>,
+) {
+    let client = ESBatchedIndexClient::new(
+        es_client_builder.build().unwrap(),
+        index_name.to_string(),
+        ingest_batch_size,
+    );
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        es_ingest(es_endpoint, index_name, consumer).await.unwrap();
+        es_ingest(client, consumer).await.unwrap();
     });
 }
 
-async fn es_watch_freshness(es_endpoint: &str, index_name: &String) {
+async fn es_watch_freshness(client: ESIndexQuerier, index_name: &String) {
     let one_sec = std::time::Duration::from_secs(1);
-    let client = ESIndexQuerier::new(es_endpoint);
     loop {
         match client.query_latest_timestamp(index_name).await {
             Ok(resp) => match resp {
@@ -232,10 +273,11 @@ async fn es_watch_freshness(es_endpoint: &str, index_name: &String) {
     }
 }
 
-fn es_freshness_watcher(es_endpoint: &str, index_name: &String) {
+fn es_freshness_watcher(es_client_builder: ESClientBuilder, index_name: &String) {
+    let querier = ESIndexQuerier::new(es_client_builder.build().unwrap());
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        es_watch_freshness(es_endpoint, index_name).await;
+        es_watch_freshness(querier, index_name).await;
     });
 }
 
@@ -243,7 +285,8 @@ pub fn init_kafka_es(
     kafka_bootstraps: &'static str,
     kafka_topic: &'static str,
     num_writers: usize,
-    es_endpoint: &'static str,
+    es_client_builder: ESClientBuilder,
+    es_ingest_batch_size: usize,
 ) -> Writer<SeriesId> {
     make_topic(&kafka_bootstraps, &kafka_topic);
     let (tx, rx) = bounded(1);
@@ -257,10 +300,18 @@ pub fn init_kafka_es(
         });
     }
 
+    let ingestor_es_builder = es_client_builder.clone();
     let (consume_tx, consume_rx) = bounded(10);
-    thread::spawn(move || kafka_es_consumer(&kafka_topic, &kafka_bootstraps, consume_tx));
-    thread::spawn(move || es_ingestor(es_endpoint, &ES_INDEX_NAME, consume_rx));
-    thread::spawn(move || es_freshness_watcher(es_endpoint, &ES_INDEX_NAME));
+    thread::spawn(move || kafka_es_consumer(kafka_topic, &kafka_bootstraps, consume_tx));
+    thread::spawn(move || {
+        es_ingestor(
+            ingestor_es_builder,
+            &ES_INDEX_NAME,
+            es_ingest_batch_size,
+            consume_rx,
+        )
+    });
+    thread::spawn(move || es_freshness_watcher(es_client_builder, &ES_INDEX_NAME));
 
     Writer {
         sender: tx,

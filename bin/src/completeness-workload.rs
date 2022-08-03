@@ -14,6 +14,7 @@ use crate::completeness::{
 
 use crate::completeness::mach::{MACH, MACH_WRITER};
 use clap::*;
+use completeness::kafka_es::ESClientBuilder;
 use lazy_static::lazy_static;
 use mach::id::SeriesId;
 use std::{
@@ -76,6 +77,15 @@ struct Args {
 
     #[clap(short, long, default_value_t = String::from("localhost"))]
     es_endpoint: String,
+
+    #[clap(short, long, default_value_t = String::from(""))]
+    es_username: String,
+
+    #[clap(short, long, default_value_t = String::from(""))]
+    es_password: String,
+
+    #[clap(short, long, default_value_t = 1024)]
+    es_ingest_batch_size: usize,
 }
 
 fn main() {
@@ -90,11 +100,16 @@ fn main() {
     match ARGS.tsdb.as_str() {
         "es" => {
             let samples = SAMPLES.as_slice();
+            let es_client_config = ESClientBuilder::default()
+                .username(ARGS.es_username.clone())
+                .password(ARGS.es_password.clone())
+                .endpoint(ARGS.es_endpoint.clone());
             let kafka_es = init_kafka_es(
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
-                ARGS.es_endpoint.as_str(),
+                es_client_config,
+                ARGS.es_ingest_batch_size,
             );
             for workload in workloads {
                 workload.run(&kafka_es, samples);
