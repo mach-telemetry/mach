@@ -73,6 +73,9 @@ struct Args {
 
     #[clap(short, long, default_value_t = 5.0)]
     counter_interval_seconds: f64,
+
+    #[clap(short, long, default_value_t = String::from("localhost"))]
+    es_endpoint: String,
 }
 
 fn main() {
@@ -91,6 +94,7 @@ fn main() {
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
+                ARGS.es_endpoint.as_str(),
             );
             for workload in workloads {
                 workload.run(&kafka_es, samples);
