@@ -7,11 +7,12 @@ use crossbeam_channel::{bounded, Receiver, Sender};
 use elasticsearch::{
     auth::Credentials,
     http::{
+        headers::HeaderMap,
         request::JsonBody,
         transport::{SingleNodeConnectionPool, Transport, TransportBuilder},
-        Url,
+        Method, Url,
     },
-    BulkParts, CountParts, Elasticsearch, IndexParts, SearchParts,
+    BulkParts, CountParts, Elasticsearch, SearchParts,
 };
 use kafka::{client::KafkaClient, consumer::Consumer};
 use lazy_static::lazy_static;
@@ -67,6 +68,38 @@ impl ESClientBuilder {
             .ok()?;
         let client = Elasticsearch::new(transport);
         Some(client)
+    }
+}
+
+struct CreateIndexArgs {
+    num_shards: usize,
+    num_replicas: usize,
+}
+
+impl Default for CreateIndexArgs {
+    fn default() -> Self {
+        // The default settings used by ES:
+        // https://www.elastic.co/guide/en/elasticsearch/reference/7.14/indices-create-index.html
+        Self {
+            num_shards: 1,
+            num_replicas: 1,
+        }
+    }
+}
+
+impl CreateIndexArgs {
+    fn into_body(self) -> JsonBody<serde_json::Value> {
+        let body: JsonBody<_> = json!({
+            "settings": {
+                "index": {
+                  "number_of_shards": self.num_shards,
+                  "number_of_replicas": self.num_replicas,
+                }
+              }
+        })
+        .into();
+
+        body
     }
 }
 
@@ -151,8 +184,19 @@ impl ESBatchedIndexClient {
             .await
     }
 
-    async fn _create_index(&self, name: &str) -> ESResponse {
-        self.client.index(IndexParts::Index(name)).send().await
+    async fn create_index(&self, args: CreateIndexArgs) -> ESResponse {
+        let body = Some(args.into_body());
+        let query_string = None;
+        self.client
+            .send::<JsonBody<_>, String>(
+                Method::Put,
+                format!("/{}", self.index_name.as_str()).as_str(),
+                HeaderMap::new(),
+                query_string,
+                body,
+                None,
+            )
+            .await
     }
 }
 
@@ -240,6 +284,14 @@ async fn es_ingest(
     mut client: ESBatchedIndexClient,
     consumer: Receiver<Vec<ESSample>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    client
+        .create_index(CreateIndexArgs {
+            num_shards: 3,
+            num_replicas: 1,
+        })
+        .await
+        .expect("could not create index");
+
     while let Ok(samples) = consumer.recv() {
         for sample in samples {
             match client.ingest(sample).await {
