@@ -86,13 +86,16 @@ struct Args {
 
     #[clap(short, long, default_value_t = 1024)]
     es_ingest_batch_size: usize,
+
+    #[clap(short, long, default_value_t = 40)]
+    es_num_writers: usize,
 }
 
 fn main() {
     COUNTERS.init_watcher(Duration::from_secs_f64(ARGS.counter_interval_seconds));
     let workloads = &[
-        Workload::new(500_000., Duration::from_secs(30), ARGS.batch_size),
-        Workload::new(2_000_000., Duration::from_secs(70), ARGS.batch_size),
+        Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
+        Workload::new(2_000_000., Duration::from_secs(120), ARGS.batch_size),
         // Workload::new(500_000., Duration::from_secs(120), ARGS.batch_size),
         // Workload::new(3_000_000., Duration::from_secs(60), ARGS.batch_size),
         // Workload::new(500_000., Duration::from_secs(120), ARGS.batch_size),
@@ -110,6 +113,7 @@ fn main() {
                 ARGS.kafka_writers,
                 es_client_config,
                 ARGS.es_ingest_batch_size,
+                ARGS.es_num_writers,
             );
             for workload in workloads {
                 workload.run(&kafka_es, samples);

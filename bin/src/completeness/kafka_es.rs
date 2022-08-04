@@ -19,12 +19,13 @@ use lazy_static::lazy_static;
 use mach::{id::SeriesId, sample::SampleType};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::sync::{Arc, Barrier};
+use std::sync::{atomic::AtomicUsize, Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
 lazy_static! {
     static ref ES_INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
+    static ref NUM_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 }
 
 #[derive(Default, Clone)]
@@ -138,7 +139,6 @@ struct ESBatchedIndexClient {
     batch: Vec<ESSample>,
     batch_size: usize,
     index_name: String,
-    doc_count: usize,
 }
 
 impl Drop for ESBatchedIndexClient {
@@ -154,13 +154,11 @@ impl ESBatchedIndexClient {
             batch: Vec::with_capacity(batch_size),
             batch_size,
             index_name,
-            doc_count: 0,
         }
     }
 
     async fn ingest(&mut self, doc: ESSample) -> IngestResponse {
         self.batch.push(doc);
-        self.doc_count += 1;
         match self.batch.len() == self.batch_size {
             true => IngestResponse::Flushed(self.flush().await),
             false => IngestResponse::Batched,
@@ -169,19 +167,21 @@ impl ESBatchedIndexClient {
 
     async fn flush(&mut self) -> ESResponse {
         let batch = self.batch.clone();
+        let batch_sz = batch.len();
         self.batch.clear();
-        let mut bulk_msg_body: Vec<JsonBody<_>> = Vec::with_capacity(self.batch_size * 2);
+        let mut bulk_msg_body: Vec<JsonBody<_>> = Vec::with_capacity(batch_sz * 2);
         for item in batch.into_iter() {
             bulk_msg_body.push(json!({"index": {}}).into());
             bulk_msg_body.push(item.into());
         }
-        println!("sent doc count: {}", self.doc_count);
-
-        self.client
+        let r = self
+            .client
             .bulk(BulkParts::Index(self.index_name.as_str()))
             .body(bulk_msg_body)
             .send()
-            .await
+            .await;
+        NUM_WRITTEN.fetch_add(batch_sz, std::sync::atomic::Ordering::SeqCst);
+        r
     }
 
     async fn create_index(&self, args: CreateIndexArgs) -> ESResponse {
@@ -284,14 +284,6 @@ async fn es_ingest(
     mut client: ESBatchedIndexClient,
     consumer: Receiver<Vec<ESSample>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    client
-        .create_index(CreateIndexArgs {
-            num_shards: 3,
-            num_replicas: 1,
-        })
-        .await
-        .expect("could not create index");
-
     while let Ok(samples) = consumer.recv() {
         for sample in samples {
             match client.ingest(sample).await {
@@ -316,16 +308,40 @@ fn es_ingestor(
     es_client_builder: ESClientBuilder,
     index_name: &String,
     ingest_batch_size: usize,
+    num_ingestors: usize,
     consumer: Receiver<Vec<ESSample>>,
 ) {
+    let builder_clone = es_client_builder.clone();
     let client = ESBatchedIndexClient::new(
-        es_client_builder.build().unwrap(),
+        builder_clone.build().unwrap(),
         index_name.to_string(),
         ingest_batch_size,
     );
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        es_ingest(client, consumer).await.unwrap();
+        client
+            .create_index(CreateIndexArgs {
+                num_shards: 20,
+                num_replicas: 1,
+            })
+            .await
+            .expect("could not create index");
+
+        let mut handles = Vec::new();
+        for _ in 0..num_ingestors {
+            let builder_clone = es_client_builder.clone();
+            let index = index_name.clone();
+            let consumer = consumer.clone();
+            let batch_size = ingest_batch_size;
+            handles.push(tokio::spawn(async move {
+                let client =
+                    ESBatchedIndexClient::new(builder_clone.build().unwrap(), index, batch_size);
+                es_ingest(client, consumer).await.unwrap();
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
     });
 }
 
@@ -359,12 +375,15 @@ fn es_freshness_watcher(es_client_builder: ESClientBuilder, index_name: &String)
 
 async fn es_watch_docs_count(client: ESIndexQuerier, index_name: &String) {
     let one_sec = std::time::Duration::from_secs(1);
+    let mut last_doc_count = 0;
     loop {
         match client.query_index_doc_count(index_name).await {
             Ok(resp) => match resp {
                 None => println!("index not ready yet"),
                 Some(doc_count) => {
-                    println!("indexed doc count: {doc_count}");
+                    let delta = doc_count - last_doc_count;
+                    println!("indexed doc count: {doc_count}, index docs/sec: {}", delta);
+                    last_doc_count = doc_count;
                 }
             },
             Err(e) => {
@@ -383,12 +402,25 @@ fn es_docs_count_watcher(es_client_builder: ESClientBuilder, index_name: &String
     });
 }
 
+fn es_num_docs_flushed_watcher() {
+    let one_sec = std::time::Duration::from_secs(1);
+    let mut last_val = NUM_WRITTEN.load(std::sync::atomic::Ordering::SeqCst);
+    loop {
+        let curr_num_written = NUM_WRITTEN.load(std::sync::atomic::Ordering::SeqCst);
+        let delta = curr_num_written - last_val;
+        println!("num. samples flushed per sec: {}", delta);
+        last_val = curr_num_written;
+        std::thread::sleep(one_sec);
+    }
+}
+
 pub fn init_kafka_es(
     kafka_bootstraps: &'static str,
     kafka_topic: &'static str,
     num_writers: usize,
     es_client_builder: ESClientBuilder,
     es_ingest_batch_size: usize,
+    es_num_writers: usize,
 ) -> Writer<SeriesId> {
     make_topic(&kafka_bootstraps, &kafka_topic);
     let (tx, rx) = bounded(1);
@@ -410,12 +442,14 @@ pub fn init_kafka_es(
             es_builder_clone,
             &ES_INDEX_NAME,
             es_ingest_batch_size,
+            es_num_writers,
             consume_rx,
         )
     });
     let es_builder_clone = es_client_builder.clone();
     thread::spawn(move || es_freshness_watcher(es_builder_clone, &ES_INDEX_NAME));
     thread::spawn(move || es_docs_count_watcher(es_client_builder, &ES_INDEX_NAME));
+    thread::spawn(es_num_docs_flushed_watcher);
 
     Writer {
         sender: tx,
