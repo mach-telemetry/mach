@@ -4,7 +4,9 @@ use crate::completeness::{
 };
 use crate::elastic::{
     CreateIndexArgs, ESBatchedIndexClient, ESClientBuilder, ESIndexQuerier, IngestResponse,
+    IngestStats,
 };
+use crate::prep_data::ESSample;
 use crate::{kafka_utils::make_topic, prep_data, utils::timestamp_now_micros};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use elasticsearch::http::request::JsonBody;
@@ -19,28 +21,7 @@ use std::time::Duration;
 lazy_static! {
     static ref ES_INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref NUM_WRITTEN: AtomicUsize = AtomicUsize::new(0);
-}
-#[derive(Serialize, Deserialize, Clone)]
-pub struct ESSample {
-    series_id: SeriesId,
-    timestamp: u64,
-    data: Vec<SampleType>,
-}
-
-impl From<SampleOwned<SeriesId>> for ESSample {
-    fn from(data: prep_data::Sample) -> ESSample {
-        ESSample {
-            series_id: data.0,
-            timestamp: data.1,
-            data: data.2,
-        }
-    }
-}
-
-impl Into<JsonBody<serde_json::Value>> for ESSample {
-    fn into(self) -> JsonBody<serde_json::Value> {
-        serde_json::to_value(self).unwrap().into()
-    }
+    static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
 }
 
 fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>>) {
@@ -100,6 +81,7 @@ fn es_ingestor(
         builder_clone.build().unwrap(),
         index_name.to_string(),
         ingest_batch_size,
+        INGESTION_STATS.clone(),
     );
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
@@ -118,8 +100,12 @@ fn es_ingestor(
             let consumer = consumer.clone();
             let batch_size = ingest_batch_size;
             handles.push(tokio::spawn(async move {
-                let client =
-                    ESBatchedIndexClient::new(builder_clone.build().unwrap(), index, batch_size);
+                let client = ESBatchedIndexClient::new(
+                    builder_clone.build().unwrap(),
+                    index,
+                    batch_size,
+                    INGESTION_STATS.clone(),
+                );
                 es_ingest(client, consumer).await.unwrap();
             }));
         }

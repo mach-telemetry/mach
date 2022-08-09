@@ -1,3 +1,4 @@
+use elasticsearch::http::request::JsonBody;
 use mach::{
     compression::{CompressFn, Compression},
     id::SeriesId,
@@ -7,7 +8,7 @@ use mach::{
     tsdb::Mach,
     writer::Writer,
 };
-
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs::File, io::prelude::*};
 
 pub type TimeStamp = u64;
@@ -105,4 +106,27 @@ fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
         nvars,
     };
     conf
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ESSample {
+    series_id: SeriesId,
+    timestamp: u64,
+    data: Vec<SampleType>,
+}
+
+impl From<Sample> for ESSample {
+    fn from(data: Sample) -> ESSample {
+        ESSample {
+            series_id: data.0,
+            timestamp: data.1,
+            data: data.2,
+        }
+    }
+}
+
+impl Into<JsonBody<serde_json::Value>> for ESSample {
+    fn into(self) -> JsonBody<serde_json::Value> {
+        serde_json::to_value(self).unwrap().into()
+    }
 }

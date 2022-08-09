@@ -1,3 +1,5 @@
+use std::sync::{atomic::AtomicUsize, Arc};
+
 use elasticsearch::{
     auth::Credentials,
     http::{
@@ -86,6 +88,11 @@ impl CreateIndexArgs {
     }
 }
 
+#[derive(Default)]
+pub struct IngestStats {
+    pub num_flushed: AtomicUsize,
+}
+
 pub type ESResponse = Result<elasticsearch::http::response::Response, elasticsearch::Error>;
 
 pub enum IngestResponse {
@@ -98,6 +105,7 @@ pub struct ESBatchedIndexClient<T: Clone + Into<JsonBody<serde_json::Value>>> {
     batch: Vec<T>,
     batch_size: usize,
     index_name: String,
+    stats: Arc<IngestStats>,
 }
 
 impl<T: Clone + Into<JsonBody<serde_json::Value>>> Drop for ESBatchedIndexClient<T> {
@@ -107,12 +115,18 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> Drop for ESBatchedIndexClient
 }
 
 impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
-    pub fn new(client: Elasticsearch, index_name: String, batch_size: usize) -> Self {
+    pub fn new(
+        client: Elasticsearch,
+        index_name: String,
+        batch_size: usize,
+        stats: Arc<IngestStats>,
+    ) -> Self {
         Self {
             client,
             batch: Vec::with_capacity(batch_size),
             batch_size,
             index_name,
+            stats,
         }
     }
 
@@ -139,7 +153,9 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
             .body(bulk_msg_body)
             .send()
             .await;
-        // NUM_WRITTEN.fetch_add(batch_sz, std::sync::atomic::Ordering::SeqCst);
+        self.stats
+            .num_flushed
+            .fetch_add(batch_sz, std::sync::atomic::Ordering::SeqCst);
         r
     }
 

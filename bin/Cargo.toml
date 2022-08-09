@@ -130,8 +130,8 @@ name = "kafka_test"
 path = "src/kafka_test.rs"
 
 [[bin]]
-name = "es-writer"
-path = "src/es_writer.rs"
+name = "es-bench"
+path = "src/es_bench.rs"
 
 #[[bin]]
 #name = "convert-otlp-data"
