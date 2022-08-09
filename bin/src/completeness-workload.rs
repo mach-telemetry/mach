@@ -1,6 +1,7 @@
 #[allow(dead_code)]
 mod bytes_server;
 mod completeness;
+mod elastic;
 mod kafka_utils;
 #[allow(dead_code)]
 mod prep_data;
@@ -14,7 +15,7 @@ use crate::completeness::{
 
 use crate::completeness::mach::{MACH, MACH_WRITER};
 use clap::*;
-use completeness::kafka_es::ESClientBuilder;
+use elastic::ESClientBuilder;
 use lazy_static::lazy_static;
 use mach::id::SeriesId;
 use std::{
