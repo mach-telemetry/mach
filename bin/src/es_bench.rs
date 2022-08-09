@@ -88,7 +88,7 @@ async fn main() {
         let batch_size = ARGS.es_ingest_batch_size;
         let run_dur = run_duration.clone();
         tokio::spawn(async move {
-            bench(barr, es_builder, batch_size, run_dur);
+            bench(barr, es_builder, batch_size, run_dur).await;
         });
     }
     barr.wait().await;
@@ -110,5 +110,9 @@ async fn main() {
         .num_flushed
         .load(std::sync::atomic::Ordering::SeqCst);
     let samples_per_sec = num_flushed as f64 / bench_dur.as_secs_f64();
-    println!("samples per sec: {samples_per_sec}");
+    println!(
+        "bench duration: {}, number of samples: {}, samples per sec: {samples_per_sec}",
+        bench_dur.as_secs_f64(),
+        num_flushed
+    );
 }
