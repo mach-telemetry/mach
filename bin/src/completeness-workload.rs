@@ -26,14 +26,30 @@ use std::{
 
 lazy_static! {
     static ref ARGS: Args = Args::parse();
-    static ref SAMPLES: Vec<prep_data::Sample> = prep_data::load_samples(ARGS.file_path.as_str());
+    static ref SAMPLES: Vec<prep_data::Sample> = {
+        let mut init = prep_data::load_samples(ARGS.file_path.as_str());
+        //return init;
+        println!("Init len: {}", init.len());
+        let mut samples = Vec::new();
+        let all_len = 100usize;
+        for i in init[..init.len()/all_len].iter() {
+            for j in 0..all_len {
+                let mut item = i.clone();
+                item.0.0 += j as u64;
+                samples.push(item);
+            }
+        }
+        //samples.shuffle(&mut thread_rng());
+        println!("Samples len: {}", samples.len());
+        samples
+    };
     static ref SERIES_IDS: Vec<SeriesId> = {
         let mut set = HashSet::new();
         for sample in SAMPLES.iter() {
             set.insert(sample.0);
         }
         let ids = set.drain().collect();
-        println!("IDs {:?}", ids);
+        //println!("IDs {:?}", ids);
         ids
     };
     static ref MACH_SAMPLES: Vec<prep_data::RegisteredSample> = {

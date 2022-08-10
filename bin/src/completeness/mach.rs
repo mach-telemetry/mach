@@ -53,14 +53,14 @@ pub fn init_mach_querier(series_id: SeriesId) {
     );
     thread::sleep(Duration::from_secs(2));
     loop {
-        let now: usize = micros_from_epoch().try_into().unwrap();
-        let offset = snapshotter.get(snapshotter_id).unwrap();
-        let mut snapshot = offset.load().into_iterator();
-        snapshot.next_segment().unwrap();
-        let seg = snapshot.get_segment();
-        let mut timestamps = seg.timestamps().iterator();
-        let ts: usize = timestamps.next_timestamp().unwrap().try_into().unwrap();
-        COUNTERS.data_age.store(now - ts, SeqCst);
+        //let now: usize = micros_from_epoch().try_into().unwrap();
+        //let offset = snapshotter.get(snapshotter_id).unwrap();
+        //let mut snapshot = offset.load().into_iterator();
+        //snapshot.next_segment().unwrap();
+        //let seg = snapshot.get_segment();
+        //let mut timestamps = seg.timestamps().iterator();
+        //let ts: usize = timestamps.next_timestamp().unwrap().try_into().unwrap();
+        //COUNTERS.data_age.store(now - ts, SeqCst);
         thread::sleep(Duration::from_secs(1));
     }
 }
