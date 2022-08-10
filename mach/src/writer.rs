@@ -128,6 +128,9 @@ impl Writer {
                 let id = series.config.id;
                 let compression = series.config.compression.clone();
                 let segment = self.writers[reference].flush();
+                //unsafe {
+                //    segment.flushed();
+                //}
                 self.block_worker
                     .send(FlushItem {
                         id,
