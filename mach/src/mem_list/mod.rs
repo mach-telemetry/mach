@@ -25,11 +25,12 @@ use std::sync::{
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 
-pub const INIT_FLUSHERS: usize = 1;
+pub const INIT_FLUSHERS: usize = 4;
 pub const BLOCK_SZ: usize = 1_000_000;
 
 lazy_static! {
     //static ref TOPIC: String = random_id();
+    pub static ref FLUSHER_QUEUE_LEN: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     pub static ref TOTAL_BYTES_FLUSHED: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     static ref N_FLUSHERS: AtomicUsize = AtomicUsize::new(INIT_FLUSHERS);
     static ref FLUSH_WORKERS: DashMap<usize, crossbeam::channel::Sender<Arc<BlockListEntry>>> = {
@@ -64,6 +65,7 @@ fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new();
     while let Ok(block) = chan.recv() {
         block.flush(&mut producer);
+        FLUSHER_QUEUE_LEN.fetch_sub(1, SeqCst);
     }
 }
 
@@ -144,6 +146,7 @@ impl BlockList {
                 self.series_map.get(&id).unwrap().push(copy.clone());
             }
             let n_flushers = N_FLUSHERS.load(SeqCst);
+            FLUSHER_QUEUE_LEN.fetch_add(1, SeqCst);
             FLUSH_WORKERS
                 .get(&thread_rng().gen_range(0..n_flushers))
                 .unwrap()

@@ -12,7 +12,8 @@ use crossbeam_channel::Sender;
 use lazy_static::lazy_static;
 use mach_extern::{
     id::SeriesId,
-    mem_list::{TOTAL_BYTES_FLUSHED, UNFLUSHED_COUNT},
+    mem_list::{TOTAL_BYTES_FLUSHED, FLUSHER_QUEUE_LEN, UNFLUSHED_COUNT},
+    writer::{QUEUE_LEN},
     sample::SampleType,
 };
 use std::sync::{atomic::AtomicUsize, atomic::Ordering::SeqCst, Arc, Barrier};
@@ -35,6 +36,8 @@ pub struct Counters {
     raw_data_size: Arc<AtomicUsize>,
     data_age: Arc<AtomicUsize>,
     start_gate: Arc<Barrier>,
+    buffer_queue: Arc<AtomicUsize>,
+    flusher_queue: Arc<AtomicUsize>,
 }
 
 impl Counters {
@@ -48,6 +51,8 @@ impl Counters {
             unflushed_count: UNFLUSHED_COUNT.clone(),
             bytes_flushed: TOTAL_BYTES_FLUSHED.clone(),
             start_gate: Arc::new(Barrier::new(2)),
+            buffer_queue: QUEUE_LEN.clone(),
+            flusher_queue: FLUSHER_QUEUE_LEN.clone(),
         };
         r
     }
@@ -108,8 +113,11 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
 
         let bytes_flushed = COUNTERS.bytes_flushed.load(SeqCst);
         let unflushed_count = COUNTERS.unflushed_count.load(SeqCst);
+        let buffer_queue = COUNTERS.buffer_queue.load(SeqCst);
+        let flusher_queue = COUNTERS.flusher_queue.load(SeqCst);
 
-        println!("Completeness: {}, Unflushed: {}, Throughput: {}, Data age (seconds): {:?}, Raw data size: {} bytes, Data flushed: {} bytes", completeness, unflushed_count, rate, delay.as_secs_f64(), raw_data_size, bytes_flushed);
+        //println!("Completeness: {}, Buffer Queue: {}, Unflushed: {}, Throughput: {}, Data age (seconds): {:?}, Raw data size: {} bytes, Data flushed: {} bytes", completeness, buffer_queue, unflushed_count, rate, delay.as_secs_f64(), raw_data_size, bytes_flushed);
+        println!("Completeness: {}, Buffer Queue: {}, Flusher Queue: {}", completeness, buffer_queue, flusher_queue);
         thread::sleep(interval);
     }
 }

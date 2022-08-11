@@ -27,12 +27,12 @@ lazy_static::lazy_static! {
 fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Producer) {
     let mut last_len = channel.len();
     while let Ok(list_item) = channel.recv() {
-        let len = channel.len();
-        if len > last_len {
-            println!("LEN: {}", len);
-            add_flush_worker();
-            last_len = len;
-        }
+        //let len = channel.len();
+        //if len > last_len {
+        //    println!("LEN: {}", len);
+        //    add_flush_worker();
+        //    last_len = len;
+        //}
         let (data, next) = {
             let guard = list_item.read().unwrap();
             match &*guard {
@@ -236,10 +236,10 @@ impl SourceBlockList {
         self.inner.snapshot()
     }
 
-    pub fn periodic_snapshot(&self) -> SourceBlocks {
-        // Safety: periodic snapshot accesses locked data
-        self.inner.periodic_snapshot()
-    }
+    //pub fn periodic_snapshot(&self) -> SourceBlocks {
+    //    // Safety: periodic snapshot accesses locked data
+    //    self.inner.periodic_snapshot()
+    //}
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]

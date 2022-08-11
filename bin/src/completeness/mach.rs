@@ -69,17 +69,24 @@ fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<Vec<Sample<SeriesRef>>>
     let mut writer_guard = MACH_WRITER.lock().unwrap();
     let writer = &mut *writer_guard;
     while let Ok(data) = receiver.recv() {
+        let mut raw_sz = 0;
+        let mut dropped = 0;
         for item in data.iter() {
+                //if writer.push(item.0, item.1, item.2).is_ok() {
+                //    raw_sz += item.2[0].as_bytes().len();
+                //} else {
+                //    dropped += 1;
+                //}
             'push_loop: loop {
                 if writer.push(item.0, item.1, item.2).is_ok() {
-                    COUNTERS
-                        .raw_data_size
-                        .fetch_add(item.2[0].as_bytes().len(), SeqCst);
+                    raw_sz += item.2[0].as_bytes().len();
                     break 'push_loop;
                 }
             }
         }
-        COUNTERS.samples_written.fetch_add(data.len(), SeqCst);
+        COUNTERS.raw_data_size.fetch_add(raw_sz, SeqCst);
+        COUNTERS.samples_written.fetch_add(data.len() - dropped, SeqCst);
+        COUNTERS.samples_dropped.fetch_add(dropped, SeqCst);
     }
     barrier.wait();
 }
