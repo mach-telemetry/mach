@@ -3,9 +3,13 @@ mod prep_data;
 mod utils;
 
 use clap::*;
-use elastic::{ESBatchedIndexClient, ESClientBuilder, IngestStats};
+use elastic::{ESBatchedIndexClient, ESClientBuilder, ESIndexQuerier, IngestStats};
 use lazy_static::lazy_static;
-use std::{sync::Arc, time::Duration};
+use std::sync::atomic::Ordering::SeqCst;
+use std::{
+    sync::{atomic::AtomicUsize, Arc},
+    time::Duration,
+};
 use tokio::{sync::Barrier, time::Instant};
 use utils::timestamp_now_micros;
 
@@ -17,6 +21,7 @@ lazy_static! {
         .collect();
     static ref INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
+    static ref INDEXED_COUNT: AtomicUsize = AtomicUsize::new(0);
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -71,6 +76,27 @@ async fn bench(
     barr.wait().await;
 }
 
+async fn progress_watcher(barr: Arc<Barrier>, es_builder: ESClientBuilder, run_duration: Duration) {
+    println!("starting progress watcher");
+    let one_sec = Duration::from_secs(1);
+    let client = ESIndexQuerier::new(es_builder.build().unwrap());
+    barr.wait().await;
+    println!("progress watcher started");
+    let start = Instant::now();
+    while start.elapsed() < run_duration {
+        match client.query_index_doc_count(INDEX_NAME.as_str()).await {
+            Err(e) => println!("{:?}", e),
+            Ok(res) => {
+                if res.is_some() {
+                    INDEXED_COUNT.store(res.unwrap().try_into().unwrap(), SeqCst);
+                }
+            }
+        }
+        tokio::time::sleep(one_sec).await;
+    }
+    barr.wait().await;
+}
+
 #[tokio::main]
 async fn main() {
     let _ = SAMPLES.len();
@@ -81,7 +107,7 @@ async fn main() {
         .password_optional(ARGS.es_password.clone());
 
     let run_duration = Duration::from_secs(ARGS.bench_dur_secs.try_into().unwrap());
-    let barr = Arc::new(Barrier::new(ARGS.es_num_writers + 1));
+    let barr = Arc::new(Barrier::new(ARGS.es_num_writers + 2));
     for _ in 0..ARGS.es_num_writers {
         let barr = barr.clone();
         let es_builder = elastic_builder.clone();
@@ -91,15 +117,23 @@ async fn main() {
             bench(barr, es_builder, batch_size, run_dur).await;
         });
     }
-    barr.wait().await;
 
+    let barr_clone = barr.clone();
+    let es_builder = elastic_builder.clone();
+    let run_dur = run_duration.clone();
+    tokio::spawn(async move {
+        progress_watcher(barr_clone, es_builder, run_duration).await;
+    });
+
+    println!("main thread waiting to start");
+    barr.wait().await;
     let one_sec = Duration::from_secs(1);
     let start = Instant::now();
     while start.elapsed() < run_duration {
-        let num_flushed = INGESTION_STATS
-            .num_flushed
-            .load(std::sync::atomic::Ordering::SeqCst);
-        println!("num flushed: {num_flushed}");
+        let num_flushed = INGESTION_STATS.num_flushed.load(SeqCst);
+        let num_indexed = INDEXED_COUNT.load(SeqCst);
+        let fraction_indexed: f64 = num_indexed as f64 / num_flushed as f64;
+        println!("num flushed: {num_flushed}, num indexed: {num_indexed}, fraction indexed: {fraction_indexed}");
         tokio::time::sleep(one_sec).await;
     }
     barr.wait().await;
