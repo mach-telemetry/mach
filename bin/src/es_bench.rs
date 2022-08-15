@@ -3,11 +3,21 @@ mod prep_data;
 mod utils;
 
 use clap::*;
-use elastic::{ESBatchedIndexClient, ESIndexQuerier, ESClientBuilder, IngestStats};
-use elasticsearch::http::request::JsonBody;
-use elasticsearch::BulkParts;
+//<<<<<<< HEAD
+//use elastic::{ESBatchedIndexClient, ESIndexQuerier, ESClientBuilder, IngestStats};
+//use elasticsearch::http::request::JsonBody;
+//use elasticsearch::BulkParts;
+//use lazy_static::lazy_static;
+//use std::{sync::atomic::Ordering::SeqCst, sync::atomic::AtomicUsize, sync::Arc, time::Duration};
+//=======
+use elastic::{ESBatchedIndexClient, ESClientBuilder, ESIndexQuerier, IngestStats};
 use lazy_static::lazy_static;
-use std::{sync::atomic::Ordering::SeqCst, sync::atomic::AtomicUsize, sync::Arc, time::Duration};
+use std::sync::atomic::Ordering::SeqCst;
+use std::{
+    sync::{atomic::AtomicUsize, Arc},
+    time::Duration,
+};
+//>>>>>>> many-sources-investigation
 use tokio::{sync::Barrier, time::Instant};
 use utils::timestamp_now_micros;
 

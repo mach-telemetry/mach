@@ -66,7 +66,7 @@ pub fn init_kafka_consumer(kafka_bootstraps: &'static str, kafka_topic: &'static
         std::thread::spawn(move || {
             let max_ts = get_last_kafka_timestamp(kafka_topic, kafka_bootstraps);
             let now: usize = timestamp_now_micros().try_into().unwrap();
-            println!("max ts: {}, age: {}", max_ts, now - max_ts);
+            //println!("max ts: {}, age: {}", max_ts, now - max_ts);
             if max_ts > 0 {
                 COUNTERS.data_age.store(now - max_ts, SeqCst);
             }

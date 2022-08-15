@@ -12,8 +12,13 @@ use crate::{
     series::*,
 };
 use dashmap::DashMap;
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::{collections::HashMap, sync::Arc};
+//use std::sync::mpsc::{channel, Receiver, Sender};
+use std::{collections::HashMap, sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}}};
+use crossbeam::channel::{unbounded, Receiver, Sender};
+
+lazy_static::lazy_static! {
+    pub static ref QUEUE_LEN: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+}
 
 #[derive(Debug)]
 pub enum Error {
@@ -61,7 +66,7 @@ impl Writer {
         let id = WriterId::new();
         let block_list = Arc::new(BlockList::new());
         let block_list_clone = block_list.clone();
-        let (block_worker, rx) = channel();
+        let (block_worker, rx) = unbounded();
         std::thread::spawn(move || {
             block_list_worker(block_list_clone, rx);
         });
@@ -128,6 +133,9 @@ impl Writer {
                 let id = series.config.id;
                 let compression = series.config.compression.clone();
                 let segment = self.writers[reference].flush();
+                //unsafe {
+                //    segment.flushed();
+                //}
                 self.block_worker
                     .send(FlushItem {
                         id,
@@ -147,7 +155,19 @@ struct FlushItem {
     compression: Compression,
 }
 
+fn chan_watcher(chan: Receiver<FlushItem>) {
+    loop {
+        QUEUE_LEN.store(chan.len(), SeqCst);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
 fn block_list_worker(block_list: Arc<BlockList>, chan: Receiver<FlushItem>) {
+    let chan2 = chan.clone();
+    std::thread::spawn(move || {
+        chan_watcher(chan2);
+    });
+
     while let Ok(x) = chan.recv() {
         //println!("GOT SOMETHING");
         block_list.push(x.id, &x.segment, &x.compression);

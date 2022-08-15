@@ -101,14 +101,14 @@ impl Series {
             Err(_) => None,
         };
         let mut source_blocks = None;
-        let start = std::time::Instant::now();
+        //let _start = std::time::Instant::now();
         while source_blocks.is_none() {
             if let Ok(blocks) = self.source_block_list.snapshot() {
                 source_blocks = Some(blocks);
             }
-            if std::time::Instant::now() - start >= std::time::Duration::from_secs(1) {
-                source_blocks = Some(self.source_block_list.periodic_snapshot());
-            }
+            //if std::time::Instant::now() - start >= std::time::Duration::from_secs(1) {
+            //    source_blocks = Some(self.source_block_list.periodic_snapshot());
+            //}
         }
 
         //let list = self.list.snapshot()?;

@@ -56,43 +56,43 @@ pub fn decompress(data: &[u8], buf: &mut Vec<[u8; 8]>, bytes: &mut Vec<u8>) {
     lz4::decompress(&data[start..end], &mut bytes[..]).unwrap();
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::test_utils::LOG_DATA;
-
-    fn compress_decompress(data: &[String]) {
-        let mut v = Vec::new();
-        let mut indexes = Vec::new();
-        for s in data.iter() {
-            let b = Bytes::from_slice(s.as_bytes());
-            indexes.push(v.len().to_be_bytes());
-            v.extend_from_slice(b.as_raw_bytes());
-        }
-        let mut buf = vec![0u8; 8192];
-        let mut byte_buf = ByteBuffer::new(&mut buf[..]);
-        compress(data.len(), &indexes, &v[..], &mut byte_buf);
-        let mut results = Vec::new();
-        let mut heap = Vec::new();
-        decompress(&buf[..], &mut results, &mut heap);
-
-        for (result, exp) in results.iter().zip(data.iter()) {
-            let idx = usize::from_be_bytes(*result);
-            let bytes = unsafe { Bytes::from_raw(heap[idx..].as_ptr()) };
-            //let ptr = usize::from_be_bytes(*result) as *const u8;
-            //let bytes = unsafe { Bytes::from_raw(ptr) };
-            let s = std::str::from_utf8(bytes.bytes()).unwrap();
-            assert_eq!(s, exp);
-            bytes.into_raw(); // don't deallocate
-        }
-    }
-
-    #[test]
-    fn test_logs() {
-        let logs = &*LOG_DATA;
-        for (_idx, chunk) in logs.as_slice().chunks(256).enumerate() {
-            compress_decompress(chunk);
-            //println!("{}", chunk.len());
-        }
-    }
-}
+//#[cfg(test)]
+//mod test {
+//    use super::*;
+//    use crate::test_utils::LOG_DATA;
+//
+//    fn compress_decompress(data: &[String]) {
+//        let mut v = Vec::new();
+//        let mut indexes = Vec::new();
+//        for s in data.iter() {
+//            let b = Bytes::from_slice(s.as_bytes());
+//            indexes.push(v.len().to_be_bytes());
+//            v.extend_from_slice(b.as_raw_bytes());
+//        }
+//        let mut buf = vec![0u8; 8192];
+//        let mut byte_buf = ByteBuffer::new(&mut buf[..]);
+//        compress(data.len(), &indexes, &v[..], &mut byte_buf);
+//        let mut results = Vec::new();
+//        let mut heap = Vec::new();
+//        decompress(&buf[..], &mut results, &mut heap);
+//
+//        for (result, exp) in results.iter().zip(data.iter()) {
+//            let idx = usize::from_be_bytes(*result);
+//            let bytes = unsafe { Bytes::from_raw(heap[idx..].as_ptr()) };
+//            //let ptr = usize::from_be_bytes(*result) as *const u8;
+//            //let bytes = unsafe { Bytes::from_raw(ptr) };
+//            let s = std::str::from_utf8(bytes.bytes()).unwrap();
+//            assert_eq!(s, exp);
+//            bytes.into_raw(); // don't deallocate
+//        }
+//    }
+//
+//    #[test]
+//    fn test_logs() {
+//        let logs = &*LOG_DATA;
+//        for (_idx, chunk) in logs.as_slice().chunks(256).enumerate() {
+//            compress_decompress(chunk);
+//            //println!("{}", chunk.len());
+//        }
+//    }
+//}

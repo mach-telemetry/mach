@@ -4,10 +4,13 @@ use crate::segment::Error;
 use crate::series::FieldType;
 use crate::snapshot::Segment;
 use crate::utils::wp_lock::*;
-use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
 
 const HEAP_SZ: usize = 1_000_000;
 const HEAP_TH: usize = 3 * (HEAP_SZ / 4);
+lazy_static::lazy_static! {
+    static ref SEGMENT_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+}
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum InnerPushStatus {
@@ -16,6 +19,7 @@ pub enum InnerPushStatus {
 }
 
 struct InnerBuffer {
+    id: usize,
     is_full: bool,
     atomic_len: AtomicUsize,
     len: usize,
@@ -49,6 +53,7 @@ impl InnerBuffer {
         let heap_flags = heap_pointers.into();
 
         InnerBuffer {
+            id: SEGMENT_COUNT.fetch_add(1, SeqCst),
             is_full: false,
             atomic_len: AtomicUsize::new(0),
             len: 0,
@@ -150,6 +155,7 @@ impl InnerBuffer {
     }
 
     fn reset(&mut self) {
+        self.id = SEGMENT_COUNT.fetch_add(1, SeqCst);
         self.atomic_len.store(0, SeqCst);
         self.len = 0;
         self.is_full = false;
@@ -163,8 +169,10 @@ impl InnerBuffer {
 
     fn read(&self) -> ReadBuffer {
         let len = self.atomic_len.load(SeqCst);
+        //println!("Active Segment Reading with len: {}", len);
         let heap = self.heap.clone();
         ReadBuffer {
+            segment_id: self.id,
             len,
             ts: self.ts.into(),
             data: self.data.iter().map(|x| x[..].into()).collect(),
@@ -249,6 +257,10 @@ pub struct FlushBuffer<'a> {
 }
 
 impl<'a> FlushBuffer<'a> {
+    pub fn id(&self) -> usize {
+        self.inner.id
+    }
+
     pub fn variable(&self, i: usize) -> &[[u8; 8]] {
         &self.inner.data[i][..self.len]
     }
