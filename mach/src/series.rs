@@ -101,7 +101,7 @@ impl Series {
             Err(_) => None,
         };
         let mut source_blocks = None;
-        let start = std::time::Instant::now();
+        //let _start = std::time::Instant::now();
         while source_blocks.is_none() {
             if let Ok(blocks) = self.source_block_list.snapshot() {
                 source_blocks = Some(blocks);

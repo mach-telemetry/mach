@@ -111,6 +111,7 @@ impl CompressFn {
 }
 
 struct Header {
+    id: usize,
     types: Vec<FieldType>,
     codes: Vec<u64>,
     len: usize,
@@ -149,6 +150,7 @@ impl Compression {
 
     fn set_header(&self, segment: &FullSegment, buf: &mut ByteBuffer) {
         buf.extend_from_slice(&MAGIC[..]);
+        buf.extend_from_slice(&segment.id().to_be_bytes()[..]); // n variables
         buf.extend_from_slice(&segment.nvars().to_be_bytes()[..]); // n variables
         buf.extend_from_slice(&segment.len().to_be_bytes()[..]); // number of samples
         for t in segment.types() {
@@ -161,6 +163,7 @@ impl Compression {
     }
 
     pub fn compress(&self, segment: &FullSegment, buf: &mut ByteBuffer) {
+        //println!("Compressing Segment Id: {}", segment.id());
         self.set_header(segment, buf);
         //println!("after header {:?}", &buf.as_mut_slice()[0..12]);
         //println!("len after header {}", buf.len());
@@ -223,6 +226,9 @@ impl Compression {
         }
         off += MAGIC.len();
 
+        let id = usize::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
+        off += 8;
+
         let nvars = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
         off += 8;
 
@@ -241,15 +247,17 @@ impl Compression {
             off += 8;
         }
 
-        Ok((Header { types, codes, len }, off))
+        Ok((Header { id, types, codes, len }, off))
     }
 
     pub fn decompress(data: &[u8], buf: &mut Segment) -> Result<usize, Error> {
         buf.clear();
         let (header, mut off) = Self::get_header(data)?;
 
-        buf.len = header.len as usize;
         buf.reset_types(header.types.as_slice());
+
+        buf.segment_id = header.id;
+        buf.len = header.len as usize;
 
         // decompress timestamps
         let sz = u64::from_be_bytes(data[off..off + 8].try_into().unwrap()) as usize;
@@ -314,7 +322,7 @@ mod test {
 
         let mut compressed = vec![0u8; 4096];
         let mut byte_buf = ByteBuffer::new(&mut compressed[..]);
-        let mut buf = DecompressBuffer::new_decompress_segment();
+        let mut buf = DecompressBuffer::new_empty();
 
         //println!("COMPRESSING DECIMAL NVARS {}", nvars);
         compression.compress(&segment, &mut byte_buf);
@@ -336,49 +344,6 @@ mod test {
                 .fold(f64::NAN, f64::max);
 
             assert!(diff < 0.001);
-        }
-    }
-
-    #[test]
-    fn test_bytes_lz4() {
-        use crate::sample::Bytes;
-        let data = &*LOG_DATA;
-
-        let heaps = vec![FieldType::Bytes; 1];
-        let mut buf = Buffer::new(heaps.as_slice());
-
-        //let item = vec![[0u8; 8]; 1];
-        let mut timestamps = [0; 256];
-        for (idx, sample) in data[0..256].iter().enumerate() {
-            timestamps[idx] = idx as u64;
-            let v = SampleType::Bytes(sample.as_bytes().into());
-            buf.push_type(idx as u64, &[v]).unwrap();
-        }
-        let segment = buf.to_flush().unwrap();
-
-        let mut compression = Vec::new();
-        compression.push(CompressFn::BytesLZ4);
-        let compression = Compression::from(compression);
-
-        let mut compressed = vec![0u8; 8192];
-        let mut byte_buf = ByteBuffer::new(&mut compressed[..]);
-        let mut buf = DecompressBuffer::new_decompress_segment();
-
-        compression.compress(&segment, &mut byte_buf);
-        let len = byte_buf.len();
-        drop(byte_buf);
-
-        Compression::decompress(&compressed[..len], &mut buf).unwrap();
-
-        assert_eq!(&buf.ts[..], &timestamps[..]);
-        let exp = &data[0..256];
-        let res = buf.field(0);
-        for (r, e) in res.iter().zip(exp.iter()) {
-            let ptr = usize::from_be_bytes(*r) as *const u8;
-            let bytes = unsafe { Bytes::from_raw(ptr) };
-            let s = std::str::from_utf8(bytes.bytes()).unwrap();
-            assert_eq!(s, e);
-            bytes.into_raw(); // prevent dealloc
         }
     }
 }

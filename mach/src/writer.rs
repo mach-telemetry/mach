@@ -133,16 +133,16 @@ impl Writer {
                 let id = series.config.id;
                 let compression = series.config.compression.clone();
                 let segment = self.writers[reference].flush();
-                unsafe {
-                    segment.flushed();
-                }
-                //self.block_worker
-                //    .send(FlushItem {
-                //        id,
-                //        segment,
-                //        compression,
-                //    })
-                //    .unwrap();
+                //unsafe {
+                //    segment.flushed();
+                //}
+                self.block_worker
+                    .send(FlushItem {
+                        id,
+                        segment,
+                        compression,
+                    })
+                    .unwrap();
             } //segment::PushStatus::Flush(_) => self.list_maker.flush(self.list_maker_id[reference]),
         }
         Ok(())

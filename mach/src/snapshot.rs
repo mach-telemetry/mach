@@ -88,6 +88,7 @@ pub struct TimestampsIterator<'a> {
 impl<'a> TimestampsIterator<'a> {
     pub fn new(timestamps: Timestamps<'a>) -> Self {
         let idx = timestamps.v.len();
+        //println!("new timestamps iterator with length: {}", idx);
         Self { timestamps, idx }
     }
 
@@ -110,6 +111,7 @@ impl<'a> Iterator for TimestampsIterator<'a> {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Segment {
+    pub segment_id: usize,
     pub len: usize,
     pub ts: Vec<u64>,
     pub data: Vec<Vec<[u8; 8]>>,
@@ -139,6 +141,7 @@ impl Segment {
         let heap = Vec::new();
         let data = Vec::new();
         Self {
+            segment_id: usize::MAX,
             len: 0,
             ts: Vec::with_capacity(256),
             data,
@@ -297,6 +300,7 @@ impl ReadOnlyBlockReader {
             }
         }
         let current_idx = offsets.len().try_into().unwrap();
+        //println!("Current index: {}", current_idx);
         Self {
             _offsets,
             offsets,
@@ -310,17 +314,20 @@ impl ReadOnlyBlockReader {
     fn next_segment(&mut self) -> Option<()> {
         if self.current_idx > 0 {
             self.current_idx -= 1;
+            //println!("Getting offset:{}", self.offsets[self.current_idx as usize]);
             self.block.segment_at_offset(
                 self.offsets[self.current_idx as usize],
                 &mut self.read_buffer,
             );
             Some(())
         } else {
+            //println!("NONE HERE");
             None
         }
     }
 
     fn get_segment(&self) -> &Segment {
+        //println!("Here's the current segment");
         &self.read_buffer
     }
 }
@@ -366,26 +373,39 @@ impl SnapshotIterator {
     pub fn next_segment(&mut self) -> Option<()> {
         //println!("getting next segment");
         match self.state {
-            State::ActiveSegment => match self.active_segment.as_mut().unwrap().next_segment() {
+            State::ActiveSegment => {
+                //println!("currently in active segment, getting next");
+                match self.active_segment.as_mut().unwrap().next_segment() {
                 None => {
+                    //println!("moving into blocks");
                     self.state = State::Blocks;
                     self.next_segment()
                 }
                 Some(_) => Some(()),
+                }
             },
-            State::Blocks => match self.block_reader.next_segment() {
-                None => {
-                    if let Some(block) = self.source_blocks.next_block() {
-                        let bytes = block.as_bytes();
-                        let id = self.block_reader.id;
-                        let block_reader = ReadOnlyBlockReader::new(bytes, id);
-                        self.block_reader = block_reader;
-                        self.next_segment()
-                    } else {
-                        None
+            State::Blocks => {
+                //println!("currently in blocks");
+                match self.block_reader.next_segment() {
+                    None => {
+                        //println!("No segment in current block, fetching next block");
+                        if let Some(block) = self.source_blocks.next_block() {
+                            //println!("Found next block");
+                            let bytes = block.as_bytes();
+                            let id = self.block_reader.id;
+                            let block_reader = ReadOnlyBlockReader::new(bytes, id);
+                            self.block_reader = block_reader;
+                            self.next_segment()
+                        } else {
+                            //println!("No next block");
+                            None
+                        }
+                    }
+                    Some(_) => {
+                        //println!("Found segment in current block");
+                        Some(())
                     }
                 }
-                Some(_) => Some(()),
             },
         }
     }

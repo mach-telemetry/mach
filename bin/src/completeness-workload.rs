@@ -27,7 +27,7 @@ use std::{
 lazy_static! {
     static ref ARGS: Args = Args::parse();
     static ref SAMPLES: Vec<prep_data::Sample> = {
-        let mut init = prep_data::load_samples(ARGS.file_path.as_str());
+        let init = prep_data::load_samples(ARGS.file_path.as_str());
         println!("Init len: {}", init.len());
         //return init;
         let mut samples = Vec::new();
@@ -111,9 +111,9 @@ struct Args {
 fn main() {
     COUNTERS.init_watcher(Duration::from_secs_f64(ARGS.counter_interval_seconds));
     let workloads = &[
-        //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
+        Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
         Workload::new(2_000_000., Duration::from_secs(300), ARGS.batch_size),
-        //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
+        Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
         // Workload::new(500_000., Duration::from_secs(120), ARGS.batch_size),

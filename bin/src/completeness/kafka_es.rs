@@ -1,19 +1,18 @@
 use crate::completeness::{
     kafka::{decompress_kafka_msg, kafka_writer},
-    SampleOwned, Writer,
+    Writer,
 };
 use crate::elastic::{
     CreateIndexArgs, ESBatchedIndexClient, ESClientBuilder, ESIndexQuerier, IngestResponse,
     IngestStats,
 };
 use crate::prep_data::ESSample;
-use crate::{kafka_utils::make_topic, prep_data, utils::timestamp_now_micros};
+use crate::{kafka_utils::make_topic, utils::timestamp_now_micros};
 use crossbeam_channel::{bounded, Receiver, Sender};
-use elasticsearch::http::request::JsonBody;
+//use elasticsearch::http::request::JsonBody;
 use kafka::{client::KafkaClient, consumer::Consumer};
 use lazy_static::lazy_static;
-use mach::{id::SeriesId, sample::SampleType};
-use serde::{Deserialize, Serialize};
+use mach::{id::SeriesId};
 use std::sync::{atomic::AtomicUsize, Arc, Barrier};
 use std::thread;
 use std::time::Duration;

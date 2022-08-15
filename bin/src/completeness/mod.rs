@@ -112,12 +112,12 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
         last_dropped = dropped;
 
         let bytes_flushed = COUNTERS.bytes_flushed.load(SeqCst);
-        let unflushed_count = COUNTERS.unflushed_count.load(SeqCst);
+        let _unflushed_count = COUNTERS.unflushed_count.load(SeqCst);
         let buffer_queue = COUNTERS.buffer_queue.load(SeqCst);
         let flusher_queue = COUNTERS.flusher_queue.load(SeqCst);
 
         //println!("Completeness: {}, Buffer Queue: {}, Unflushed: {}, Throughput: {}, Data age (seconds): {:?}, Raw data size: {} bytes, Data flushed: {} bytes", completeness, buffer_queue, unflushed_count, rate, delay.as_secs_f64(), raw_data_size, bytes_flushed);
-        println!("Completeness: {}, Buffer Queue: {}, Flusher Queue: {}", completeness, buffer_queue, flusher_queue);
+        println!("Completeness: {}, Buffer Queue: {}, Flusher Queue: {}, Throughput: {}, Raw data size: {}, Data flushed: {}, Data age: {:?}", completeness, buffer_queue, flusher_queue, rate, raw_data_size, bytes_flushed, delay);
         thread::sleep(interval);
     }
 }

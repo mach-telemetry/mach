@@ -22,15 +22,18 @@ use std::sync::{
     Arc, RwLock,
 };
 
+
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
+
+#[allow(dead_code)]
+static BLOCK_LIST_ENTRY_ID: AtomicUsize = AtomicUsize::new(0);
 
 pub const INIT_FLUSHERS: usize = 4;
 pub const BLOCK_SZ: usize = 1_000_000;
 
 lazy_static! {
     //static ref TOPIC: String = random_id();
-    pub static ref FLUSHER_QUEUE_LEN: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     pub static ref TOTAL_BYTES_FLUSHED: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     static ref N_FLUSHERS: AtomicUsize = AtomicUsize::new(INIT_FLUSHERS);
     static ref FLUSH_WORKERS: DashMap<usize, crossbeam::channel::Sender<Arc<BlockListEntry>>> = {
@@ -65,7 +68,6 @@ fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new();
     while let Ok(block) = chan.recv() {
         block.flush(&mut producer);
-        FLUSHER_QUEUE_LEN.fetch_sub(1, SeqCst);
     }
 }
 
@@ -87,6 +89,8 @@ pub struct BlockList {
     head_block: WpLock<Block>,
     id_set: RefCell<HashSet<SeriesId>>,
     series_map: Arc<DashMap<SeriesId, Arc<SourceBlockList>>>,
+    chunks: Arc<DashMap<usize, Segment>>,
+    counter: RefCell<usize>,
 }
 
 /// Safety
@@ -101,6 +105,8 @@ impl BlockList {
             head_block: WpLock::new(Block::new()),
             id_set: RefCell::new(HashSet::new()),
             series_map: Arc::new(DashMap::new()),
+            chunks: Arc::new(DashMap::new()),
+            counter: RefCell::new(0),
         }
     }
 
@@ -129,6 +135,10 @@ impl BlockList {
         // Safety: id() is atomic
         //let block_id = unsafe { self.head_block.unprotected_read().id.load(SeqCst) };
 
+        //let count = *self.counter.borrow() + 1;
+        //self.chunks.insert(count, segment.to_flush().unwrap().read());
+        //*self.counter.borrow_mut() += 1;
+
         // Safety: unprotected write because Block push only appends data and increments an atomic
         // read is bounded by the atomic
         let is_full = unsafe {
@@ -136,7 +146,6 @@ impl BlockList {
                 .unprotected_write()
                 .push(series_id, segment, compression)
         };
-
         self.id_set.borrow_mut().insert(series_id);
 
         if is_full {
@@ -146,14 +155,13 @@ impl BlockList {
                 self.series_map.get(&id).unwrap().push(copy.clone());
             }
             let n_flushers = N_FLUSHERS.load(SeqCst);
-            FLUSHER_QUEUE_LEN.fetch_add(1, SeqCst);
             FLUSH_WORKERS
                 .get(&thread_rng().gen_range(0..n_flushers))
                 .unwrap()
                 .value()
                 .send(copy)
                 .unwrap();
-            // Mark current block as cleared
+            //// Mark current block as cleared
             self.head_block.protected_write().reset();
         }
     }
@@ -244,6 +252,7 @@ impl Block {
         bytes.extend_from_slice(&len.to_be_bytes());
         BlockListEntry {
             inner: RwLock::new(InnerBlockListEntry::Bytes(bytes.into())),
+            id: BLOCK_LIST_ENTRY_ID.fetch_add(1, SeqCst),
         }
     }
 }
@@ -251,6 +260,11 @@ impl Block {
 pub struct ReadOnlyBlockBytes(Arc<[u8]>);
 
 impl ReadOnlyBlockBytes {
+
+    pub fn id(&self) -> usize {
+        usize::from_be_bytes(self.0[..8].try_into().unwrap())
+    }
+
     fn data_len_idx(&self) -> usize {
         self.0.len() - 8
     }
@@ -261,7 +275,16 @@ impl ReadOnlyBlockBytes {
 
     pub fn offsets(&self) -> Box<[(u64, usize)]> {
         let data_len = self.data_len();
-        let segments = bincode::deserialize(&self.0[data_len..self.data_len_idx()]).unwrap();
+        let segments: Box<[(u64, usize)]> = bincode::deserialize(&self.0[data_len..self.data_len_idx()]).unwrap();
+        //let mut no_id = true;
+        //for (id, _) in segments.iter() {
+        //    //if *id == 4560055620737106128 {
+        //    //    no_id = false;
+        //    //}
+        //}
+        //if no_id {
+        //    println!("NO ID");
+        //}
         //println!("{:?}", segments);
         segments
     }
@@ -280,7 +303,8 @@ impl ReadOnlyBlockBytes {
 
         // decompress data
         let bytes = &bytes[24..24 + chunk_size];
-        let _ = Compression::decompress(bytes, segment).unwrap();
+        let size = Compression::decompress(bytes, segment).unwrap();
+        //println!("size decompressed: {}", size);
     }
 }
 
@@ -327,6 +351,7 @@ enum InnerBlockListEntry {
 
 pub struct BlockListEntry {
     inner: RwLock<InnerBlockListEntry>,
+    id: usize,
 }
 
 impl BlockListEntry {
@@ -411,3 +436,4 @@ impl BlockListEntry {
 //        v
 //    }
 //}
+

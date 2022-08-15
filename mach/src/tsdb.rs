@@ -101,37 +101,30 @@ mod test {
         //test_utils::*,
         sample::SampleType,
         snapshot::Snapshot,
-        utils::kafka::{BOOTSTRAPS, TOPIC},
         writer::WriterConfig,
     };
     use rand::{thread_rng, Rng};
-    use std::convert::TryInto;
 
     #[test]
     fn end_to_end() {
         let mut mach = Mach::new();
         let writer_config = WriterConfig {
-            active_block_flush_sz: 1_000,
+            active_block_flush_sz: 1_000_000,
         };
         let mut writer = mach.add_writer(writer_config).unwrap();
 
         // Setup series
-        const NVARS: usize = 2;
+        const NVARS: usize = 1;
         //let mut rng = thread_rng();
         //for item in data.iter_mut() {
         //    for val in item.values.iter_mut() {
         //        *val = rng.gen::<f64>() * 100.0f64;
         //    }
         //}
-        let mut compression = Vec::new();
-        for _ in 0..NVARS {
-            compression.push(CompressFn::Decimal(10));
-        }
-        let compression = Compression::from(compression);
-
+        let compression = Compression::from(vec![CompressFn::BytesLZ4]);
         let series_conf = SeriesConfig {
             id: SeriesId(0),
-            types: vec![FieldType::F64; NVARS],
+            types: vec![FieldType::Bytes],
             compression,
             seg_count: 1,
             nvars: NVARS,
@@ -145,8 +138,10 @@ mod test {
         let mut rng = thread_rng();
         println!("PUSHING");
         for _ in 0..10_000_000 {
+            let mut v = vec![0; 400];
+            rand::thread_rng().fill(&mut v[..]);
             let values: [SampleType; NVARS] =
-                [SampleType::F64(rng.gen()), SampleType::F64(rng.gen())];
+                [SampleType::Bytes(v.clone())];
             let time = epoch.elapsed().unwrap().as_micros() as u64;
             loop {
                 match writer.push(series_ref, time, &values[..]) {
@@ -155,12 +150,12 @@ mod test {
                 }
             }
             expected_timestamps.push(time);
-            expected_values.push(values[0].as_f64());
+            expected_values.push(v);
         }
         expected_timestamps.reverse();
         expected_values.reverse();
 
-        //std::thread::sleep(std::time::Duration::from_secs(100));
+        //std::thread::sleep(std::time::Duration::from_secs(1));
 
         //let start = std::time::SystemTime::now() - std::time::Duration::from_secs(120);
         //let dur = start
@@ -183,10 +178,19 @@ mod test {
         let mut snapshot = snapshot.into_iterator();
 
         let mut result_timestamps = Vec::new();
-        let mut result_field0 = Vec::new();
+        let mut result_field0: Vec<Vec<u8>> = Vec::new();
         let mut last_timestamp = u64::MAX;
+        let mut seg_count = 0;
+        let mut last_segment = usize::MAX;
         'segment: while let Some(_) = snapshot.next_segment() {
             let seg = snapshot.get_segment();
+            if last_segment == usize::MAX {
+                last_segment = seg.segment_id;
+            } else {
+                assert_eq!(last_segment, seg.segment_id + 1);
+                last_segment = seg.segment_id;
+            }
+            seg_count += 1;
             let mut timestamps = seg.timestamps().iterator();
             let mut field0 = seg.field(0).iterator();
             while let Some(x) = timestamps.next_timestamp() {
@@ -197,16 +201,18 @@ mod test {
                 last_timestamp = x;
             }
             while let Some(x) = field0.next_item() {
-                result_field0.push(x.as_f64());
+                result_field0.push(x.as_bytes().into());
             }
         }
+        println!("seg count: {}", seg_count);
 
         assert_eq!(result_timestamps.len(), expected_timestamps.len());
         assert_eq!(&result_timestamps, &expected_timestamps);
         for (a, b) in result_field0.iter().zip(expected_values.iter()) {
-            if (a - b).abs() > 0.001 {
-                panic!("{} - {} = {}", a, b, (a - b).abs());
-            }
+            assert_eq!(&a[..], &b[..]);
+            //if (a - b).abs() > 0.001 {
+            //    panic!("{} - {} = {}", a, b, (a - b).abs());
+            //}
         }
     }
 }
