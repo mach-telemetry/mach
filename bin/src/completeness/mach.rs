@@ -51,7 +51,7 @@ pub fn init_mach_querier(series_id: SeriesId) {
         Duration::from_millis(500),
         Duration::from_secs(300),
     );
-    thread::sleep(Duration::from_secs(2));
+    thread::sleep(Duration::from_secs(5));
     loop {
         let now: usize = micros_from_epoch().try_into().unwrap();
         let offset = snapshotter.get(snapshotter_id).unwrap();

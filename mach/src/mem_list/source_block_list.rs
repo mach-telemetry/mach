@@ -69,7 +69,7 @@ fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Produc
         let kafka_entry = producer.send(&bytes);
         //drop(guard);
         *list_item.write().unwrap() = ListItem::Kafka(kafka_entry);
-        //UNFLUSHED_COUNT.fetch_sub(1, SeqCst);
+        UNFLUSHED_COUNT.fetch_sub(1, SeqCst);
     }
 }
 
@@ -155,7 +155,7 @@ impl InnerBuffer {
         // Get components to read
         let guard = self.data.protected_read();
         let len = guard.offset.load(SeqCst) % 256;
-        println!("Snapshot len: {}", len);
+        //println!("Snapshot len: {}", len);
         let copy: Vec<Arc<BlockListEntry>> = unsafe { MaybeUninit::slice_assume_init_ref(&guard.data[..len]).iter().cloned().collect() };
         let current = self.next.read().unwrap().clone();
         if guard.release().is_err() {
