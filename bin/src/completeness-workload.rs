@@ -48,8 +48,9 @@ lazy_static! {
         for sample in SAMPLES.iter() {
             set.insert(sample.0);
         }
-        let ids = set.drain().collect();
-        //println!("IDs {:?}", ids);
+        let ids: Vec<SeriesId> = set.drain().collect();
+        println!("Number of IDs {}", ids.len());
+        println!("Sample of IDs: {:?}", &ids[..10]);
         ids
     };
     static ref MACH_SAMPLES: Vec<prep_data::RegisteredSample> = {
@@ -111,9 +112,9 @@ struct Args {
 fn main() {
     COUNTERS.init_watcher(Duration::from_secs_f64(ARGS.counter_interval_seconds));
     let workloads = &[
-        Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
-        Workload::new(2_000_000., Duration::from_secs(300), ARGS.batch_size),
-        Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
+        Workload::new(500_000., Duration::from_secs(60 * 60), ARGS.batch_size),
+        //Workload::new(2_000_000., Duration::from_secs(300), ARGS.batch_size),
+        //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
         // Workload::new(500_000., Duration::from_secs(120), ARGS.batch_size),

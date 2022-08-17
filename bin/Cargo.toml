@@ -133,6 +133,10 @@ path = "src/kafka_test.rs"
 name = "es-bench"
 path = "src/es_bench.rs"
 
+[[bin]]
+name = "simple-query"
+path = "src/simple-query.rs"
+
 #[[bin]]
 #name = "convert-otlp-data"
 #path = "src/convert-otlp-data.rs"
