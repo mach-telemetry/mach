@@ -140,8 +140,7 @@ mod test {
         for _ in 0..10_000_000 {
             let mut v = vec![0; 400];
             rand::thread_rng().fill(&mut v[..]);
-            let values: [SampleType; NVARS] =
-                [SampleType::Bytes(v.clone())];
+            let values: [SampleType; NVARS] = [SampleType::Bytes(v.clone())];
             let time = epoch.elapsed().unwrap().as_micros() as u64;
             loop {
                 match writer.push(series_ref, time, &values[..]) {

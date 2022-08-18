@@ -12,7 +12,7 @@ use crossbeam_channel::{bounded, Receiver, Sender};
 //use elasticsearch::http::request::JsonBody;
 use kafka::{client::KafkaClient, consumer::Consumer};
 use lazy_static::lazy_static;
-use mach::{id::SeriesId};
+use mach::id::SeriesId;
 use std::sync::{atomic::AtomicUsize, Arc, Barrier};
 use std::thread;
 use std::time::Duration;

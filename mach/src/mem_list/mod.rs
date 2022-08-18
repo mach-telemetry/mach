@@ -22,7 +22,6 @@ use std::sync::{
     Arc, RwLock,
 };
 
-
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 
@@ -263,7 +262,6 @@ impl Block {
 pub struct ReadOnlyBlockBytes(Arc<[u8]>);
 
 impl ReadOnlyBlockBytes {
-
     pub fn id(&self) -> usize {
         usize::from_be_bytes(self.0[..8].try_into().unwrap())
     }
@@ -278,7 +276,8 @@ impl ReadOnlyBlockBytes {
 
     pub fn offsets(&self) -> Box<[(u64, usize)]> {
         let data_len = self.data_len();
-        let segments: Box<[(u64, usize)]> = bincode::deserialize(&self.0[data_len..self.data_len_idx()]).unwrap();
+        let segments: Box<[(u64, usize)]> =
+            bincode::deserialize(&self.0[data_len..self.data_len_idx()]).unwrap();
         //let mut no_id = true;
         //for (id, _) in segments.iter() {
         //    //if *id == 4560055620737106128 {
@@ -439,4 +438,3 @@ impl BlockListEntry {
 //        v
 //    }
 //}
-

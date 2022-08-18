@@ -4,7 +4,10 @@ use crate::segment::Error;
 use crate::series::FieldType;
 use crate::snapshot::Segment;
 use crate::utils::wp_lock::*;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
 
 const HEAP_SZ: usize = 1_000_000;
 const HEAP_TH: usize = 3 * (HEAP_SZ / 4);

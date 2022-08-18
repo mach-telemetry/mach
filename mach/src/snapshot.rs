@@ -376,14 +376,14 @@ impl SnapshotIterator {
             State::ActiveSegment => {
                 //println!("currently in active segment, getting next");
                 match self.active_segment.as_mut().unwrap().next_segment() {
-                None => {
-                    //println!("moving into blocks");
-                    self.state = State::Blocks;
-                    self.next_segment()
+                    None => {
+                        //println!("moving into blocks");
+                        self.state = State::Blocks;
+                        self.next_segment()
+                    }
+                    Some(_) => Some(()),
                 }
-                Some(_) => Some(()),
-                }
-            },
+            }
             State::Blocks => {
                 //println!("currently in blocks");
                 match self.block_reader.next_segment() {
@@ -406,7 +406,7 @@ impl SnapshotIterator {
                         Some(())
                     }
                 }
-            },
+            }
         }
     }
 
