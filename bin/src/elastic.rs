@@ -153,9 +153,13 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
             .body(bulk_msg_body)
             .send()
             .await;
-        self.stats
-            .num_flushed
-            .fetch_add(batch_sz, std::sync::atomic::Ordering::SeqCst);
+        if let Ok(ref r) = r {
+            if r.status_code().is_success() {
+                self.stats
+                    .num_flushed
+                    .fetch_add(batch_sz, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
         r
     }
 

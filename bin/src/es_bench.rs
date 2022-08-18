@@ -3,32 +3,23 @@ mod prep_data;
 mod utils;
 
 use clap::*;
-//<<<<<<< HEAD
-//use elastic::{ESBatchedIndexClient, ESIndexQuerier, ESClientBuilder, IngestStats};
-//use elasticsearch::http::request::JsonBody;
-//use elasticsearch::BulkParts;
-//use lazy_static::lazy_static;
-//use std::{sync::atomic::Ordering::SeqCst, sync::atomic::AtomicUsize, sync::Arc, time::Duration};
-//=======
 use elastic::{ESBatchedIndexClient, ESClientBuilder, ESIndexQuerier, IngestStats};
+use elasticsearch::http::request::JsonBody;
+use elasticsearch::BulkParts;
 use lazy_static::lazy_static;
 use std::sync::atomic::Ordering::SeqCst;
 use std::{
     sync::{atomic::AtomicUsize, Arc},
     time::Duration,
 };
-//>>>>>>> many-sources-investigation
 use tokio::{sync::Barrier, time::Instant};
 use utils::timestamp_now_micros;
 
 lazy_static! {
     static ref ARGS: Args = Args::parse();
-    static ref SAMPLES: Vec<String> = prep_data::load_samples(ARGS.file_path.as_str())
-        .drain(..)
-        .map(|s: prep_data::Sample| {
-            let s: prep_data::ESSample = s.into();
-            serde_json::to_string(&s).unwrap()
-        })
+    static ref SAMPLES: Vec<prep_data::ESSample> = prep_data::load_samples(ARGS.file_path.as_str())
+        .into_iter()
+        .map(|s| s.into())
         .collect();
     static ref INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
@@ -59,58 +50,48 @@ struct Args {
     bench_dur_secs: usize,
 }
 
-async fn flush(client: &mut elasticsearch::Elasticsearch, batch: Vec<JsonBody<String>>) {
-    match client
-        .bulk(BulkParts::Index(&INDEX_NAME))
-        .body(batch)
-        .send()
-        .await {
-            Ok(_) => {},
-            Err(e) => {
-                println!("flush error: {:?}", e);
-            }
-        }
-}
-
 async fn bench(
     barr: Arc<Barrier>,
     es_builder: ESClientBuilder,
     batch_size: usize,
     run_duration: Duration,
 ) {
-    let mut client = es_builder.build().unwrap();
-    let mut batch = Vec::with_capacity(batch_size * 2);
+    let mut client = ESBatchedIndexClient::<prep_data::ESSample>::new(
+        es_builder.build().unwrap(),
+        INDEX_NAME.to_string(),
+        batch_size,
+        INGESTION_STATS.clone(),
+    );
 
     barr.wait().await;
     let start = Instant::now();
     'outer: loop {
         for item in SAMPLES.iter() {
-            batch.push(item.clone().into());
-            if batch.len() == batch_size * 2 {
-                flush(&mut client, batch).await;
-                INGESTION_STATS.num_flushed.fetch_add(batch_size, SeqCst);
-                batch = Vec::with_capacity(batch_size * 2);
+            match client.ingest(item.clone()).await {
+                elastic::IngestResponse::Batched => (),
+                elastic::IngestResponse::Flushed(r) => match r {
+                    Err(e) => println!("Flush error: {:?}", e),
+                    Ok(r) => {
+                        if !r.status_code().is_success() {
+                            println!("Flush error {}", r.status_code().as_u16());
+                        }
+                    }
+                },
             }
             if start.elapsed() > run_duration {
                 break 'outer;
             }
         }
     }
-    if batch.len() > 0 {
-        let batch_len = batch.len();
-        flush(&mut client, batch).await;
-        INGESTION_STATS.num_flushed.fetch_add(batch_len, SeqCst);
-    }
+    client.flush().await.unwrap();
     drop(client);
     barr.wait().await;
 }
 
 async fn progress_watcher(barr: Arc<Barrier>, es_builder: ESClientBuilder, run_duration: Duration) {
-    println!("starting progress watcher");
     let one_sec = Duration::from_secs(1);
     let client = ESIndexQuerier::new(es_builder.build().unwrap());
     barr.wait().await;
-    println!("progress watcher started");
     let start = Instant::now();
     while start.elapsed() < run_duration {
         match client.query_index_doc_count(INDEX_NAME.as_str()).await {
@@ -143,12 +124,12 @@ async fn main() {
     );
     client
         .create_index(elastic::CreateIndexArgs {
-            num_shards: 3,
+            num_shards: 6,
             num_replicas: 1,
         })
         .await
         .unwrap();
-    println!("index created");
+    println!("index created; name: {}", INDEX_NAME.as_str());
 
     let run_duration = Duration::from_secs(ARGS.bench_dur_secs.try_into().unwrap());
     let barr = Arc::new(Barrier::new(ARGS.es_num_writers + 2));
@@ -169,7 +150,6 @@ async fn main() {
         progress_watcher(barr_clone, es_builder, run_duration).await;
     });
 
-    println!("main thread waiting to start");
     barr.wait().await;
     let one_sec = Duration::from_secs(1);
     let start = Instant::now();
