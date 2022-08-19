@@ -1,4 +1,5 @@
 use std::sync::{atomic::AtomicUsize, Arc};
+use std::time::Duration;
 
 use elasticsearch::{
     auth::Credentials,
@@ -11,6 +12,8 @@ use elasticsearch::{
     BulkParts, CountParts, Elasticsearch, SearchParts,
 };
 use serde_json::json;
+
+use crate::utils::ExponentialBackoff;
 
 #[derive(Default, Clone)]
 pub struct ESClientBuilder {
@@ -105,6 +108,8 @@ pub struct ESBatchedIndexClient<T: Clone + Into<JsonBody<serde_json::Value>>> {
     batch: Vec<T>,
     batch_size: usize,
     index_name: String,
+    backoff: ExponentialBackoff,
+    max_retries: usize,
     stats: Arc<IngestStats>,
 }
 
@@ -126,6 +131,8 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
             batch: Vec::with_capacity(batch_size),
             batch_size,
             index_name,
+            backoff: ExponentialBackoff::new(Duration::from_secs(1), Duration::from_secs(10)),
+            max_retries: 5,
             stats,
         }
     }
@@ -139,28 +146,37 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
     }
 
     pub async fn flush(&mut self) -> ESResponse {
-        let batch = self.batch.clone();
-        let batch_sz = batch.len();
-        self.batch.clear();
-        let mut bulk_msg_body: Vec<JsonBody<_>> = Vec::with_capacity(batch_sz * 2);
-        for item in batch.into_iter() {
-            bulk_msg_body.push(json!({"index": {}}).into());
-            bulk_msg_body.push(item.into());
-        }
-        let r = self
-            .client
-            .bulk(BulkParts::Index(self.index_name.as_str()))
-            .body(bulk_msg_body)
-            .send()
-            .await;
-        if let Ok(ref r) = r {
-            if r.status_code().is_success() {
-                self.stats
-                    .num_flushed
-                    .fetch_add(batch_sz, std::sync::atomic::Ordering::SeqCst);
+        let mut num_retries = 0;
+        loop {
+            let batch_sz = self.batch.len();
+            let mut bulk_msg_body: Vec<JsonBody<_>> = Vec::with_capacity(batch_sz * 2);
+            for item in self.batch.iter() {
+                bulk_msg_body.push(json!({"index": {}}).into());
+                bulk_msg_body.push(item.clone().into());
             }
+
+            let r = self
+                .client
+                .bulk(BulkParts::Index(self.index_name.as_str()))
+                .body(bulk_msg_body)
+                .send()
+                .await;
+            if let Ok(ref r) = r {
+                if r.status_code().is_success() {
+                    self.stats
+                        .num_flushed
+                        .fetch_add(batch_sz, std::sync::atomic::Ordering::SeqCst);
+                } else if num_retries < self.max_retries && r.status_code().as_u16() == 429 {
+                    // too-many-requests
+                    tokio::time::sleep(self.backoff.next_backoff());
+                    num_retries += 1;
+                    continue;
+                }
+            }
+            self.batch.clear();
+            self.backoff.reset();
+            return r;
         }
-        r
     }
 
     pub async fn create_index(&self, args: CreateIndexArgs) -> ESResponse {
