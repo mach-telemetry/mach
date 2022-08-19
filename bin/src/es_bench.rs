@@ -46,6 +46,12 @@ struct Args {
     #[clap(short, long, default_value_t = 40)]
     es_num_writers: usize,
 
+    #[clap(short, long, default_value_t = 3)]
+    es_num_shards: usize,
+
+    #[clap(short, long, default_value_t = 1)]
+    es_num_replicas: usize,
+
     #[clap(short, long, default_value_t = 120)]
     bench_dur_secs: usize,
 }
@@ -124,8 +130,8 @@ async fn main() {
     );
     client
         .create_index(elastic::CreateIndexArgs {
-            num_shards: 6,
-            num_replicas: 1,
+            num_shards: ARGS.es_num_shards,
+            num_replicas: ARGS.es_num_replicas,
         })
         .await
         .unwrap();
