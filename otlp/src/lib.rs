@@ -53,7 +53,7 @@ use opentelemetry::proto as otlp;
 pub use otlp::*;
 
 use dashmap::DashMap;
-use otlp::{
+pub use otlp::{
     common::v1::{any_value::Value, AnyValue, ArrayValue, KeyValue, KeyValueList},
     logs::v1::ResourceLogs,
     metrics::v1::{metric::Data, number_data_point, ResourceMetrics},

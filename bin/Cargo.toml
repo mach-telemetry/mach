@@ -137,6 +137,11 @@ path = "src/es_bench.rs"
 name = "simple-query"
 path = "src/simple-query.rs"
 
+[[bin]]
+name = "from-json"
+path = "src/from-json.rs"
+
+
 #[[bin]]
 #name = "convert-otlp-data"
 #path = "src/convert-otlp-data.rs"
