@@ -12,9 +12,9 @@ use crossbeam_channel::Sender;
 use lazy_static::lazy_static;
 use mach_extern::{
     id::SeriesId,
-    mem_list::{TOTAL_BYTES_FLUSHED, FLUSHER_QUEUE_LEN, UNFLUSHED_COUNT},
-    writer::{QUEUE_LEN},
+    mem_list::{FLUSHER_QUEUE_LEN, TOTAL_BYTES_FLUSHED, UNFLUSHED_COUNT},
     sample::SampleType,
+    writer::QUEUE_LEN,
 };
 use std::sync::{atomic::AtomicUsize, atomic::Ordering::SeqCst, Arc, Barrier};
 use std::thread;

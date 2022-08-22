@@ -8,13 +8,11 @@ use mach::id::SeriesId;
 use regex::Regex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-fn get_most_recent_timestamp() {
-}
-
+fn get_most_recent_timestamp() {}
 
 fn main() {
     mach::utils::kafka::init_kafka_consumer();
-    std::thread::sleep(Duration::from_secs(5*60));
+    std::thread::sleep(Duration::from_secs(5 * 60));
     //let data: Vec<prep_data::Sample> = prep_data::load_samples("/home/sli/data/train-ticket-data");
     //println!("Samples: {}", data.len());
     //let mut count = 0;
@@ -74,7 +72,7 @@ fn main() {
     println!("snapshotter id: {:?}", snapshotter_id);
 
     let now: u128 = micros_from_epoch();
-    let last_5: u128 = now - Duration::from_secs(5*60).as_micros();
+    let last_5: u128 = now - Duration::from_secs(5 * 60).as_micros();
 
     let now: u64 = now.try_into().unwrap();
     let last_5: u64 = last_5.try_into().unwrap();
@@ -116,10 +114,18 @@ fn main() {
             }
         }
     }
-    println!("Last timestamps: {} {:?}", result.len(), &result[result.len()-2..]);
+    println!(
+        "Last timestamps: {} {:?}",
+        result.len(),
+        &result[result.len() - 2..]
+    );
     let query_execution_time = query_execution_start.elapsed();
     let total_time = total_start.elapsed();
-    println!("Total Time: {:?}, Query Execution Time: {:?}", total_time.as_secs_f64(), query_execution_time.as_secs_f64());
+    println!(
+        "Total Time: {:?}, Query Execution Time: {:?}",
+        total_time.as_secs_f64(),
+        query_execution_time.as_secs_f64()
+    );
     //let mut kafka_client = Client::new(BOOTSTRAPS);
     //let consumer_offset = ConsumerOffset::Latest;
     //let mut consumer = BufferedConsumer::new(BOOTSTRAPS, TOPIC, consumer_offset);
@@ -142,14 +148,13 @@ fn main() {
 
     // Query the number of samples from a source for the past 5 minutes
 
-
     //let ts: usize = timestamps.next_timestamp().unwrap().try_into().unwrap();
     //}
     //let end: usize = micros_from_epoch().try_into().unwrap();
     //let duration = Duration::from_micros((end - start) as u64);
     //let age = Duration::from_micros((start - ts) as u64);
     //println!("snapshot id: {:?}, query latency: {:?}, data age: {:?}", snapshot_id, duration, age);
-    }
+}
 
 fn micros_from_epoch() -> u128 {
     SystemTime::now()

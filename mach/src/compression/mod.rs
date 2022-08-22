@@ -247,7 +247,15 @@ impl Compression {
             off += 8;
         }
 
-        Ok((Header { id, types, codes, len }, off))
+        Ok((
+            Header {
+                id,
+                types,
+                codes,
+                len,
+            },
+            off,
+        ))
     }
 
     pub fn decompress(data: &[u8], buf: &mut Segment) -> Result<usize, Error> {

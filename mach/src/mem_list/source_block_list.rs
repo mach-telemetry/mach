@@ -103,9 +103,7 @@ struct InnerBuffer {
 
 impl InnerBuffer {
     fn push(&self, item: Arc<BlockListEntry>) {
-        let is_full = unsafe {
-            self.data.unprotected_write().push(item)
-        };
+        let is_full = unsafe { self.data.unprotected_write().push(item) };
         if is_full {
             let copy: Arc<[Arc<BlockListEntry>]> = unsafe {
                 let guard = self.data.unprotected_read();
@@ -113,7 +111,10 @@ impl InnerBuffer {
             };
             {
                 let mut guard = self.next.write().unwrap();
-                let list_item = Arc::new(RwLock::new(ListItem::Block(Arc::new((copy, guard.clone())))));
+                let list_item = Arc::new(RwLock::new(ListItem::Block(Arc::new((
+                    copy,
+                    guard.clone(),
+                )))));
                 LIST_ITEM_FLUSHER.send(list_item.clone()).unwrap();
                 *guard = list_item;
                 let _guard = self.data.protected_write(); // need to increment guard
@@ -151,17 +152,20 @@ impl InnerBuffer {
     //}
 
     fn snapshot(&self) -> Result<SourceBlocks, Error> {
-
         // Get components to read
         let guard = self.data.protected_read();
         let len = guard.offset.load(SeqCst) % 256;
         //println!("Snapshot len: {}", len);
-        let copy: Vec<Arc<BlockListEntry>> = unsafe { MaybeUninit::slice_assume_init_ref(&guard.data[..len]).iter().cloned().collect() };
+        let copy: Vec<Arc<BlockListEntry>> = unsafe {
+            MaybeUninit::slice_assume_init_ref(&guard.data[..len])
+                .iter()
+                .cloned()
+                .collect()
+        };
         let current = self.next.read().unwrap().clone();
         if guard.release().is_err() {
             return Err(Error::Snapshot);
         }
-
 
         // Traverse list
         let mut v: Vec<ReadOnlyBlock> = Vec::with_capacity(256);
@@ -183,7 +187,11 @@ impl InnerBuffer {
                 }
                 ListItem::Block(item) => {
                     println!("block len: {}", item.0.len());
-                    item.0.iter().rev().cloned().for_each(|x| v.push(x.inner().into()));
+                    item.0
+                        .iter()
+                        .rev()
+                        .cloned()
+                        .for_each(|x| v.push(x.inner().into()));
                     let x = item.1.clone();
                     drop(guard);
                     current = x;
@@ -265,7 +273,9 @@ impl InnerBuffer {
         let offset = AtomicUsize::new(0);
         let data = Box::new(MaybeUninit::uninit_array());
         let data = Arc::new(WpLock::new(InnerData { data, offset }));
-        let next = Arc::new(RwLock::new(Arc::new(RwLock::new(ListItem::Kafka(kafka::KafkaEntry::new())))));
+        let next = Arc::new(RwLock::new(Arc::new(RwLock::new(ListItem::Kafka(
+            kafka::KafkaEntry::new(),
+        )))));
         //let periodic = Arc::new(Mutex::new(last.clone()));
         Self { data, next }
     }

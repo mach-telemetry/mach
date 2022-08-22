@@ -13,8 +13,14 @@ use crate::{
 };
 use dashmap::DashMap;
 //use std::sync::mpsc::{channel, Receiver, Sender};
-use std::{collections::HashMap, sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}}};
 use crossbeam::channel::{unbounded, Receiver, Sender};
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Arc,
+    },
+};
 
 lazy_static::lazy_static! {
     pub static ref QUEUE_LEN: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));

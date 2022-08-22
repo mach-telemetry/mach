@@ -10,13 +10,13 @@ mod prep_data;
 #[allow(dead_code)]
 mod snapshotter;
 mod utils;
-use crate::completeness::{Sample, SampleOwned, Writer, COUNTERS, kafka::decompress_kafka_msg};
+use crate::completeness::{kafka::decompress_kafka_msg, Sample, SampleOwned, Writer, COUNTERS};
 
+use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message};
 use mach::id::SeriesId;
 use mach::utils::random_id;
 use regex::Regex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message};
 use lazy_static::*;
 use std::sync::{Arc, Mutex};
 use std::collections::BTreeMap;
