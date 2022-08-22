@@ -123,7 +123,7 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
 }
 
 pub struct Writer<I> {
-    sender: Sender<Vec<Sample<'static, I>>>,
+    sender: Sender<(u64, u64, Vec<Sample<'static, I>>)>,
     barrier: Arc<Barrier>,
 }
 
@@ -167,7 +167,8 @@ impl Workload {
                 batch.push((item.0, timestamp, item.2.as_slice()));
                 if batch.len() == self.batch_size {
                     while last_batch.elapsed() < self.batch_interval {}
-                    match writer.sender.try_send(batch) {
+                    let to_send = (batch[0].1, batch.last().unwrap().1, batch); // NOTE: This works for this particular experiment but in reality, need to keep track of the batch
+                    match writer.sender.try_send(to_send) {
                         Ok(_) => {
                             COUNTERS.samples_enqueued.fetch_add(self.batch_size, SeqCst);
                         }

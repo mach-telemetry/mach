@@ -36,7 +36,7 @@ fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>
     loop {
         for ms in kafka_consumer.poll().unwrap().iter() {
             for msg in ms.messages().iter() {
-                let data = decompress_kafka_msg(msg, buffer.as_mut_slice());
+                let (start, end, data) = decompress_kafka_msg(msg.value, buffer.as_mut_slice());
                 let es_data: Vec<ESSample> = data.into_iter().map(|s| s.into()).collect();
                 sender.send(es_data).unwrap();
             }

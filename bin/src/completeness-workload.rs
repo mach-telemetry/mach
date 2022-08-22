@@ -143,6 +143,7 @@ fn main() {
         }
         "kafka" => {
             let samples = SAMPLES.as_slice();
+            let _ = SERIES_IDS.len();
             let kafka = init_kafka(
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),

@@ -65,14 +65,16 @@ pub fn init_mach_querier(series_id: SeriesId) {
     }
 }
 
-fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<Vec<Sample<SeriesRef>>>) {
+fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<(u64, u64, Vec<Sample<SeriesRef>>)>) {
     let mut writer_guard = MACH_WRITER.lock().unwrap();
     let writer = &mut *writer_guard;
     while let Ok(data) = receiver.recv() {
+        let (start, end, data) = data;
         let mut raw_sz = 0;
         for item in data.iter() {
             'push_loop: loop {
                 if writer.push(item.0, item.1, item.2).is_ok() {
+                    println!("Data size: {}", item.2[0].as_bytes().len());
                     raw_sz += item.2[0].as_bytes().len();
                     break 'push_loop;
                 }

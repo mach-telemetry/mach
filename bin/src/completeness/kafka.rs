@@ -13,19 +13,21 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
-pub fn decompress_kafka_msg(msg: &Message, buffer: &mut [u8]) -> Vec<SampleOwned<SeriesId>> {
+pub fn decompress_kafka_msg(msg: &[u8], buffer: &mut [u8]) -> (u64, u64, Vec<SampleOwned<SeriesId>>) {
+    let start = u64::from_be_bytes(msg[0..8].try_into().unwrap());
+    let end = u64::from_be_bytes(msg[8..16].try_into().unwrap());
     let original_sz = usize::from_be_bytes(
-        msg.value[msg.value.len() - 8..msg.value.len()]
+        msg[msg.len() - 8..msg.len()]
             .try_into()
             .unwrap(),
     );
     let sz = lz4::decompress(
-        &msg.value[..msg.value.len() - 8],
+        &msg[16..msg.len() - 8],
         &mut buffer[..original_sz],
     )
     .unwrap();
     let data: Vec<SampleOwned<SeriesId>> = bincode::deserialize(&buffer[..sz]).unwrap();
-    data
+    (start, end, data)
 }
 
 pub fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> usize {
@@ -53,9 +55,8 @@ pub fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> usize {
     for set in consumer.poll().unwrap().iter() {
         let _p = set.partition();
         for msg in set.messages().iter() {
-            let data = decompress_kafka_msg(msg, buffer.as_mut_slice());
-            let ts = data.last().unwrap().1 as usize;
-            max_ts = max_ts.max(ts);
+            let (start, end, data) = decompress_kafka_msg(msg.value, buffer.as_mut_slice());
+            max_ts = max_ts.max(end as usize);
         }
     }
     max_ts
@@ -79,12 +80,15 @@ pub fn kafka_writer(
     kafka_bootstraps: &'static str,
     kafka_topic: &'static str,
     barrier: Arc<Barrier>,
-    receiver: Receiver<Vec<Sample<SeriesId>>>,
+    receiver: Receiver<(u64, u64, Vec<Sample<SeriesId>>)>,
 ) {
     let mut producer = kafka_utils::Producer::new(kafka_bootstraps);
     while let Ok(data) = receiver.recv() {
+        let (start, end, data) = data;
         let bytes = bincode::serialize(&data).unwrap();
         let mut compressed: Vec<u8> = Vec::new();
+        compressed.extend_from_slice(&start.to_be_bytes()[..]);
+        compressed.extend_from_slice(&end.to_be_bytes()[..]);
         lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
         compressed.extend_from_slice(&bytes.len().to_be_bytes()[..]); // Size of uncompressed bytes
         producer.send(kafka_topic, 0, compressed.as_slice());
