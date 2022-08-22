@@ -168,7 +168,7 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
                         .fetch_add(batch_sz, std::sync::atomic::Ordering::SeqCst);
                 } else if num_retries < self.max_retries && r.status_code().as_u16() == 429 {
                     // too-many-requests
-                    tokio::time::sleep(self.backoff.next_backoff());
+                    tokio::time::sleep(self.backoff.next_backoff()).await;
                     num_retries += 1;
                     continue;
                 }
