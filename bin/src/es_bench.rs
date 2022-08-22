@@ -4,8 +4,6 @@ mod utils;
 
 use clap::*;
 use elastic::{ESBatchedIndexClient, ESClientBuilder, ESIndexQuerier, IngestStats};
-use elasticsearch::http::request::JsonBody;
-use elasticsearch::BulkParts;
 use lazy_static::lazy_static;
 use std::sync::atomic::Ordering::SeqCst;
 use std::{
@@ -151,7 +149,6 @@ async fn main() {
 
     let barr_clone = barr.clone();
     let es_builder = elastic_builder.clone();
-    let run_dur = run_duration.clone();
     tokio::spawn(async move {
         progress_watcher(barr_clone, es_builder, run_duration).await;
     });
