@@ -92,15 +92,6 @@ struct Args {
 
     #[clap(short, long, default_value_t = 5.0)]
     counter_interval_seconds: f64,
-
-    #[clap(short, long, default_value_t = String::from("http://localhost:9200"))]
-    es_endpoint: String,
-
-    #[clap(short, long)]
-    es_username: Option<String>,
-
-    #[clap(short, long)]
-    es_password: Option<String>,
 }
 
 fn main() {
