@@ -9,18 +9,23 @@ use crate::prep_data::ESSample;
 use clap::*;
 use crossbeam_channel::{bounded, Receiver, Sender};
 use elastic::{
-    CreateIndexArgs, ESBatchedIndexClient, ESClientBuilder, IngestResponse, IngestStats,
+    CreateIndexArgs, ESBatchedIndexClient, ESClientBuilder, ESIndexQuerier, IngestResponse,
+    IngestStats,
 };
 use kafka::{client::KafkaClient, consumer::Consumer};
 use lazy_static::lazy_static;
+use std::sync::atomic::Ordering::SeqCst;
+use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 use utils::timestamp_now_micros;
 
 lazy_static! {
     static ref ARGS: Args = Args::parse();
     static ref INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
+    static ref INDEXED_COUNT: AtomicU64 = AtomicU64::new(0);
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -47,16 +52,16 @@ struct Args {
     es_num_writers: usize,
 }
 
-async fn es_watch_freshness(client: ESIndexQuerier, index_name: &String) {
+async fn es_watch_data_age(client: ESIndexQuerier, index_name: &String) {
     let one_sec = std::time::Duration::from_secs(1);
     loop {
         match client.query_latest_timestamp(index_name).await {
             Ok(resp) => match resp {
-                None => println!("index not ready yet"),
+                None => (),
                 Some(ts_got) => {
                     let ts_curr = timestamp_now_micros();
                     let delta = Duration::from_micros(ts_curr - ts_got);
-                    println!("got ts {}, freshness: {}", ts_got, delta.as_secs_f64());
+                    println!("got ts {}, data age: {}", ts_got, delta.as_secs_f64());
                 }
             },
             Err(e) => {
@@ -67,25 +72,22 @@ async fn es_watch_freshness(client: ESIndexQuerier, index_name: &String) {
     }
 }
 
-fn es_freshness_watcher(es_client_builder: ESClientBuilder, index_name: &String) {
+fn es_data_age_watcher(es_client_builder: ESClientBuilder, index_name: &String) {
     let querier = ESIndexQuerier::new(es_client_builder.build().unwrap());
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        es_watch_freshness(querier, index_name).await;
+        es_watch_data_age(querier, index_name).await;
     });
 }
 
 async fn es_watch_docs_count(client: ESIndexQuerier, index_name: &String) {
     let one_sec = std::time::Duration::from_secs(1);
-    let mut last_doc_count = 0;
     loop {
         match client.query_index_doc_count(index_name).await {
             Ok(resp) => match resp {
-                None => println!("index not ready yet"),
+                None => (),
                 Some(doc_count) => {
-                    let delta = doc_count - last_doc_count;
-                    println!("indexed doc count: {doc_count}, index docs/sec: {}", delta);
-                    last_doc_count = doc_count;
+                    INDEXED_COUNT.store(doc_count, SeqCst);
                 }
             },
             Err(e) => {
@@ -102,18 +104,6 @@ fn es_docs_count_watcher(es_client_builder: ESClientBuilder, index_name: &String
     rt.block_on(async {
         es_watch_docs_count(querier, index_name).await;
     });
-}
-
-fn es_num_docs_flushed_watcher() {
-    let one_sec = std::time::Duration::from_secs(1);
-    let mut last_val = NUM_WRITTEN.load(std::sync::atomic::Ordering::SeqCst);
-    loop {
-        let curr_num_written = NUM_WRITTEN.load(std::sync::atomic::Ordering::SeqCst);
-        let delta = curr_num_written - last_val;
-        println!("num. samples flushed per sec: {}", delta);
-        last_val = curr_num_written;
-        std::thread::sleep(one_sec);
-    }
 }
 
 fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>>) {
@@ -133,6 +123,7 @@ fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>
     let mut buffer = vec![0u8; 500_000_000];
     loop {
         for ms in kafka_consumer.poll().unwrap().iter() {
+            println!("new message");
             for msg in ms.messages().iter() {
                 let (start, end, data) = decompress_kafka_msg(msg.value, buffer.as_mut_slice());
                 let es_data: Vec<ESSample> = data.into_iter().map(|s| s.into()).collect();
@@ -150,12 +141,16 @@ async fn es_ingest(
         for sample in samples {
             match client.ingest(sample).await {
                 IngestResponse::Batched => {}
-                IngestResponse::Flushed(r) => {
-                    assert!(r
-                        .expect("could not submit samples to ES")
-                        .error_for_status_code()
-                        .is_ok());
-                }
+                IngestResponse::Flushed(r) => match r {
+                    Ok(r) => {
+                        if !r.status_code().is_success() {
+                            println!("error resp: {:?}", r);
+                        }
+                    }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                },
             }
         }
     }
@@ -214,6 +209,17 @@ fn es_ingestor(
     });
 }
 
+fn stats_watcher() {
+    let interval = std::time::Duration::from_secs(2);
+    loop {
+        let flushed_count = INGESTION_STATS.num_flushed.load(SeqCst);
+        let indexed_count = INDEXED_COUNT.load(SeqCst);
+        let fraction_indexed = indexed_count as f64 / flushed_count as f64;
+        println!("flushed count: {flushed_count}, indexed count: {indexed_count}, fraction indexed: {fraction_indexed}");
+        thread::sleep(interval);
+    }
+}
+
 fn main() {
     let es_client_config = ESClientBuilder::default()
         .username_optional(ARGS.es_username.clone())
@@ -224,15 +230,23 @@ fn main() {
     let consumer = thread::spawn(move || {
         kafka_es_consumer(&ARGS.kafka_topic, &ARGS.kafka_bootstraps, consume_tx)
     });
+    let es_client_builder = es_client_config.clone();
     let ingestor = thread::spawn(move || {
         es_ingestor(
-            es_client_config,
-            &ARGS.es_endpoint,
+            es_client_builder,
+            &INDEX_NAME,
             ARGS.es_ingest_batch_size,
             ARGS.es_num_writers,
             consume_rx,
         )
     });
+
+    let es_client_builder = es_client_config.clone();
+    thread::spawn(move || es_data_age_watcher(es_client_builder, &INDEX_NAME));
+    let es_client_builder = es_client_config.clone();
+    thread::spawn(move || es_docs_count_watcher(es_client_builder, &INDEX_NAME));
+    thread::spawn(stats_watcher);
+
     consumer.join().unwrap();
     ingestor.join().unwrap();
 }
