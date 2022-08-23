@@ -134,6 +134,10 @@ name = "es-bench"
 path = "src/es_bench.rs"
 
 [[bin]]
+name = "kafka-es-connector"
+path = "src/kafka_es_connector.rs"
+
+[[bin]]
 name = "simple-query"
 path = "src/simple-query.rs"
 
