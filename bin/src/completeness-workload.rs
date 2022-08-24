@@ -17,29 +17,34 @@ use crate::completeness::{
 use crate::completeness::mach::{MACH, MACH_WRITER};
 use clap::*;
 use lazy_static::lazy_static;
-use mach::id::SeriesId;
+use mach::id::{SeriesId, SeriesRef};
+use mach::sample::SampleType;
 use std::{
-    collections::HashSet,
+    collections::{HashSet, HashMap},
     sync::{Arc, Mutex},
     time::Duration,
 };
+use rand::prelude::*;
 
 lazy_static! {
     static ref ARGS: Args = Args::parse();
-    static ref SAMPLES: Vec<prep_data::Sample> = {
-        let init = prep_data::load_samples(ARGS.file_path.as_str());
-        println!("Init len: {}", init.len());
-        //return init;
-        let mut samples = Vec::new();
-        let all_len = 100usize;
-        for i in init[..init.len()/all_len].iter() {
-            for j in 0..all_len {
-                let mut item = i.clone();
-                item.0.0 += j as u64;
-                samples.push(item);
+    static ref BASE_DATA: HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> = {
+        prep_data::load_samples(ARGS.file_path.as_str())
+    };
+    static ref SAMPLES: Vec<(SeriesId, &'static [SampleType])> = {
+        println!("Expanding data based on source_count = {}", ARGS.source_count);
+        let keys: Vec<SeriesId> = BASE_DATA.keys().copied().collect();
+        let mut rng = rand::thread_rng();
+        let mut tmp_samples = Vec::new();
+        for id in 0..ARGS.source_count {
+            let s = BASE_DATA.get(keys.choose(&mut rng).unwrap()).unwrap();
+            for item in s.iter() {
+                tmp_samples.push((SeriesId(id), item.0, item.1.as_slice()));
             }
         }
-        //samples.shuffle(&mut thread_rng());
+        tmp_samples.sort_by(|a, b| a.1.cmp(&b.1)); // sort by timestamp
+
+        let samples: Vec<(SeriesId, &[SampleType])> = tmp_samples.drain(..).map(|x| (x.0, x.2)).collect();
         println!("Samples len: {}", samples.len());
         samples
     };
@@ -53,13 +58,15 @@ lazy_static! {
         println!("Sample of IDs: {:?}", &ids[..10]);
         ids
     };
-    static ref MACH_SAMPLES: Vec<prep_data::RegisteredSample> = {
+    //static ref MACH_SAMPLES: Vec<prep_data::RegisteredSample> = {
+    static ref MACH_SAMPLES: Vec<(SeriesRef, &'static [SampleType])> = {
+        println!("Registering sources to Mach");
         let mach = MACH.clone(); // ensure MACH is initialized (prevent deadlock)
         let writer = MACH_WRITER.clone(); // ensure WRITER is initialized (prevent deadlock)
         let mut mach_guard = mach.lock().unwrap();
         let mut writer_guard = writer.lock().unwrap();
-        let samples = SAMPLES.as_slice();
-        prep_data::mach_register_samples(samples, &mut *mach_guard, &mut *writer_guard)
+        prep_data::mach_register_samples(SAMPLES.as_slice(), &mut *mach_guard, &mut *writer_guard)
+
     };
     static ref DECOMPRESS_BUFFER: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(vec![0u8; 1_000_000]));
 }
@@ -86,6 +93,9 @@ struct Args {
 
     #[clap(short, long, default_value_t = 100000)]
     batch_size: u32,
+
+    #[clap(short, long, default_value_t = 1000)]
+    source_count: u64,
 
     #[clap(short, long, default_value_t = String::from("/home/sli/data/train-ticket-data"))]
     file_path: String,

@@ -74,7 +74,7 @@ fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<(u64, u64, Vec<Sample<S
         for item in data.iter() {
             'push_loop: loop {
                 if writer.push(item.0, item.1, item.2).is_ok() {
-                    println!("Data size: {}", item.2[0].as_bytes().len());
+                    //println!("Data size: {}", item.2[0].as_bytes().len());
                     raw_sz += item.2[0].as_bytes().len();
                     break 'push_loop;
                 }

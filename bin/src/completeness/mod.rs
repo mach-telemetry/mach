@@ -155,7 +155,7 @@ impl Workload {
         }
     }
 
-    pub fn run<I: Copy>(&self, writer: &Writer<I>, samples: &'static [(I, u64, Vec<SampleType>)]) {
+    pub fn run<I: Copy>(&self, writer: &Writer<I>, samples: &'static [(I, &[SampleType])]) {
         println!("Running rate: {}", self.samples_per_second);
         let start = Instant::now();
         let mut last_batch = start;
@@ -164,7 +164,7 @@ impl Workload {
         'outer: loop {
             for item in samples {
                 let timestamp: u64 = timestamp_now_micros();
-                batch.push((item.0, timestamp, item.2.as_slice()));
+                batch.push((item.0, timestamp, item.1));
                 if batch.len() == self.batch_size {
                     while last_batch.elapsed() < self.batch_interval {}
                     let to_send = (batch[0].1, batch.last().unwrap().1, batch); // NOTE: This works for this particular experiment but in reality, need to keep track of the batch

@@ -22,7 +22,7 @@ fn load_data(path: &str) -> Vec<otlp::OtlpData> {
     bincode::deserialize(data.as_slice()).unwrap()
 }
 
-fn otlp_data_to_samples(data: &[otlp::OtlpData]) -> Vec<Sample> {
+fn otlp_data_to_samples(data: &[otlp::OtlpData]) -> HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> {
     println!("Converting data to samples");
     let data: Vec<mach_otlp::OtlpData> = data
         .iter()
@@ -49,39 +49,45 @@ fn otlp_data_to_samples(data: &[otlp::OtlpData]) -> Vec<Sample> {
         }
     }
 
-    samples
+
+    let mut sources = HashMap::new();
+    for sample in samples.drain(..) {
+        sources.entry(sample.0).or_insert(Vec::new()).push((sample.1, sample.2));
+    }
+    sources
 }
 
-pub fn load_samples(path: &str) -> Vec<Sample> {
+pub fn load_samples(path: &str) -> HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> {
     let data = load_data(path);
-    otlp_data_to_samples(data.as_slice())
+    let data = otlp_data_to_samples(data.as_slice());
+    data
+
 }
 
 pub fn mach_register_samples(
-    samples: &[Sample],
+    samples: &[(SeriesId, &'static [SampleType])],
     mach: &mut Mach,
     writer: &mut Writer,
-) -> Vec<RegisteredSample> {
+) -> Vec<(SeriesRef, &'static [SampleType])> {
+    println!("Registering sources to Mach");
     let mut refmap: HashMap<SeriesId, SeriesRef> = HashMap::new();
 
-    for (id, _, values) in samples.iter() {
-        let _id_ref = *refmap.entry(*id).or_insert_with(|| {
-            let conf = get_series_config(*id, values.as_slice());
-            let (_, _) = mach.add_series(conf).unwrap();
-            let id_ref = writer.get_reference(*id);
-            id_ref
-        });
-    }
+    let registered_samples: Vec<(SeriesRef, &'static [SampleType])> = 
+        samples.iter().map(|x| {
+            let (id, values) = x;
+            let id_ref = *refmap.entry(*id).or_insert_with(|| {
+                let conf = get_series_config(*id, &*values);
+                let (_, _) = mach.add_series(conf).unwrap();
+                let id_ref = writer.get_reference(*id);
+                id_ref
+            });
+            (id_ref, *values)
+        }).collect();
 
-    let mut registered_samples = Vec::new();
-    for (series_id, ts, values) in samples {
-        let series_ref = *refmap.get(&series_id).unwrap();
-        registered_samples.push((series_ref, *ts, values.clone()));
-    }
     registered_samples
 }
 
-fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
+pub fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
     let mut types = Vec::new();
     let mut compression = Vec::new();
     values.iter().for_each(|v| {
