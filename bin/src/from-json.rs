@@ -1,6 +1,6 @@
 use otlp::ResourceMetrics;
 use std::env;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, BufRead};
 use std::path::Path;
 use std::convert::TryInto;
@@ -182,11 +182,37 @@ impl SpanSample {
 
 fn main() {
 
+    //let dir = "/home/fsolleza/data/intel/spans";
+    //let mut all_points = Vec::new();
+    //for entry in fs::read_dir(dir).unwrap() {
+    //    let entry = entry.unwrap();
+    //    let lines = {
+    //        let file = File::open(entry.path()).unwrap();
+    //        io::BufReader::new(file).lines()
+    //    };
+    //    println!("entry path: {:?}", entry.path());
+    //    for line in lines {
+    //        if let Ok(line) = line {
+    //            let json_data: serde_json::Value = serde_json::from_str(&line).unwrap();
+    //            all_points.push(SpanSample::parse_jaeger_span(&json_data));
+    //        }
+    //    }
+    //}
+    //println!("Parsed n points: {}", all_points.len());
+
+    //let mut map = std::collections::HashMap::new();
+    //for item in all_points {
+    //    map.entry(item.id.clone()).or_insert(Vec::new()).push(item);
+    //}
+
+    //println!("Number of keys: {}", map.len());
+
+    //for (k, v) in map.iter() {
+    //    println!("Key: {:?}, Lenght: {}", k, v.len());
+    //}
+
     // Metrics data
     let path = "/home/fsolleza/data/intel/metrics/otlp-metrics-2+0+0000004918.json";
-
-    // Span data
-    //let path = "/home/fsolleza/data/intel/spans/otlp_spans_2+0+0000100400.json";
     let lines = {
         let file = File::open(path).unwrap();
         io::BufReader::new(file).lines()
@@ -197,8 +223,23 @@ fn main() {
             let json_data: serde_json::Value = serde_json::from_str(&line).unwrap();
             let mut points = MetricSample::parse_otel_resource_metrics(&json_data);
             all_points.append(&mut points);
-            //all_points.push(SpanSample::parse_jaeger_span(&json_data));
         }
     }
     println!("Parsed n points: {}", all_points.len());
+
+    let mut map = std::collections::HashMap::new();
+    for item in all_points {
+        map.entry(item.id.clone()).or_insert(Vec::new()).push(item);
+    }
+
+    println!("Number of keys: {}", map.len());
+
+    let mut lengths = Vec::new();
+    for (k, v) in map.iter() {
+        lengths.push(v.len());
+    }
+    let min:usize = *lengths.iter().min().unwrap();
+    let max:usize = *lengths.iter().max().unwrap();
+    let mean:usize = lengths.iter().sum::<usize>() / lengths.len();
+    println!("average length {} {} {}", min, max, mean);
 }
