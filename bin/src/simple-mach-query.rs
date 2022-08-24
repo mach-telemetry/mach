@@ -11,32 +11,45 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::collections::HashMap;
 use rand::prelude::*;
 
-fn get_most_recent_timestamp() {}
+
+lazy_static::lazy_static! {
+    static ref SNAPSHOT_INTERVAL: Duration = Duration::from_secs_f64(0.5);
+    static ref SNAPSHOT_TIMEOUT: Duration = Duration::from_secs_f64(0.5);
+    static ref START_MAX_DELAY: u64 = 60;
+    static ref MIN_QUERY_DURATION: u64 = 10;
+    static ref MAX_QUERY_DURATION: u64 = 60;
+    static ref SOURCE_COUNT: u64 = 1000;
+    static ref QUERY_COUNT: u64 = 100;
+}
 
 fn main() {
     mach::utils::kafka::init_kafka_consumer();
-    std::thread::sleep(Duration::from_secs(2 * 60));
-    // Setup query
+    // Sleeping to make sure there's enough data
+    println!("Sleeping");
+    std::thread::sleep(Duration::from_secs(2 * START_MAX_DELAY));
+    println!("Done Sleeping");
+
+    // Setup snapshot client
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     let mut client = runtime.block_on(snapshotter::SnapshotClient::new());
-    let interval = Duration::from_secs_f64(0.5);
-    let timeout = Duration::from_secs(60 * 60);
+    let interval = *SNAPSHOT_INTERVAL;
+    let timeout = *SNAPSHOT_TIMEOUT;
 
     let mut snapshotter_map = HashMap::new();
     let micros_in_sec: u64 = Duration::from_secs(1).as_micros().try_into().unwrap();
 
     let mut rng = rand::thread_rng();
-    for _ in 0..100 {
-        let id = SeriesId(rng.gen_range(0..1000));
+    for _ in 0..QUERY_COUNT {
+        let id = SeriesId(rng.gen_range(0..SOURCE_COUNT));
         let snapshotter_id = *snapshotter_map.entry(id).or_insert(
             runtime.block_on(client.initialize(id, interval, timeout)).unwrap()
         );
         let now: u64 = micros_from_epoch().try_into().unwrap();
-        let start = now - rng.gen_range(0..60) * micros_in_sec;
-        let end = start - rng.gen_range(10..60) * micros_in_sec;
+        let start = now - rng.gen_range(0..START_MAX_DELAY) * micros_in_sec;
+        let end = start - rng.gen_range(MIN_QUERY_DURATION..MAX_QUERY_DURATION) * micros_in_sec;
 
         let mut count = 0;
         let total_start = Instant::now();
