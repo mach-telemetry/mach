@@ -4,7 +4,7 @@ use crate::utils::timestamp_now_micros;
 use crossbeam_channel::{bounded, Receiver};
 use kafka::{
     client::{FetchOffset, KafkaClient},
-    consumer::{Consumer, Message},
+    consumer::Consumer,
 };
 use lzzzz::lz4;
 use mach::id::SeriesId;
@@ -13,19 +13,14 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
-pub fn decompress_kafka_msg(msg: &[u8], buffer: &mut [u8]) -> (u64, u64, Vec<SampleOwned<SeriesId>>) {
+pub fn decompress_kafka_msg(
+    msg: &[u8],
+    buffer: &mut [u8],
+) -> (u64, u64, Vec<SampleOwned<SeriesId>>) {
     let start = u64::from_be_bytes(msg[0..8].try_into().unwrap());
     let end = u64::from_be_bytes(msg[8..16].try_into().unwrap());
-    let original_sz = usize::from_be_bytes(
-        msg[msg.len() - 8..msg.len()]
-            .try_into()
-            .unwrap(),
-    );
-    let sz = lz4::decompress(
-        &msg[16..msg.len() - 8],
-        &mut buffer[..original_sz],
-    )
-    .unwrap();
+    let original_sz = usize::from_be_bytes(msg[msg.len() - 8..msg.len()].try_into().unwrap());
+    let sz = lz4::decompress(&msg[16..msg.len() - 8], &mut buffer[..original_sz]).unwrap();
     let data: Vec<SampleOwned<SeriesId>> = bincode::deserialize(&buffer[..sz]).unwrap();
     (start, end, data)
 }

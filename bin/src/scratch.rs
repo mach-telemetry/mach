@@ -13,14 +13,14 @@ mod utils;
 use crate::completeness::{kafka::decompress_kafka_msg, Sample, SampleOwned, Writer, COUNTERS};
 
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message};
+use lazy_static::*;
 use mach::id::SeriesId;
 use mach::utils::random_id;
 use regex::Regex;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use lazy_static::*;
-use std::sync::{Arc, Mutex};
 use std::collections::BTreeMap;
-use std::ops::{RangeBounds, Bound::Included};
+use std::ops::{Bound::Included, RangeBounds};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 enum Entry {
     Bytes(Arc<[u8]>),
@@ -84,13 +84,12 @@ lazy_static! {
 }
 
 fn main() {
-
     println!("INITING SAMPLES HAS LEN: {}", INDEX.lock().unwrap().len());
-    std::thread::sleep(std::time::Duration::from_secs(7*60));
+    std::thread::sleep(std::time::Duration::from_secs(7 * 60));
     let id = SeriesId(20201894126936780);
     let now: u128 = micros_from_epoch();
     println!("NOW: {}", now);
-    let last_5: u128 = now - Duration::from_secs(5*60).as_micros();
+    let last_5: u128 = now - Duration::from_secs(5 * 60).as_micros();
     let now: u64 = now.try_into().unwrap();
     let last_5: u64 = last_5.try_into().unwrap();
 
@@ -132,7 +131,12 @@ fn main() {
     let total = start.elapsed();
     let query = total - wait;
     println!("Counter: {}", counter);
-    println!("Total: {}, Delay: {}, Query: {}", total.as_secs_f64(), wait.as_secs_f64(), query.as_secs_f64());
+    println!(
+        "Total: {}, Delay: {}, Query: {}",
+        total.as_secs_f64(),
+        wait.as_secs_f64(),
+        query.as_secs_f64()
+    );
 
     println!("Querying again!");
     let mut counter = 0;

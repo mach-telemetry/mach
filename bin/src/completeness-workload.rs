@@ -1,6 +1,7 @@
 #[allow(dead_code)]
 mod bytes_server;
 mod completeness;
+#[allow(dead_code)]
 mod elastic;
 mod kafka_utils;
 #[allow(dead_code)]
@@ -15,7 +16,6 @@ use crate::completeness::{
 
 use crate::completeness::mach::{MACH, MACH_WRITER};
 use clap::*;
-use elastic::ESClientBuilder;
 use lazy_static::lazy_static;
 use mach::id::SeriesId;
 use std::{
@@ -92,21 +92,6 @@ struct Args {
 
     #[clap(short, long, default_value_t = 5.0)]
     counter_interval_seconds: f64,
-
-    #[clap(short, long, default_value_t = String::from("http://localhost:9200"))]
-    es_endpoint: String,
-
-    #[clap(short, long)]
-    es_username: Option<String>,
-
-    #[clap(short, long)]
-    es_password: Option<String>,
-
-    #[clap(short, long, default_value_t = 1024)]
-    es_ingest_batch_size: usize,
-
-    #[clap(short, long, default_value_t = 40)]
-    es_num_writers: usize,
 }
 
 fn main() {
@@ -124,17 +109,10 @@ fn main() {
     match ARGS.tsdb.as_str() {
         "es" => {
             let samples = SAMPLES.as_slice();
-            let es_client_config = ESClientBuilder::default()
-                .username_optional(ARGS.es_username.clone())
-                .password_optional(ARGS.es_password.clone())
-                .endpoint(ARGS.es_endpoint.clone());
             let kafka_es = init_kafka_es(
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
-                es_client_config,
-                ARGS.es_ingest_batch_size,
-                ARGS.es_num_writers,
             );
             for workload in workloads {
                 workload.run(&kafka_es, samples);
