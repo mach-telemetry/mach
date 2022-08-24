@@ -138,12 +138,16 @@ name = "kafka-es-connector"
 path = "src/kafka_es_connector.rs"
 
 [[bin]]
-name = "simple-query"
-path = "src/simple-query.rs"
+name = "simple-mach-query"
+path = "src/simple-mach-query.rs"
 
 [[bin]]
 name = "from-json"
 path = "src/from-json.rs"
+
+[[bin]]
+name = "simple-kafka-query"
+path = "src/simple-kafka-query.rs"
 
 
 #[[bin]]

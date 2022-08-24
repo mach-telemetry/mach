@@ -32,8 +32,9 @@ lazy_static! {
         prep_data::load_samples(ARGS.file_path.as_str())
     };
     static ref SAMPLES: Vec<(SeriesId, &'static [SampleType])> = {
-        println!("Expanding data based on source_count = {}", ARGS.source_count);
         let keys: Vec<SeriesId> = BASE_DATA.keys().copied().collect();
+
+        println!("Expanding data based on source_count = {}", ARGS.source_count);
         let mut rng = rand::thread_rng();
         let mut tmp_samples = Vec::new();
         for id in 0..ARGS.source_count {
@@ -42,8 +43,11 @@ lazy_static! {
                 tmp_samples.push((SeriesId(id), item.0, item.1.as_slice()));
             }
         }
+
+        println!("Sorting by time");
         tmp_samples.sort_by(|a, b| a.1.cmp(&b.1)); // sort by timestamp
 
+        println!("Setting up final samples");
         let samples: Vec<(SeriesId, &[SampleType])> = tmp_samples.drain(..).map(|x| (x.0, x.2)).collect();
         println!("Samples len: {}", samples.len());
         samples
@@ -60,12 +64,12 @@ lazy_static! {
     };
     //static ref MACH_SAMPLES: Vec<prep_data::RegisteredSample> = {
     static ref MACH_SAMPLES: Vec<(SeriesRef, &'static [SampleType])> = {
-        println!("Registering sources to Mach");
         let mach = MACH.clone(); // ensure MACH is initialized (prevent deadlock)
         let writer = MACH_WRITER.clone(); // ensure WRITER is initialized (prevent deadlock)
         let mut mach_guard = mach.lock().unwrap();
         let mut writer_guard = writer.lock().unwrap();
-        prep_data::mach_register_samples(SAMPLES.as_slice(), &mut *mach_guard, &mut *writer_guard)
+        let samples = SAMPLES.as_slice();
+        prep_data::mach_register_samples(samples, &mut *mach_guard, &mut *writer_guard)
 
     };
     static ref DECOMPRESS_BUFFER: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(vec![0u8; 1_000_000]));
