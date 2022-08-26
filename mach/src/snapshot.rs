@@ -3,6 +3,7 @@ use crate::{
     mem_list::{ReadOnlyBlock, ReadOnlyBlockBytes, SourceBlocks},
     sample::SampleType,
     series::FieldType,
+    utils::kafka,
 };
 use std::convert::TryInto;
 
@@ -238,6 +239,7 @@ pub struct Snapshot {
     pub active_block: Option<ReadOnlyBlock>,
     pub source_blocks: SourceBlocks,
     pub id: SeriesId,
+    pub historical_blocks: Option<Vec<kafka::KafkaEntry>>,
 }
 
 impl Snapshot {

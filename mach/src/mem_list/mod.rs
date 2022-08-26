@@ -1,5 +1,5 @@
 mod source_block_list;
-pub use source_block_list::{SourceBlockList, SourceBlocks, UNFLUSHED_COUNT};
+pub use source_block_list::{SourceBlockList, SourceBlocks, UNFLUSHED_COUNT, HISTORICAL_BLOCKS};
 
 use crate::{
     compression::Compression,
@@ -127,7 +127,7 @@ impl BlockList {
     }
 
     pub fn add_source(&self, series_id: SeriesId) -> Arc<SourceBlockList> {
-        let list = Arc::new(SourceBlockList::new());
+        let list = Arc::new(SourceBlockList::new(series_id));
         self.series_map.insert(series_id, list.clone());
         list
     }

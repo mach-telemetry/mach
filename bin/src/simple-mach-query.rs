@@ -1,6 +1,5 @@
 #[allow(dead_code)]
 mod bytes_server;
-//mod prep_data;
 #[allow(dead_code)]
 mod snapshotter;
 
@@ -14,13 +13,14 @@ use rand::prelude::*;
 
 lazy_static::lazy_static! {
     static ref SNAPSHOT_INTERVAL: Duration = Duration::from_secs_f64(0.5);
-    static ref SNAPSHOT_TIMEOUT: Duration = Duration::from_secs_f64(0.5);
-    static ref START_MAX_DELAY: u64 = 60;
-    static ref MIN_QUERY_DURATION: u64 = 10;
-    static ref MAX_QUERY_DURATION: u64 = 60;
-    static ref SOURCE_COUNT: u64 = 1000;
-    static ref QUERY_COUNT: u64 = 100;
+    static ref SNAPSHOT_TIMEOUT: Duration = Duration::from_secs_f64(60. * 60.);
 }
+
+const START_MAX_DELAY: u64 = 60;
+const MIN_QUERY_DURATION: u64 = 10;
+const MAX_QUERY_DURATION: u64 = 60;
+const SOURCE_COUNT: u64 = 1000;
+const QUERY_COUNT: u64 = 100;
 
 fn main() {
     mach::utils::kafka::init_kafka_consumer();
@@ -52,9 +52,10 @@ fn main() {
         let end = start - rng.gen_range(MIN_QUERY_DURATION..MAX_QUERY_DURATION) * micros_in_sec;
 
         let mut count = 0;
-        let total_start = Instant::now();
+
+        let timer = Instant::now();
         let mut query_execution_time = Duration::from_secs(0);
-        println!("Waiting for data to be available");
+        //println!("Waiting for data to be available");
         loop {
             let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
             let mut snapshot = snapshot_id.load().into_iterator();
@@ -67,11 +68,12 @@ fn main() {
             }
         }
 
-        println!("Executing query");
-        let mut query_execution_start = Instant::now();
+        let data_latency = timer.elapsed();
+
+        //println!("Executing query");
         let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
         let mut snapshot = snapshot_id.load().into_iterator();
-        println!("Range: {} {}", start, end);
+        //println!("Range: {} {}", start, end);
         let mut result = Vec::new();
         'outer: loop {
             if snapshot.next_segment().is_none() {
@@ -87,17 +89,19 @@ fn main() {
                 }
             }
         }
+        //println!(
+        //    "Last timestamps: {} {:?}",
+        //    result.len(),
+        //    &result[result.len() - 2..]
+        //);
+        let total_latency = timer.elapsed();
+        let query_latency = total_latency - data_latency;
+
         println!(
-            "Last timestamps: {} {:?}",
-            result.len(),
-            &result[result.len() - 2..]
-        );
-        let query_execution_time = query_execution_start.elapsed();
-        let total_time = total_start.elapsed();
-        println!(
-            "Total Time: {:?}, Query Execution Time: {:?}",
-            total_time.as_secs_f64(),
-            query_execution_time.as_secs_f64()
+            "Total Time: {:?}, Data Latency: {:?} Query Latency: {:?},",
+            total_latency.as_secs_f64(),
+            data_latency.as_secs_f64(),
+            query_latency.as_secs_f64()
         );
     }
 

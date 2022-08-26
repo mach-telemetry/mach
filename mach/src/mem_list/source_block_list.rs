@@ -4,6 +4,7 @@ use crate::{
         kafka,
         wp_lock::{NoDealloc, WpLock},
     },
+    id::SeriesId,
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use std::cell::RefCell;
@@ -13,32 +14,86 @@ use std::sync::{
     Arc, Mutex, RwLock,
 };
 use std::time::{Duration, Instant};
+use dashmap::DashMap;
 
 lazy_static::lazy_static! {
     pub static ref UNFLUSHED_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    static ref LIST_ITEM_FLUSHER: Sender<Arc<RwLock<ListItem>>> = {
+    static ref LIST_ITEM_FLUSHER: Sender<(SeriesId, Arc<RwLock<ListItem>>)> = {
         let producer = kafka::Producer::new();
         let (tx, rx) = unbounded();
         std::thread::spawn(move || flusher(rx, producer));
         tx
     };
+    pub static ref HISTORICAL_BLOCKS: HistoricalBlocksMap = HistoricalBlocksMap::new();
 }
 
-fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Producer) {
-    //let chan2 = channel.clone();
-    //std::thread::spawn(move || {
-    //    let mut last_len = chan2.len();
-    //    loop {
-    //        let len = chan2.len();
-    //        if len > last_len {
-    //            println!("LEN: {}", len);
-    //            add_flush_worker();
-    //            last_len = len;
-    //        }
-    //        std::thread::sleep(Duration::from_millis(1));
-    //    }
-    //});
-    while let Ok(list_item) = channel.recv() {
+pub struct HistoricalBlocks {
+    arr: [MaybeUninit<kafka::KafkaEntry>; 10],
+    sz: usize,
+}
+
+impl HistoricalBlocks {
+    fn new() -> Self {
+        Self {
+            arr: MaybeUninit::uninit_array::<10>(),
+            sz: 0
+        }
+    }
+
+    fn push(&mut self, entry: kafka::KafkaEntry) {
+        let idx = self.sz % 10;
+        if self.sz > 10 {
+            unsafe {
+                self.arr[idx].assume_init_drop();
+            }
+        }
+        self.arr[idx].write(entry);
+        self.sz += 1;
+    }
+
+    pub fn snapshot(&self) -> Vec<kafka::KafkaEntry> {
+        if self.sz <= 10 {
+            unsafe {
+                MaybeUninit::slice_assume_init_ref(&self.arr[..self.sz]).into()
+            }
+        } else {
+            let mut v = Vec::with_capacity(10);
+            for i in self.sz..self.sz + 10 {
+                let idx = i % 10;
+                v.push(unsafe {
+                    (&self.arr[i]).assume_init_ref().clone()
+                });
+            }
+            v
+        }
+    }
+}
+
+pub struct HistoricalBlocksMap {
+    inner: Arc<DashMap<SeriesId, HistoricalBlocks>>
+}
+
+impl HistoricalBlocksMap {
+    fn new() -> Self {
+        Self {
+            inner: Arc::new(DashMap::new())
+        }
+    }
+
+    fn insert(&self, id: SeriesId, entry: kafka::KafkaEntry) {
+        let mut blocks = self.inner.entry(id).or_insert( {
+            HistoricalBlocks::new()
+        });
+        blocks.push(entry);
+    }
+
+    pub fn snapshot(&self, id: SeriesId) -> Option<Vec<kafka::KafkaEntry>> {
+        Some(self.inner.get(&id)?.snapshot())
+    }
+}
+
+fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
+    while let Ok((id, list_item)) = channel.recv() {
         let (data, next) = {
             let guard = list_item.read().unwrap();
             match &*guard {
@@ -67,6 +122,7 @@ fn flusher(channel: Receiver<Arc<RwLock<ListItem>>>, mut producer: kafka::Produc
         };
         let bytes = bincode::serialize(&to_serialize).unwrap();
         let kafka_entry = producer.send(&bytes);
+        HISTORICAL_BLOCKS.insert(id, kafka_entry.clone());
         //drop(guard);
         *list_item.write().unwrap() = ListItem::Kafka(kafka_entry);
         UNFLUSHED_COUNT.fetch_sub(1, SeqCst);
@@ -97,6 +153,7 @@ unsafe impl NoDealloc for InnerData {}
 unsafe impl Sync for InnerBuffer {} // last_update is only accessed by one writer
 
 struct InnerBuffer {
+    id: SeriesId,
     data: Arc<WpLock<InnerData>>,
     next: Arc<RwLock<Arc<RwLock<ListItem>>>>,
 }
@@ -115,7 +172,7 @@ impl InnerBuffer {
                     copy,
                     guard.clone(),
                 )))));
-                LIST_ITEM_FLUSHER.send(list_item.clone()).unwrap();
+                LIST_ITEM_FLUSHER.send((self.id, list_item.clone())).unwrap();
                 *guard = list_item;
                 let _guard = self.data.protected_write(); // need to increment guard
             }
@@ -269,7 +326,7 @@ impl InnerBuffer {
     //    SourceBlocks { data: v, next, idx }
     //}
 
-    fn new() -> Self {
+    fn new(id: SeriesId) -> Self {
         let offset = AtomicUsize::new(0);
         let data = Box::new(MaybeUninit::uninit_array());
         let data = Arc::new(WpLock::new(InnerData { data, offset }));
@@ -277,7 +334,7 @@ impl InnerBuffer {
             kafka::KafkaEntry::new(),
         )))));
         //let periodic = Arc::new(Mutex::new(last.clone()));
-        Self { data, next }
+        Self { id, data, next }
     }
 }
 
@@ -289,10 +346,10 @@ pub struct SourceBlockList {
 }
 
 impl SourceBlockList {
-    pub fn new() -> Self {
+    pub fn new(id: SeriesId) -> Self {
         Self {
             //inner: Arc::new(Mutex::new(Vec::new())),
-            inner: InnerBuffer::new(),
+            inner: InnerBuffer::new(id),
         }
     }
 

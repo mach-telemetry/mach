@@ -57,15 +57,34 @@ lazy_static! {
         });
         dict
     };
-    static ref PREFETCHER: Sender<KafkaEntry> = {
+    pub static ref PREFETCHER: Sender<KafkaEntry> = {
         let (tx, rx): (Sender<KafkaEntry>, Receiver<KafkaEntry>) = unbounded();
-        std::thread::spawn(move || {
-            while let Ok(entry) = rx.recv() {
-                entry.fetch();
-            }
-        });
+        //for _ in 0..4 {
+        //    std::thread::spawn(move || {
+        //        while let Ok(entry) = rx.recv() {
+        //            entry.fetch();
+        //        }
+        //    });
+        //}
         tx
     };
+
+}
+
+struct Cache {
+    map: DashMap<(i32, i64), Arc<[u8]>>,
+    size: AtomicUsize,
+}
+
+impl Cache {
+    fn new() -> Self {
+        Self {
+            map: DashMap::new(),
+            size: AtomicUsize::new(0),
+        }
+    }
+
+    //fn fetch(&self, items: &[(i32, i64)])
 }
 
 pub fn init_kafka_consumer() {

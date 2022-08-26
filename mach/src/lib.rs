@@ -11,6 +11,7 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::len_without_is_empty)]
 #![feature(new_uninit)]
+#![feature(maybe_uninit_extra)]
 
 //#![deny(unused_imports)]
 //#![deny(unreachable_patterns)]

@@ -3,7 +3,7 @@ use crate::{
     id::SeriesId,
     //durable_queue::QueueConfig,
     //persistent_list::{self, List, ListBuffer},
-    mem_list::{BlockList, SourceBlockList},
+    mem_list::{BlockList, SourceBlockList, HISTORICAL_BLOCKS},
     //persistent_list,
     //reader::Snapshot,
     segment::{self, Segment},
@@ -110,6 +110,7 @@ impl Series {
             //    source_blocks = Some(self.source_block_list.periodic_snapshot());
             //}
         }
+        let historical_blocks = HISTORICAL_BLOCKS.snapshot(self.config.id);
 
         //let list = self.list.snapshot()?;
         //Ok(Snapshot::new(segment, list))
@@ -118,6 +119,7 @@ impl Series {
             active_block,
             source_blocks: source_blocks.unwrap(),
             id: self.config.id,
+            historical_blocks,
         }
     }
 }
