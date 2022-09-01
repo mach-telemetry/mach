@@ -5,6 +5,7 @@ use crate::{
         wp_lock::{NoDealloc, WpLock},
     },
     id::SeriesId,
+    timer::*,
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use std::cell::RefCell;
@@ -17,80 +18,80 @@ use std::time::{Duration, Instant};
 use dashmap::DashMap;
 
 lazy_static::lazy_static! {
-    pub static ref UNFLUSHED_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    pub static ref PENDING_UNFLUSHED_BLOCKLISTS: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     static ref LIST_ITEM_FLUSHER: Sender<(SeriesId, Arc<RwLock<ListItem>>)> = {
         let producer = kafka::Producer::new();
         let (tx, rx) = unbounded();
         std::thread::spawn(move || flusher(rx, producer));
         tx
     };
-    pub static ref HISTORICAL_BLOCKS: HistoricalBlocksMap = HistoricalBlocksMap::new();
+    //pub static ref HISTORICAL_BLOCKS: HistoricalBlocksMap = HistoricalBlocksMap::new();
 }
 
-pub struct HistoricalBlocks {
-    arr: [MaybeUninit<kafka::KafkaEntry>; 10],
-    sz: usize,
-}
-
-impl HistoricalBlocks {
-    fn new() -> Self {
-        Self {
-            arr: MaybeUninit::uninit_array::<10>(),
-            sz: 0
-        }
-    }
-
-    fn push(&mut self, entry: kafka::KafkaEntry) {
-        let idx = self.sz % 10;
-        if self.sz > 10 {
-            unsafe {
-                self.arr[idx].assume_init_drop();
-            }
-        }
-        self.arr[idx].write(entry);
-        self.sz += 1;
-    }
-
-    pub fn snapshot(&self) -> Vec<kafka::KafkaEntry> {
-        if self.sz <= 10 {
-            unsafe {
-                MaybeUninit::slice_assume_init_ref(&self.arr[..self.sz]).into()
-            }
-        } else {
-            let mut v = Vec::with_capacity(10);
-            for i in self.sz..self.sz + 10 {
-                let idx = i % 10;
-                v.push(unsafe {
-                    (&self.arr[i]).assume_init_ref().clone()
-                });
-            }
-            v
-        }
-    }
-}
-
-pub struct HistoricalBlocksMap {
-    inner: Arc<DashMap<SeriesId, HistoricalBlocks>>
-}
-
-impl HistoricalBlocksMap {
-    fn new() -> Self {
-        Self {
-            inner: Arc::new(DashMap::new())
-        }
-    }
-
-    fn insert(&self, id: SeriesId, entry: kafka::KafkaEntry) {
-        let mut blocks = self.inner.entry(id).or_insert( {
-            HistoricalBlocks::new()
-        });
-        blocks.push(entry);
-    }
-
-    pub fn snapshot(&self, id: SeriesId) -> Option<Vec<kafka::KafkaEntry>> {
-        Some(self.inner.get(&id)?.snapshot())
-    }
-}
+//pub struct HistoricalBlocks {
+//    arr: [MaybeUninit<kafka::KafkaEntry>; 10],
+//    sz: usize,
+//}
+//
+//impl HistoricalBlocks {
+//    fn new() -> Self {
+//        Self {
+//            arr: MaybeUninit::uninit_array::<10>(),
+//            sz: 0
+//        }
+//    }
+//
+//    fn push(&mut self, entry: kafka::KafkaEntry) {
+//        let idx = self.sz % 10;
+//        if self.sz > 10 {
+//            unsafe {
+//                self.arr[idx].assume_init_drop();
+//            }
+//        }
+//        self.arr[idx].write(entry);
+//        self.sz += 1;
+//    }
+//
+//    pub fn snapshot(&self) -> Vec<kafka::KafkaEntry> {
+//        if self.sz <= 10 {
+//            unsafe {
+//                MaybeUninit::slice_assume_init_ref(&self.arr[..self.sz]).into()
+//            }
+//        } else {
+//            let mut v = Vec::with_capacity(10);
+//            for i in self.sz..self.sz + 10 {
+//                let idx = i % 10;
+//                v.push(unsafe {
+//                    (&self.arr[idx]).assume_init_ref().clone()
+//                });
+//            }
+//            v
+//        }
+//    }
+//}
+//
+//pub struct HistoricalBlocksMap {
+//    inner: Arc<DashMap<SeriesId, HistoricalBlocks>>
+//}
+//
+//impl HistoricalBlocksMap {
+//    fn new() -> Self {
+//        Self {
+//            inner: Arc::new(DashMap::new())
+//        }
+//    }
+//
+//    fn insert(&self, id: SeriesId, entry: kafka::KafkaEntry) {
+//        let mut blocks = self.inner.entry(id).or_insert( {
+//            HistoricalBlocks::new()
+//        });
+//        blocks.push(entry);
+//    }
+//
+//    pub fn snapshot(&self, id: SeriesId) -> Option<Vec<kafka::KafkaEntry>> {
+//        Some(self.inner.get(&id)?.snapshot())
+//    }
+//}
 
 fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
     while let Ok((id, list_item)) = channel.recv() {
@@ -119,13 +120,16 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
             idx: 0,
             data: v,
             next: last,
+            //prefetch: HISTORICAL_BLOCKS.snapshot(id),
+            //cached_messages_read: 0,
+            //messages_read: 0,
         };
         let bytes = bincode::serialize(&to_serialize).unwrap();
         let kafka_entry = producer.send(&bytes);
-        HISTORICAL_BLOCKS.insert(id, kafka_entry.clone());
+        //HISTORICAL_BLOCKS.insert(id, kafka_entry.clone());
         //drop(guard);
         *list_item.write().unwrap() = ListItem::Kafka(kafka_entry);
-        UNFLUSHED_COUNT.fetch_sub(1, SeqCst);
+        PENDING_UNFLUSHED_BLOCKLISTS.fetch_sub(1, SeqCst);
     }
 }
 
@@ -176,7 +180,7 @@ impl InnerBuffer {
                 *guard = list_item;
                 let _guard = self.data.protected_write(); // need to increment guard
             }
-            UNFLUSHED_COUNT.fetch_add(1, SeqCst);
+            PENDING_UNFLUSHED_BLOCKLISTS.fetch_add(1, SeqCst);
         }
     }
 
@@ -257,7 +261,15 @@ impl InnerBuffer {
             }
         }
         let idx = 0;
-        Ok(SourceBlocks { data: v, next, idx })
+        //let prefetch = HISTORICAL_BLOCKS.snapshot(self.id);
+        Ok(SourceBlocks {
+            data: v,
+            next,
+            idx ,
+            //prefetch,
+            //cached_messages_read: 0,
+            //messages_read: 0,
+        })
 
         //let mut v = Vec::with_capacity(256);
         //let end = self.offset.load(SeqCst);
@@ -382,10 +394,18 @@ pub struct SourceBlocks {
     data: Vec<ReadOnlyBlock>,
     next: kafka::KafkaEntry,
     idx: usize,
+    //prefetch: Option<Vec<kafka::KafkaEntry>>,
+    //pub cached_messages_read: usize,
+    //pub messages_read: usize,
 }
 
 impl SourceBlocks {
     pub fn next_block(&mut self) -> Option<&ReadOnlyBlock> {
+        let _timer_1 = ThreadLocalTimer::new("SourceBlocks::next_block");
+        //match &self.prefetch {
+        //    Some(x) => kafka::prefetch(x.as_slice()),
+        //    None => {}
+        //}
         if self.idx < self.data.len() {
             let idx = self.idx;
             self.idx += 1;
@@ -395,8 +415,16 @@ impl SourceBlocks {
             None
         } else {
             let mut vec = Vec::new();
-            self.next.load(&mut vec).unwrap();
-            let next_blocks: SourceBlocks = bincode::deserialize(vec.as_slice()).unwrap();
+            let stats = {
+                let _timer_2 = ThreadLocalTimer::new("SourceBlocks::next_block loading from kafka");
+                self.next.load(&mut vec).unwrap()
+            };
+            //self.cached_messages_read +=  stats.cached_messages_read;
+            //self.messages_read +=  stats.messages_read;
+            let next_blocks: SourceBlocks = {
+                let _timer_2 = ThreadLocalTimer::new("SourceBlocks::next_block deserializing");
+                bincode::deserialize(vec.as_slice()).unwrap()
+            };
             self.idx = 0;
             self.data = next_blocks.data;
             self.next = next_blocks.next;

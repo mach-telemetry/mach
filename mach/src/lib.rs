@@ -12,6 +12,7 @@
 #![allow(clippy::len_without_is_empty)]
 #![feature(new_uninit)]
 #![feature(maybe_uninit_extra)]
+#![feature(thread_local)]
 
 //#![deny(unused_imports)]
 //#![deny(unreachable_patterns)]
@@ -32,6 +33,7 @@ pub mod snapshotter;
 pub mod tsdb;
 pub mod utils;
 pub mod writer;
+pub mod timer;
 
 #[cfg(test)]
 mod test_utils;

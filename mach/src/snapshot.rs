@@ -4,6 +4,7 @@ use crate::{
     sample::SampleType,
     series::FieldType,
     utils::kafka,
+    timer::*,
 };
 use std::convert::TryInto;
 
@@ -239,7 +240,7 @@ pub struct Snapshot {
     pub active_block: Option<ReadOnlyBlock>,
     pub source_blocks: SourceBlocks,
     pub id: SeriesId,
-    pub historical_blocks: Option<Vec<kafka::KafkaEntry>>,
+    //pub historical_blocks: Option<Vec<kafka::KafkaEntry>>,
 }
 
 impl Snapshot {
@@ -314,6 +315,7 @@ impl ReadOnlyBlockReader {
     }
 
     fn next_segment(&mut self) -> Option<()> {
+        let _timer_1 = ThreadLocalTimer::new("ReadOnlyBlockReader::next_segment");
         if self.current_idx > 0 {
             self.current_idx -= 1;
             //println!("Getting offset:{}", self.offsets[self.current_idx as usize]);
@@ -340,10 +342,37 @@ pub struct SnapshotIterator {
     source_blocks: SourceBlocks,
     //consumer: &'a mut kafka::Client,
     state: State,
+    blocks_read: usize,
+    segments_read: usize,
 }
 
 impl SnapshotIterator {
+    //pub fn cached_messages_read(&self) -> usize {
+    //    self.source_blocks.cached_messages_read
+    //}
+
+    //pub fn messages_read(&self) -> usize {
+    //    self.source_blocks.messages_read
+    //}
+
+    pub fn segments_read(&self) -> usize {
+        self.segments_read
+    }
+
+    pub fn blocks_read(&self) -> usize {
+        self.blocks_read
+    }
+
     pub fn new(snapshot: Snapshot, id: SeriesId) -> Self {
+        //{
+        //    let _timer_1 = ThreadLocalTimer::new("SnapshotIterator::new prefetching historical blocks");
+        //    match snapshot.historical_blocks {
+        //        Some(x) => kafka::prefetch(x.as_slice()),
+        //        None => {
+        //            println!("NOTHING TO PREFETCH");
+        //        }
+        //    }
+        //}
         let active_segment = match snapshot.active_segment {
             Some(x) => Some(ActiveSegmentReader::new(x)),
             None => None,
@@ -369,13 +398,17 @@ impl SnapshotIterator {
             block_reader,
             //consumer,
             state,
+            segments_read: 0,
+            blocks_read: 0,
         }
     }
 
     pub fn next_segment(&mut self) -> Option<()> {
+        let _timer_1 = ThreadLocalTimer::new("SnapshotIterator::next_segment");
         //println!("getting next segment");
         match self.state {
             State::ActiveSegment => {
+                let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment active segment");
                 //println!("currently in active segment, getting next");
                 match self.active_segment.as_mut().unwrap().next_segment() {
                     None => {
@@ -387,11 +420,13 @@ impl SnapshotIterator {
                 }
             }
             State::Blocks => {
+                let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment blocks");
                 //println!("currently in blocks");
                 match self.block_reader.next_segment() {
                     None => {
                         //println!("No segment in current block, fetching next block");
                         if let Some(block) = self.source_blocks.next_block() {
+                            self.blocks_read += 1;
                             //println!("Found next block");
                             let bytes = block.as_bytes();
                             let id = self.block_reader.id;
@@ -405,6 +440,7 @@ impl SnapshotIterator {
                     }
                     Some(_) => {
                         //println!("Found segment in current block");
+                        self.segments_read += 1;
                         Some(())
                     }
                 }

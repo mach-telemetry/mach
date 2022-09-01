@@ -45,24 +45,24 @@ fn mach_query(series: Series) -> Option<usize> {
 }
 
 pub fn init_mach_querier(series_id: SeriesId) {
-    let snapshotter = MACH.lock().unwrap().init_snapshotter();
-    let snapshotter_id = snapshotter.initialize_snapshotter(
-        series_id,
-        Duration::from_millis(500),
-        Duration::from_secs(300),
-    );
-    thread::sleep(Duration::from_secs(60));
-    loop {
-        let now: usize = micros_from_epoch().try_into().unwrap();
-        let offset = snapshotter.get(snapshotter_id).unwrap();
-        let mut snapshot = offset.load().into_iterator();
-        snapshot.next_segment().unwrap();
-        let seg = snapshot.get_segment();
-        let mut timestamps = seg.timestamps().iterator();
-        let ts: usize = timestamps.next_timestamp().unwrap().try_into().unwrap();
-        COUNTERS.data_age.store(now - ts, SeqCst);
-        thread::sleep(Duration::from_secs(1));
-    }
+    //let snapshotter = MACH.lock().unwrap().init_snapshotter();
+    //let snapshotter_id = snapshotter.initialize_snapshotter(
+    //    series_id,
+    //    Duration::from_millis(500),
+    //    Duration::from_secs(300),
+    //);
+    //thread::sleep(Duration::from_secs(60));
+    //loop {
+    //    let now: usize = micros_from_epoch().try_into().unwrap();
+    //    let offset = snapshotter.get(snapshotter_id).unwrap();
+    //    let mut snapshot = offset.load().into_iterator();
+    //    snapshot.next_segment().unwrap();
+    //    let seg = snapshot.get_segment();
+    //    let mut timestamps = seg.timestamps().iterator();
+    //    let ts: usize = timestamps.next_timestamp().unwrap().try_into().unwrap();
+    //    COUNTERS.data_age.store(now - ts, SeqCst);
+    //    thread::sleep(Duration::from_secs(1));
+    //}
 }
 
 fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<(u64, u64, Vec<Sample<SeriesRef>>)>) {

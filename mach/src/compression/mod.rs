@@ -13,6 +13,7 @@ mod xor;
 use crate::segment::*;
 use crate::series::FieldType;
 use crate::snapshot::Segment;
+use crate::timer::*;
 use crate::utils::byte_buffer::ByteBuffer;
 use std::convert::TryInto;
 use std::sync::Arc;
@@ -259,6 +260,7 @@ impl Compression {
     }
 
     pub fn decompress(data: &[u8], buf: &mut Segment) -> Result<usize, Error> {
+        let _timer_1 = ThreadLocalTimer::new("Compression::decompress");
         buf.clear();
         let (header, mut off) = Self::get_header(data)?;
 

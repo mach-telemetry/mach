@@ -1,5 +1,5 @@
 mod source_block_list;
-pub use source_block_list::{SourceBlockList, SourceBlocks, UNFLUSHED_COUNT, HISTORICAL_BLOCKS};
+pub use source_block_list::{SourceBlockList, SourceBlocks, PENDING_UNFLUSHED_BLOCKLISTS};
 
 use crate::{
     compression::Compression,
@@ -32,7 +32,7 @@ pub const INIT_FLUSHERS: usize = 4;
 pub const BLOCK_SZ: usize = 1_000_000;
 
 lazy_static! {
-    pub static ref FLUSHER_QUEUE_LEN: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    pub static ref PENDING_UNFLUSHED_BLOCKS: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     //static ref TOPIC: String = random_id();
     pub static ref TOTAL_BYTES_FLUSHED: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     static ref N_FLUSHERS: AtomicUsize = AtomicUsize::new(INIT_FLUSHERS);
@@ -68,7 +68,7 @@ fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new();
     while let Ok(block) = chan.recv() {
         block.flush(&mut producer);
-        FLUSHER_QUEUE_LEN.fetch_sub(1, SeqCst);
+        PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
     }
 }
 
@@ -156,7 +156,7 @@ impl BlockList {
                 self.series_map.get(&id).unwrap().push(copy.clone());
             }
             let n_flushers = N_FLUSHERS.load(SeqCst);
-            FLUSHER_QUEUE_LEN.fetch_add(1, SeqCst);
+            PENDING_UNFLUSHED_BLOCKS.fetch_add(1, SeqCst);
             FLUSH_WORKERS
                 .get(&thread_rng().gen_range(0..n_flushers))
                 .unwrap()
@@ -292,6 +292,7 @@ impl ReadOnlyBlockBytes {
     }
 
     pub fn segment_at_offset(&self, offset: usize, segment: &mut Segment) {
+        let _guard = flame::start_guard("ReadOnlyBlockBytes::segment_at_offset");
         //println!("getting segment at offset: {}", offset);
 
         let bytes = &self.0[offset..];
@@ -305,7 +306,10 @@ impl ReadOnlyBlockBytes {
 
         // decompress data
         let bytes = &bytes[24..24 + chunk_size];
-        let size = Compression::decompress(bytes, segment).unwrap();
+        {
+            let _guard = flame::start_guard("ReadOnlyBlockBytes::segment_at_offset decompression");
+            let size = Compression::decompress(bytes, segment).unwrap();
+        }
         //println!("size decompressed: {}", size);
     }
 }

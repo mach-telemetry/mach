@@ -23,7 +23,7 @@ use std::{
 };
 
 lazy_static::lazy_static! {
-    pub static ref QUEUE_LEN: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    pub static ref WRITER_FLUSH_QUEUE: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
 }
 
 #[derive(Debug)]
@@ -163,7 +163,7 @@ struct FlushItem {
 
 fn chan_watcher(chan: Receiver<FlushItem>) {
     loop {
-        QUEUE_LEN.store(chan.len(), SeqCst);
+        WRITER_FLUSH_QUEUE.store(chan.len(), SeqCst);
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 }

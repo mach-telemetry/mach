@@ -12,9 +12,9 @@ use crossbeam_channel::Sender;
 use lazy_static::lazy_static;
 use mach_extern::{
     id::SeriesId,
-    mem_list::{FLUSHER_QUEUE_LEN, TOTAL_BYTES_FLUSHED, UNFLUSHED_COUNT},
+    mem_list::{PENDING_UNFLUSHED_BLOCKS, TOTAL_BYTES_FLUSHED, PENDING_UNFLUSHED_BLOCKLISTS},
     sample::SampleType,
-    writer::QUEUE_LEN,
+    writer::WRITER_FLUSH_QUEUE,
 };
 use std::sync::{atomic::AtomicUsize, atomic::Ordering::SeqCst, Arc, Barrier};
 use std::thread;
@@ -31,13 +31,13 @@ pub struct Counters {
     samples_enqueued: Arc<AtomicUsize>,
     samples_dropped: Arc<AtomicUsize>,
     samples_written: Arc<AtomicUsize>,
-    unflushed_count: Arc<AtomicUsize>,
+    unflushed_blocklists: Arc<AtomicUsize>,
     bytes_flushed: Arc<AtomicUsize>,
     raw_data_size: Arc<AtomicUsize>,
     data_age: Arc<AtomicUsize>,
     start_gate: Arc<Barrier>,
-    buffer_queue: Arc<AtomicUsize>,
-    flusher_queue: Arc<AtomicUsize>,
+    writer_flush_queue: Arc<AtomicUsize>,
+    unflushed_blocks: Arc<AtomicUsize>,
 }
 
 impl Counters {
@@ -48,11 +48,11 @@ impl Counters {
             samples_written: Arc::new(AtomicUsize::new(0)),
             raw_data_size: Arc::new(AtomicUsize::new(0)),
             data_age: Arc::new(AtomicUsize::new(0)),
-            unflushed_count: UNFLUSHED_COUNT.clone(),
+            unflushed_blocklists: PENDING_UNFLUSHED_BLOCKLISTS.clone(),
             bytes_flushed: TOTAL_BYTES_FLUSHED.clone(),
             start_gate: Arc::new(Barrier::new(2)),
-            buffer_queue: QUEUE_LEN.clone(),
-            flusher_queue: FLUSHER_QUEUE_LEN.clone(),
+            writer_flush_queue: WRITER_FLUSH_QUEUE.clone(),
+            unflushed_blocks: PENDING_UNFLUSHED_BLOCKS.clone(),
         };
         r
     }
@@ -112,12 +112,12 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
         last_dropped = dropped;
 
         let bytes_flushed = COUNTERS.bytes_flushed.load(SeqCst);
-        let _unflushed_count = COUNTERS.unflushed_count.load(SeqCst);
-        let buffer_queue = COUNTERS.buffer_queue.load(SeqCst);
-        let flusher_queue = COUNTERS.flusher_queue.load(SeqCst);
+        let unflushed_blocklists = COUNTERS.unflushed_blocklists.load(SeqCst);
+        let writer_flush_queue = COUNTERS.writer_flush_queue.load(SeqCst);
+        let unflushed_blocks = COUNTERS.unflushed_blocks.load(SeqCst);
 
         //println!("Completeness: {}, Buffer Queue: {}, Unflushed: {}, Throughput: {}, Data age (seconds): {:?}, Raw data size: {} bytes, Data flushed: {} bytes", completeness, buffer_queue, unflushed_count, rate, delay.as_secs_f64(), raw_data_size, bytes_flushed);
-        println!("Completeness: {}, Buffer Queue: {}, Flusher Queue: {}, Throughput: {}, Raw data size: {}, Data flushed: {}, Data age: {:?}", completeness, buffer_queue, flusher_queue, rate, raw_data_size, bytes_flushed, delay);
+        println!("Completeness: {}, Writer Flush Queue: {}, Unflushed Blocks: {}, Throughput: {}, Raw data size: {}, Data flushed: {}, Data age: {:?}", completeness, writer_flush_queue, unflushed_blocks, rate, raw_data_size, bytes_flushed, delay);
         thread::sleep(interval);
     }
 }

@@ -111,7 +111,7 @@ const START_MAX_DELAY: u64 = 60;
 const MIN_QUERY_DURATION: u64 = 10;
 const MAX_QUERY_DURATION: u64 = 60;
 const SOURCE_COUNT: u64 = 1000;
-const QUERY_COUNT: u64 = 100;
+const QUERY_COUNT: u64 = 1;
 
 fn main() {
 
