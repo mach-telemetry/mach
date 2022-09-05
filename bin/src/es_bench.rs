@@ -17,8 +17,12 @@ lazy_static! {
     static ref ARGS: Args = Args::parse();
     static ref SAMPLES: Vec<prep_data::ESSample> = prep_data::load_samples(ARGS.file_path.as_str())
         .into_iter()
-        .map(|s| s.into())
-        .collect();
+        .fold(Vec::new(), |mut samples, (series_id, mut new_samples)| {
+            for (ts, sample_data) in new_samples.drain(..) {
+                samples.push(prep_data::ESSample::new(series_id, ts, sample_data));
+            }
+            samples
+        });
     static ref INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
     static ref INDEXED_COUNT: AtomicUsize = AtomicUsize::new(0);

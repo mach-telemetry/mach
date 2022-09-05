@@ -123,7 +123,6 @@ fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>
     let mut buffer = vec![0u8; 500_000_000];
     loop {
         for ms in kafka_consumer.poll().unwrap().iter() {
-            println!("new message");
             for msg in ms.messages().iter() {
                 let (start, end, data) = decompress_kafka_msg(msg.value, buffer.as_mut_slice());
                 let es_data: Vec<ESSample> = data.into_iter().map(|s| s.into()).collect();

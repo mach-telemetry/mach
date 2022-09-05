@@ -49,10 +49,12 @@ fn otlp_data_to_samples(data: &[otlp::OtlpData]) -> HashMap<SeriesId, Vec<(u64, 
         }
     }
 
-
     let mut sources = HashMap::new();
     for sample in samples.drain(..) {
-        sources.entry(sample.0).or_insert(Vec::new()).push((sample.1, sample.2));
+        sources
+            .entry(sample.0)
+            .or_insert(Vec::new())
+            .push((sample.1, sample.2));
     }
     sources
 }
@@ -61,7 +63,6 @@ pub fn load_samples(path: &str) -> HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>
     let data = load_data(path);
     let data = otlp_data_to_samples(data.as_slice());
     data
-
 }
 
 pub fn mach_register_samples(
@@ -72,8 +73,9 @@ pub fn mach_register_samples(
     println!("Registering sources to Mach");
     let mut refmap: HashMap<SeriesId, SeriesRef> = HashMap::new();
 
-    let registered_samples: Vec<(SeriesRef, &'static [SampleType])> = 
-        samples.iter().map(|x| {
+    let registered_samples: Vec<(SeriesRef, &'static [SampleType])> = samples
+        .iter()
+        .map(|x| {
             let (id, values) = x;
             let id_ref = *refmap.entry(*id).or_insert_with(|| {
                 let conf = get_series_config(*id, &*values);
@@ -82,7 +84,8 @@ pub fn mach_register_samples(
                 id_ref
             });
             (id_ref, *values)
-        }).collect();
+        })
+        .collect();
 
     registered_samples
 }
@@ -119,6 +122,16 @@ pub struct ESSample {
     series_id: SeriesId,
     timestamp: u64,
     data: Vec<SampleType>,
+}
+
+impl ESSample {
+    pub fn new(series_id: SeriesId, timestamp: u64, data: Vec<SampleType>) -> Self {
+        Self {
+            series_id,
+            timestamp,
+            data,
+        }
+    }
 }
 
 impl From<Sample> for ESSample {
