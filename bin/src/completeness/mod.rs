@@ -12,7 +12,7 @@ use crossbeam_channel::Sender;
 use lazy_static::lazy_static;
 use mach_extern::{
     id::SeriesId,
-    mem_list::{PENDING_UNFLUSHED_BLOCKS, TOTAL_BYTES_FLUSHED, PENDING_UNFLUSHED_BLOCKLISTS},
+    mem_list::{PENDING_UNFLUSHED_BLOCKLISTS, PENDING_UNFLUSHED_BLOCKS, TOTAL_BYTES_FLUSHED},
     sample::SampleType,
     writer::WRITER_FLUSH_QUEUE,
 };

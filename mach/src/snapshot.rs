@@ -3,8 +3,8 @@ use crate::{
     mem_list::{ReadOnlyBlock, ReadOnlyBlockBytes, SourceBlocks},
     sample::SampleType,
     series::FieldType,
-    utils::kafka,
     timer::*,
+    utils::kafka,
 };
 use std::convert::TryInto;
 
@@ -408,7 +408,8 @@ impl SnapshotIterator {
         //println!("getting next segment");
         match self.state {
             State::ActiveSegment => {
-                let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment active segment");
+                let _timer_2 =
+                    ThreadLocalTimer::new("SnapshotIterator::next_segment active segment");
                 //println!("currently in active segment, getting next");
                 match self.active_segment.as_mut().unwrap().next_segment() {
                     None => {

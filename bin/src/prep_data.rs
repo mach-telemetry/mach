@@ -119,7 +119,7 @@ pub fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ESSample {
-    series_id: SeriesId,
+    pub series_id: SeriesId,
     timestamp: u64,
     data: Vec<SampleType>,
 }

@@ -1,13 +1,14 @@
 use crate::{
+    id::SeriesId,
     mem_list::{add_flush_worker, BlockListEntry, Error, ReadOnlyBlock},
+    timer::*,
     utils::{
         kafka,
         wp_lock::{NoDealloc, WpLock},
     },
-    id::SeriesId,
-    timer::*,
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
+use dashmap::DashMap;
 use std::cell::RefCell;
 use std::mem::MaybeUninit;
 use std::sync::{
@@ -15,7 +16,6 @@ use std::sync::{
     Arc, Mutex, RwLock,
 };
 use std::time::{Duration, Instant};
-use dashmap::DashMap;
 
 lazy_static::lazy_static! {
     pub static ref PENDING_UNFLUSHED_BLOCKLISTS: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -176,7 +176,9 @@ impl InnerBuffer {
                     copy,
                     guard.clone(),
                 )))));
-                LIST_ITEM_FLUSHER.send((self.id, list_item.clone())).unwrap();
+                LIST_ITEM_FLUSHER
+                    .send((self.id, list_item.clone()))
+                    .unwrap();
                 *guard = list_item;
                 let _guard = self.data.protected_write(); // need to increment guard
             }
@@ -265,7 +267,7 @@ impl InnerBuffer {
         Ok(SourceBlocks {
             data: v,
             next,
-            idx ,
+            idx,
             //prefetch,
             //cached_messages_read: 0,
             //messages_read: 0,

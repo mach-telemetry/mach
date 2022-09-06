@@ -1,5 +1,5 @@
 use crate::utils::random_id;
-use kafka::client::{FetchPartition, KafkaClient, RequiredAcks, fetch::Response};
+use kafka::client::{fetch::Response, FetchPartition, KafkaClient, RequiredAcks};
 use kafka::consumer::GroupOffsetStorage;
 use kafka::producer::{Producer as OgProducer, Record};
 use rand::{thread_rng, Rng};
@@ -13,16 +13,16 @@ use rdkafka::{
     //Message,
 };
 //use std::convert::TryInto;
+use crate::timer::*;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
+use ref_thread_local::{ref_thread_local, Ref, RefThreadLocal};
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use std::time::Duration;
-use crate::timer::*;
-use ref_thread_local::{Ref, ref_thread_local, RefThreadLocal};
 
 ref_thread_local! {
     static managed THREAD_LOCAL_CONSUMER: KafkaClient = {
@@ -38,7 +38,6 @@ ref_thread_local! {
         client
     };
 }
-
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 
@@ -165,8 +164,7 @@ impl Cache {
 
     pub fn clear(&self) {
         self.map.clear();
-        while let Ok(_x) = self.tail.try_recv() {
-        }
+        while let Ok(_x) = self.tail.try_recv() {}
     }
 
     fn fetch(&self, partition: i32, offsets: &[i64]) {
@@ -215,12 +213,7 @@ fn parse_response(resps: Vec<Response>) -> Vec<(i32, i64, Arc<[u8]>)> {
             for p in t.partitions() {
                 match p.data() {
                     Err(ref e) => {
-                        panic!(
-                            "partition error: {}:{}: {}",
-                            t.topic(),
-                            p.partition(),
-                            e
-                        )
+                        panic!("partition error: {}:{}: {}", t.topic(), p.partition(), e)
                     }
                     Ok(ref data) => {
                         for msg in data.messages() {
