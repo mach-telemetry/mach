@@ -52,7 +52,7 @@ struct Args {
     #[clap(short, long, default_value_t = 3)]
     es_num_shards: usize,
 
-    #[clap(short, long, default_value_t = 1)]
+    #[clap(short, long, default_value_t = 0)]
     es_num_replicas: usize,
 
     #[clap(short, long, default_value_t = 120)]
