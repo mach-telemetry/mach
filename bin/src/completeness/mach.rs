@@ -36,7 +36,8 @@ fn micros_from_epoch() -> u128 {
 fn mach_query(series: Series) -> Option<usize> {
     let snapshot = series.snapshot();
     let mut snapshot = snapshot.into_iterator();
-    snapshot.next_segment().unwrap();
+    let query_ts: u64 = micros_from_epoch().try_into().unwrap();
+    snapshot.next_segment_at_timestamp(query_ts).unwrap();
     let seg = snapshot.get_segment();
     let mut timestamps = seg.timestamps().iterator();
     let ts: usize = timestamps.next_timestamp()? as usize;

@@ -34,7 +34,6 @@ crossbeam-queue = "0.3.5"
 flume = "0.10.12"
 #kafka = { path = "/home/fsolleza/Projects/kafka-rust"}
 kafka = "0.9.0"
-flame = "0.2.2"
 ref_thread_local = "0.1.1"
 
 [dev-dependencies]

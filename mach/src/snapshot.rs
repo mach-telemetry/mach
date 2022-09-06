@@ -1,6 +1,6 @@
 use crate::{
     id::SeriesId,
-    mem_list::{ReadOnlyBlock, ReadOnlyBlockBytes, SourceBlocks},
+    mem_list::{ReadOnlyBlockBytes, ReadOnlyBlock, ReadOnlyBlock2, SourceBlocks2},
     sample::SampleType,
     series::FieldType,
     utils::kafka,
@@ -238,7 +238,7 @@ impl Segment {
 pub struct Snapshot {
     pub active_segment: Option<Vec<Segment>>,
     pub active_block: Option<ReadOnlyBlock>,
-    pub source_blocks: SourceBlocks,
+    pub source_blocks: SourceBlocks2,
     pub id: SeriesId,
     //pub historical_blocks: Option<Vec<kafka::KafkaEntry>>,
 }
@@ -314,7 +314,23 @@ impl ReadOnlyBlockReader {
         }
     }
 
-    fn next_segment(&mut self) -> Option<()> {
+    //fn next_segment(&mut self) -> Option<()> {
+    //    let _timer_1 = ThreadLocalTimer::new("ReadOnlyBlockReader::next_segment");
+    //    if self.current_idx > 0 {
+    //        self.current_idx -= 1;
+    //        //println!("Getting offset:{}", self.offsets[self.current_idx as usize]);
+    //        self.block.segment_at_offset(
+    //            self.offsets[self.current_idx as usize],
+    //            &mut self.read_buffer,
+    //        );
+    //        Some(())
+    //    } else {
+    //        //println!("NONE HERE");
+    //        None
+    //    }
+    //}
+
+    fn next_segment_at_timestamp(&mut self, ts: u64) -> Option<()> {
         let _timer_1 = ThreadLocalTimer::new("ReadOnlyBlockReader::next_segment");
         if self.current_idx > 0 {
             self.current_idx -= 1;
@@ -323,7 +339,13 @@ impl ReadOnlyBlockReader {
                 self.offsets[self.current_idx as usize],
                 &mut self.read_buffer,
             );
-            Some(())
+            let min_ts = self.read_buffer.timestamps()[0];
+            if min_ts > ts {
+                println!("Skipping segment");
+                self.next_segment_at_timestamp(ts)
+            } else {
+                Some(())
+            }
         } else {
             //println!("NONE HERE");
             None
@@ -339,7 +361,7 @@ impl ReadOnlyBlockReader {
 pub struct SnapshotIterator {
     active_segment: Option<ActiveSegmentReader>,
     block_reader: ReadOnlyBlockReader,
-    source_blocks: SourceBlocks,
+    source_blocks: SourceBlocks2,
     //consumer: &'a mut kafka::Client,
     state: State,
     blocks_read: usize,
@@ -403,7 +425,7 @@ impl SnapshotIterator {
         }
     }
 
-    pub fn next_segment(&mut self) -> Option<()> {
+    pub fn next_segment_at_timestamp(&mut self, ts: u64) -> Option<()> {
         let _timer_1 = ThreadLocalTimer::new("SnapshotIterator::next_segment");
         //println!("getting next segment");
         match self.state {
@@ -414,28 +436,44 @@ impl SnapshotIterator {
                     None => {
                         //println!("moving into blocks");
                         self.state = State::Blocks;
-                        self.next_segment()
+                        self.next_segment_at_timestamp(ts)
                     }
-                    Some(_) => Some(()),
+                    Some(_) => {
+                        let seg = self.active_segment.as_ref().unwrap().get_segment();
+                        let timestamps = seg.timestamps();
+                        let min_ts = timestamps[0];
+                        if min_ts > ts {
+                            self.next_segment_at_timestamp(ts)
+                        } else {
+                            Some(())
+                        }
+                    },
                 }
             }
             State::Blocks => {
                 let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment blocks");
                 //println!("currently in blocks");
-                match self.block_reader.next_segment() {
+                match self.block_reader.next_segment_at_timestamp(ts) {
                     None => {
-                        //println!("No segment in current block, fetching next block");
-                        if let Some(block) = self.source_blocks.next_block() {
-                            self.blocks_read += 1;
-                            //println!("Found next block");
-                            let bytes = block.as_bytes();
-                            let id = self.block_reader.id;
-                            let block_reader = ReadOnlyBlockReader::new(bytes, id);
-                            self.block_reader = block_reader;
-                            self.next_segment()
-                        } else {
-                            //println!("No next block");
-                            None
+                        let mut min_ts = u64::MAX;
+                        loop {
+                            match self.source_blocks.next_block() {
+                                Some(block) => {
+                                    self.blocks_read += 1;
+                                    if block.min_ts > ts {
+                                        //println!("Skipping block");
+                                        continue;
+                                    } else {
+                                        //println!("Loading block");
+                                        let bytes = block.as_bytes();
+                                        let id = self.block_reader.id;
+                                        let block_reader = ReadOnlyBlockReader::new(bytes, id);
+                                        self.block_reader = block_reader;
+                                        return self.next_segment_at_timestamp(ts)
+                                    }
+                                },
+                                None => return None
+                            }
                         }
                     }
                     Some(_) => {
@@ -447,6 +485,51 @@ impl SnapshotIterator {
             }
         }
     }
+
+    //pub fn next_segment(&mut self) -> Option<()> {
+    //    let _timer_1 = ThreadLocalTimer::new("SnapshotIterator::next_segment");
+    //    //println!("getting next segment");
+    //    match self.state {
+    //        State::ActiveSegment => {
+    //            let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment active segment");
+    //            //println!("currently in active segment, getting next");
+    //            match self.active_segment.as_mut().unwrap().next_segment() {
+    //                None => {
+    //                    //println!("moving into blocks");
+    //                    self.state = State::Blocks;
+    //                    self.next_segment()
+    //                }
+    //                Some(_) => Some(()),
+    //            }
+    //        }
+    //        State::Blocks => {
+    //            let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment blocks");
+    //            //println!("currently in blocks");
+    //            match self.block_reader.next_segment() {
+    //                None => {
+    //                    //println!("No segment in current block, fetching next block");
+    //                    if let Some(block) = self.source_blocks.next_block() {
+    //                        self.blocks_read += 1;
+    //                        //println!("Found next block");
+    //                        let bytes = block.as_bytes();
+    //                        let id = self.block_reader.id;
+    //                        let block_reader = ReadOnlyBlockReader::new(bytes, id);
+    //                        self.block_reader = block_reader;
+    //                        self.next_segment()
+    //                    } else {
+    //                        //println!("No next block");
+    //                        None
+    //                    }
+    //                }
+    //                Some(_) => {
+    //                    //println!("Found segment in current block");
+    //                    self.segments_read += 1;
+    //                    Some(())
+    //                }
+    //            }
+    //        }
+    //    }
+    //}
 
     pub fn get_segment(&self) -> &Segment {
         match self.state {

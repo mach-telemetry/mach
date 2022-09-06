@@ -66,7 +66,7 @@ fn main() {
         loop {
             let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
             let mut snapshot = snapshot_id.load().into_iterator();
-            snapshot.next_segment().unwrap();
+            snapshot.next_segment_at_timestamp(start).unwrap();
             let seg = snapshot.get_segment();
             let mut timestamps = seg.timestamps().iterator();
             let ts = timestamps.next().unwrap();
@@ -85,7 +85,7 @@ fn main() {
             //println!("Range: {} {}", start, end);
             let mut result = Vec::new();
             'outer: loop {
-                if snapshot.next_segment().is_none() {
+                if snapshot.next_segment_at_timestamp(start).is_none() {
                     break;
                 }
                 let seg = snapshot.get_segment();
@@ -103,6 +103,7 @@ fn main() {
         let total_latency = timer.elapsed();
         let kafka_fetch = {
             let timers = ThreadLocalTimer::timers();
+            println!("{:?}", timers);
             timers.get("KafkaEntry::fetch").unwrap().clone().as_secs_f64()
         };
         let mut timers: Vec<(String, Duration)> = ThreadLocalTimer::timers().iter().map(|(s, d)| {

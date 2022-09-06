@@ -181,7 +181,8 @@ mod test {
         let mut last_timestamp = u64::MAX;
         let mut seg_count = 0;
         let mut last_segment = usize::MAX;
-        'segment: while let Some(_) = snapshot.next_segment() {
+        let now = epoch.elapsed().unwrap().as_micros() as u64;
+        'segment: while let Some(_) = snapshot.next_segment_at_timestamp(now) {
             let seg = snapshot.get_segment();
             if last_segment == usize::MAX {
                 last_segment = seg.segment_id;

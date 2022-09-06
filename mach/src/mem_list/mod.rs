@@ -1,5 +1,5 @@
 mod source_block_list;
-pub use source_block_list::{SourceBlockList, SourceBlocks, PENDING_UNFLUSHED_BLOCKLISTS};
+pub use source_block_list::{SourceBlockList, SourceBlocks2, PENDING_UNFLUSHED_BLOCKLISTS};
 
 use crate::{
     compression::Compression,
@@ -9,18 +9,20 @@ use crate::{
     utils::byte_buffer::ByteBuffer,
     utils::kafka::{self, BOOTSTRAPS, TOPIC},
     utils::wp_lock::{NoDealloc, WpLock},
+    timer::*,
 };
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use rand::{thread_rng, Rng};
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::mem;
 use std::sync::{
     atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst},
     Arc, RwLock,
 };
+use serde::*;
 
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -88,7 +90,7 @@ fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
 
 pub struct BlockList {
     head_block: WpLock<Block>,
-    id_set: RefCell<HashSet<SeriesId>>,
+    id_set: RefCell<HashMap<SeriesId, (u64, u64)>>,
     series_map: Arc<DashMap<SeriesId, Arc<SourceBlockList>>>,
     chunks: Arc<DashMap<usize, Segment>>,
     counter: RefCell<usize>,
@@ -104,7 +106,7 @@ impl BlockList {
         kafka::make_topic(BOOTSTRAPS, TOPIC);
         BlockList {
             head_block: WpLock::new(Block::new()),
-            id_set: RefCell::new(HashSet::new()),
+            id_set: RefCell::new(HashMap::new()),
             series_map: Arc::new(DashMap::new()),
             chunks: Arc::new(DashMap::new()),
             counter: RefCell::new(0),
@@ -140,6 +142,12 @@ impl BlockList {
         //self.chunks.insert(count, segment.to_flush().unwrap().read());
         //*self.counter.borrow_mut() += 1;
 
+        let time_range = {
+            let x = segment.to_flush().unwrap();
+            let t = x.timestamps();
+            (t[0], t[t.len()-1])
+        };
+
         // Safety: unprotected write because Block push only appends data and increments an atomic
         // read is bounded by the atomic
         let is_full = unsafe {
@@ -147,13 +155,25 @@ impl BlockList {
                 .unprotected_write()
                 .push(series_id, segment, compression)
         };
-        self.id_set.borrow_mut().insert(series_id);
+        {
+            let mut borrowed_map = self.id_set.borrow_mut();
+            let e = borrowed_map.entry(series_id).or_insert((u64::MAX, u64::MAX));
+            if e.0 == u64::MAX {
+                *e = time_range;
+            } else {
+                assert!(e.1 < time_range.1);
+                e.1 = time_range.1;
+            }
+        }
 
         if is_full {
             // Safety: there should be only one writer and it should be doing this push
             let copy = Arc::new(unsafe { self.head_block.unprotected_read().as_read_only() });
-            for id in self.id_set.borrow_mut().drain() {
-                self.series_map.get(&id).unwrap().push(copy.clone());
+            for (id, time_range) in self.id_set.borrow_mut().drain() {
+                let min_ts = time_range.0;
+                let max_ts = time_range.1;
+                assert!(min_ts < max_ts);
+                self.series_map.get(&id).unwrap().push(min_ts, max_ts, copy.clone());
             }
             let n_flushers = N_FLUSHERS.load(SeqCst);
             PENDING_UNFLUSHED_BLOCKS.fetch_add(1, SeqCst);
@@ -292,7 +312,6 @@ impl ReadOnlyBlockBytes {
     }
 
     pub fn segment_at_offset(&self, offset: usize, segment: &mut Segment) {
-        let _guard = flame::start_guard("ReadOnlyBlockBytes::segment_at_offset");
         //println!("getting segment at offset: {}", offset);
 
         let bytes = &self.0[offset..];
@@ -307,7 +326,6 @@ impl ReadOnlyBlockBytes {
         // decompress data
         let bytes = &bytes[24..24 + chunk_size];
         {
-            let _guard = flame::start_guard("ReadOnlyBlockBytes::segment_at_offset decompression");
             let size = Compression::decompress(bytes, segment).unwrap();
         }
         //println!("size decompressed: {}", size);
@@ -338,6 +356,7 @@ impl std::convert::From<InnerBlockListEntry> for ReadOnlyBlock {
 
 impl ReadOnlyBlock {
     pub fn as_bytes(&self) -> ReadOnlyBlockBytes {
+        let _timer = ThreadLocalTimer::new("ReadOnlyBlock::as_bytes");
         match self {
             ReadOnlyBlock::Bytes(x) => ReadOnlyBlockBytes(x.clone().into()),
             ReadOnlyBlock::Offset(entry) => {
@@ -347,6 +366,28 @@ impl ReadOnlyBlock {
             }
         }
     }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct ReadOnlyBlock2 {
+    pub min_ts: u64,
+    pub max_ts: u64,
+    pub block: ReadOnlyBlock,
+}
+
+impl std::ops::Deref for ReadOnlyBlock2 {
+    type Target = ReadOnlyBlock;
+    fn deref(&self) -> &Self::Target {
+        &self.block
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct KafkaMetadata {
+    pub min: u64,
+    pub max: u64,
+    pub entry: kafka::KafkaEntry,
 }
 
 #[derive(Clone)]
