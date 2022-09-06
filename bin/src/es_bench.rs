@@ -3,10 +3,11 @@ mod prep_data;
 mod utils;
 
 use clap::*;
-use elastic::{ESBatchedIndexClient, ESClientBuilder, ESIndexQuerier, IngestStats};
+use elastic::{ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier, IngestStats};
 use lazy_static::lazy_static;
 use std::sync::atomic::Ordering::SeqCst;
 use std::{
+    collections::HashMap,
     sync::{atomic::AtomicUsize, Arc},
     time::Duration,
 };
@@ -130,10 +131,16 @@ async fn main() {
         ARGS.es_ingest_batch_size,
         INGESTION_STATS.clone(),
     );
+
+    let mut schema = HashMap::new();
+    schema.insert("series_id".into(), ESFieldType::UnsignedLong);
+    schema.insert("timestamp".into(), ESFieldType::UnsignedLong);
+
     client
         .create_index(elastic::CreateIndexArgs {
             num_shards: ARGS.es_num_shards,
             num_replicas: ARGS.es_num_replicas,
+            schema: Some(schema),
         })
         .await
         .unwrap();

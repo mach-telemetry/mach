@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{atomic::AtomicUsize, Arc};
 use std::time::Duration;
 
@@ -59,9 +60,40 @@ impl ESClientBuilder {
     }
 }
 
+// A not-comprehensive list of data types supported by ES.
+//
+// See: https://www.elastic.co/guide/en/elasticsearch/reference/7.14/mapping-types.html
+pub enum ESFieldType {
+    Boolean,
+    Binary,
+    Long,
+    Integer,
+    UnsignedLong,
+}
+
+impl Into<&'static str> for ESFieldType {
+    fn into(self) -> &'static str {
+        match self {
+            ESFieldType::Boolean => "boolean",
+            ESFieldType::Binary => "binary",
+            ESFieldType::Long => "long",
+            ESFieldType::Integer => "integer",
+            ESFieldType::UnsignedLong => "unsigned_long",
+        }
+    }
+}
+
+impl Into<serde_json::Value> for ESFieldType {
+    fn into(self) -> serde_json::Value {
+        let s: &'static str = self.into();
+        serde_json::to_value(s).unwrap().into()
+    }
+}
+
 pub struct CreateIndexArgs {
     pub num_shards: usize,
     pub num_replicas: usize,
+    pub schema: Option<HashMap<String, ESFieldType>>,
 }
 
 impl Default for CreateIndexArgs {
@@ -71,23 +103,29 @@ impl Default for CreateIndexArgs {
         Self {
             num_shards: 1,
             num_replicas: 1,
+            schema: None,
         }
     }
 }
 
 impl CreateIndexArgs {
     fn into_body(self) -> JsonBody<serde_json::Value> {
-        let body: JsonBody<_> = json!({
+        let mut body = json!({
             "settings": {
                 "index": {
                   "number_of_shards": self.num_shards,
                   "number_of_replicas": self.num_replicas,
                 }
               }
-        })
-        .into();
+        });
 
-        body
+        if let Some(schema) = self.schema {
+            for (k, v) in schema.into_iter() {
+                body["mappings"]["properties"][k]["type"] = v.into();
+            }
+        }
+
+        body.into()
     }
 }
 
