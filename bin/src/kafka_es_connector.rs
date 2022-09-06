@@ -9,11 +9,12 @@ use crate::prep_data::ESSample;
 use clap::*;
 use crossbeam_channel::{bounded, Receiver, Sender};
 use elastic::{
-    CreateIndexArgs, ESBatchedIndexClient, ESClientBuilder, ESIndexQuerier, IngestResponse,
-    IngestStats,
+    CreateIndexArgs, ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier,
+    IngestResponse, IngestStats,
 };
 use kafka::{client::KafkaClient, consumer::Consumer};
 use lazy_static::lazy_static;
+use std::collections::HashMap;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::Arc;
@@ -50,6 +51,12 @@ struct Args {
 
     #[clap(short, long, default_value_t = 40)]
     es_num_writers: usize,
+
+    #[clap(short, long, default_value_t = 3)]
+    es_num_shards: usize,
+
+    #[clap(short, long, default_value_t = 0)]
+    es_num_replicas: usize,
 }
 
 async fn es_watch_data_age(client: ESIndexQuerier, index_name: &String) {
@@ -123,7 +130,6 @@ fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>
     let mut buffer = vec![0u8; 500_000_000];
     loop {
         for ms in kafka_consumer.poll().unwrap().iter() {
-            println!("new message");
             for msg in ms.messages().iter() {
                 let (start, end, data) = decompress_kafka_msg(msg.value, buffer.as_mut_slice());
                 let es_data: Vec<ESSample> = data.into_iter().map(|s| s.into()).collect();
@@ -177,16 +183,6 @@ fn es_ingestor(
     );
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        client
-            .create_index(CreateIndexArgs {
-                num_shards: 20,
-                num_replicas: 1,
-            })
-            .await
-            .expect("could not create index");
-
-        println!("ES Index {} created", index_name);
-
         let mut handles = Vec::new();
         for _ in 0..num_ingestors {
             let builder_clone = es_client_builder.clone();
@@ -220,11 +216,40 @@ fn stats_watcher() {
     }
 }
 
+fn create_es_index(elastic_builder: ESClientBuilder) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let client = ESBatchedIndexClient::<prep_data::ESSample>::new(
+            elastic_builder.build().unwrap(),
+            INDEX_NAME.clone(),
+            ARGS.es_ingest_batch_size,
+            INGESTION_STATS.clone(),
+        );
+
+        let mut schema = HashMap::new();
+        schema.insert("series_id".into(), ESFieldType::UnsignedLong);
+        schema.insert("timestamp".into(), ESFieldType::UnsignedLong);
+
+        client
+            .create_index(elastic::CreateIndexArgs {
+                num_shards: ARGS.es_num_shards,
+                num_replicas: ARGS.es_num_replicas,
+                schema: Some(schema),
+            })
+            .await
+            .unwrap();
+
+        println!("ES Index {} created", INDEX_NAME.as_str());
+    });
+}
+
 fn main() {
     let es_client_config = ESClientBuilder::default()
         .username_optional(ARGS.es_username.clone())
         .password_optional(ARGS.es_password.clone())
         .endpoint(ARGS.es_endpoint.clone());
+
+    create_es_index(es_client_config.clone());
 
     let (consume_tx, consume_rx) = bounded(10);
     let consumer = thread::spawn(move || {

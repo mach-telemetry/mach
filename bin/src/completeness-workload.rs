@@ -19,12 +19,12 @@ use clap::*;
 use lazy_static::lazy_static;
 use mach::id::{SeriesId, SeriesRef};
 use mach::sample::SampleType;
+use rand::prelude::*;
 use std::{
-    collections::{HashSet, HashMap},
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
     time::Duration,
 };
-use rand::prelude::*;
 
 lazy_static! {
     static ref ARGS: Args = Args::parse();
@@ -111,9 +111,7 @@ struct Args {
 fn main() {
     COUNTERS.init_watcher(Duration::from_secs_f64(ARGS.counter_interval_seconds));
     let workloads = &[
-
         Workload::new(500_000., Duration::from_secs(3 * 60 * 60), ARGS.batch_size),
-
         //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),

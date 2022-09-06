@@ -180,7 +180,6 @@ impl SpanSample {
 }
 
 fn main() {
-
     //let dir = "/home/fsolleza/data/intel/spans";
     //let mut all_points = Vec::new();
     //for entry in fs::read_dir(dir).unwrap() {
@@ -237,8 +236,8 @@ fn main() {
     for (k, v) in map.iter() {
         lengths.push(v.len());
     }
-    let min:usize = *lengths.iter().min().unwrap();
-    let max:usize = *lengths.iter().max().unwrap();
-    let mean:usize = lengths.iter().sum::<usize>() / lengths.len();
+    let min: usize = *lengths.iter().min().unwrap();
+    let max: usize = *lengths.iter().max().unwrap();
+    let mean: usize = lengths.iter().sum::<usize>() / lengths.len();
     println!("average length {} {} {}", min, max, mean);
 }

@@ -1,10 +1,13 @@
 use lazy_static::*;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
-pub use std::time::{Instant, Duration};
-use std::convert::TryInto;
-use std::collections::{hash_map, HashMap};
+use ref_thread_local::{ref_thread_local, Ref, RefThreadLocal};
 use std::cell::RefCell;
-use ref_thread_local::{Ref, ref_thread_local, RefThreadLocal};
+use std::collections::{hash_map, HashMap};
+use std::convert::TryInto;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
+pub use std::time::{Duration, Instant};
 
 ref_thread_local! {
     static managed MAP: HashMap<String, Duration> = HashMap::new();
@@ -24,7 +27,9 @@ impl<'a> ThreadLocalTimer<'a> {
     }
 
     pub fn reset() {
-        MAP.borrow_mut().iter_mut().for_each(|(k, v)| *v = Duration::from_secs(0));
+        MAP.borrow_mut()
+            .iter_mut()
+            .for_each(|(k, v)| *v = Duration::from_secs(0));
     }
 
     pub fn timers() -> ThreadLocalTimers {
@@ -35,20 +40,20 @@ impl<'a> ThreadLocalTimer<'a> {
 impl<'a> Drop for ThreadLocalTimer<'a> {
     fn drop(&mut self) {
         let dur = self.instant.elapsed();
-        *MAP.borrow_mut().entry(self.key.into()).or_insert(Duration::from_secs(0)) += dur;
+        *MAP.borrow_mut()
+            .entry(self.key.into())
+            .or_insert(Duration::from_secs(0)) += dur;
     }
 }
 
 #[derive(Debug)]
 pub struct ThreadLocalTimers {
-    map: Ref<'static, HashMap<String, Duration>>
+    map: Ref<'static, HashMap<String, Duration>>,
 }
 
 impl ThreadLocalTimers {
     fn new() -> Self {
-        Self {
-            map: MAP.borrow()
-        }
+        Self { map: MAP.borrow() }
     }
 }
 

@@ -3,10 +3,11 @@ mod prep_data;
 mod utils;
 
 use clap::*;
-use elastic::{ESBatchedIndexClient, ESClientBuilder, ESIndexQuerier, IngestStats};
+use elastic::{ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier, IngestStats};
 use lazy_static::lazy_static;
 use std::sync::atomic::Ordering::SeqCst;
 use std::{
+    collections::HashMap,
     sync::{atomic::AtomicUsize, Arc},
     time::Duration,
 };
@@ -17,8 +18,12 @@ lazy_static! {
     static ref ARGS: Args = Args::parse();
     static ref SAMPLES: Vec<prep_data::ESSample> = prep_data::load_samples(ARGS.file_path.as_str())
         .into_iter()
-        .map(|s| s.into())
-        .collect();
+        .fold(Vec::new(), |mut samples, (series_id, mut new_samples)| {
+            for (ts, sample_data) in new_samples.drain(..) {
+                samples.push(prep_data::ESSample::new(series_id, ts, sample_data));
+            }
+            samples
+        });
     static ref INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
     static ref INDEXED_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -47,7 +52,7 @@ struct Args {
     #[clap(short, long, default_value_t = 3)]
     es_num_shards: usize,
 
-    #[clap(short, long, default_value_t = 1)]
+    #[clap(short, long, default_value_t = 0)]
     es_num_replicas: usize,
 
     #[clap(short, long, default_value_t = 120)]
@@ -126,10 +131,16 @@ async fn main() {
         ARGS.es_ingest_batch_size,
         INGESTION_STATS.clone(),
     );
+
+    let mut schema = HashMap::new();
+    schema.insert("series_id".into(), ESFieldType::UnsignedLong);
+    schema.insert("timestamp".into(), ESFieldType::UnsignedLong);
+
     client
         .create_index(elastic::CreateIndexArgs {
             num_shards: ARGS.es_num_shards,
             num_replicas: ARGS.es_num_replicas,
+            schema: Some(schema),
         })
         .await
         .unwrap();

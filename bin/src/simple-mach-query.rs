@@ -5,13 +5,12 @@ mod snapshotter;
 
 use mach::id::SeriesId;
 use mach::snapshotter::SnapshotterId;
-use mach::utils::kafka::init_thread_local_consumer;
-use regex::Regex;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use std::collections::HashMap;
-use rand::prelude::*;
 use mach::timer::*;
-
+use mach::utils::kafka::init_thread_local_consumer;
+use rand::prelude::*;
+use regex::Regex;
+use std::collections::HashMap;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 lazy_static::lazy_static! {
     static ref SNAPSHOT_INTERVAL: Duration = Duration::from_secs_f64(0.5);
@@ -49,7 +48,9 @@ fn main() {
     for _ in 0..QUERY_COUNT {
         let id = SeriesId(rng.gen_range(0..SOURCE_COUNT));
         let snapshotter_id = *snapshotter_map.entry(id).or_insert(
-            runtime.block_on(client.initialize(id, interval, timeout)).unwrap()
+            runtime
+                .block_on(client.initialize(id, interval, timeout))
+                .unwrap(),
         );
         let now: u64 = micros_from_epoch().try_into().unwrap();
         let start_delay = rng.gen_range(0..START_MAX_DELAY);
@@ -104,11 +105,16 @@ fn main() {
         let kafka_fetch = {
             let timers = ThreadLocalTimer::timers();
             println!("{:?}", timers);
-            timers.get("KafkaEntry::fetch").unwrap().clone().as_secs_f64()
+            timers
+                .get("KafkaEntry::fetch")
+                .unwrap()
+                .clone()
+                .as_secs_f64()
         };
-        let mut timers: Vec<(String, Duration)> = ThreadLocalTimer::timers().iter().map(|(s, d)| {
-            (s.clone(), *d)
-        }).collect();
+        let mut timers: Vec<(String, Duration)> = ThreadLocalTimer::timers()
+            .iter()
+            .map(|(s, d)| (s.clone(), *d))
+            .collect();
         timers.sort();
         println!("TIMERS\n{:?}", timers);
 

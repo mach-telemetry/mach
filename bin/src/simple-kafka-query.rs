@@ -16,12 +16,12 @@ use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message};
 use lazy_static::*;
 use mach::id::SeriesId;
 use mach::utils::random_id;
+use rand::{self, prelude::*};
 use regex::Regex;
 use std::collections::BTreeMap;
 use std::ops::{Bound::Included, RangeBounds};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use rand::{self, prelude::*};
 
 enum Entry {
     Bytes(Arc<[u8]>),
@@ -29,13 +29,16 @@ enum Entry {
 }
 
 lazy_static! {
-    static ref HOSTS: Vec<String> = vec!["localhost:9093".to_owned(),"localhost:9094".to_owned(),"localhost:9095".to_owned()];
+    static ref HOSTS: Vec<String> = vec![
+        "localhost:9093".to_owned(),
+        "localhost:9094".to_owned(),
+        "localhost:9095".to_owned()
+    ];
     static ref SAMPLES: Arc<Mutex<Vec<Arc<[u8]>>>> = {
         let data = Arc::new(Mutex::new(Vec::new()));
         let data2 = data.clone();
         std::thread::spawn(move || {
-            let mut consumer =
-                Consumer::from_hosts(HOSTS.clone())
+            let mut consumer = Consumer::from_hosts(HOSTS.clone())
                 .with_topic_partitions("kafka-completeness-bench".to_owned(), &[0, 1, 2])
                 .with_fallback_offset(FetchOffset::Latest)
                 .with_group(random_id())
@@ -54,7 +57,6 @@ lazy_static! {
         });
         data
     };
-
     static ref INDEX: Arc<Mutex<BTreeMap<(u64, u64), Entry>>> = {
         println!("INITING INDEX");
         let index: Arc<Mutex<BTreeMap<(u64, u64), Entry>>> = Arc::new(Mutex::new(BTreeMap::new()));
@@ -65,8 +67,7 @@ lazy_static! {
             let index2 = index.clone();
             let group = group.clone();
             std::thread::spawn(move || {
-                let mut consumer =
-                    Consumer::from_hosts(HOSTS.clone())
+                let mut consumer = Consumer::from_hosts(HOSTS.clone())
                     .with_topic_partitions("kafka-completeness-bench".to_owned(), &[i])
                     .with_fallback_offset(FetchOffset::Latest)
                     .with_offset_storage(GroupOffsetStorage::Kafka)
@@ -114,8 +115,9 @@ const SOURCE_COUNT: u64 = 1000;
 const QUERY_COUNT: u64 = 1;
 
 fn main() {
-
-    { let _ = INDEX.lock().unwrap(); }
+    {
+        let _ = INDEX.lock().unwrap();
+    }
 
     println!("Sleeping");
     std::thread::sleep(Duration::from_secs(2 * START_MAX_DELAY));
@@ -144,7 +146,7 @@ fn main() {
             }
             drop(guard);
             let now = Instant::now();
-            while now.elapsed() < Duration::from_millis(100) { }
+            while now.elapsed() < Duration::from_millis(100) {}
         }
         let data_latency = timer.elapsed();
         //println!("Searching backward");
@@ -163,7 +165,7 @@ fn main() {
                         _ => unreachable!(),
                     }
                 }
-                Entry::Processed(x) => x
+                Entry::Processed(x) => x,
             };
             for item in samples.iter().rev() {
                 if item.0 == id && item.1 <= start && item.1 >= end {
