@@ -6,14 +6,15 @@ use crate::{
     id::SeriesId,
     segment::FlushSegment,
     snapshot::Segment,
+    timer::*,
     utils::byte_buffer::ByteBuffer,
     utils::kafka::{self, BOOTSTRAPS, TOPIC},
     utils::wp_lock::{NoDealloc, WpLock},
-    timer::*,
 };
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use rand::{thread_rng, Rng};
+use serde::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -22,7 +23,6 @@ use std::sync::{
     atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst},
     Arc, RwLock,
 };
-use serde::*;
 
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -145,7 +145,7 @@ impl BlockList {
         let time_range = {
             let x = segment.to_flush().unwrap();
             let t = x.timestamps();
-            (t[0], t[t.len()-1])
+            (t[0], t[t.len() - 1])
         };
 
         // Safety: unprotected write because Block push only appends data and increments an atomic
@@ -157,7 +157,9 @@ impl BlockList {
         };
         {
             let mut borrowed_map = self.id_set.borrow_mut();
-            let e = borrowed_map.entry(series_id).or_insert((u64::MAX, u64::MAX));
+            let e = borrowed_map
+                .entry(series_id)
+                .or_insert((u64::MAX, u64::MAX));
             if e.0 == u64::MAX {
                 *e = time_range;
             } else {
@@ -173,7 +175,10 @@ impl BlockList {
                 let min_ts = time_range.0;
                 let max_ts = time_range.1;
                 assert!(min_ts < max_ts);
-                self.series_map.get(&id).unwrap().push(min_ts, max_ts, copy.clone());
+                self.series_map
+                    .get(&id)
+                    .unwrap()
+                    .push(min_ts, max_ts, copy.clone());
             }
             let n_flushers = N_FLUSHERS.load(SeqCst);
             PENDING_UNFLUSHED_BLOCKS.fetch_add(1, SeqCst);
@@ -381,7 +386,6 @@ impl std::ops::Deref for ReadOnlyBlock2 {
         &self.block
     }
 }
-
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct KafkaMetadata {

@@ -1,6 +1,6 @@
 use crate::{
-    mem_list::{add_flush_worker, BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2},
     id::SeriesId,
+    mem_list::{add_flush_worker, BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2},
     timer::*,
     utils::{
         kafka,
@@ -51,7 +51,11 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
             let x = item.block.partition_offset();
             let (min_ts, max_ts) = (item.min_ts, item.max_ts);
             let block = ReadOnlyBlock::Offset(x);
-            v.push(ReadOnlyBlock2 { min_ts, max_ts, block });
+            v.push(ReadOnlyBlock2 {
+                min_ts,
+                max_ts,
+                block,
+            });
         }
         let to_serialize = SourceBlocks2 {
             idx: 0,
@@ -79,7 +83,7 @@ enum ListItem {
 struct InnerListEntry {
     min_ts: u64,
     max_ts: u64,
-    block: Arc<BlockListEntry>
+    block: Arc<BlockListEntry>,
 }
 
 struct InnerData {
@@ -154,13 +158,11 @@ impl InnerBuffer {
         // Traverse list
         let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(256);
         for item in copy.iter().rev() {
-            v.push(
-                ReadOnlyBlock2 {
-                    min_ts: item.min_ts,
-                    max_ts: item.max_ts,
-                    block: item.block.inner().into(),
-                }
-            );
+            v.push(ReadOnlyBlock2 {
+                min_ts: item.min_ts,
+                max_ts: item.max_ts,
+                block: item.block.inner().into(),
+            });
         }
 
         #[allow(unused_assignments)]
@@ -176,17 +178,13 @@ impl InnerBuffer {
                     break;
                 }
                 ListItem::Block(item) => {
-                    item.0
-                        .iter()
-                        .rev()
-                        .cloned()
-                        .for_each(|x| {
-                            v.push(ReadOnlyBlock2 {
-                                min_ts: x.min_ts,
-                                max_ts: x.max_ts,
-                                block: x.block.inner().into(),
-                            });
+                    item.0.iter().rev().cloned().for_each(|x| {
+                        v.push(ReadOnlyBlock2 {
+                            min_ts: x.min_ts,
+                            max_ts: x.max_ts,
+                            block: x.block.inner().into(),
                         });
+                    });
                     let x = item.1.clone();
                     drop(guard);
                     current = x;
@@ -195,12 +193,7 @@ impl InnerBuffer {
             }
         }
         let idx = 0;
-        Ok(SourceBlocks2 {
-            data: v,
-            next,
-            idx ,
-        })
-
+        Ok(SourceBlocks2 { data: v, next, idx })
     }
 
     fn new(id: SeriesId) -> Self {
