@@ -33,6 +33,8 @@ use mach::{
 use crate::prep_data::load_samples;
 use crate::utils::timestamp_now_micros;
 
+const GB_IN_BYTES: u64 = 1_073_741_824;
+
 type TimeStamp = u64;
 type Sample = (SeriesId, TimeStamp, Vec<SampleType>);
 type RegisteredSample = (SeriesRef, TimeStamp, Vec<SampleType>);
@@ -106,24 +108,34 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
         })
         .collect();
 
-    let now = std::time::Instant::now();
     let mut num_samples = 0;
+    let mut batch_size_bytes = 0;
+    let mut total_size_bytes = 0;
+    let mut total_bytes_target = args.kafka_bench_total_gb * GB_IN_BYTES;
+
+    let now = std::time::Instant::now();
+
     let mut data = Vec::new();
-    let mut serialized_size = 0;
-    for mut sample in samples {
-        sample.1 = timestamp_now_micros();
-        serialized_size += bincode::serialized_size(&sample).unwrap();
-        data.push(sample);
-        if serialized_size >= args.kafka_batch_bytes {
-            serialized_size = 0;
-            num_samples += data.len();
-            flusher_tx.send(data);
-            data = Vec::new();
+    'outer: loop {
+        for s in &samples {
+            let mut sample = s.clone();
+            sample.1 = timestamp_now_micros();
+
+            let sample_size = bincode::serialized_size(&sample).unwrap();
+            batch_size_bytes += sample_size;
+            total_size_bytes += sample_size;
+
+            data.push(sample);
+            if batch_size_bytes >= args.kafka_batch_bytes {
+                batch_size_bytes = 0;
+                num_samples += data.len();
+                flusher_tx.send(data);
+                if total_size_bytes >= total_bytes_target {
+                    break 'outer;
+                }
+                data = Vec::new();
+            }
         }
-    }
-    if !data.is_empty() {
-        num_samples += data.len();
-        flusher_tx.send(data);
     }
     drop(flusher_tx);
     barr.wait();
@@ -131,11 +143,11 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
     let push_time = now.elapsed();
     let elapsed = push_time;
     let elapsed_sec = elapsed.as_secs_f64();
+    let samples_per_sec = num_samples as f64 / elapsed_sec;
+    let bytes_per_sec = total_size_bytes as f64 / elapsed_sec;
     println!(
-        "Written Samples {}, Elapsed {:?}, Samples/sec {}",
-        num_samples,
-        elapsed,
-        num_samples as f64 / elapsed_sec
+        "Written Samples {}, Elapsed {:?}, samples/sec {}, bytes/sec {}",
+        num_samples, elapsed, samples_per_sec, bytes_per_sec
     );
 
     for flusher in flushers {
@@ -253,6 +265,9 @@ struct Args {
     //kafka_acks: String,
     #[clap(short, long, default_value_t = 400_000_000)]
     kafka_batch_bytes: u64,
+
+    #[clap(short, long, default_value_t = 512)]
+    kafka_bench_total_gb: u64,
 
     #[clap(short, long, default_value_t = 4)]
     kafka_flushers: usize,
