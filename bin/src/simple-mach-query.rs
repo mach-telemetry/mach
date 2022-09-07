@@ -5,8 +5,9 @@ mod snapshotter;
 
 use mach::id::SeriesId;
 use mach::snapshotter::SnapshotterId;
-use mach::timer::*;
-use mach::utils::kafka::init_thread_local_consumer;
+use mach::utils::timer::*;
+use mach::utils::counter::*;
+//use mach::utils::kafka::init_thread_local_consumer;
 use rand::prelude::*;
 use regex::Regex;
 use std::collections::HashMap;
@@ -21,10 +22,10 @@ const START_MAX_DELAY: u64 = 60;
 const MIN_QUERY_DURATION: u64 = 10;
 const MAX_QUERY_DURATION: u64 = 60;
 const SOURCE_COUNT: u64 = 1000;
-const QUERY_COUNT: u64 = 1;
+const QUERY_COUNT: u64 = 100;
 
 fn main() {
-    mach::utils::kafka::init_kafka_consumer();
+    //mach::utils::kafka::init_kafka_consumer();
     // Sleeping to make sure there's enough data
     println!("Sleeping");
     std::thread::sleep(Duration::from_secs(2 * START_MAX_DELAY));
@@ -42,7 +43,7 @@ fn main() {
     let mut snapshotter_map = HashMap::new();
     let micros_in_sec: u64 = Duration::from_secs(1).as_micros().try_into().unwrap();
 
-    init_thread_local_consumer();
+    //init_thread_local_consumer();
 
     let mut rng = rand::thread_rng();
     for _ in 0..QUERY_COUNT {
@@ -60,7 +61,6 @@ fn main() {
 
         let mut count = 0;
 
-        ThreadLocalTimer::reset();
         let timer = Instant::now();
         let mut query_execution_time = Duration::from_secs(0);
         //println!("Waiting for data to be available");
@@ -79,34 +79,34 @@ fn main() {
         let data_latency = timer.elapsed();
 
         //println!("Executing query");
-        let snapshot = {
+        ThreadLocalTimer::reset();
+        ThreadLocalCounter::reset();
+        let result_count = {
             let _timer_1 = ThreadLocalTimer::new("query execution");
             let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
             let mut snapshot = snapshot_id.load().into_iterator();
             //println!("Range: {} {}", start, end);
-            let mut result = Vec::new();
+            let mut count = 0;
             'outer: loop {
                 if snapshot.next_segment_at_timestamp(start).is_none() {
                     break;
                 }
                 let seg = snapshot.get_segment();
                 let mut timestamps = seg.timestamps().iterator();
-                let mut count = 0;
                 for (i, ts) in timestamps.enumerate() {
-                    result.push(ts);
+                    count += 1;
                     if ts < end {
                         break 'outer;
                     }
                 }
             }
-            snapshot
+            count
         };
         let total_latency = timer.elapsed();
         let kafka_fetch = {
             let timers = ThreadLocalTimer::timers();
-            println!("{:?}", timers);
             timers
-                .get("KafkaEntry::fetch")
+                .get("ReadOnlyBlock::as_bytes")
                 .unwrap()
                 .clone()
                 .as_secs_f64()
@@ -116,28 +116,33 @@ fn main() {
             .map(|(s, d)| (s.clone(), *d))
             .collect();
         timers.sort();
-        println!("TIMERS\n{:?}", timers);
+        //println!("TIMERS\n{:?}", timers);
 
         let query_latency = total_latency - data_latency;
         let total_query = start_delay + to_end;
 
         //let uncached_blocks_read = snapshot.uncached_blocks_read();
-        let blocks_read = snapshot.blocks_read();
-        let segments_read = snapshot.segments_read();
-        //let messages_read = snapshot.messages_read();
-        //let cached_messages_read = snapshot.cached_messages_read();
+        let counters = ThreadLocalCounter::counters();
+        let blocks_skipped = counters.get("skipping block").or(Some(&0)).unwrap();
+        let blocks_loaded = counters.get("loading block").or(Some(&0)).unwrap();
+        let segments_skipped = counters.get("skipping segment").or(Some(&0)).unwrap();
+        let segments_loaded = counters.get("loading segment").or(Some(&0)).unwrap();
+        let fetch_requests = counters.get("kafka fetch").or(Some(&0)).unwrap();
 
         println!(
-            "Total Time: {:?}, Data Latency: {:?} Query Latency: {:?}, Blocks Read: {}, Segments Read: {}, Start Delay: {}, To End: {}, Total Query: {}, Kafka Fetch Time: {:?}",
+            "Total Time: {:?}, Data Latency: {:?}, Query Latency: {:?}, Blocks Skipped: {}, Blocks Read: {}, Segments Read: {}, Start Delay: {}, Query Execution Range: {}, Total Query Range: {}, Kafka Fetch Time: {:?}, Fetch Requests: {:?}, Result: {}",
             total_latency.as_secs_f64(),
             data_latency.as_secs_f64(),
             query_latency.as_secs_f64(),
-            blocks_read,
-            segments_read,
+            blocks_skipped,
+            blocks_loaded,
+            segments_loaded,
             start_delay,
             to_end,
             total_query,
-            kafka_fetch
+            kafka_fetch,
+            fetch_requests,
+            result_count,
         );
     }
 

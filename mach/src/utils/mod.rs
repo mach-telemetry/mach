@@ -2,6 +2,8 @@ pub mod byte_buffer;
 pub mod bytes;
 pub mod kafka;
 pub mod wp_lock;
+pub mod timer;
+pub mod counter;
 
 use uuid::Uuid;
 

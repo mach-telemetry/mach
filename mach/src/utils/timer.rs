@@ -27,9 +27,7 @@ impl<'a> ThreadLocalTimer<'a> {
     }
 
     pub fn reset() {
-        MAP.borrow_mut()
-            .iter_mut()
-            .for_each(|(k, v)| *v = Duration::from_secs(0));
+        MAP.borrow_mut().clear();
     }
 
     pub fn timers() -> ThreadLocalTimers {

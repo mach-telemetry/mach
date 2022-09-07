@@ -3,8 +3,7 @@ use crate::{
     mem_list::{ReadOnlyBlockBytes, ReadOnlyBlock, ReadOnlyBlock2, SourceBlocks2},
     sample::SampleType,
     series::FieldType,
-    timer::*,
-    utils::kafka,
+    utils::{kafka, timer::*, counter::*},
 };
 use std::convert::TryInto;
 
@@ -341,9 +340,11 @@ impl ReadOnlyBlockReader {
             );
             let min_ts = self.read_buffer.timestamps()[0];
             if min_ts > ts {
-                println!("Skipping segment");
+                //println!("Skipping segment");
+                ThreadLocalCounter::new("skipping segment").increment(1);
                 self.next_segment_at_timestamp(ts)
             } else {
+                ThreadLocalCounter::new("loading segment").increment(1);
                 Some(())
             }
         } else {
@@ -364,8 +365,6 @@ pub struct SnapshotIterator {
     source_blocks: SourceBlocks2,
     //consumer: &'a mut kafka::Client,
     state: State,
-    blocks_read: usize,
-    segments_read: usize,
 }
 
 impl SnapshotIterator {
@@ -376,14 +375,6 @@ impl SnapshotIterator {
     //pub fn messages_read(&self) -> usize {
     //    self.source_blocks.messages_read
     //}
-
-    pub fn segments_read(&self) -> usize {
-        self.segments_read
-    }
-
-    pub fn blocks_read(&self) -> usize {
-        self.blocks_read
-    }
 
     pub fn new(snapshot: Snapshot, id: SeriesId) -> Self {
         //{
@@ -420,8 +411,6 @@ impl SnapshotIterator {
             block_reader,
             //consumer,
             state,
-            segments_read: 0,
-            blocks_read: 0,
         }
     }
 
@@ -460,12 +449,11 @@ impl SnapshotIterator {
                         loop {
                             match self.source_blocks.next_block() {
                                 Some(block) => {
-                                    self.blocks_read += 1;
                                     if block.min_ts > ts {
-                                        //println!("Skipping block");
+                                        ThreadLocalCounter::new("skipping block").increment(1);
                                         continue;
                                     } else {
-                                        //println!("Loading block");
+                                        ThreadLocalCounter::new("loading block").increment(1);
                                         let bytes = block.as_bytes();
                                         let id = self.block_reader.id;
                                         let block_reader = ReadOnlyBlockReader::new(bytes, id);
@@ -478,8 +466,6 @@ impl SnapshotIterator {
                         }
                     }
                     Some(_) => {
-                        //println!("Found segment in current block");
-                        self.segments_read += 1;
                         Some(())
                     }
                 }

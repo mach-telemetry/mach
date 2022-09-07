@@ -30,7 +30,6 @@ pub mod segment;
 pub mod series;
 pub mod snapshot;
 pub mod snapshotter;
-pub mod timer;
 pub mod tsdb;
 pub mod utils;
 pub mod writer;

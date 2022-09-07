@@ -1,12 +1,12 @@
 use crate::{
     mem_list::{add_flush_worker, BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2},
     id::SeriesId,
-    timer::*,
     utils::{
         kafka,
         wp_lock::{NoDealloc, WpLock},
     },
 };
+use crate::utils::timer::*;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
 use std::cell::RefCell;

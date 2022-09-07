@@ -9,8 +9,8 @@ use crate::{
     utils::byte_buffer::ByteBuffer,
     utils::kafka::{self, BOOTSTRAPS, TOPIC},
     utils::wp_lock::{NoDealloc, WpLock},
-    timer::*,
 };
+use crate::utils::timer::*;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use rand::{thread_rng, Rng};
