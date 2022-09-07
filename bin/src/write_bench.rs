@@ -1,10 +1,13 @@
 #![allow(warnings)]
 
 mod kafka_utils;
+mod prep_data;
+mod utils;
 
 use clap::Parser;
 use crossbeam_channel::bounded;
 use crossbeam_channel::unbounded;
+use crossbeam_channel::Receiver;
 use lzzzz::{lz4, lz4_hc};
 use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::fs::File;
@@ -27,68 +30,12 @@ use mach::{
     writer::{Writer, WriterConfig},
 };
 
+use crate::prep_data::load_samples;
+use crate::utils::timestamp_now_micros;
+
 type TimeStamp = u64;
 type Sample = (SeriesId, TimeStamp, Vec<SampleType>);
 type RegisteredSample = (SeriesRef, TimeStamp, Vec<SampleType>);
-
-fn load_data(path: &str, repeat_factor: usize) -> Vec<otlp::OtlpData> {
-    let mut data = Vec::new();
-    File::open(path).unwrap().read_to_end(&mut data).unwrap();
-    let data: Vec<otlp::OtlpData> = bincode::deserialize(data.as_slice()).unwrap();
-
-    match repeat_factor {
-        0 | 1 => data,
-        n => {
-            let mut ret = data.clone();
-            for _ in 0..n - 1 {
-                ret.extend_from_slice(data.as_slice());
-            }
-            ret
-        }
-    }
-}
-
-fn rewrite_timestamps(data: &mut Vec<otlp::OtlpData>) {
-    let mut now = std::time::SystemTime::now();
-    for item in data.iter_mut() {
-        let ts: u64 = (now.duration_since(std::time::UNIX_EPOCH))
-            .unwrap()
-            .as_nanos()
-            .try_into()
-            .unwrap();
-        item.update_timestamp(ts);
-        now += std::time::Duration::from_secs(1);
-    }
-}
-
-fn otlp_data_to_samples(data: Vec<otlp::OtlpData>) -> Vec<Sample> {
-    let mut data: Vec<mach_otlp::OtlpData> = data
-        .iter()
-        .map(|x| {
-            let mut x: mach_otlp::OtlpData = x.into();
-            match &mut x {
-                mach_otlp::OtlpData::Spans(x) => x.iter_mut().for_each(|x| x.set_source_id()),
-                _ => unimplemented!(),
-            }
-            x
-        })
-        .collect();
-
-    let mut samples = Vec::new();
-
-    for entry in data {
-        match entry {
-            mach_otlp::OtlpData::Spans(spans) => {
-                for span in spans {
-                    span.get_samples(&mut samples);
-                }
-            }
-            _ => unimplemented!(),
-        }
-    }
-
-    samples
-}
 
 fn register_samples(
     samples: Vec<Sample>,
@@ -115,26 +62,28 @@ fn register_samples(
     registered_samples
 }
 
-fn prepare_kafka_samples(data: Vec<otlp::OtlpData>) -> Vec<Sample> {
-    otlp_data_to_samples(data)
-}
-
-fn prepare_mach_samples(
-    data: Vec<otlp::OtlpData>,
-    mach: &mut Mach,
-    writer: &mut Writer,
-) -> Vec<RegisteredSample> {
-    let samples = otlp_data_to_samples(data);
-    let registered_samples = register_samples(samples, mach, writer);
-    registered_samples
-}
-
 fn new_writer(mach: &mut Mach, kafka_bootstraps: String) -> Writer {
     let writer_config = WriterConfig {
         active_block_flush_sz: 1_000_000,
     };
 
     mach.add_writer(writer_config.clone()).unwrap()
+}
+
+fn kafka_writer(recv: Receiver<Vec<Sample>>, mut producer: kafka_utils::Producer, topic: String) {
+    while let Ok(sample_batch) = recv.recv() {
+        let serialized_samples = bincode::serialize(&sample_batch).unwrap();
+
+        let mut compressed_samples = Vec::new();
+        lz4::compress_to_vec(
+            serialized_samples.as_slice(),
+            &mut compressed_samples,
+            lz4::ACC_LEVEL_DEFAULT,
+        )
+        .unwrap();
+
+        producer.send(topic.as_str(), 0, compressed_samples.as_slice());
+    }
 }
 
 #[inline(never)]
@@ -151,13 +100,7 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
             let barr = barr.clone();
             let mut producer = kafka_utils::Producer::new(args.kafka_bootstraps.as_str());
             std::thread::spawn(move || {
-                while let Ok(data) = recv.recv() {
-                    let bytes = bincode::serialize(&data).unwrap();
-                    let mut compressed = Vec::new();
-                    lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT)
-                        .unwrap();
-                    producer.send(topic.as_str(), 0, compressed.as_slice());
-                }
+                kafka_writer(recv, producer, topic);
                 barr.wait();
             })
         })
@@ -167,10 +110,12 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
     let mut num_samples = 0;
     let mut data = Vec::new();
     let mut serialized_size = 0;
-    for sample in samples {
+    for mut sample in samples {
+        sample.1 = timestamp_now_micros();
         serialized_size += bincode::serialized_size(&sample).unwrap();
         data.push(sample);
         if serialized_size >= args.kafka_batch_bytes {
+            serialized_size = 0;
             num_samples += data.len();
             flusher_tx.send(data);
             data = Vec::new();
@@ -324,39 +269,31 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    println!("Loading data");
-    let mut data = load_data(args.file_path.as_str(), 8);
+    println!("Loading data...");
+    let id_to_samples = load_samples(args.file_path.as_str());
+    let samples: Vec<Sample> =
+        id_to_samples
+            .into_iter()
+            .fold(Vec::new(), |mut samples, (id, mut new_samples)| {
+                for (ts, sample_data) in new_samples.drain(..) {
+                    samples.push((id, ts, sample_data));
+                }
+                samples
+            });
+    println!("{} samples ready", samples.len());
 
     match args.tsdb {
         BenchTarget::Mach => {
             let mut mach = Mach::new();
             let mut writer = new_writer(&mut mach, args.kafka_bootstraps.clone());
 
-            println!("Extracting samples");
-            let samples = prepare_mach_samples(data, &mut mach, &mut writer);
-            println!("{} samples ready", samples.len());
+            let samples = register_samples(samples, &mut mach, &mut writer);
             std::thread::sleep(std::time::Duration::from_secs(10));
             println!("starting push");
             mach_ingest(samples, writer);
         }
         BenchTarget::Kafka => {
-            println!("Extracting samples");
-            let samples = prepare_kafka_samples(data);
-            println!("{} samples ready", samples.len());
-
-            let batch_size_bytes = vec![8096];
-            let flushers = vec![4];
-
-            for batch_sz in &batch_size_bytes {
-                for num_flushers in &flushers {
-                    let mut kafka_args = args.clone();
-                    kafka_args.kafka_batch_bytes = *batch_sz;
-                    kafka_args.kafka_flushers = *num_flushers;
-                    println!("Args: {:#?}", kafka_args);
-                    let kafka_samples = samples.clone();
-                    kafka_ingest_parallel(kafka_samples, kafka_args);
-                }
-            }
+            kafka_ingest_parallel(samples, args);
         }
     }
 }
