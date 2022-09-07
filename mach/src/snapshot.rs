@@ -1,6 +1,6 @@
 use crate::{
     id::SeriesId,
-    mem_list::{ReadOnlyBlockBytes, ReadOnlyBlock, ReadOnlyBlock2, SourceBlocks2},
+    mem_list::{ReadOnlyBlock, ReadOnlyBlock2, ReadOnlyBlockBytes, SourceBlocks2},
     sample::SampleType,
     series::FieldType,
     utils::{kafka, timer::*, counter::*},
@@ -437,7 +437,7 @@ impl SnapshotIterator {
                         } else {
                             Some(())
                         }
-                    },
+                    }
                 }
             }
             State::Blocks => {
@@ -458,10 +458,10 @@ impl SnapshotIterator {
                                         let id = self.block_reader.id;
                                         let block_reader = ReadOnlyBlockReader::new(bytes, id);
                                         self.block_reader = block_reader;
-                                        return self.next_segment_at_timestamp(ts)
+                                        return self.next_segment_at_timestamp(ts);
                                     }
-                                },
-                                None => return None
+                                }
+                                None => return None,
                             }
                         }
                     }
