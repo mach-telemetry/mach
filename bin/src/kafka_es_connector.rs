@@ -12,6 +12,7 @@ use elastic::{
     CreateIndexArgs, ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier,
     IngestResponse, IngestStats,
 };
+use kafka::consumer::MessageSets;
 use kafka::{client::KafkaClient, consumer::Consumer};
 use lazy_static::lazy_static;
 use std::collections::HashMap;
@@ -58,6 +59,8 @@ struct Args {
     #[clap(short, long, default_value_t = 0)]
     es_num_replicas: usize,
 }
+
+type ESIngestorInput = MessageSets;
 
 async fn es_watch_data_age(client: ESIndexQuerier, index_name: &String) {
     let one_sec = std::time::Duration::from_secs(1);
@@ -113,7 +116,7 @@ fn es_docs_count_watcher(es_client_builder: ESClientBuilder, index_name: &String
     });
 }
 
-fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>>) {
+fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<ESIngestorInput>) {
     let mut kafka_client = KafkaClient::new(bootstraps.split(',').map(String::from).collect());
     kafka_client.load_metadata_all().unwrap();
     let mut kafka_consumer = Consumer::from_client(kafka_client)
@@ -127,36 +130,39 @@ fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<Vec<ESSample>
         topic
     );
 
-    let mut buffer = vec![0u8; 500_000_000];
     loop {
-        for ms in kafka_consumer.poll().unwrap().iter() {
-            for msg in ms.messages().iter() {
-                let (start, end, data) = decompress_kafka_msg(msg.value, buffer.as_mut_slice());
-                let es_data: Vec<ESSample> = data.into_iter().map(|s| s.into()).collect();
-                sender.send(es_data).unwrap();
-            }
-        }
+        let message_sets = kafka_consumer
+            .poll()
+            .expect("failed to get the next set of messsages from kafka");
+        sender.send(message_sets).unwrap();
     }
 }
 
 async fn es_ingest(
     mut client: ESBatchedIndexClient<ESSample>,
-    consumer: Receiver<Vec<ESSample>>,
+    consumer: Receiver<ESIngestorInput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    while let Ok(samples) = consumer.recv() {
-        for sample in samples {
-            match client.ingest(sample).await {
-                IngestResponse::Batched => {}
-                IngestResponse::Flushed(r) => match r {
-                    Ok(r) => {
-                        if !r.status_code().is_success() {
-                            println!("error resp: {:?}", r);
-                        }
+    let mut buffer = vec![0u8; 500_000_000];
+    while let Ok(message_sets) = consumer.recv() {
+        for ms in message_sets.iter() {
+            for m in ms.messages().iter() {
+                let (_, _, data) = decompress_kafka_msg(m.value, buffer.as_mut_slice());
+                let samples: Vec<ESSample> = data.into_iter().map(|s| s.into()).collect();
+                for sample in samples {
+                    match client.ingest(sample).await {
+                        IngestResponse::Batched => {}
+                        IngestResponse::Flushed(r) => match r {
+                            Ok(r) => {
+                                if !r.status_code().is_success() {
+                                    println!("error resp: {:?}", r);
+                                }
+                            }
+                            Err(e) => {
+                                println!("error: {:?}", e);
+                            }
+                        },
                     }
-                    Err(e) => {
-                        println!("error: {:?}", e);
-                    }
-                },
+                }
             }
         }
     }
@@ -172,7 +178,7 @@ fn es_ingestor(
     index_name: &String,
     ingest_batch_size: usize,
     num_ingestors: usize,
-    consumer: Receiver<Vec<ESSample>>,
+    consumer: Receiver<ESIngestorInput>,
 ) {
     let builder_clone = es_client_builder.clone();
     let client = ESBatchedIndexClient::<ESSample>::new(
