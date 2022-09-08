@@ -109,6 +109,7 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
         .collect();
 
     let mut num_samples = 0;
+    let mut num_batches = 0;
     let mut batch_size_bytes = 0;
     let mut total_size_bytes = 0;
     let mut total_bytes_target = args.kafka_bench_total_gb * GB_IN_BYTES;
@@ -129,6 +130,7 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
             if batch_size_bytes >= args.kafka_batch_bytes {
                 batch_size_bytes = 0;
                 num_samples += data.len();
+                num_batches += 1;
                 flusher_tx.send(data);
                 if total_size_bytes >= total_bytes_target {
                     break 'outer;
@@ -145,9 +147,10 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
     let elapsed_sec = elapsed.as_secs_f64();
     let samples_per_sec = num_samples as f64 / elapsed_sec;
     let bytes_per_sec = total_size_bytes as f64 / elapsed_sec;
+    let avg_batch_size = num_samples as f64 / num_batches as f64;
     println!(
-        "Written Samples {}, Elapsed {:?}, samples/sec {}, bytes/sec {}",
-        num_samples, elapsed, samples_per_sec, bytes_per_sec
+        "Written Samples {}, Elapsed {:?}, samples/sec {}, bytes/sec {}, avg batch size: {}",
+        num_samples, elapsed, samples_per_sec, bytes_per_sec, avg_batch_size
     );
 
     for flusher in flushers {
