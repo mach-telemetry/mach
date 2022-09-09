@@ -92,7 +92,7 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
     kafka_utils::make_topic(&args.kafka_bootstraps, &args.kafka_topic);
     let barr = Arc::new(Barrier::new(args.kafka_flushers + 1));
 
-    let (flusher_tx, flusher_rx) = bounded::<Vec<Sample>>(args.kafka_flush_queue_len);
+    let (flusher_tx, flusher_rx) = bounded::<Vec<Sample>>(50);
     let flushers: Vec<JoinHandle<()>> = (0..args.kafka_flushers)
         .map(|_| {
             let recv = flusher_rx.clone();
@@ -256,14 +256,6 @@ struct Args {
     #[clap(short, long, default_value_t = random_id())]
     kafka_topic: String,
 
-    //#[clap(short, long, default_value_t = 1)]
-    //kafka_partitions: i32,
-
-    //#[clap(short, long, default_value_t = 3)]
-    //kafka_replication: i32,
-
-    //#[clap(short, long, default_value_t = String::from("all"), parse(try_from_str=validate_ack))]
-    //kafka_acks: String,
     #[clap(short, long, default_value_t = 400_000_000)]
     kafka_batch_bytes: u64,
 
@@ -273,13 +265,8 @@ struct Args {
     #[clap(short, long, default_value_t = 4)]
     kafka_flushers: usize,
 
-    #[clap(short, long, default_value_t = 100)]
-    kafka_flush_queue_len: usize,
-
     #[clap(short, long)]
     file_path: String,
-    //#[clap(short, long, default_value_t = 1000000)]
-    //mach_active_block_sz: usize,
 }
 
 fn main() {
