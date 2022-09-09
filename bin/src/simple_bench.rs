@@ -95,7 +95,11 @@ fn get_samples(data: &[mach_otlp::OtlpData]) -> Vec<(SeriesId, u64, Vec<Type>)> 
 
 fn kafka_ingest(args: Args, mut data: Vec<mach_otlp::OtlpData>) {
     let topic = random_id();
-    kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
+    kafka_utils::make_topic(
+        &args.kafka_bootstraps,
+        &topic,
+        kafka_utils::KafkaTopicOptions::default(),
+    );
     let samples = get_samples(data.as_slice());
 
     //let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();

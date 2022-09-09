@@ -22,6 +22,7 @@ use mach::{
     writer::{Writer, WriterConfig},
 };
 
+use crate::kafka_utils::{make_topic, KafkaTopicOptions};
 use crate::prep_data::load_samples;
 use crate::utils::timestamp_now_micros;
 
@@ -143,7 +144,11 @@ impl<'a> BatchedDataProducer<'a> {
 
 #[inline(never)]
 fn kafka_ingest(samples: Vec<Sample>, args: Args) {
-    kafka_utils::make_topic(&args.kafka_bootstraps, &args.kafka_topic);
+    make_topic(
+        &args.kafka_bootstraps,
+        &args.kafka_topic,
+        KafkaTopicOptions::default(),
+    );
     let barr = Arc::new(Barrier::new(args.kafka_flushers + 1));
 
     let (flusher_tx, flusher_rx) = bounded::<Vec<Sample>>(50);

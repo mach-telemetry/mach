@@ -1,5 +1,5 @@
 use crate::completeness::{kafka::kafka_writer, WriterGroup};
-use crate::kafka_utils::make_topic;
+use crate::kafka_utils::{make_topic, KafkaTopicOptions};
 use crossbeam_channel::bounded;
 use mach::id::SeriesId;
 use std::sync::{Arc, Barrier};
@@ -10,7 +10,11 @@ pub fn init_kafka_es(
     kafka_topic: &'static str,
     num_writers: usize,
 ) -> WriterGroup<SeriesId> {
-    make_topic(&kafka_bootstraps, &kafka_topic);
+    make_topic(
+        &kafka_bootstraps,
+        &kafka_topic,
+        KafkaTopicOptions::default(),
+    );
     let barrier = Arc::new(Barrier::new(num_writers + 1));
     let mut senders = Vec::with_capacity(num_writers);
 

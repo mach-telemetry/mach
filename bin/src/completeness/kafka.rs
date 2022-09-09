@@ -97,7 +97,11 @@ pub fn init_kafka(
     kafka_topic: &'static str,
     num_writers: usize,
 ) -> WriterGroup<SeriesId> {
-    kafka_utils::make_topic(&kafka_bootstraps, &kafka_topic);
+    kafka_utils::make_topic(
+        &kafka_bootstraps,
+        &kafka_topic,
+        kafka_utils::KafkaTopicOptions::default(),
+    );
     let barrier = Arc::new(Barrier::new(num_writers + 1));
     let mut senders = Vec::with_capacity(num_writers);
 
