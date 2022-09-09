@@ -10,9 +10,7 @@ mod prep_data;
 mod snapshotter;
 mod utils;
 
-use crate::completeness::{
-    kafka::init_kafka, kafka_es::init_kafka_es, mach::init_mach, Workload, COUNTERS,
-};
+use crate::completeness::{kafka::init_kafka, mach::init_mach, Workload, COUNTERS};
 
 use crate::completeness::mach::{MACH, MACH_WRITER};
 use clap::*;
@@ -120,9 +118,12 @@ fn main() {
         //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
     ];
     match ARGS.tsdb.as_str() {
-        "es" => {
+        "kafka_es" => {
             let samples = SAMPLES.as_slice();
-            let kafka_es = init_kafka_es(
+            // Note: this is the producer part of the ES completeness workload.
+            // The subsequent part of this pipeline consumes data from Kafka and
+            // writes to ES (see kafka-es-connector).
+            let kafka_es = init_kafka(
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
