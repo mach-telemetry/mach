@@ -4,23 +4,17 @@ mod utils;
 
 use clap::Parser;
 use crossbeam_channel::bounded;
-use crossbeam_channel::unbounded;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
-use lzzzz::{lz4, lz4_hc};
-use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
-use std::fs::File;
-use std::io::prelude::*;
-use std::sync::atomic::Ordering::SeqCst;
+use lzzzz::lz4;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Barrier;
 use std::thread::JoinHandle;
-use std::time::Duration;
-use zstd::zstd_safe::WriteBuf;
 
 use mach::{
     compression::{CompressFn, Compression},
-    id::{SeriesId, SeriesRef, WriterId},
+    id::{SeriesId, SeriesRef},
     sample::SampleType,
     series::{FieldType, SeriesConfig},
     tsdb::Mach,
@@ -45,9 +39,9 @@ fn register_samples(
     let mut refmap: HashMap<SeriesId, SeriesRef> = HashMap::new();
 
     for (id, _, values) in samples.iter() {
-        let id_ref = *refmap.entry(*id).or_insert_with(|| {
+        refmap.entry(*id).or_insert_with(|| {
             let conf = get_series_config(*id, values.as_slice());
-            let (wid, _) = mach.add_series(conf).unwrap();
+            mach.add_series(conf).unwrap();
             let id_ref = writer.get_reference(*id);
             id_ref
         });
@@ -158,7 +152,7 @@ fn kafka_ingest(samples: Vec<Sample>, args: Args) {
             let recv = flusher_rx.clone();
             let topic = args.kafka_topic.clone();
             let barr = barr.clone();
-            let mut producer = kafka_utils::Producer::new(args.kafka_bootstraps.as_str());
+            let producer = kafka_utils::Producer::new(args.kafka_bootstraps.as_str());
             std::thread::spawn(move || {
                 kafka_writer(recv, producer, topic);
                 barr.wait();
