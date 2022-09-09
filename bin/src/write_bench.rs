@@ -22,7 +22,6 @@ use zstd::zstd_safe::WriteBuf;
 use mach::{
     compression::{CompressFn, Compression},
     id::{SeriesId, SeriesRef, WriterId},
-    // kafka_utils::TOTAL_MB_WRITTEN,
     sample::SampleType,
     series::{FieldType, SeriesConfig},
     tsdb::Mach,
@@ -90,15 +89,14 @@ fn kafka_writer(recv: Receiver<Vec<Sample>>, mut producer: kafka_utils::Producer
 
 #[inline(never)]
 fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
-    let topic = random_id();
-    kafka_utils::make_topic(&args.kafka_bootstraps, &topic);
+    kafka_utils::make_topic(&args.kafka_bootstraps, &args.kafka_topic);
     let barr = Arc::new(Barrier::new(args.kafka_flushers + 1));
 
     let (flusher_tx, flusher_rx) = bounded::<Vec<Sample>>(args.kafka_flush_queue_len);
     let flushers: Vec<JoinHandle<()>> = (0..args.kafka_flushers)
         .map(|_| {
             let recv = flusher_rx.clone();
-            let topic = topic.clone();
+            let topic = args.kafka_topic.clone();
             let barr = barr.clone();
             let mut producer = kafka_utils::Producer::new(args.kafka_bootstraps.as_str());
             std::thread::spawn(move || {
@@ -255,8 +253,8 @@ struct Args {
     #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
     kafka_bootstraps: String,
 
-    //#[clap(short, long, default_value_t = random_id())]
-    //kafka_topic: String,
+    #[clap(short, long, default_value_t = random_id())]
+    kafka_topic: String,
 
     //#[clap(short, long, default_value_t = 1)]
     //kafka_partitions: i32,
