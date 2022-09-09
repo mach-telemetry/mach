@@ -1,4 +1,4 @@
-use crate::completeness::{Sample, SampleOwned, Writer, COUNTERS};
+use crate::completeness::{Sample, SampleOwned, WriterGroup, COUNTERS};
 use crate::kafka_utils;
 use crate::utils::timestamp_now_micros;
 use crossbeam_channel::{bounded, Receiver};
@@ -50,7 +50,7 @@ pub fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> usize {
     for set in consumer.poll().unwrap().iter() {
         let _p = set.partition();
         for msg in set.messages().iter() {
-            let (start, end, data) = decompress_kafka_msg(msg.value, buffer.as_mut_slice());
+            let (_start, end, _data) = decompress_kafka_msg(msg.value, buffer.as_mut_slice());
             max_ts = max_ts.max(end as usize);
         }
     }
@@ -96,21 +96,19 @@ pub fn init_kafka(
     kafka_bootstraps: &'static str,
     kafka_topic: &'static str,
     num_writers: usize,
-) -> Writer<SeriesId> {
+) -> WriterGroup<SeriesId> {
     kafka_utils::make_topic(&kafka_bootstraps, &kafka_topic);
-    let (tx, rx) = bounded(1);
     let barrier = Arc::new(Barrier::new(num_writers + 1));
+    let mut senders = Vec::with_capacity(num_writers);
 
     for _ in 0..num_writers {
         let barrier = barrier.clone();
-        let rx = rx.clone();
+        let (tx, rx) = bounded(1);
+        senders.push(tx);
         thread::spawn(move || {
             kafka_writer(kafka_bootstraps, kafka_topic, barrier, rx);
         });
     }
 
-    Writer {
-        sender: tx,
-        barrier,
-    }
+    WriterGroup { senders, barrier }
 }

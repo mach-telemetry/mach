@@ -112,7 +112,7 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
         last_dropped = dropped;
 
         let bytes_flushed = COUNTERS.bytes_flushed.load(SeqCst);
-        let unflushed_blocklists = COUNTERS.unflushed_blocklists.load(SeqCst);
+        let _unflushed_blocklists = COUNTERS.unflushed_blocklists.load(SeqCst);
         let writer_flush_queue = COUNTERS.writer_flush_queue.load(SeqCst);
         let unflushed_blocks = COUNTERS.unflushed_blocks.load(SeqCst);
 
@@ -122,15 +122,21 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
     }
 }
 
-pub struct Writer<I> {
-    sender: Sender<(u64, u64, Vec<Sample<'static, I>>)>,
+type SampleBatch<I> = (u64, u64, Vec<Sample<'static, I>>);
+
+pub struct WriterGroup<I> {
+    senders: Vec<Sender<SampleBatch<I>>>,
     barrier: Arc<Barrier>,
 }
 
-impl<I> Writer<I> {
+impl<I> WriterGroup<I> {
     pub fn done(self) {
-        drop(self.sender);
+        drop(self.senders);
         self.barrier.wait();
+    }
+
+    pub fn num_writers(&self) -> usize {
+        self.senders.len()
     }
 }
 
@@ -138,7 +144,6 @@ impl<I> Writer<I> {
 pub struct Workload {
     samples_per_second: f64,
     duration: Duration,
-    //sample_interval: Duration,
     batch_interval: Duration,
     batch_size: usize,
 }
@@ -155,20 +160,39 @@ impl Workload {
         }
     }
 
-    pub fn run<I: Copy>(&self, writer: &Writer<I>, samples: &'static [(I, &[SampleType])]) {
+    pub fn run<I: Copy + Into<usize>>(
+        &self,
+        writer: &WriterGroup<I>,
+        samples: &'static [(I, &[SampleType])],
+    ) {
         println!("Running rate: {}", self.samples_per_second);
         let start = Instant::now();
         let mut last_batch = start;
-        let mut batch = Vec::with_capacity(self.batch_size);
+        let mut batches: Vec<Vec<(I, u64, &[SampleType])>> = (0..writer.num_writers())
+            .map(|_| Vec::with_capacity(self.batch_size))
+            .collect();
         let mut produced_samples = 0u32;
+
         'outer: loop {
             for item in samples {
+                let batch_idx: usize = item.0.into() % batches.len();
+                let batch = &mut batches[batch_idx];
+
                 let timestamp: u64 = timestamp_now_micros();
                 batch.push((item.0, timestamp, item.1));
                 if batch.len() == self.batch_size {
                     while last_batch.elapsed() < self.batch_interval {}
-                    let to_send = (batch[0].1, batch.last().unwrap().1, batch); // NOTE: This works for this particular experiment but in reality, need to keep track of the batch
-                    match writer.sender.try_send(to_send) {
+
+                    let batch = std::mem::replace(
+                        &mut batches[batch_idx],
+                        Vec::with_capacity(self.batch_size),
+                    );
+
+                    // NOTE: This works for this particular experiment but
+                    // in reality, need to keep track of the batch
+                    let to_send = (batch[0].1, batch.last().unwrap().1, batch);
+
+                    match writer.senders[batch_idx].try_send(to_send) {
                         Ok(_) => {
                             COUNTERS.samples_enqueued.fetch_add(self.batch_size, SeqCst);
                         }
@@ -176,8 +200,8 @@ impl Workload {
                             COUNTERS.samples_dropped.fetch_add(self.batch_size, SeqCst);
                         }
                     };
+
                     produced_samples += self.batch_size as u32;
-                    batch = Vec::with_capacity(self.batch_size);
                     last_batch = std::time::Instant::now();
                     if start.elapsed() > self.duration {
                         break 'outer;

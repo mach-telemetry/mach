@@ -1,4 +1,4 @@
-use crate::completeness::{Sample, Writer, COUNTERS};
+use crate::completeness::{Sample, WriterGroup, COUNTERS};
 use crossbeam_channel::{bounded, Receiver};
 use lazy_static::lazy_static;
 use mach::{
@@ -11,7 +11,7 @@ use mach::{
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 lazy_static! {
     pub static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -45,7 +45,7 @@ fn mach_query(series: Series) -> Option<usize> {
     Some(now - ts)
 }
 
-pub fn init_mach_querier(series_id: SeriesId) {
+pub fn init_mach_querier(_series_id: SeriesId) {
     //let snapshotter = MACH.lock().unwrap().init_snapshotter();
     //let snapshotter_id = snapshotter.initialize_snapshotter(
     //    series_id,
@@ -70,7 +70,7 @@ fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<(u64, u64, Vec<Sample<S
     let mut writer_guard = MACH_WRITER.lock().unwrap();
     let writer = &mut *writer_guard;
     while let Ok(data) = receiver.recv() {
-        let (start, end, data) = data;
+        let (_start, _end, data) = data;
         let mut raw_sz = 0;
         for item in data.iter() {
             'push_loop: loop {
@@ -88,7 +88,7 @@ fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<(u64, u64, Vec<Sample<S
     barrier.wait();
 }
 
-pub fn init_mach() -> Writer<SeriesRef> {
+pub fn init_mach() -> WriterGroup<SeriesRef> {
     let (tx, rx) = bounded(1);
     let barrier = Arc::new(Barrier::new(2));
 
@@ -100,8 +100,8 @@ pub fn init_mach() -> Writer<SeriesRef> {
         });
     }
 
-    Writer {
-        sender: tx,
+    WriterGroup {
+        senders: vec![tx],
         barrier,
     }
 }
