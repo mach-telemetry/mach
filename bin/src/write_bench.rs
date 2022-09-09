@@ -1,5 +1,3 @@
-#![allow(warnings)]
-
 mod kafka_utils;
 mod prep_data;
 mod utils;
@@ -8,6 +6,7 @@ use clap::Parser;
 use crossbeam_channel::bounded;
 use crossbeam_channel::unbounded;
 use crossbeam_channel::Receiver;
+use crossbeam_channel::Sender;
 use lzzzz::{lz4, lz4_hc};
 use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::fs::File;
@@ -87,8 +86,69 @@ fn kafka_writer(recv: Receiver<Vec<Sample>>, mut producer: kafka_utils::Producer
     }
 }
 
+struct BatchedDataProducer<'a> {
+    num_samples_sent: usize,
+    num_batches_sent: usize,
+    bytes_sent: u64,
+    data: &'a Vec<Sample>,
+}
+
+impl<'a> BatchedDataProducer<'a> {
+    pub fn new(data: &'a Vec<Sample>) -> Self {
+        Self {
+            num_samples_sent: 0,
+            num_batches_sent: 0,
+            bytes_sent: 0,
+            data,
+        }
+    }
+
+    pub fn run(
+        &mut self,
+        total_bytes_target: u64,
+        batch_size_target: u64,
+        sender: Sender<Vec<Sample>>,
+    ) {
+        self.reset_metrics();
+
+        let mut batch_size_bytes = 0;
+        let mut batch = Vec::new();
+        'outer: loop {
+            for s in self.data {
+                let mut sample = s.clone();
+                sample.1 = timestamp_now_micros();
+
+                let sample_size = bincode::serialized_size(&sample).unwrap();
+                batch_size_bytes += sample_size;
+                self.bytes_sent += sample_size;
+
+                batch.push(sample);
+
+                if batch_size_bytes >= batch_size_target {
+                    batch_size_bytes = 0;
+                    self.num_samples_sent += batch.len();
+                    self.num_batches_sent += 1;
+                    sender.send(batch).unwrap();
+                    if self.bytes_sent >= total_bytes_target {
+                        break 'outer;
+                    }
+                    batch = Vec::new();
+                }
+            }
+        }
+
+        drop(sender);
+    }
+
+    fn reset_metrics(&mut self) {
+        self.num_samples_sent = 0;
+        self.num_batches_sent = 0;
+        self.bytes_sent = 0;
+    }
+}
+
 #[inline(never)]
-fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
+fn kafka_ingest(samples: Vec<Sample>, args: Args) {
     kafka_utils::make_topic(&args.kafka_bootstraps, &args.kafka_topic);
     let barr = Arc::new(Barrier::new(args.kafka_flushers + 1));
 
@@ -106,54 +166,26 @@ fn kafka_ingest_parallel(samples: Vec<Sample>, args: Args) {
         })
         .collect();
 
-    let mut num_samples = 0;
-    let mut num_batches = 0;
-    let mut batch_size_bytes = 0;
-    let mut total_size_bytes = 0;
-    let mut total_bytes_target = args.kafka_bench_total_gb * GB_IN_BYTES;
+    let mut data_producer = BatchedDataProducer::new(&samples);
+    let total_bytes_target = args.kafka_bench_total_gb * GB_IN_BYTES;
 
     let now = std::time::Instant::now();
-
-    let mut data = Vec::new();
-    'outer: loop {
-        for s in &samples {
-            let mut sample = s.clone();
-            sample.1 = timestamp_now_micros();
-
-            let sample_size = bincode::serialized_size(&sample).unwrap();
-            batch_size_bytes += sample_size;
-            total_size_bytes += sample_size;
-
-            data.push(sample);
-            if batch_size_bytes >= args.kafka_batch_bytes {
-                batch_size_bytes = 0;
-                num_samples += data.len();
-                num_batches += 1;
-                flusher_tx.send(data);
-                if total_size_bytes >= total_bytes_target {
-                    break 'outer;
-                }
-                data = Vec::new();
-            }
-        }
-    }
-    drop(flusher_tx);
+    data_producer.run(total_bytes_target, args.kafka_batch_bytes, flusher_tx);
     barr.wait();
-
-    let push_time = now.elapsed();
-    let elapsed = push_time;
-    let elapsed_sec = elapsed.as_secs_f64();
-    let samples_per_sec = num_samples as f64 / elapsed_sec;
-    let bytes_per_sec = total_size_bytes as f64 / elapsed_sec;
-    let avg_batch_size = num_samples as f64 / num_batches as f64;
-    println!(
-        "Written Samples {}, Elapsed {:?}, samples/sec {}, bytes/sec {}, avg batch size: {}",
-        num_samples, elapsed, samples_per_sec, bytes_per_sec, avg_batch_size
-    );
 
     for flusher in flushers {
         flusher.join().unwrap();
     }
+
+    let elapsed_sec = now.elapsed().as_secs_f64();
+    let samples_per_sec = data_producer.num_samples_sent as f64 / elapsed_sec;
+    let bytes_per_sec = data_producer.bytes_sent as f64 / elapsed_sec;
+    let avg_batch_size =
+        data_producer.num_samples_sent as f64 / data_producer.num_batches_sent as f64;
+    println!(
+        "Written Samples {}, Elapsed secs {:?}, samples/sec {}, bytes/sec {}, avg batch size: {}",
+        data_producer.num_samples_sent, elapsed_sec, samples_per_sec, bytes_per_sec, avg_batch_size
+    );
 }
 
 fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
@@ -296,7 +328,7 @@ fn main() {
             mach_ingest(samples, writer);
         }
         BenchTarget::Kafka => {
-            kafka_ingest_parallel(samples, args);
+            kafka_ingest(samples, args);
         }
     }
 }
