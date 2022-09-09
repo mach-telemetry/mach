@@ -72,13 +72,28 @@ pub fn init_kafka_consumer(kafka_bootstraps: &'static str, kafka_topic: &'static
     }
 }
 
+pub struct KafkaTopicPartition<'a> {
+    bootstraps: &'a str,
+    topic: &'a str,
+    partition: i32,
+}
+
+impl<'a> KafkaTopicPartition<'a> {
+    fn new(bootstraps: &'a str, topic: &'a str, partition: i32) -> Self {
+        Self {
+            bootstraps,
+            topic,
+            partition,
+        }
+    }
+}
+
 pub fn kafka_writer(
-    kafka_bootstraps: &'static str,
-    kafka_topic: &'static str,
+    kafka_dest: KafkaTopicPartition,
     barrier: Arc<Barrier>,
     receiver: Receiver<(u64, u64, Vec<Sample<SeriesId>>)>,
 ) {
-    let mut producer = kafka_utils::Producer::new(kafka_bootstraps);
+    let mut producer = kafka_utils::Producer::new(kafka_dest.bootstraps);
     while let Ok(data) = receiver.recv() {
         let (start, end, data) = data;
         let bytes = bincode::serialize(&data).unwrap();
@@ -87,7 +102,11 @@ pub fn kafka_writer(
         compressed.extend_from_slice(&end.to_be_bytes()[..]);
         lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
         compressed.extend_from_slice(&bytes.len().to_be_bytes()[..]); // Size of uncompressed bytes
-        producer.send(kafka_topic, 0, compressed.as_slice());
+        producer.send(
+            kafka_dest.topic,
+            kafka_dest.partition,
+            compressed.as_slice(),
+        );
         COUNTERS.samples_written.fetch_add(data.len(), SeqCst);
     }
     barrier.wait();
@@ -103,12 +122,14 @@ pub fn init_kafka(
     let barrier = Arc::new(Barrier::new(num_writers + 1));
     let mut senders = Vec::with_capacity(num_writers);
 
-    for _ in 0..num_writers {
+    for wid in 0..num_writers {
         let barrier = barrier.clone();
         let (tx, rx) = bounded(1);
         senders.push(tx);
+        let writer_partition = wid as i32 % kafka_topic_opts.num_partitions;
+        let kafka_dest = KafkaTopicPartition::new(kafka_bootstraps, kafka_topic, writer_partition);
         thread::spawn(move || {
-            kafka_writer(kafka_bootstraps, kafka_topic, barrier, rx);
+            kafka_writer(kafka_dest, barrier, rx);
         });
     }
 

@@ -9,6 +9,7 @@ use rdkafka::{
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
+#[derive(Copy, Clone)]
 pub struct KafkaTopicOptions {
     pub num_partitions: i32,
     pub num_replications: i32,
