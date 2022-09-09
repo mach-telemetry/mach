@@ -26,6 +26,8 @@ use std::{
     time::Duration,
 };
 
+use kafka_utils::KafkaTopicOptions;
+
 lazy_static! {
     static ref ARGS: Args = Args::parse();
     static ref BASE_DATA: HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> = {
@@ -87,10 +89,10 @@ struct Args {
     kafka_bootstraps: String,
 
     #[clap(short, long, default_value_t = 3)]
-    kafka_partitions: usize,
+    kafka_partitions: i32,
 
     #[clap(short, long, default_value_t = 3)]
-    kafka_replicas: usize,
+    kafka_replicas: i32,
 
     #[clap(short, long, default_value_t = String::from("kafka-completeness-bench"))]
     kafka_topic: String,
@@ -124,6 +126,10 @@ fn main() {
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
+                KafkaTopicOptions {
+                    num_replications: ARGS.kafka_replicas,
+                    num_partitions: ARGS.kafka_partitions,
+                },
             );
             for workload in workloads {
                 workload.run(&kafka_es, samples);
@@ -137,6 +143,10 @@ fn main() {
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
+                KafkaTopicOptions {
+                    num_replications: ARGS.kafka_replicas,
+                    num_partitions: ARGS.kafka_partitions,
+                },
             );
             COUNTERS.init_kafka_consumer(ARGS.kafka_bootstraps.as_str(), ARGS.kafka_topic.as_str());
             COUNTERS.start_watcher();

@@ -6,6 +6,7 @@ use kafka::{
     client::{FetchOffset, KafkaClient},
     consumer::Consumer,
 };
+use kafka_utils::{make_topic, KafkaTopicOptions};
 use lzzzz::lz4;
 use mach::id::SeriesId;
 use std::sync::atomic::Ordering::SeqCst;
@@ -96,12 +97,9 @@ pub fn init_kafka(
     kafka_bootstraps: &'static str,
     kafka_topic: &'static str,
     num_writers: usize,
+    kafka_topic_opts: KafkaTopicOptions,
 ) -> WriterGroup<SeriesId> {
-    kafka_utils::make_topic(
-        &kafka_bootstraps,
-        &kafka_topic,
-        kafka_utils::KafkaTopicOptions::default(),
-    );
+    make_topic(&kafka_bootstraps, &kafka_topic, kafka_topic_opts);
     let barrier = Arc::new(Barrier::new(num_writers + 1));
     let mut senders = Vec::with_capacity(num_writers);
 

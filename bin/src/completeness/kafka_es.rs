@@ -9,12 +9,9 @@ pub fn init_kafka_es(
     kafka_bootstraps: &'static str,
     kafka_topic: &'static str,
     num_writers: usize,
+    kafka_topic_opts: KafkaTopicOptions,
 ) -> WriterGroup<SeriesId> {
-    make_topic(
-        &kafka_bootstraps,
-        &kafka_topic,
-        KafkaTopicOptions::default(),
-    );
+    make_topic(&kafka_bootstraps, &kafka_topic, kafka_topic_opts);
     let barrier = Arc::new(Barrier::new(num_writers + 1));
     let mut senders = Vec::with_capacity(num_writers);
 

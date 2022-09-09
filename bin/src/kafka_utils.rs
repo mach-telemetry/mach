@@ -10,8 +10,8 @@ use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
 pub struct KafkaTopicOptions {
-    num_partitions: i32,
-    num_replications: i32,
+    pub num_partitions: i32,
+    pub num_replications: i32,
 }
 
 impl Default for KafkaTopicOptions {
