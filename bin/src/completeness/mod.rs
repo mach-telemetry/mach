@@ -1,5 +1,4 @@
 pub mod kafka;
-pub mod kafka_es;
 pub mod mach;
 
 mod mach_extern {
