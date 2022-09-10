@@ -139,6 +139,22 @@ impl<I> WriterGroup<I> {
     }
 }
 
+pub enum BatchStrategy {
+    BatchByWriter,
+    BatchBySourceId(u64),
+}
+
+struct RunWorkloadResult {
+    duration: Duration,
+    num_samples_produced: u32,
+}
+
+impl RunWorkloadResult {
+    fn to_samples_per_sec(&self) -> f64 {
+        f64::from(self.num_samples_produced) / self.duration.as_secs_f64()
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Workload {
     samples_per_second: f64,
@@ -163,14 +179,38 @@ impl Workload {
         &self,
         writer: &WriterGroup<I>,
         samples: &'static [(I, &[SampleType])],
+        batch_strategy: BatchStrategy,
     ) {
         println!("Running rate: {}", self.samples_per_second);
-        let start = Instant::now();
-        let mut last_batch = start;
-        let mut batches: Vec<Vec<(I, u64, &[SampleType])>> = (0..writer.num_writers())
+
+        let result = self._run(writer, samples, batch_strategy);
+
+        println!(
+            "Expected rate: {}, measured rate: {}",
+            self.samples_per_second,
+            result.to_samples_per_sec()
+        );
+    }
+
+    fn _run<I: Copy + Into<usize>>(
+        &self,
+        writer: &WriterGroup<I>,
+        samples: &'static [(I, &[SampleType])],
+        batch_strategy: BatchStrategy,
+    ) -> RunWorkloadResult {
+        let num_batches = match batch_strategy {
+            BatchStrategy::BatchByWriter => writer.num_writers(),
+            BatchStrategy::BatchBySourceId(num_sources) => num_sources as usize,
+        };
+
+        let mut batches: Vec<Vec<(I, u64, &[SampleType])>> = (0..num_batches)
             .map(|_| Vec::with_capacity(self.batch_size))
             .collect();
+
         let mut produced_samples = 0u32;
+
+        let start = Instant::now();
+        let mut last_batch = start;
 
         'outer: loop {
             for item in samples {
@@ -187,11 +227,10 @@ impl Workload {
                         Vec::with_capacity(self.batch_size),
                     );
 
-                    // NOTE: This works for this particular experiment but
-                    // in reality, need to keep track of the batch
                     let to_send = (batch[0].1, batch.last().unwrap().1, batch);
 
-                    match writer.senders[batch_idx].try_send(to_send) {
+                    let selected_writer = &writer.senders[item.0.into() % writer.num_writers()];
+                    match selected_writer.try_send(to_send) {
                         Ok(_) => {
                             COUNTERS.samples_enqueued.fetch_add(self.batch_size, SeqCst);
                         }
@@ -208,12 +247,10 @@ impl Workload {
                 }
             }
         }
-        let produce_duration = start.elapsed().as_secs_f64();
-        let produced_samples: f64 = produced_samples.try_into().unwrap();
-        println!(
-            "Expected rate: {}, measured rate: {}",
-            self.samples_per_second,
-            produced_samples / produce_duration
-        );
+
+        RunWorkloadResult {
+            duration: start.elapsed(),
+            num_samples_produced: produced_samples,
+        }
     }
 }
