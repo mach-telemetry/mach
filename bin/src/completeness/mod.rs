@@ -236,7 +236,8 @@ impl Workload {
                         Vec::with_capacity(self.batch_size),
                     );
 
-                    let to_send = (batch[0].1, batch.last().unwrap().1, batch);
+                    let (start_ts, end_ts) = (batch[0].1, batch.last().unwrap().1);
+                    let to_send = (start_ts, end_ts, batch);
 
                     let selected_writer = &writer.senders[item.0.into() % writer.num_writers()];
                     match selected_writer.try_send(to_send) {
