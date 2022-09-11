@@ -160,6 +160,7 @@ pub struct Workload {
     samples_per_second: f64,
     duration: Duration,
     batch_interval: Duration,
+    sample_interval: Duration,
     batch_size: usize,
 }
 
@@ -171,6 +172,7 @@ impl Workload {
             samples_per_second,
             duration,
             batch_interval,
+            sample_interval,
             batch_size: batch_size as usize,
         }
     }
@@ -208,20 +210,27 @@ impl Workload {
             .collect();
 
         let mut produced_samples = 0u32;
+        let mut batched_samples = 0;
 
         let start = Instant::now();
-        let mut last_batch = start;
+        let mut batch_start = start;
 
         'outer: loop {
             for item in samples {
                 let batch_idx: usize = item.0.into() % batches.len();
                 let batch = &mut batches[batch_idx];
-
                 let timestamp: u64 = timestamp_now_micros();
-                batch.push((item.0, timestamp, item.1));
-                if batch.len() == self.batch_size {
-                    while last_batch.elapsed() < self.batch_interval {}
 
+                batch.push((item.0, timestamp, item.1));
+                batched_samples += 1;
+
+                if batched_samples == self.batch_size {
+                    while batch_start.elapsed() < self.batch_interval {}
+                    batch_start = std::time::Instant::now();
+                    batched_samples = 0;
+                }
+
+                if batch.len() == self.batch_size {
                     let batch = std::mem::replace(
                         &mut batches[batch_idx],
                         Vec::with_capacity(self.batch_size),
@@ -240,7 +249,6 @@ impl Workload {
                     };
 
                     produced_samples += self.batch_size as u32;
-                    last_batch = std::time::Instant::now();
                     if start.elapsed() > self.duration {
                         break 'outer;
                     }
