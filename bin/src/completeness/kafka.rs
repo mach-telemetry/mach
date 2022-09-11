@@ -14,6 +14,16 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
+fn compress_kafka_msg(start: u64, end: u64, data: Vec<Sample<SeriesId>>) -> Vec<u8> {
+    let bytes = bincode::serialize(&data).unwrap();
+    let mut compressed: Vec<u8> = Vec::new();
+    compressed.extend_from_slice(&start.to_be_bytes()[..]);
+    compressed.extend_from_slice(&end.to_be_bytes()[..]);
+    lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
+    compressed.extend_from_slice(&bytes.len().to_be_bytes()[..]); // Size of uncompressed bytes
+    compressed
+}
+
 pub fn decompress_kafka_msg(
     msg: &[u8],
     buffer: &mut [u8],
@@ -94,20 +104,15 @@ pub fn kafka_writer(
     receiver: Receiver<(u64, u64, Vec<Sample<SeriesId>>)>,
 ) {
     let mut producer = kafka_utils::Producer::new(kafka_dest.bootstraps);
-    while let Ok(data) = receiver.recv() {
-        let (start, end, data) = data;
-        let bytes = bincode::serialize(&data).unwrap();
-        let mut compressed: Vec<u8> = Vec::new();
-        compressed.extend_from_slice(&start.to_be_bytes()[..]);
-        compressed.extend_from_slice(&end.to_be_bytes()[..]);
-        lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
-        compressed.extend_from_slice(&bytes.len().to_be_bytes()[..]); // Size of uncompressed bytes
+    while let Ok((start_ts, end_ts, data)) = receiver.recv() {
+        let num_samples = data.len();
+        let compressed = compress_kafka_msg(start_ts, end_ts, data);
         producer.send(
             kafka_dest.topic,
             kafka_dest.partition,
             compressed.as_slice(),
         );
-        COUNTERS.samples_written.fetch_add(data.len(), SeqCst);
+        COUNTERS.samples_written.fetch_add(num_samples, SeqCst);
     }
     barrier.wait();
 }
