@@ -1,4 +1,4 @@
-use crate::completeness::{Sample, SampleOwned, WriterGroup, COUNTERS};
+use crate::completeness::{SampleOwned, WriterGroup, COUNTERS};
 use crate::kafka_utils;
 use crate::utils::timestamp_now_micros;
 use crossbeam_channel::{bounded, Receiver};
@@ -14,17 +14,7 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
-use super::{Batch, Compress, MultiSourceBatch};
-
-fn compress_kafka_msg(start: u64, end: u64, data: Vec<Sample<SeriesId>>) -> Vec<u8> {
-    let bytes = bincode::serialize(&data).unwrap();
-    let mut compressed: Vec<u8> = Vec::new();
-    compressed.extend_from_slice(&start.to_be_bytes()[..]);
-    compressed.extend_from_slice(&end.to_be_bytes()[..]);
-    lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
-    compressed.extend_from_slice(&bytes.len().to_be_bytes()[..]); // Size of uncompressed bytes
-    compressed
-}
+use super::Batch;
 
 pub fn decompress_kafka_msg(
     msg: &[u8],

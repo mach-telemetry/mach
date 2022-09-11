@@ -26,7 +26,6 @@ lazy_static! {
     pub static ref COUNTERS: Counters = Counters::new();
 }
 
-pub type Sample<'s, I> = (I, u64, &'s [SampleType]);
 pub type SampleOwned<I> = (I, u64, Vec<SampleType>);
 
 pub struct Counters {
