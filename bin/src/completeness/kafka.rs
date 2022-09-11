@@ -14,6 +14,8 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
+use super::{Batch, BatchKind, Compress, MultiSourceBatch};
+
 fn compress_kafka_msg(start: u64, end: u64, data: Vec<Sample<SeriesId>>) -> Vec<u8> {
     let bytes = bincode::serialize(&data).unwrap();
     let mut compressed: Vec<u8> = Vec::new();
@@ -98,15 +100,15 @@ impl<'a> KafkaTopicPartition<'a> {
     }
 }
 
-pub fn kafka_writer(
+pub fn kafka_writer<B: Batch>(
     kafka_dest: KafkaTopicPartition,
     barrier: Arc<Barrier>,
-    receiver: Receiver<(u64, u64, Vec<Sample<SeriesId>>)>,
+    receiver: Receiver<B>,
 ) {
     let mut producer = kafka_utils::Producer::new(kafka_dest.bootstraps);
-    while let Ok((start_ts, end_ts, data)) = receiver.recv() {
-        let num_samples = data.len();
-        let compressed = compress_kafka_msg(start_ts, end_ts, data);
+    while let Ok(batch) = receiver.recv() {
+        let num_samples = batch.len();
+        let compressed = batch.compress();
         producer.send(
             kafka_dest.topic,
             kafka_dest.partition,
@@ -117,12 +119,12 @@ pub fn kafka_writer(
     barrier.wait();
 }
 
-pub fn init_kafka(
+pub fn init_kafka<B: 'static + Batch + Send>(
     kafka_bootstraps: &'static str,
     kafka_topic: &'static str,
     num_writers: usize,
     kafka_topic_opts: KafkaTopicOptions,
-) -> WriterGroup<SeriesId> {
+) -> WriterGroup<B> {
     make_topic(&kafka_bootstraps, &kafka_topic, kafka_topic_opts);
     let barrier = Arc::new(Barrier::new(num_writers + 1));
     let mut senders = Vec::with_capacity(num_writers);

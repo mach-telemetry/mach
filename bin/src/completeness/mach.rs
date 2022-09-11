@@ -1,4 +1,4 @@
-use crate::completeness::{Sample, WriterGroup, COUNTERS};
+use crate::completeness::{WriterGroup, COUNTERS};
 use crossbeam_channel::{bounded, Receiver};
 use lazy_static::lazy_static;
 use mach::{
@@ -12,6 +12,8 @@ use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use super::{BatchKind, MultiSourceBatch};
 
 lazy_static! {
     pub static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -66,29 +68,27 @@ pub fn init_mach_querier(_series_id: SeriesId) {
     //}
 }
 
-fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<(u64, u64, Vec<Sample<SeriesRef>>)>) {
+fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<MultiSourceBatch<SeriesRef>>) {
     let mut writer_guard = MACH_WRITER.lock().unwrap();
     let writer = &mut *writer_guard;
-    while let Ok(data) = receiver.recv() {
-        let (_start, _end, data) = data;
+    while let Ok(batch) = receiver.recv() {
         let mut raw_sz = 0;
-        for item in data.iter() {
+        for item in batch.data.iter() {
             'push_loop: loop {
                 if writer.push(item.0, item.1, item.2).is_ok() {
-                    //println!("Data size: {}", item.2[0].as_bytes().len());
                     raw_sz += item.2[0].as_bytes().len();
                     break 'push_loop;
                 }
             }
         }
         COUNTERS.raw_data_size.fetch_add(raw_sz, SeqCst);
-        COUNTERS.samples_written.fetch_add(data.len(), SeqCst);
+        COUNTERS.samples_written.fetch_add(batch.data.len(), SeqCst);
         COUNTERS.samples_dropped.fetch_add(0, SeqCst);
     }
     barrier.wait();
 }
 
-pub fn init_mach() -> WriterGroup<SeriesRef> {
+pub fn init_mach() -> WriterGroup<MultiSourceBatch<SeriesRef>> {
     let (tx, rx) = bounded(1);
     let barrier = Arc::new(Barrier::new(2));
 

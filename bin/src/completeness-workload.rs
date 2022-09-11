@@ -110,7 +110,7 @@ struct Args {
 fn main() {
     COUNTERS.init_watcher(Duration::from_secs_f64(ARGS.counter_interval_seconds));
     let workloads = &[
-        Workload::new(500_000., Duration::from_secs(5 * 60), ARGS.batch_size),
+        Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
         Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_size),
@@ -132,11 +132,7 @@ fn main() {
                 },
             );
             for workload in workloads {
-                workload.run(
-                    &kafka_es,
-                    samples,
-                    BatchStrategy::BatchBySourceId(ARGS.source_count),
-                );
+                workload.run_with_source_batching(&kafka_es, samples, ARGS.source_count);
             }
             kafka_es.done();
         }
@@ -155,7 +151,7 @@ fn main() {
             COUNTERS.init_kafka_consumer(ARGS.kafka_bootstraps.as_str(), ARGS.kafka_topic.as_str());
             COUNTERS.start_watcher();
             for workload in workloads {
-                workload.run(&kafka, samples, BatchStrategy::BatchByWriter);
+                workload.run_with_writer_batching(&kafka, samples);
             }
             kafka.done();
         }
@@ -167,7 +163,7 @@ fn main() {
             COUNTERS.start_watcher();
             snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap());
             for workload in workloads {
-                workload.run(&mach, samples, BatchStrategy::BatchByWriter);
+                workload.run_with_writer_batching(&mach, samples);
             }
             mach.done();
         }
