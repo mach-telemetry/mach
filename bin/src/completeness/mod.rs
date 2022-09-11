@@ -118,7 +118,6 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
         let writer_flush_queue = COUNTERS.writer_flush_queue.load(SeqCst);
         let unflushed_blocks = COUNTERS.unflushed_blocks.load(SeqCst);
 
-        //println!("Completeness: {}, Buffer Queue: {}, Unflushed: {}, Throughput: {}, Data age (seconds): {:?}, Raw data size: {} bytes, Data flushed: {} bytes", completeness, buffer_queue, unflushed_count, rate, delay.as_secs_f64(), raw_data_size, bytes_flushed);
         println!("Completeness: {}, Writer Flush Queue: {}, Unflushed Blocks: {}, Throughput: {}, Raw data size: {}, Data flushed: {}, Data age: {:?}", completeness, writer_flush_queue, unflushed_blocks, rate, raw_data_size, bytes_flushed, delay);
         thread::sleep(interval);
     }
@@ -177,6 +176,11 @@ impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> SingleSourceBatch<I> 
             data,
         }
     }
+
+    fn peek_source_id(msg: &[u8]) -> usize {
+        let source_id = usize::from_be_bytes(msg[16..24].try_into().unwrap());
+        source_id
+    }
 }
 
 impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> Batch for SingleSourceBatch<I> {
@@ -208,7 +212,7 @@ impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> Decompress for Single
     fn decompress(msg: &[u8], buffer: &mut [u8]) -> Self::DecompressedType {
         let start = u64::from_be_bytes(msg[0..8].try_into().unwrap());
         let end = u64::from_be_bytes(msg[8..16].try_into().unwrap());
-        let source_id = usize::from_be_bytes(msg[16..24].try_into().unwrap());
+        let source_id = Self::peek_source_id(msg);
 
         let original_sz = usize::from_be_bytes(msg[msg.len() - 8..msg.len()].try_into().unwrap());
         let sz = lz4::decompress(&msg[24..msg.len() - 8], &mut buffer[..original_sz]).unwrap();
