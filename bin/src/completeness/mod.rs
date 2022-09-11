@@ -16,6 +16,7 @@ use mach_extern::{
     sample::SampleType,
     writer::WRITER_FLUSH_QUEUE,
 };
+use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::sync::{atomic::AtomicUsize, atomic::Ordering::SeqCst, Arc, Barrier};
 use std::thread;
@@ -139,27 +140,35 @@ impl<B: Batch> WriterGroup<B> {
     }
 }
 
-pub enum BatchStrategy {
-    BatchByWriter,
-    BatchBySourceId(u64),
-}
-
 pub trait Compress {
     fn compress(&self) -> Vec<u8>;
+}
+
+pub trait Decompress {
+    type DecompressedType;
+
+    fn decompress(compressed: &[u8], decompression_buffer: &mut [u8]) -> Self::DecompressedType;
 }
 
 pub trait Batch: Compress {
     fn len(&self) -> usize;
 }
 
-pub struct SingleSourceBatch<I: Copy + Serialize + Into<usize>> {
+pub struct SingleSourceBatch<I: Copy + Serialize + DeserializeOwned + Into<usize>> {
     pub start: u64,
     pub end: u64,
     pub source_id: I,
     pub data: Vec<(u64, &'static [SampleType])>,
 }
 
-impl<I: Copy + Serialize + Into<usize>> SingleSourceBatch<I> {
+pub struct SingleSourceOwnedBatch {
+    pub start: u64,
+    pub end: u64,
+    pub source_id: usize,
+    pub data: Vec<(u64, Vec<SampleType>)>,
+}
+
+impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> SingleSourceBatch<I> {
     fn new(start: u64, end: u64, source_id: I, data: Vec<(u64, &'static [SampleType])>) -> Self {
         Self {
             start,
@@ -170,13 +179,13 @@ impl<I: Copy + Serialize + Into<usize>> SingleSourceBatch<I> {
     }
 }
 
-impl<I: Copy + Serialize + Into<usize>> Batch for SingleSourceBatch<I> {
+impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> Batch for SingleSourceBatch<I> {
     fn len(&self) -> usize {
         self.data.len()
     }
 }
 
-impl<I: Copy + Serialize + Into<usize>> Compress for SingleSourceBatch<I> {
+impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> Compress for SingleSourceBatch<I> {
     fn compress(&self) -> Vec<u8> {
         let mut compressed: Vec<u8> = Vec::new();
         let source_id: usize = self.source_id.into();
@@ -193,25 +202,52 @@ impl<I: Copy + Serialize + Into<usize>> Compress for SingleSourceBatch<I> {
     }
 }
 
-pub struct MultiSourceBatch<I: Serialize> {
+impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> Decompress for SingleSourceBatch<I> {
+    type DecompressedType = SingleSourceOwnedBatch;
+
+    fn decompress(msg: &[u8], buffer: &mut [u8]) -> Self::DecompressedType {
+        let start = u64::from_be_bytes(msg[0..8].try_into().unwrap());
+        let end = u64::from_be_bytes(msg[8..16].try_into().unwrap());
+        let source_id = usize::from_be_bytes(msg[16..24].try_into().unwrap());
+
+        let original_sz = usize::from_be_bytes(msg[msg.len() - 8..msg.len()].try_into().unwrap());
+        let sz = lz4::decompress(&msg[24..msg.len() - 8], &mut buffer[..original_sz]).unwrap();
+        let data: Vec<(u64, Vec<SampleType>)> = bincode::deserialize(&buffer[..sz]).unwrap();
+
+        SingleSourceOwnedBatch {
+            start,
+            end,
+            source_id,
+            data,
+        }
+    }
+}
+
+pub struct MultiSourceBatch<I: Serialize + DeserializeOwned> {
     pub start: u64,
     pub end: u64,
     pub data: Vec<(I, u64, &'static [SampleType])>,
 }
 
-impl<I: Serialize> MultiSourceBatch<I> {
+pub struct MultiSourceOwnedBatch<I: Serialize + DeserializeOwned> {
+    pub start: u64,
+    pub end: u64,
+    pub data: Vec<(I, u64, Vec<SampleType>)>,
+}
+
+impl<I: Serialize + DeserializeOwned> MultiSourceBatch<I> {
     fn new(start: u64, end: u64, data: Vec<(I, u64, &'static [SampleType])>) -> Self {
         Self { start, end, data }
     }
 }
 
-impl<I: Serialize> Batch for MultiSourceBatch<I> {
+impl<I: Serialize + DeserializeOwned> Batch for MultiSourceBatch<I> {
     fn len(&self) -> usize {
         self.data.len()
     }
 }
 
-impl<I: Serialize> Compress for MultiSourceBatch<I> {
+impl<I: Serialize + DeserializeOwned> Compress for MultiSourceBatch<I> {
     fn compress(&self) -> Vec<u8> {
         let mut compressed: Vec<u8> = Vec::new();
 
@@ -226,28 +262,18 @@ impl<I: Serialize> Compress for MultiSourceBatch<I> {
     }
 }
 
-pub enum BatchKind<I: Copy + Serialize + Into<usize>> {
-    SingleSource(SingleSourceBatch<I>),
-    MultiSource(MultiSourceBatch<I>),
-}
+impl<I: Serialize + DeserializeOwned> Decompress for MultiSourceBatch<I> {
+    type DecompressedType = MultiSourceOwnedBatch<I>;
 
-impl<I: Copy + Serialize + Into<usize>> Compress for BatchKind<I> {
-    fn compress(&self) -> Vec<u8> {
-        match self {
-            BatchKind::SingleSource(batch) => batch.compress(),
-            BatchKind::MultiSource(batch) => batch.compress(),
-        }
-    }
-}
+    fn decompress(msg: &[u8], buffer: &mut [u8]) -> Self::DecompressedType {
+        let start = u64::from_be_bytes(msg[0..8].try_into().unwrap());
+        let end = u64::from_be_bytes(msg[8..16].try_into().unwrap());
 
-struct RunWorkloadResult {
-    duration: Duration,
-    num_samples_produced: u32,
-}
+        let original_sz = usize::from_be_bytes(msg[msg.len() - 8..msg.len()].try_into().unwrap());
+        let sz = lz4::decompress(&msg[16..msg.len() - 8], &mut buffer[..original_sz]).unwrap();
+        let data: Vec<(I, u64, Vec<SampleType>)> = bincode::deserialize(&buffer[..sz]).unwrap();
 
-impl RunWorkloadResult {
-    fn to_samples_per_sec(&self) -> f64 {
-        f64::from(self.num_samples_produced) / self.duration.as_secs_f64()
+        MultiSourceOwnedBatch { start, end, data }
     }
 }
 
@@ -271,7 +297,7 @@ impl Workload {
         }
     }
 
-    pub fn run_with_writer_batching<I: Copy + Into<usize> + Serialize>(
+    pub fn run_with_writer_batching<I: Copy + Into<usize> + Serialize + DeserializeOwned>(
         &self,
         writer: &WriterGroup<MultiSourceBatch<I>>,
         samples: &'static [(I, &[SampleType])],
@@ -337,7 +363,7 @@ impl Workload {
         );
     }
 
-    pub fn run_with_source_batching<I: Copy + Into<usize> + Serialize>(
+    pub fn run_with_source_batching<I: Copy + Into<usize> + Serialize + DeserializeOwned>(
         &self,
         writer: &WriterGroup<SingleSourceBatch<I>>,
         samples: &'static [(I, &[SampleType])],

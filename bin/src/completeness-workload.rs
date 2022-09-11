@@ -10,7 +10,7 @@ mod prep_data;
 mod snapshotter;
 mod utils;
 
-use crate::completeness::{kafka::init_kafka, mach::init_mach, BatchStrategy, Workload, COUNTERS};
+use crate::completeness::{kafka::init_kafka, mach::init_mach, Workload, COUNTERS};
 
 use crate::completeness::mach::{MACH, MACH_WRITER};
 use clap::*;

@@ -14,7 +14,7 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
-use super::{Batch, BatchKind, Compress, MultiSourceBatch};
+use super::{Batch, Compress, MultiSourceBatch};
 
 fn compress_kafka_msg(start: u64, end: u64, data: Vec<Sample<SeriesId>>) -> Vec<u8> {
     let bytes = bincode::serialize(&data).unwrap();
