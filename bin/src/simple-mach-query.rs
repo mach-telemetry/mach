@@ -5,8 +5,8 @@ mod snapshotter;
 
 use mach::id::SeriesId;
 use mach::snapshotter::SnapshotterId;
-use mach::utils::timer::*;
 use mach::utils::counter::*;
+use mach::utils::timer::*;
 //use mach::utils::kafka::init_thread_local_consumer;
 use rand::prelude::*;
 use regex::Regex;

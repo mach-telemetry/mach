@@ -3,8 +3,8 @@ use crate::{
     mem_list::{add_flush_worker, BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2},
     utils::{
         kafka,
-        wp_lock::{NoDealloc, WpLock},
         timer::*,
+        wp_lock::{NoDealloc, WpLock},
     },
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};

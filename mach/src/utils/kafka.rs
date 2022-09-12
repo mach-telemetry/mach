@@ -13,8 +13,8 @@ use rdkafka::{
     //Message,
 };
 //use std::convert::TryInto;
-use crate::utils::timer::*;
 use crate::utils::counter::*;
+use crate::utils::timer::*;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
@@ -274,7 +274,10 @@ impl KafkaEntry {
                 break;
             }
             make_requests(&hashset, &mut requests);
-            parse_response(client.fetch_messages(requests.as_slice()).unwrap(), &mut responses);
+            parse_response(
+                client.fetch_messages(requests.as_slice()).unwrap(),
+                &mut responses,
+            );
             for (p, o, bytes) in responses.drain(..) {
                 let key = (p, o);
                 hashmap.insert(key, bytes);

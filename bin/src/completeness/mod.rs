@@ -176,7 +176,7 @@ impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> SingleSourceBatch<I> 
         }
     }
 
-    fn peek_source_id(msg: &[u8]) -> usize {
+    pub fn peek_source_id(msg: &[u8]) -> usize {
         let source_id = usize::from_be_bytes(msg[16..24].try_into().unwrap());
         source_id
     }

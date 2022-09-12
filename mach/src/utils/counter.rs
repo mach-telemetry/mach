@@ -12,12 +12,8 @@ pub struct ThreadLocalCounter<'a> {
 
 impl<'a> ThreadLocalCounter<'a> {
     pub fn new(key: &'a str) -> Self {
-        MAP.borrow_mut()
-            .entry(key.into())
-            .or_insert(0);
-        Self {
-            key,
-        }
+        MAP.borrow_mut().entry(key.into()).or_insert(0);
+        Self { key }
     }
 
     pub fn reset() {
@@ -50,4 +46,3 @@ impl std::ops::Deref for ThreadLocalCounters {
         &self.map
     }
 }
-

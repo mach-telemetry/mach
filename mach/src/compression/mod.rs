@@ -13,8 +13,8 @@ mod xor;
 use crate::segment::*;
 use crate::series::FieldType;
 use crate::snapshot::Segment;
-use crate::utils::timer::*;
 use crate::utils::byte_buffer::ByteBuffer;
+use crate::utils::timer::*;
 use std::convert::TryInto;
 use std::sync::Arc;
 
