@@ -304,6 +304,7 @@ fn stats_watcher() {
         let num_flushes_initiated = INGESTION_STATS.num_flush_reqs_initiated.load(SeqCst);
         let num_flushes_completed = INGESTION_STATS.num_flush_reqs_completed.load(SeqCst);
         let num_flushes_pending = num_flushes_initiated - num_flushes_completed;
+        let num_flush_retries = INGESTION_STATS.num_flush_retries.load(SeqCst);
         let total_flush_ms = INGESTION_STATS.flush_dur_millis.load(SeqCst);
         let avg_flush_dur_ms = total_flush_ms as f64 / num_flushes_completed as f64;
 
@@ -311,7 +312,7 @@ fn stats_watcher() {
         let num_decomps = NUM_MSGS_DECOMPRESSED.load(SeqCst);
         let avg_decomp_ms = total_decomp_ms as f64 / num_decomps as f64;
 
-        println!("flushed count: {flushed_count}, indexed count: {indexed_count}, fraction indexed: {fraction_indexed}, queue len: {queue_len}, flushes (init: {num_flushes_initiated}, completed: {num_flushes_completed}, pending: {num_flushes_pending}, avg dur {avg_flush_dur_ms} ms), avg decmp ms: {avg_decomp_ms}");
+        println!("flushed count: {flushed_count}, indexed count: {indexed_count}, fraction indexed: {fraction_indexed}, queue len: {queue_len}, flushes (init: {num_flushes_initiated}, completed: {num_flushes_completed}, pending: {num_flushes_pending}, retries: {}, avg dur {avg_flush_dur_ms} ms), avg decmp ms: {avg_decomp_ms}");
         thread::sleep(interval);
     }
 }

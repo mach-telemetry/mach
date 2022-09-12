@@ -138,6 +138,7 @@ pub struct IngestStats {
     pub num_flushed: AtomicUsize,
     pub num_flush_reqs_initiated: AtomicUsize,
     pub num_flush_reqs_completed: AtomicUsize,
+    pub num_flush_retries: AtomicUsize,
     pub flush_dur_millis: AtomicU64,
 }
 
@@ -217,6 +218,7 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
                     // too-many-requests
                     tokio::time::sleep(self.backoff.next_backoff()).await;
                     num_retries += 1;
+                    self.stats.num_flush_retries.fetch_add(1, SeqCst);
                     continue;
                 }
             }
