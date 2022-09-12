@@ -176,8 +176,8 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
             batch: Vec::with_capacity(batch_size),
             batch_size,
             index_name,
-            backoff: ExponentialBackoff::new(Duration::from_secs(1), Duration::from_secs(10)),
-            max_retries: 5,
+            backoff: ExponentialBackoff::new(Duration::from_secs(1), Duration::from_secs(5)),
+            max_retries: 3,
             stats,
         }
     }
