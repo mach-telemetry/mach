@@ -21,12 +21,14 @@ use kafka::{client::KafkaClient, consumer::Consumer};
 use lazy_static::lazy_static;
 use mach::id::SeriesId;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicU64;
+use std::convert::TryInto;
 use std::sync::atomic::Ordering::SeqCst;
+use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tokio::task::JoinHandle;
+use tokio::time::Instant;
 use utils::timestamp_now_micros;
 
 lazy_static! {
@@ -34,6 +36,9 @@ lazy_static! {
     static ref INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
     static ref INDEXED_COUNT: AtomicU64 = AtomicU64::new(0);
+    static ref DECOMPRESSION_TIME_MS: AtomicU64 = AtomicU64::new(0);
+    static ref NUM_MSGS_DECOMPRESSED: AtomicU64 = AtomicU64::new(0);
+    static ref QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -143,12 +148,19 @@ impl KafkaMessage {
     }
 }
 
-fn kafka_es_consumer(topic: &str, bootstraps: &str, senders: Vec<Sender<ESIngestorInput>>) {
+fn consume_from_kakfka(
+    topic: &str,
+    bootstraps: &str,
+    consumer_group: &str,
+    partition: i32,
+    senders: Vec<Arc<Sender<ESIngestorInput>>>,
+) {
     let mut kafka_client = KafkaClient::new(bootstraps.split(',').map(String::from).collect());
     kafka_client.load_metadata_all().unwrap();
     let mut kafka_consumer = Consumer::from_client(kafka_client)
-        .with_topic(String::from(topic))
+        .with_topic_partitions(topic.to_owned(), &[partition])
         .with_fetch_max_bytes_per_partition(10_000_000)
+        .with_group(consumer_group.to_owned())
         .create()
         .unwrap();
 
@@ -171,8 +183,32 @@ fn kafka_es_consumer(topic: &str, bootstraps: &str, senders: Vec<Sender<ESIngest
                 picked_writer
                     .send(KafkaMessage::new(m, message_sets.clone()))
                     .unwrap();
+                QUEUE_LEN.fetch_add(1, SeqCst);
             }
+            kafka_consumer.consume_messageset(ms);
         }
+    }
+}
+
+fn kafka_es_consumer(
+    topic: &'static str,
+    bootstraps: &'static str,
+    senders: Vec<Sender<ESIngestorInput>>,
+) {
+    let num_partitions = 3;
+    let consumer_group_name = "cgroup";
+    let senders: Vec<_> = senders.into_iter().map(|s| Arc::new(s)).collect();
+
+    let mut handles = Vec::new();
+    for partition in 0..num_partitions {
+        let senders = senders.clone();
+        handles.push(thread::spawn(move || {
+            consume_from_kakfka(topic, bootstraps, consumer_group_name, partition, senders)
+        }));
+    }
+
+    for h in handles {
+        h.join().unwrap();
     }
 }
 
@@ -182,10 +218,17 @@ async fn es_ingest(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut buffer = vec![0u8; 500_000_000];
     while let Ok(payload) = consumer.recv() {
+        QUEUE_LEN.fetch_sub(1, SeqCst);
+
+        let start = Instant::now();
         let batch = SingleSourceBatch::<SeriesId>::decompress(
             payload.message().value,
             buffer.as_mut_slice(),
         );
+        let decomp_dur = start.elapsed();
+        DECOMPRESSION_TIME_MS.fetch_add(decomp_dur.as_millis().try_into().unwrap(), SeqCst);
+        NUM_MSGS_DECOMPRESSED.fetch_add(1, SeqCst);
+
         let source_id = SeriesId(batch.source_id.try_into().unwrap());
 
         let samples: Vec<ESSample> = batch
@@ -256,7 +299,20 @@ fn stats_watcher() {
         let flushed_count = INGESTION_STATS.num_flushed.load(SeqCst);
         let indexed_count = INDEXED_COUNT.load(SeqCst);
         let fraction_indexed = indexed_count as f64 / flushed_count as f64;
-        println!("flushed count: {flushed_count}, indexed count: {indexed_count}, fraction indexed: {fraction_indexed}");
+        let queue_len = QUEUE_LEN.load(SeqCst);
+
+        let num_flushes_initiated = INGESTION_STATS.num_flush_reqs_initiated.load(SeqCst);
+        let num_flushes_completed = INGESTION_STATS.num_flush_reqs_completed.load(SeqCst);
+        let num_flushes_pending = num_flushes_initiated - num_flushes_completed;
+        let num_flush_retries = INGESTION_STATS.num_flush_retries.load(SeqCst);
+        let total_flush_ms = INGESTION_STATS.flush_dur_millis.load(SeqCst);
+        let avg_flush_dur_ms = total_flush_ms as f64 / num_flushes_completed as f64;
+
+        let total_decomp_ms = DECOMPRESSION_TIME_MS.load(SeqCst);
+        let num_decomps = NUM_MSGS_DECOMPRESSED.load(SeqCst);
+        let avg_decomp_ms = total_decomp_ms as f64 / num_decomps as f64;
+
+        println!("flushed count: {flushed_count}, indexed count: {indexed_count}, fraction indexed: {fraction_indexed}, queue len: {queue_len}, flushes (init: {num_flushes_initiated}, completed: {num_flushes_completed}, pending: {num_flushes_pending}, retries: {}, avg dur {avg_flush_dur_ms} ms), avg decmp ms: {avg_decomp_ms}");
         thread::sleep(interval);
     }
 }
@@ -299,7 +355,7 @@ fn main() {
     let mut producers = Vec::new();
     let mut consumers = Vec::new();
     for _ in 0..ARGS.es_num_writers {
-        let (tx, rx) = bounded(10);
+        let (tx, rx) = bounded(1000);
         producers.push(tx);
         consumers.push(rx);
     }
