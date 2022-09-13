@@ -25,7 +25,6 @@ lazy_static::lazy_static! {
         std::thread::spawn(move || flusher(rx, producer));
         tx
     };
-    //pub static ref HISTORICAL_BLOCKS: HistoricalBlocksMap = HistoricalBlocksMap::new();
 }
 
 fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
@@ -100,8 +99,11 @@ impl InnerData {
         };
         let offset = self.offset.load(SeqCst);
         let idx = offset % self.data.len();
-        self.data[idx].write(list_entry);
+        self.data[idx].write(list_entry.clone());
+
         self.offset.fetch_add(1, SeqCst);
+
+        // return if full
         (offset + 1) % 256 == 0
     }
 }
@@ -169,7 +171,12 @@ impl InnerBuffer {
         let mut next = kafka::KafkaEntry::new();
         let mut current = current.clone(); // I know this is repetitive but merp
 
+        let mut loop_counter = 0;
         loop {
+            loop_counter += 1;
+            if loop_counter > 100_000 {
+                panic!("looping problem");
+            }
             // loop will end because this was inited with Offset.
             let guard = current.read().unwrap();
             match &*guard {
@@ -211,40 +218,23 @@ impl InnerBuffer {
 unsafe impl NoDealloc for InnerBuffer {}
 
 pub struct SourceBlockList {
-    //inner: Arc<Mutex<Vec<Arc<BlockListEntry>>>>
     inner: InnerBuffer,
 }
 
 impl SourceBlockList {
     pub fn new(id: SeriesId) -> Self {
         Self {
-            //inner: Arc::new(Mutex::new(Vec::new())),
             inner: InnerBuffer::new(id),
         }
     }
 
     pub fn push(&self, min_ts: u64, max_ts: u64, item: Arc<BlockListEntry>) {
-        //self.inner.lock().unwrap().push(item);
         self.inner.push(min_ts, max_ts, item);
     }
 
     pub fn snapshot(&self) -> Result<SourceBlocks2, Error> {
-        //let guard = self.inner.lock().unwrap();
-        //let data = guard.iter().map(|x| x.inner().into()).collect();
-        //let idx = guard.len();
-        //let next = kafka::KafkaEntry::new();
-        //Ok(SourceBlocks {
-        //    data,
-        //    next,
-        //    idx
-        //})
         self.inner.snapshot()
     }
-
-    //pub fn periodic_snapshot(&self) -> SourceBlocks {
-    //    // Safety: periodic snapshot accesses locked data
-    //    self.inner.periodic_snapshot()
-    //}
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -252,24 +242,16 @@ pub struct SourceBlocks2 {
     data: Vec<ReadOnlyBlock2>,
     next: kafka::KafkaEntry,
     idx: usize,
-    //prefetch: Option<Vec<kafka::KafkaEntry>>,
-    //pub cached_messages_read: usize,
-    //pub messages_read: usize,
 }
 
 impl SourceBlocks2 {
     pub fn next_block(&mut self) -> Option<&ReadOnlyBlock2> {
         let _timer_1 = ThreadLocalTimer::new("SourceBlocks::next_block");
-        //match &self.prefetch {
-        //    Some(x) => kafka::prefetch(x.as_slice()),
-        //    None => {}
-        //}
         if self.idx < self.data.len() {
             let idx = self.idx;
             self.idx += 1;
             Some(&self.data[idx])
         } else if self.next.is_empty() {
-            //println!("source block list exhausted");
             None
         } else {
             let mut vec = Vec::new();
@@ -277,8 +259,6 @@ impl SourceBlocks2 {
                 let _timer_2 = ThreadLocalTimer::new("SourceBlocks::next_block loading from kafka");
                 self.next.load(&mut vec).unwrap()
             };
-            //self.cached_messages_read +=  stats.cached_messages_read;
-            //self.messages_read +=  stats.messages_read;
             let next_blocks: SourceBlocks2 = {
                 let _timer_2 = ThreadLocalTimer::new("SourceBlocks::next_block deserializing");
                 bincode::deserialize(vec.as_slice()).unwrap()

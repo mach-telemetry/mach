@@ -46,7 +46,7 @@ fn main() {
     //init_thread_local_consumer();
 
     let mut rng = rand::thread_rng();
-    for _ in 0..QUERY_COUNT {
+    for query_id in 0..QUERY_COUNT {
         let id = SeriesId(rng.gen_range(0..SOURCE_COUNT));
         let snapshotter_id = *snapshotter_map.entry(id).or_insert(
             runtime
@@ -128,9 +128,12 @@ fn main() {
         let segments_skipped = counters.get("skipping segment").or(Some(&0)).unwrap();
         let segments_loaded = counters.get("loading segment").or(Some(&0)).unwrap();
         let fetch_requests = counters.get("kafka fetch").or(Some(&0)).unwrap();
+        //let cached_messages = counters.get("cached kafka messages read").or(Some(&0)).unwrap();
+        let kafka_messages_read = counters.get("kafka messages fetched").or(Some(&0)).unwrap();
 
         println!(
-            "Total Time: {:?}, Data Latency: {:?}, Query Latency: {:?}, Blocks Skipped: {}, Blocks Read: {}, Segments Read: {}, Start Delay: {}, Query Execution Range: {}, Total Query Range: {}, Kafka Fetch Time: {:?}, Fetch Requests: {:?}, Result: {}",
+            "Query id: {}, Total Time: {:?}, Data Latency: {:?}, Query Latency: {:?}, Blocks Skipped: {}, Blocks Read: {}, Segments Read: {}, Start Delay: {}, Query Execution Range: {}, Total Query Range: {}, Kafka Fetch Time: {:?}, Fetch Requests: {:?}, Kafka messages read: {}, Result: {}",
+            query_id,
             total_latency.as_secs_f64(),
             data_latency.as_secs_f64(),
             query_latency.as_secs_f64(),
@@ -142,6 +145,8 @@ fn main() {
             total_query,
             kafka_fetch,
             fetch_requests,
+            kafka_messages_read,
+            //cached_messages,
             result_count,
         );
     }
