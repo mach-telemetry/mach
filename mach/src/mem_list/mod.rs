@@ -203,7 +203,7 @@ struct Block {
     bytes: Box<[u8]>,
     len: AtomicUsize,
     items: AtomicUsize,
-    offsets: [(u64, usize); 1_000],
+    offsets: Box<[(u64, usize)]>,
 }
 
 impl Block {
@@ -213,7 +213,7 @@ impl Block {
             bytes: vec![0u8; BLOCK_SZ * 2].into_boxed_slice(),
             len: AtomicUsize::new(std::mem::size_of::<u64>()), // id starts at 0
             items: AtomicUsize::new(0),
-            offsets: [(0, 0); 1_000],
+            offsets: vec![(0,0); BLOCK_SZ].into_boxed_slice(),
         }
     }
 

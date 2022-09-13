@@ -48,6 +48,16 @@ impl SampleType {
         }
     }
 
+    pub fn size(&self) -> usize {
+        match self {
+            SampleType::Bytes(x) => x.as_slice().len(),
+            SampleType::F64(_) => 8,
+            SampleType::I64(_) => 8,
+            SampleType::U64(_) => 8,
+            SampleType::Timestamp(_) => 8,
+        }
+    }
+
     pub fn from_field_item(field_type: FieldType, bytes: [u8; 8], heap: Option<&[u8]>) -> Self {
         match field_type {
             FieldType::I64 => SampleType::I64(i64::from_be_bytes(bytes)),

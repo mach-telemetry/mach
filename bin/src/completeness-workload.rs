@@ -23,13 +23,21 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+use std::fs::File;
+use std::io::*;
 
 use kafka_utils::KafkaTopicOptions;
 
 lazy_static! {
     static ref ARGS: Args = Args::parse();
     static ref BASE_DATA: HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> = {
-        prep_data::load_samples(ARGS.file_path.as_str())
+        let mut file = File::open(&ARGS.file_path).unwrap();
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).unwrap();
+        let data: HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> = bincode::deserialize(&bytes).unwrap();
+        println!("Read data for {} sources", data.len());
+        data
+        //prep_data::load_samples(ARGS.file_path.as_str())
     };
     static ref SAMPLES: Vec<(SeriesId, &'static [SampleType])> = {
         let keys: Vec<SeriesId> = BASE_DATA.keys().copied().collect();
@@ -100,7 +108,8 @@ struct Args {
     #[clap(short, long, default_value_t = 1000)]
     source_count: u64,
 
-    #[clap(short, long, default_value_t = String::from("/home/sli/data/train-ticket-data"))]
+    #[clap(short, long, default_value_t = String::from("/home/fsolleza/data/intel-telemetry/processed-data.bin"))]
+    //#[clap(short, long, default_value_t = String::from("/home/sli/data/train-ticket-data"))]
     file_path: String,
 
     #[clap(short, long, default_value_t = 5.0)]
@@ -164,7 +173,7 @@ fn main() {
             COUNTERS.start_watcher();
             snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap());
             for workload in workloads {
-                workload.run_with_source_batching(&mach, samples, ARGS.source_count);
+                workload.run_with_writer_batching(&mach, samples);
             }
             mach.done();
         }
