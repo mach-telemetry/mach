@@ -151,7 +151,7 @@ fn main() {
             COUNTERS.init_kafka_consumer(ARGS.kafka_bootstraps.as_str(), ARGS.kafka_topic.as_str());
             COUNTERS.start_watcher();
             for workload in workloads {
-                workload.run_with_writer_batching(&kafka, samples);
+                workload.run_with_source_batching(&kafka, samples, ARGS.source_count);
             }
             kafka.done();
         }
@@ -163,7 +163,7 @@ fn main() {
             COUNTERS.start_watcher();
             snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap());
             for workload in workloads {
-                workload.run_with_writer_batching(&mach, samples);
+                workload.run_with_source_batching(&mach, samples, ARGS.source_count);
             }
             mach.done();
         }

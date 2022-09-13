@@ -13,7 +13,7 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::MultiSourceBatch;
+use super::SingleSourceBatch;
 
 lazy_static! {
     pub static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -68,15 +68,15 @@ pub fn init_mach_querier(_series_id: SeriesId) {
     //}
 }
 
-fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<MultiSourceBatch<SeriesRef>>) {
+fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<SingleSourceBatch<SeriesRef>>) {
     let mut writer_guard = MACH_WRITER.lock().unwrap();
     let writer = &mut *writer_guard;
     while let Ok(batch) = receiver.recv() {
         let mut raw_sz = 0;
         for item in batch.data.iter() {
             'push_loop: loop {
-                if writer.push(item.0, item.1, item.2).is_ok() {
-                    raw_sz += item.2[0].as_bytes().len();
+                if writer.push(batch.source_id, item.0, item.1).is_ok() {
+                    raw_sz += item.1[0].as_bytes().len();
                     break 'push_loop;
                 }
             }
@@ -88,7 +88,7 @@ fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<MultiSourceBatch<Series
     barrier.wait();
 }
 
-pub fn init_mach() -> WriterGroup<MultiSourceBatch<SeriesRef>> {
+pub fn init_mach() -> WriterGroup<SingleSourceBatch<SeriesRef>> {
     let (tx, rx) = bounded(1);
     let barrier = Arc::new(Barrier::new(2));
 
