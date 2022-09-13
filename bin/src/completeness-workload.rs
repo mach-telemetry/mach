@@ -131,6 +131,7 @@ fn main() {
                     num_partitions: ARGS.kafka_partitions,
                 },
             );
+            COUNTERS.start_watcher();
             for workload in workloads {
                 workload.run_with_source_batching(&kafka_es, samples, ARGS.source_count);
             }
