@@ -121,7 +121,7 @@ pub fn init_kafka<B: 'static + Batch + Send>(
 
     for wid in 0..num_writers {
         let barrier = barrier.clone();
-        let (tx, rx) = bounded(1);
+        let (tx, rx) = bounded(1000);
         senders.push(tx);
         let writer_partition = wid as i32 % kafka_topic_opts.num_partitions;
         let kafka_dest = KafkaTopicPartition::new(kafka_bootstraps, kafka_topic, writer_partition);
