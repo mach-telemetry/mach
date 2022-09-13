@@ -3,7 +3,7 @@ use crate::{
     mem_list::{ReadOnlyBlock, ReadOnlyBlock2, ReadOnlyBlockBytes, SourceBlocks2},
     sample::SampleType,
     series::FieldType,
-    utils::{kafka, timer::*, counter::*},
+    utils::{counter::*, kafka, timer::*},
 };
 use std::convert::TryInto;
 
@@ -465,9 +465,7 @@ impl SnapshotIterator {
                             }
                         }
                     }
-                    Some(_) => {
-                        Some(())
-                    }
+                    Some(_) => Some(()),
                 }
             }
         }

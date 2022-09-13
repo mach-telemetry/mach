@@ -1,26 +1,34 @@
+#[allow(dead_code)]
 mod completeness;
+#[allow(dead_code)]
 mod elastic;
+#[allow(dead_code)]
 mod kafka_utils;
+#[allow(dead_code)]
 mod prep_data;
+#[allow(dead_code)]
 mod utils;
 
-use crate::completeness::kafka::decompress_kafka_msg;
+use crate::completeness::{Decompress, SingleSourceBatch};
 use crate::prep_data::ESSample;
 use clap::*;
 use crossbeam_channel::{bounded, Receiver, Sender};
 use elastic::{
-    CreateIndexArgs, ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier,
-    IngestResponse, IngestStats,
+    ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier, IngestResponse, IngestStats,
 };
-use kafka::consumer::MessageSets;
+use kafka::consumer::{Message, MessageSets};
 use kafka::{client::KafkaClient, consumer::Consumer};
 use lazy_static::lazy_static;
+use mach::id::SeriesId;
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use tokio::task::JoinHandle;
+use tokio::time::Instant;
 use utils::timestamp_now_micros;
 
 lazy_static! {
@@ -28,6 +36,9 @@ lazy_static! {
     static ref INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
     static ref INDEXED_COUNT: AtomicU64 = AtomicU64::new(0);
+    static ref DECOMPRESSION_TIME_MS: AtomicU64 = AtomicU64::new(0);
+    static ref NUM_MSGS_DECOMPRESSED: AtomicU64 = AtomicU64::new(0);
+    static ref QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -60,7 +71,7 @@ struct Args {
     es_num_replicas: usize,
 }
 
-type ESIngestorInput = MessageSets;
+type ESIngestorInput = KafkaMessage;
 
 async fn es_watch_data_age(client: ESIndexQuerier, index_name: &String) {
     let one_sec = std::time::Duration::from_secs(1);
@@ -116,12 +127,40 @@ fn es_docs_count_watcher(es_client_builder: ESClientBuilder, index_name: &String
     });
 }
 
-fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<ESIngestorInput>) {
+struct KafkaMessage {
+    message_ptr: u64,
+    #[allow(dead_code)]
+    _owning_message_sets: Arc<MessageSets>,
+}
+
+impl KafkaMessage {
+    fn new(message: &Message<'_>, owning_message_sets: Arc<MessageSets>) -> Self {
+        let msg: *const Message<'_> = message;
+
+        Self {
+            message_ptr: msg as u64,
+            _owning_message_sets: owning_message_sets,
+        }
+    }
+
+    fn message(&self) -> &Message<'_> {
+        unsafe { &*(self.message_ptr as *const Message<'_>) }
+    }
+}
+
+fn consume_from_kakfka(
+    topic: &str,
+    bootstraps: &str,
+    consumer_group: &str,
+    partition: i32,
+    senders: Vec<Arc<Sender<ESIngestorInput>>>,
+) {
     let mut kafka_client = KafkaClient::new(bootstraps.split(',').map(String::from).collect());
     kafka_client.load_metadata_all().unwrap();
     let mut kafka_consumer = Consumer::from_client(kafka_client)
-        .with_topic(String::from(topic))
+        .with_topic_partitions(topic.to_owned(), &[partition])
         .with_fetch_max_bytes_per_partition(10_000_000)
+        .with_group(consumer_group.to_owned())
         .create()
         .unwrap();
 
@@ -131,10 +170,45 @@ fn kafka_es_consumer(topic: &str, bootstraps: &str, sender: Sender<ESIngestorInp
     );
 
     loop {
-        let message_sets = kafka_consumer
-            .poll()
-            .expect("failed to get the next set of messsages from kafka");
-        sender.send(message_sets).unwrap();
+        let message_sets = Arc::new(
+            kafka_consumer
+                .poll()
+                .expect("failed to get the next set of messsages from kafka"),
+        );
+
+        for ms in message_sets.iter() {
+            for m in ms.messages().iter() {
+                let source_id = SingleSourceBatch::<SeriesId>::peek_source_id(m.value);
+                let picked_writer = &senders[source_id % senders.len()];
+                picked_writer
+                    .send(KafkaMessage::new(m, message_sets.clone()))
+                    .unwrap();
+                QUEUE_LEN.fetch_add(1, SeqCst);
+            }
+            kafka_consumer.consume_messageset(ms);
+        }
+    }
+}
+
+fn kafka_es_consumer(
+    topic: &'static str,
+    bootstraps: &'static str,
+    senders: Vec<Sender<ESIngestorInput>>,
+) {
+    let num_partitions = 3;
+    let consumer_group_name = "cgroup";
+    let senders: Vec<_> = senders.into_iter().map(|s| Arc::new(s)).collect();
+
+    let mut handles = Vec::new();
+    for partition in 0..num_partitions {
+        let senders = senders.clone();
+        handles.push(thread::spawn(move || {
+            consume_from_kakfka(topic, bootstraps, consumer_group_name, partition, senders)
+        }));
+    }
+
+    for h in handles {
+        h.join().unwrap();
     }
 }
 
@@ -143,26 +217,39 @@ async fn es_ingest(
     consumer: Receiver<ESIngestorInput>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut buffer = vec![0u8; 500_000_000];
-    while let Ok(message_sets) = consumer.recv() {
-        for ms in message_sets.iter() {
-            for m in ms.messages().iter() {
-                let (_, _, data) = decompress_kafka_msg(m.value, buffer.as_mut_slice());
-                let samples: Vec<ESSample> = data.into_iter().map(|s| s.into()).collect();
-                for sample in samples {
-                    match client.ingest(sample).await {
-                        IngestResponse::Batched => {}
-                        IngestResponse::Flushed(r) => match r {
-                            Ok(r) => {
-                                if !r.status_code().is_success() {
-                                    println!("error resp: {:?}", r);
-                                }
-                            }
-                            Err(e) => {
-                                println!("error: {:?}", e);
-                            }
-                        },
+    while let Ok(payload) = consumer.recv() {
+        QUEUE_LEN.fetch_sub(1, SeqCst);
+
+        let start = Instant::now();
+        let batch = SingleSourceBatch::<SeriesId>::decompress(
+            payload.message().value,
+            buffer.as_mut_slice(),
+        );
+        let decomp_dur = start.elapsed();
+        DECOMPRESSION_TIME_MS.fetch_add(decomp_dur.as_millis().try_into().unwrap(), SeqCst);
+        NUM_MSGS_DECOMPRESSED.fetch_add(1, SeqCst);
+
+        let source_id = SeriesId(batch.source_id.try_into().unwrap());
+
+        let samples: Vec<ESSample> = batch
+            .data
+            .into_iter()
+            .map(|s| ESSample::new(source_id, s.0, s.1))
+            .collect();
+
+        for sample in samples {
+            match client.ingest(sample).await {
+                IngestResponse::Batched => {}
+                IngestResponse::Flushed(r) => match r {
+                    Ok(r) => {
+                        if !r.status_code().is_success() {
+                            println!("error resp: {:?}", r);
+                        }
                     }
-                }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                },
             }
         }
     }
@@ -176,35 +263,30 @@ async fn es_ingest(
 fn es_ingestor(
     es_client_builder: ESClientBuilder,
     index_name: &String,
-    ingest_batch_size: usize,
+    es_batch_size: usize,
     num_ingestors: usize,
-    consumer: Receiver<ESIngestorInput>,
+    consumers: Vec<Receiver<ESIngestorInput>>,
 ) {
-    let builder_clone = es_client_builder.clone();
-    let client = ESBatchedIndexClient::<ESSample>::new(
-        builder_clone.build().unwrap(),
-        index_name.to_string(),
-        ingest_batch_size,
-        INGESTION_STATS.clone(),
-    );
+    assert!(num_ingestors == consumers.len());
+
     let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.block_on(async {
-        let mut handles = Vec::new();
-        for _ in 0..num_ingestors {
-            let builder_clone = es_client_builder.clone();
-            let index = index_name.clone();
-            let consumer = consumer.clone();
-            let batch_size = ingest_batch_size;
-            handles.push(tokio::spawn(async move {
+    rt.block_on(async move {
+        let handles: Vec<JoinHandle<()>> = consumers
+            .into_iter()
+            .map(|consumer| {
+                let c = consumer.clone();
                 let client = ESBatchedIndexClient::new(
-                    builder_clone.build().unwrap(),
-                    index,
-                    batch_size,
+                    es_client_builder.clone().build().unwrap(),
+                    index_name.clone(),
+                    es_batch_size,
                     INGESTION_STATS.clone(),
                 );
-                es_ingest(client, consumer).await.unwrap();
-            }));
-        }
+                tokio::spawn(async move {
+                    es_ingest(client, c).await.unwrap();
+                })
+            })
+            .collect();
+
         for h in handles {
             h.await.unwrap();
         }
@@ -217,7 +299,20 @@ fn stats_watcher() {
         let flushed_count = INGESTION_STATS.num_flushed.load(SeqCst);
         let indexed_count = INDEXED_COUNT.load(SeqCst);
         let fraction_indexed = indexed_count as f64 / flushed_count as f64;
-        println!("flushed count: {flushed_count}, indexed count: {indexed_count}, fraction indexed: {fraction_indexed}");
+        let queue_len = QUEUE_LEN.load(SeqCst);
+
+        let num_flushes_initiated = INGESTION_STATS.num_flush_reqs_initiated.load(SeqCst);
+        let num_flushes_completed = INGESTION_STATS.num_flush_reqs_completed.load(SeqCst);
+        let num_flushes_pending = num_flushes_initiated - num_flushes_completed;
+        let num_flush_retries = INGESTION_STATS.num_flush_retries.load(SeqCst);
+        let total_flush_ms = INGESTION_STATS.flush_dur_millis.load(SeqCst);
+        let avg_flush_dur_ms = total_flush_ms as f64 / num_flushes_completed as f64;
+
+        let total_decomp_ms = DECOMPRESSION_TIME_MS.load(SeqCst);
+        let num_decomps = NUM_MSGS_DECOMPRESSED.load(SeqCst);
+        let avg_decomp_ms = total_decomp_ms as f64 / num_decomps as f64;
+
+        println!("flushed count: {flushed_count}, indexed count: {indexed_count}, fraction indexed: {fraction_indexed}, queue len: {queue_len}, flushes (init: {num_flushes_initiated}, completed: {num_flushes_completed}, pending: {num_flushes_pending}, retries: {}, avg dur {avg_flush_dur_ms} ms), avg decmp ms: {avg_decomp_ms}");
         thread::sleep(interval);
     }
 }
@@ -257,9 +352,16 @@ fn main() {
 
     create_es_index(es_client_config.clone());
 
-    let (consume_tx, consume_rx) = bounded(10);
+    let mut producers = Vec::new();
+    let mut consumers = Vec::new();
+    for _ in 0..ARGS.es_num_writers {
+        let (tx, rx) = bounded(1000);
+        producers.push(tx);
+        consumers.push(rx);
+    }
+
     let consumer = thread::spawn(move || {
-        kafka_es_consumer(&ARGS.kafka_topic, &ARGS.kafka_bootstraps, consume_tx)
+        kafka_es_consumer(&ARGS.kafka_topic, &ARGS.kafka_bootstraps, producers)
     });
     let es_client_builder = es_client_config.clone();
     let ingestor = thread::spawn(move || {
@@ -268,7 +370,7 @@ fn main() {
             &INDEX_NAME,
             ARGS.es_ingest_batch_size,
             ARGS.es_num_writers,
-            consume_rx,
+            consumers,
         )
     });
 

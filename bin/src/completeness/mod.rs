@@ -1,5 +1,4 @@
 pub mod kafka;
-pub mod kafka_es;
 pub mod mach;
 
 mod mach_extern {
@@ -10,12 +9,16 @@ use crate::completeness::{kafka::init_kafka_consumer, mach::init_mach_querier};
 use crate::utils::timestamp_now_micros;
 use crossbeam_channel::Sender;
 use lazy_static::lazy_static;
+use lzzzz::lz4;
 use mach_extern::{
     id::SeriesId,
     mem_list::{PENDING_UNFLUSHED_BLOCKLISTS, PENDING_UNFLUSHED_BLOCKS, TOTAL_BYTES_FLUSHED},
     sample::SampleType,
     writer::WRITER_FLUSH_QUEUE,
 };
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use std::sync::atomic::AtomicU64;
 use std::sync::{atomic::AtomicUsize, atomic::Ordering::SeqCst, Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -24,7 +27,6 @@ lazy_static! {
     pub static ref COUNTERS: Counters = Counters::new();
 }
 
-pub type Sample<'s, I> = (I, u64, &'s [SampleType]);
 pub type SampleOwned<I> = (I, u64, Vec<SampleType>);
 
 pub struct Counters {
@@ -34,7 +36,7 @@ pub struct Counters {
     unflushed_blocklists: Arc<AtomicUsize>,
     bytes_flushed: Arc<AtomicUsize>,
     raw_data_size: Arc<AtomicUsize>,
-    data_age: Arc<AtomicUsize>,
+    data_age: Arc<AtomicU64>,
     start_gate: Arc<Barrier>,
     writer_flush_queue: Arc<AtomicUsize>,
     unflushed_blocks: Arc<AtomicUsize>,
@@ -47,7 +49,7 @@ impl Counters {
             samples_dropped: Arc::new(AtomicUsize::new(0)),
             samples_written: Arc::new(AtomicUsize::new(0)),
             raw_data_size: Arc::new(AtomicUsize::new(0)),
-            data_age: Arc::new(AtomicUsize::new(0)),
+            data_age: Arc::new(AtomicU64::new(0)),
             unflushed_blocklists: PENDING_UNFLUSHED_BLOCKLISTS.clone(),
             bytes_flushed: TOTAL_BYTES_FLUSHED.clone(),
             start_gate: Arc::new(Barrier::new(2)),
@@ -105,32 +107,177 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
             pushed / secs
         };
 
-        let data_age = COUNTERS.data_age.load(SeqCst) as u64;
+        let data_age = COUNTERS.data_age.load(SeqCst);
         let delay = Duration::from_micros(data_age);
 
         last_pushed = pushed;
         last_dropped = dropped;
 
         let bytes_flushed = COUNTERS.bytes_flushed.load(SeqCst);
-        let unflushed_blocklists = COUNTERS.unflushed_blocklists.load(SeqCst);
+        let _unflushed_blocklists = COUNTERS.unflushed_blocklists.load(SeqCst);
         let writer_flush_queue = COUNTERS.writer_flush_queue.load(SeqCst);
         let unflushed_blocks = COUNTERS.unflushed_blocks.load(SeqCst);
 
-        //println!("Completeness: {}, Buffer Queue: {}, Unflushed: {}, Throughput: {}, Data age (seconds): {:?}, Raw data size: {} bytes, Data flushed: {} bytes", completeness, buffer_queue, unflushed_count, rate, delay.as_secs_f64(), raw_data_size, bytes_flushed);
         println!("Completeness: {}, Writer Flush Queue: {}, Unflushed Blocks: {}, Throughput: {}, Raw data size: {}, Data flushed: {}, Data age: {:?}", completeness, writer_flush_queue, unflushed_blocks, rate, raw_data_size, bytes_flushed, delay);
         thread::sleep(interval);
     }
 }
 
-pub struct Writer<I> {
-    sender: Sender<(u64, u64, Vec<Sample<'static, I>>)>,
+pub struct WriterGroup<B: Batch> {
+    senders: Vec<Sender<B>>,
     barrier: Arc<Barrier>,
 }
 
-impl<I> Writer<I> {
+impl<B: Batch> WriterGroup<B> {
     pub fn done(self) {
-        drop(self.sender);
+        drop(self.senders);
         self.barrier.wait();
+    }
+
+    pub fn num_writers(&self) -> usize {
+        self.senders.len()
+    }
+}
+
+pub trait Compress {
+    fn compress(&self) -> Vec<u8>;
+}
+
+pub trait Decompress {
+    type DecompressedType;
+
+    fn decompress(compressed: &[u8], decompression_buffer: &mut [u8]) -> Self::DecompressedType;
+}
+
+pub trait Batch: Compress {
+    fn len(&self) -> usize;
+}
+
+pub struct SingleSourceBatch<I: Copy + Serialize + DeserializeOwned + Into<usize>> {
+    pub start: u64,
+    pub end: u64,
+    pub source_id: I,
+    pub data: Vec<(u64, &'static [SampleType])>,
+}
+
+pub struct SingleSourceOwnedBatch {
+    pub start: u64,
+    pub end: u64,
+    pub source_id: usize,
+    pub data: Vec<(u64, Vec<SampleType>)>,
+}
+
+impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> SingleSourceBatch<I> {
+    fn new(start: u64, end: u64, source_id: I, data: Vec<(u64, &'static [SampleType])>) -> Self {
+        Self {
+            start,
+            end,
+            source_id,
+            data,
+        }
+    }
+
+    pub fn peek_source_id(msg: &[u8]) -> usize {
+        let source_id = usize::from_be_bytes(msg[16..24].try_into().unwrap());
+        source_id
+    }
+}
+
+impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> Batch for SingleSourceBatch<I> {
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+}
+
+impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> Compress for SingleSourceBatch<I> {
+    fn compress(&self) -> Vec<u8> {
+        let mut compressed: Vec<u8> = Vec::new();
+        let source_id: usize = self.source_id.into();
+
+        compressed.extend_from_slice(&self.start.to_be_bytes()[..]);
+        compressed.extend_from_slice(&self.end.to_be_bytes()[..]);
+        compressed.extend_from_slice(&source_id.to_be_bytes()[..]);
+
+        let bytes = bincode::serialize(&self.data).unwrap();
+        lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
+        compressed.extend_from_slice(&bytes.len().to_be_bytes()[..]); // size of uncompressed bytes
+
+        compressed
+    }
+}
+
+impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> Decompress for SingleSourceBatch<I> {
+    type DecompressedType = SingleSourceOwnedBatch;
+
+    fn decompress(msg: &[u8], buffer: &mut [u8]) -> Self::DecompressedType {
+        let start = u64::from_be_bytes(msg[0..8].try_into().unwrap());
+        let end = u64::from_be_bytes(msg[8..16].try_into().unwrap());
+        let source_id = Self::peek_source_id(msg);
+
+        let original_sz = usize::from_be_bytes(msg[msg.len() - 8..msg.len()].try_into().unwrap());
+        let sz = lz4::decompress(&msg[24..msg.len() - 8], &mut buffer[..original_sz]).unwrap();
+        let data: Vec<(u64, Vec<SampleType>)> = bincode::deserialize(&buffer[..sz]).unwrap();
+
+        SingleSourceOwnedBatch {
+            start,
+            end,
+            source_id,
+            data,
+        }
+    }
+}
+
+pub struct MultiSourceBatch<I: Serialize + DeserializeOwned> {
+    pub start: u64,
+    pub end: u64,
+    pub data: Vec<(I, u64, &'static [SampleType])>,
+}
+
+pub struct MultiSourceOwnedBatch<I: Serialize + DeserializeOwned> {
+    pub start: u64,
+    pub end: u64,
+    pub data: Vec<(I, u64, Vec<SampleType>)>,
+}
+
+impl<I: Serialize + DeserializeOwned> MultiSourceBatch<I> {
+    fn new(start: u64, end: u64, data: Vec<(I, u64, &'static [SampleType])>) -> Self {
+        Self { start, end, data }
+    }
+}
+
+impl<I: Serialize + DeserializeOwned> Batch for MultiSourceBatch<I> {
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+}
+
+impl<I: Serialize + DeserializeOwned> Compress for MultiSourceBatch<I> {
+    fn compress(&self) -> Vec<u8> {
+        let mut compressed: Vec<u8> = Vec::new();
+
+        compressed.extend_from_slice(&self.start.to_be_bytes()[..]);
+        compressed.extend_from_slice(&self.end.to_be_bytes()[..]);
+
+        let bytes = bincode::serialize(&self.data).unwrap();
+        lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
+        compressed.extend_from_slice(&bytes.len().to_be_bytes()[..]); // size of uncompressed bytes
+
+        compressed
+    }
+}
+
+impl<I: Serialize + DeserializeOwned> Decompress for MultiSourceBatch<I> {
+    type DecompressedType = MultiSourceOwnedBatch<I>;
+
+    fn decompress(msg: &[u8], buffer: &mut [u8]) -> Self::DecompressedType {
+        let start = u64::from_be_bytes(msg[0..8].try_into().unwrap());
+        let end = u64::from_be_bytes(msg[8..16].try_into().unwrap());
+
+        let original_sz = usize::from_be_bytes(msg[msg.len() - 8..msg.len()].try_into().unwrap());
+        let sz = lz4::decompress(&msg[16..msg.len() - 8], &mut buffer[..original_sz]).unwrap();
+        let data: Vec<(I, u64, Vec<SampleType>)> = bincode::deserialize(&buffer[..sz]).unwrap();
+
+        MultiSourceOwnedBatch { start, end, data }
     }
 }
 
@@ -138,7 +285,6 @@ impl<I> Writer<I> {
 pub struct Workload {
     samples_per_second: f64,
     duration: Duration,
-    //sample_interval: Duration,
     batch_interval: Duration,
     batch_size: usize,
 }
@@ -155,20 +301,48 @@ impl Workload {
         }
     }
 
-    pub fn run<I: Copy>(&self, writer: &Writer<I>, samples: &'static [(I, &[SampleType])]) {
+    pub fn run_with_writer_batching<I: Copy + Into<usize> + Serialize + DeserializeOwned>(
+        &self,
+        writer: &WriterGroup<MultiSourceBatch<I>>,
+        samples: &'static [(I, &[SampleType])],
+    ) {
         println!("Running rate: {}", self.samples_per_second);
-        let start = Instant::now();
-        let mut last_batch = start;
-        let mut batch = Vec::with_capacity(self.batch_size);
+
+        let mut batches: Vec<Vec<(I, u64, &[SampleType])>> = (0..writer.num_writers())
+            .map(|_| Vec::with_capacity(self.batch_size))
+            .collect();
+
         let mut produced_samples = 0u32;
+        let mut batched_samples = 0;
+
+        let start = Instant::now();
+        let mut batch_start = start;
+
         'outer: loop {
             for item in samples {
+                let batch_idx: usize = item.0.into() % batches.len();
+                let batch = &mut batches[batch_idx];
                 let timestamp: u64 = timestamp_now_micros();
+
                 batch.push((item.0, timestamp, item.1));
+                batched_samples += 1;
+
+                if batched_samples == self.batch_size {
+                    while batch_start.elapsed() < self.batch_interval {}
+                    batch_start = std::time::Instant::now();
+                    batched_samples = 0;
+                }
+
                 if batch.len() == self.batch_size {
-                    while last_batch.elapsed() < self.batch_interval {}
-                    let to_send = (batch[0].1, batch.last().unwrap().1, batch); // NOTE: This works for this particular experiment but in reality, need to keep track of the batch
-                    match writer.sender.try_send(to_send) {
+                    let batch = std::mem::replace(
+                        &mut batches[batch_idx],
+                        Vec::with_capacity(self.batch_size),
+                    );
+
+                    let (start_ts, end_ts) = (batch[0].1, batch.last().unwrap().1);
+                    let batch = MultiSourceBatch::new(start_ts, end_ts, batch);
+
+                    match writer.senders[batch_idx].try_send(batch) {
                         Ok(_) => {
                             COUNTERS.samples_enqueued.fetch_add(self.batch_size, SeqCst);
                         }
@@ -176,21 +350,90 @@ impl Workload {
                             COUNTERS.samples_dropped.fetch_add(self.batch_size, SeqCst);
                         }
                     };
+
                     produced_samples += self.batch_size as u32;
-                    batch = Vec::with_capacity(self.batch_size);
-                    last_batch = std::time::Instant::now();
                     if start.elapsed() > self.duration {
                         break 'outer;
                     }
                 }
             }
         }
-        let produce_duration = start.elapsed().as_secs_f64();
-        let produced_samples: f64 = produced_samples.try_into().unwrap();
+
+        let run_duration = start.elapsed();
         println!(
             "Expected rate: {}, measured rate: {}",
             self.samples_per_second,
-            produced_samples / produce_duration
+            f64::from(produced_samples) / run_duration.as_secs_f64()
+        );
+    }
+
+    pub fn run_with_source_batching<I: Copy + Into<usize> + Serialize + DeserializeOwned>(
+        &self,
+        writer: &WriterGroup<SingleSourceBatch<I>>,
+        samples: &'static [(I, &[SampleType])],
+        num_sources: u64,
+    ) {
+        println!("Running rate: {}", self.samples_per_second);
+
+        let mut batches: Vec<Vec<(u64, &[SampleType])>> = (0..num_sources)
+            .map(|_| Vec::with_capacity(self.batch_size))
+            .collect();
+
+        let mut produced_samples = 0u32;
+        let mut batched_samples = 0;
+
+        let start = Instant::now();
+        let mut batch_start = start;
+
+        'outer: loop {
+            for item in samples {
+                // assume source id is in range [0..num_sources)
+                let source_id = item.0;
+                let batch_idx: usize = source_id.into();
+                let batch = &mut batches[batch_idx];
+                let timestamp: u64 = timestamp_now_micros();
+
+                batch.push((timestamp, item.1));
+                batched_samples += 1;
+
+                if batched_samples == self.batch_size {
+                    while batch_start.elapsed() < self.batch_interval {}
+                    batch_start = std::time::Instant::now();
+                    batched_samples = 0;
+                }
+
+                if batch.len() == self.batch_size {
+                    let batch = std::mem::replace(
+                        &mut batches[batch_idx],
+                        Vec::with_capacity(self.batch_size),
+                    );
+
+                    let (start_ts, end_ts) = (batch[0].0, batch.last().unwrap().0);
+                    let batch = SingleSourceBatch::new(start_ts, end_ts, source_id, batch);
+
+                    let selected_writer = &writer.senders[source_id.into() % writer.num_writers()];
+                    match selected_writer.try_send(batch) {
+                        Ok(_) => {
+                            COUNTERS.samples_enqueued.fetch_add(self.batch_size, SeqCst);
+                        }
+                        Err(_) => {
+                            COUNTERS.samples_dropped.fetch_add(self.batch_size, SeqCst);
+                        }
+                    };
+
+                    produced_samples += self.batch_size as u32;
+                    if start.elapsed() > self.duration {
+                        break 'outer;
+                    }
+                }
+            }
+        }
+
+        let run_duration = start.elapsed();
+        println!(
+            "Expected rate: {}, measured rate: {}",
+            self.samples_per_second,
+            f64::from(produced_samples) / run_duration.as_secs_f64()
         );
     }
 }

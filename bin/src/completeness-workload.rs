@@ -10,9 +10,7 @@ mod prep_data;
 mod snapshotter;
 mod utils;
 
-use crate::completeness::{
-    kafka::init_kafka, kafka_es::init_kafka_es, mach::init_mach, Workload, COUNTERS,
-};
+use crate::completeness::{kafka::init_kafka, mach::init_mach, Workload, COUNTERS};
 
 use crate::completeness::mach::{MACH, MACH_WRITER};
 use clap::*;
@@ -25,6 +23,8 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+
+use kafka_utils::KafkaTopicOptions;
 
 lazy_static! {
     static ref ARGS: Args = Args::parse();
@@ -62,7 +62,6 @@ lazy_static! {
         println!("Sample of IDs: {:?}", &ids[..10]);
         ids
     };
-    //static ref MACH_SAMPLES: Vec<prep_data::RegisteredSample> = {
     static ref MACH_SAMPLES: Vec<(SeriesRef, &'static [SampleType])> = {
         let mach = MACH.clone(); // ensure MACH is initialized (prevent deadlock)
         let writer = MACH_WRITER.clone(); // ensure WRITER is initialized (prevent deadlock)
@@ -87,10 +86,10 @@ struct Args {
     kafka_bootstraps: String,
 
     #[clap(short, long, default_value_t = 3)]
-    kafka_partitions: usize,
+    kafka_partitions: i32,
 
     #[clap(short, long, default_value_t = 3)]
-    kafka_replicas: usize,
+    kafka_replicas: i32,
 
     #[clap(short, long, default_value_t = String::from("kafka-completeness-bench"))]
     kafka_topic: String,
@@ -111,21 +110,30 @@ struct Args {
 fn main() {
     COUNTERS.init_watcher(Duration::from_secs_f64(ARGS.counter_interval_seconds));
     let workloads = &[
-        Workload::new(500_000., Duration::from_secs(3 * 60 * 60), ARGS.batch_size),
+        Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
+        Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
     ];
     match ARGS.tsdb.as_str() {
-        "es" => {
+        "kafka-es" => {
             let samples = SAMPLES.as_slice();
-            let kafka_es = init_kafka_es(
+            // Note: this is the producer part of the ES completeness workload.
+            // The subsequent part of this pipeline consumes data from Kafka and
+            // writes to ES (see kafka-es-connector).
+            let kafka_es = init_kafka(
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
+                KafkaTopicOptions {
+                    num_replications: ARGS.kafka_replicas,
+                    num_partitions: ARGS.kafka_partitions,
+                },
             );
+            COUNTERS.start_watcher();
             for workload in workloads {
-                workload.run(&kafka_es, samples);
+                workload.run_with_source_batching(&kafka_es, samples, ARGS.source_count);
             }
             kafka_es.done();
         }
@@ -136,11 +144,15 @@ fn main() {
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
+                KafkaTopicOptions {
+                    num_replications: ARGS.kafka_replicas,
+                    num_partitions: ARGS.kafka_partitions,
+                },
             );
             COUNTERS.init_kafka_consumer(ARGS.kafka_bootstraps.as_str(), ARGS.kafka_topic.as_str());
             COUNTERS.start_watcher();
             for workload in workloads {
-                workload.run(&kafka, samples);
+                workload.run_with_source_batching(&kafka, samples, ARGS.source_count);
             }
             kafka.done();
         }
@@ -152,7 +164,7 @@ fn main() {
             COUNTERS.start_watcher();
             snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap());
             for workload in workloads {
-                workload.run(&mach, samples);
+                workload.run_with_source_batching(&mach, samples, ARGS.source_count);
             }
             mach.done();
         }

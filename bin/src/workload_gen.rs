@@ -13,6 +13,8 @@ use std::sync::Barrier;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use kafka_utils::{make_topic, KafkaTopicOptions};
+
 use mach::{id::SeriesId, sample::SampleType, utils::random_id};
 
 lazy_static! {
@@ -99,7 +101,7 @@ fn kafka_parallel_workload(workloads: &[Workload]) {
     let num_flushers = 4;
     let batch_sz: usize = 100_000;
     let topic = random_id();
-    kafka_utils::make_topic(KAFKA_BOOTSTRAP, &topic);
+    make_topic(KAFKA_BOOTSTRAP, &topic, KafkaTopicOptions::default());
 
     let barr = Arc::new(Barrier::new(num_flushers + 1));
 

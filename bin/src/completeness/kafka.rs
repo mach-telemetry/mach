@@ -1,4 +1,4 @@
-use crate::completeness::{Sample, SampleOwned, Writer, COUNTERS};
+use crate::completeness::{SampleOwned, WriterGroup, COUNTERS};
 use crate::kafka_utils;
 use crate::utils::timestamp_now_micros;
 use crossbeam_channel::{bounded, Receiver};
@@ -6,12 +6,15 @@ use kafka::{
     client::{FetchOffset, KafkaClient},
     consumer::Consumer,
 };
+use kafka_utils::{make_topic, KafkaTopicOptions};
 use lzzzz::lz4;
 use mach::id::SeriesId;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
+
+use super::{Batch, Decompress, SingleSourceBatch};
 
 pub fn decompress_kafka_msg(
     msg: &[u8],
@@ -25,7 +28,7 @@ pub fn decompress_kafka_msg(
     (start, end, data)
 }
 
-pub fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> usize {
+pub fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> u64 {
     let mut client = KafkaClient::new(bootstraps.split(',').map(String::from).collect());
     client.load_metadata_all().unwrap();
 
@@ -50,8 +53,8 @@ pub fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> usize {
     for set in consumer.poll().unwrap().iter() {
         let _p = set.partition();
         for msg in set.messages().iter() {
-            let (start, end, data) = decompress_kafka_msg(msg.value, buffer.as_mut_slice());
-            max_ts = max_ts.max(end as usize);
+            let batch = SingleSourceBatch::<SeriesId>::decompress(msg.value, buffer.as_mut_slice());
+            max_ts = max_ts.max(batch.end);
         }
     }
     max_ts
@@ -61,8 +64,7 @@ pub fn init_kafka_consumer(kafka_bootstraps: &'static str, kafka_topic: &'static
     loop {
         std::thread::spawn(move || {
             let max_ts = get_last_kafka_timestamp(kafka_topic, kafka_bootstraps);
-            let now: usize = timestamp_now_micros().try_into().unwrap();
-            //println!("max ts: {}, age: {}", max_ts, now - max_ts);
+            let now = timestamp_now_micros();
             if max_ts > 0 {
                 COUNTERS.data_age.store(now - max_ts, SeqCst);
             }
@@ -71,46 +73,61 @@ pub fn init_kafka_consumer(kafka_bootstraps: &'static str, kafka_topic: &'static
     }
 }
 
-pub fn kafka_writer(
-    kafka_bootstraps: &'static str,
-    kafka_topic: &'static str,
+pub struct KafkaTopicPartition<'a> {
+    bootstraps: &'a str,
+    topic: &'a str,
+    partition: i32,
+}
+
+impl<'a> KafkaTopicPartition<'a> {
+    fn new(bootstraps: &'a str, topic: &'a str, partition: i32) -> Self {
+        Self {
+            bootstraps,
+            topic,
+            partition,
+        }
+    }
+}
+
+pub fn kafka_writer<B: Batch>(
+    kafka_dest: KafkaTopicPartition,
     barrier: Arc<Barrier>,
-    receiver: Receiver<(u64, u64, Vec<Sample<SeriesId>>)>,
+    receiver: Receiver<B>,
 ) {
-    let mut producer = kafka_utils::Producer::new(kafka_bootstraps);
-    while let Ok(data) = receiver.recv() {
-        let (start, end, data) = data;
-        let bytes = bincode::serialize(&data).unwrap();
-        let mut compressed: Vec<u8> = Vec::new();
-        compressed.extend_from_slice(&start.to_be_bytes()[..]);
-        compressed.extend_from_slice(&end.to_be_bytes()[..]);
-        lz4::compress_to_vec(bytes.as_slice(), &mut compressed, lz4::ACC_LEVEL_DEFAULT).unwrap();
-        compressed.extend_from_slice(&bytes.len().to_be_bytes()[..]); // Size of uncompressed bytes
-        producer.send(kafka_topic, 0, compressed.as_slice());
-        COUNTERS.samples_written.fetch_add(data.len(), SeqCst);
+    let mut producer = kafka_utils::Producer::new(kafka_dest.bootstraps);
+    while let Ok(batch) = receiver.recv() {
+        let num_samples = batch.len();
+        let compressed = batch.compress();
+        producer.send(
+            kafka_dest.topic,
+            kafka_dest.partition,
+            compressed.as_slice(),
+        );
+        COUNTERS.samples_written.fetch_add(num_samples, SeqCst);
     }
     barrier.wait();
 }
 
-pub fn init_kafka(
+pub fn init_kafka<B: 'static + Batch + Send>(
     kafka_bootstraps: &'static str,
     kafka_topic: &'static str,
     num_writers: usize,
-) -> Writer<SeriesId> {
-    kafka_utils::make_topic(&kafka_bootstraps, &kafka_topic);
-    let (tx, rx) = bounded(1);
+    kafka_topic_opts: KafkaTopicOptions,
+) -> WriterGroup<B> {
+    make_topic(&kafka_bootstraps, &kafka_topic, kafka_topic_opts);
     let barrier = Arc::new(Barrier::new(num_writers + 1));
+    let mut senders = Vec::with_capacity(num_writers);
 
-    for _ in 0..num_writers {
+    for wid in 0..num_writers {
         let barrier = barrier.clone();
-        let rx = rx.clone();
+        let (tx, rx) = bounded(1000);
+        senders.push(tx);
+        let writer_partition = wid as i32 % kafka_topic_opts.num_partitions;
+        let kafka_dest = KafkaTopicPartition::new(kafka_bootstraps, kafka_topic, writer_partition);
         thread::spawn(move || {
-            kafka_writer(kafka_bootstraps, kafka_topic, barrier, rx);
+            kafka_writer(kafka_dest, barrier, rx);
         });
     }
 
-    Writer {
-        sender: tx,
-        barrier,
-    }
+    WriterGroup { senders, barrier }
 }

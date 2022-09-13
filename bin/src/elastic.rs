@@ -1,6 +1,10 @@
 use std::collections::HashMap;
+use std::convert::TryInto;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{atomic::AtomicUsize, Arc};
 use std::time::Duration;
+use tokio::time::Instant;
 
 use elasticsearch::{
     auth::Credentials,
@@ -132,6 +136,10 @@ impl CreateIndexArgs {
 #[derive(Default)]
 pub struct IngestStats {
     pub num_flushed: AtomicUsize,
+    pub num_flush_reqs_initiated: AtomicUsize,
+    pub num_flush_reqs_completed: AtomicUsize,
+    pub num_flush_retries: AtomicUsize,
+    pub flush_dur_millis: AtomicU64,
 }
 
 pub type ESResponse = Result<elasticsearch::http::response::Response, elasticsearch::Error>;
@@ -169,8 +177,8 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
             batch: Vec::with_capacity(batch_size),
             batch_size,
             index_name,
-            backoff: ExponentialBackoff::new(Duration::from_secs(1), Duration::from_secs(10)),
-            max_retries: 5,
+            backoff: ExponentialBackoff::new(Duration::from_secs(1), Duration::from_secs(5)),
+            max_retries: 3,
             stats,
         }
     }
@@ -184,6 +192,7 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
     }
 
     pub async fn flush(&mut self) -> ESResponse {
+        self.stats.num_flush_reqs_initiated.fetch_add(1, SeqCst);
         let mut num_retries = 0;
         loop {
             let batch_sz = self.batch.len();
@@ -193,26 +202,32 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
                 bulk_msg_body.push(item.clone().into());
             }
 
+            let start = Instant::now();
             let r = self
                 .client
                 .bulk(BulkParts::Index(self.index_name.as_str()))
                 .body(bulk_msg_body)
                 .send()
                 .await;
+            let bulk_dur = start.elapsed();
+
             if let Ok(ref r) = r {
                 if r.status_code().is_success() {
-                    self.stats
-                        .num_flushed
-                        .fetch_add(batch_sz, std::sync::atomic::Ordering::SeqCst);
+                    self.stats.num_flushed.fetch_add(batch_sz, SeqCst);
                 } else if num_retries < self.max_retries && r.status_code().as_u16() == 429 {
                     // too-many-requests
                     tokio::time::sleep(self.backoff.next_backoff()).await;
                     num_retries += 1;
+                    self.stats.num_flush_retries.fetch_add(1, SeqCst);
                     continue;
                 }
             }
             self.batch.clear();
             self.backoff.reset();
+            self.stats
+                .flush_dur_millis
+                .fetch_add(bulk_dur.as_millis().try_into().unwrap(), SeqCst);
+            self.stats.num_flush_reqs_completed.fetch_add(1, SeqCst);
             return r;
         }
     }

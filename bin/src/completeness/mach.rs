@@ -1,4 +1,4 @@
-use crate::completeness::{Sample, Writer, COUNTERS};
+use crate::completeness::{WriterGroup, COUNTERS};
 use crossbeam_channel::{bounded, Receiver};
 use lazy_static::lazy_static;
 use mach::{
@@ -11,7 +11,9 @@ use mach::{
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use super::SingleSourceBatch;
 
 lazy_static! {
     pub static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -45,7 +47,7 @@ fn mach_query(series: Series) -> Option<usize> {
     Some(now - ts)
 }
 
-pub fn init_mach_querier(series_id: SeriesId) {
+pub fn init_mach_querier(_series_id: SeriesId) {
     //let snapshotter = MACH.lock().unwrap().init_snapshotter();
     //let snapshotter_id = snapshotter.initialize_snapshotter(
     //    series_id,
@@ -66,29 +68,27 @@ pub fn init_mach_querier(series_id: SeriesId) {
     //}
 }
 
-fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<(u64, u64, Vec<Sample<SeriesRef>>)>) {
+fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<SingleSourceBatch<SeriesRef>>) {
     let mut writer_guard = MACH_WRITER.lock().unwrap();
     let writer = &mut *writer_guard;
-    while let Ok(data) = receiver.recv() {
-        let (start, end, data) = data;
+    while let Ok(batch) = receiver.recv() {
         let mut raw_sz = 0;
-        for item in data.iter() {
+        for item in batch.data.iter() {
             'push_loop: loop {
-                if writer.push(item.0, item.1, item.2).is_ok() {
-                    //println!("Data size: {}", item.2[0].as_bytes().len());
-                    raw_sz += item.2[0].as_bytes().len();
+                if writer.push(batch.source_id, item.0, item.1).is_ok() {
+                    raw_sz += item.1[0].as_bytes().len();
                     break 'push_loop;
                 }
             }
         }
         COUNTERS.raw_data_size.fetch_add(raw_sz, SeqCst);
-        COUNTERS.samples_written.fetch_add(data.len(), SeqCst);
+        COUNTERS.samples_written.fetch_add(batch.data.len(), SeqCst);
         COUNTERS.samples_dropped.fetch_add(0, SeqCst);
     }
     barrier.wait();
 }
 
-pub fn init_mach() -> Writer<SeriesRef> {
+pub fn init_mach() -> WriterGroup<SingleSourceBatch<SeriesRef>> {
     let (tx, rx) = bounded(1);
     let barrier = Arc::new(Barrier::new(2));
 
@@ -100,8 +100,8 @@ pub fn init_mach() -> Writer<SeriesRef> {
         });
     }
 
-    Writer {
-        sender: tx,
+    WriterGroup {
+        senders: vec![tx],
         barrier,
     }
 }

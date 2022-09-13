@@ -42,6 +42,12 @@ impl Deref for SeriesId {
     }
 }
 
+impl Into<usize> for SeriesId {
+    fn into(self) -> usize {
+        self.0 as usize
+    }
+}
+
 impl SeriesId {
     pub fn inner(&self) -> u64 {
         self.0
@@ -55,6 +61,12 @@ impl Deref for SeriesRef {
     type Target = usize;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Into<usize> for SeriesRef {
+    fn into(self) -> usize {
+        self.0
     }
 }
 

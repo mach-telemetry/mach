@@ -9,7 +9,22 @@ use rdkafka::{
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
-pub fn make_topic(bootstrap: &str, topic: &str) {
+#[derive(Copy, Clone)]
+pub struct KafkaTopicOptions {
+    pub num_partitions: i32,
+    pub num_replications: i32,
+}
+
+impl Default for KafkaTopicOptions {
+    fn default() -> Self {
+        Self {
+            num_replications: 3,
+            num_partitions: 3,
+        }
+    }
+}
+
+pub fn make_topic(bootstrap: &str, topic: &str, opts: KafkaTopicOptions) {
     let rt = tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap();
@@ -18,11 +33,12 @@ pub fn make_topic(bootstrap: &str, topic: &str) {
         .create()
         .unwrap();
     let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(3)));
+    let min_insync_replicas = opts.num_replications.to_string();
     let topics = &[NewTopic {
         name: topic,
-        num_partitions: 3,
-        replication: TopicReplication::Fixed(3),
-        config: vec![("min.insync.replicas", "3")],
+        num_partitions: opts.num_partitions,
+        replication: TopicReplication::Fixed(opts.num_replications),
+        config: vec![("min.insync.replicas", min_insync_replicas.as_str())],
     }];
     rt.block_on(client.create_topics(topics, &admin_opts))
         .unwrap();
