@@ -14,7 +14,7 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
-use super::{Batch, Decompress, SingleSourceBatch};
+use super::{Batch, Decompress, MultiSourceBatch, SingleSourceBatch};
 
 pub fn decompress_kafka_msg(
     msg: &[u8],
@@ -53,7 +53,7 @@ pub fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> u64 {
     for set in consumer.poll().unwrap().iter() {
         let _p = set.partition();
         for msg in set.messages().iter() {
-            let batch = SingleSourceBatch::<SeriesId>::decompress(msg.value, buffer.as_mut_slice());
+            let batch = MultiSourceBatch::<SeriesId>::decompress(msg.value, buffer.as_mut_slice());
             max_ts = max_ts.max(batch.end);
         }
     }

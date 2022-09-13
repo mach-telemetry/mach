@@ -18,6 +18,7 @@ use mach_extern::{
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::mem::{size_of, size_of_val};
 use std::sync::atomic::AtomicU64;
 use std::sync::{atomic::AtomicUsize, atomic::Ordering::SeqCst, Arc, Barrier};
 use std::thread;
@@ -285,19 +286,24 @@ impl<I: Serialize + DeserializeOwned> Decompress for MultiSourceBatch<I> {
 pub struct Workload {
     samples_per_second: f64,
     duration: Duration,
-    batch_interval: Duration,
-    batch_size: usize,
+    sample_interval: Duration,
+    batch_bytes: usize,
+    production_interval: Duration,
+    production_sz: u64,
 }
 
 impl Workload {
-    pub fn new(samples_per_second: f64, duration: Duration, batch_size: u32) -> Self {
+    pub fn new(samples_per_second: f64, duration: Duration, batch_bytes: usize) -> Self {
         let sample_interval = Duration::from_secs_f64(1.0 / samples_per_second);
-        let batch_interval = sample_interval * batch_size;
+        let production_interval = Duration::from_millis(50);
+        let production_sz = (samples_per_second / 20.0) as u64;
         Self {
             samples_per_second,
+            sample_interval,
             duration,
-            batch_interval,
-            batch_size: batch_size as usize,
+            batch_bytes,
+            production_interval,
+            production_sz,
         }
     }
 
@@ -308,11 +314,12 @@ impl Workload {
     ) {
         println!("Running rate: {}", self.samples_per_second);
 
-        let mut batches: Vec<Vec<(I, u64, &[SampleType])>> = (0..writer.num_writers())
-            .map(|_| Vec::with_capacity(self.batch_size))
-            .collect();
+        let mut batches: Vec<Vec<(I, u64, &[SampleType])>> =
+            (0..writer.num_writers()).map(|_| Vec::new()).collect();
+        let mut batch_size_bytes: Vec<usize> = batches.iter().map(|_| 0).collect();
 
         let mut produced_samples = 0u32;
+
         let mut batched_samples = 0;
 
         let start = Instant::now();
@@ -324,19 +331,24 @@ impl Workload {
                 let batch = &mut batches[batch_idx];
                 let timestamp: u64 = timestamp_now_micros();
 
+                let sample_size = size_of::<u64>() + size_of::<I>() + size_of_val(item.1);
+                batch_size_bytes[batch_idx] += sample_size;
                 batch.push((item.0, timestamp, item.1));
                 batched_samples += 1;
 
-                if batched_samples == self.batch_size {
-                    while batch_start.elapsed() < self.batch_interval {}
+                if batched_samples == self.production_sz {
+                    while batch_start.elapsed() < self.production_interval {}
                     batch_start = std::time::Instant::now();
                     batched_samples = 0;
                 }
 
-                if batch.len() == self.batch_size {
+                if batch_size_bytes[batch_idx] >= self.batch_bytes {
+                    let batch_size = batches[batch_idx].len();
+
+                    batch_size_bytes[batch_idx] = 0;
                     let batch = std::mem::replace(
                         &mut batches[batch_idx],
-                        Vec::with_capacity(self.batch_size),
+                        Vec::with_capacity(batch_size * 2),
                     );
 
                     let (start_ts, end_ts) = (batch[0].1, batch.last().unwrap().1);
@@ -344,14 +356,14 @@ impl Workload {
 
                     match writer.senders[batch_idx].try_send(batch) {
                         Ok(_) => {
-                            COUNTERS.samples_enqueued.fetch_add(self.batch_size, SeqCst);
+                            COUNTERS.samples_enqueued.fetch_add(batch_size, SeqCst);
                         }
                         Err(_) => {
-                            COUNTERS.samples_dropped.fetch_add(self.batch_size, SeqCst);
+                            COUNTERS.samples_dropped.fetch_add(batch_size, SeqCst);
                         }
                     };
 
-                    produced_samples += self.batch_size as u32;
+                    produced_samples += batch_size as u32;
                     if start.elapsed() > self.duration {
                         break 'outer;
                     }
@@ -375,9 +387,9 @@ impl Workload {
     ) {
         println!("Running rate: {}", self.samples_per_second);
 
-        let mut batches: Vec<Vec<(u64, &[SampleType])>> = (0..num_sources)
-            .map(|_| Vec::with_capacity(self.batch_size))
-            .collect();
+        let mut batches: Vec<Vec<(u64, &[SampleType])>> =
+            (0..num_sources).map(|_| Vec::new()).collect();
+        let mut batch_size_bytes: Vec<usize> = batches.iter().map(|_| 0).collect();
 
         let mut produced_samples = 0u32;
         let mut batched_samples = 0;
@@ -393,19 +405,22 @@ impl Workload {
                 let batch = &mut batches[batch_idx];
                 let timestamp: u64 = timestamp_now_micros();
 
+                batch_size_bytes[batch_idx] += size_of::<u64>() + size_of_val(item.1);
                 batch.push((timestamp, item.1));
                 batched_samples += 1;
 
-                if batched_samples == self.batch_size {
-                    while batch_start.elapsed() < self.batch_interval {}
+                if batched_samples == self.production_sz {
+                    while batch_start.elapsed() < self.production_interval {}
                     batch_start = std::time::Instant::now();
                     batched_samples = 0;
                 }
 
-                if batch.len() == self.batch_size {
+                if batch_size_bytes[batch_idx] >= self.batch_bytes {
+                    let batch_size = batches[batch_idx].len();
+                    batch_size_bytes[batch_idx] = 0;
                     let batch = std::mem::replace(
                         &mut batches[batch_idx],
-                        Vec::with_capacity(self.batch_size),
+                        Vec::with_capacity(batch_size * 2),
                     );
 
                     let (start_ts, end_ts) = (batch[0].0, batch.last().unwrap().0);
@@ -414,14 +429,14 @@ impl Workload {
                     let selected_writer = &writer.senders[source_id.into() % writer.num_writers()];
                     match selected_writer.try_send(batch) {
                         Ok(_) => {
-                            COUNTERS.samples_enqueued.fetch_add(self.batch_size, SeqCst);
+                            COUNTERS.samples_enqueued.fetch_add(batch_size, SeqCst);
                         }
                         Err(_) => {
-                            COUNTERS.samples_dropped.fetch_add(self.batch_size, SeqCst);
+                            COUNTERS.samples_dropped.fetch_add(batch_size, SeqCst);
                         }
                     };
 
-                    produced_samples += self.batch_size as u32;
+                    produced_samples += batch_size as u32;
                     if start.elapsed() > self.duration {
                         break 'outer;
                     }

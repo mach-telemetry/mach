@@ -18,13 +18,13 @@ use lazy_static::lazy_static;
 use mach::id::{SeriesId, SeriesRef};
 use mach::sample::SampleType;
 use rand::prelude::*;
+use std::fs::File;
+use std::io::*;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
     time::Duration,
 };
-use std::fs::File;
-use std::io::*;
 
 use kafka_utils::KafkaTopicOptions;
 use rand::prelude::*;
@@ -44,7 +44,7 @@ lazy_static! {
     static ref SAMPLES: Vec<(SeriesId, &'static [SampleType])> = {
         let keys: Vec<SeriesId> = BASE_DATA.keys().copied().collect();
         println!("Expanding data based on source_count = {}", ARGS.source_count);
-        let mut rng = ChaCha8Rng::seed_from_u64(1);;
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
         let mut tmp_samples = Vec::new();
         let mut stats_map: Vec<(bool, usize)> = Vec::new();
         for id in 0..ARGS.source_count {
@@ -123,8 +123,8 @@ struct Args {
     #[clap(short, long, default_value_t = String::from("kafka-completeness-bench"))]
     kafka_topic: String,
 
-    #[clap(short, long, default_value_t = 100000)]
-    batch_size: u32,
+    #[clap(short, long, default_value_t = 1_000_000)]
+    batch_bytes: usize,
 
     #[clap(short, long, default_value_t = 1000)]
     source_count: u64,
@@ -140,8 +140,8 @@ struct Args {
 fn main() {
     COUNTERS.init_watcher(Duration::from_secs_f64(ARGS.counter_interval_seconds));
     let workloads = &[
-        Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
-        Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_size),
+        Workload::new(500_000., Duration::from_secs(60), ARGS.batch_bytes),
+        Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_bytes),
         //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_size),
         //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
@@ -182,7 +182,7 @@ fn main() {
             COUNTERS.init_kafka_consumer(ARGS.kafka_bootstraps.as_str(), ARGS.kafka_topic.as_str());
             COUNTERS.start_watcher();
             for workload in workloads {
-                workload.run_with_source_batching(&kafka, samples, ARGS.source_count);
+                workload.run_with_writer_batching(&kafka, samples);
             }
             kafka.done();
         }
