@@ -14,7 +14,7 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
-use super::Batch;
+use super::{Batch, Decompress, SingleSourceBatch};
 
 pub fn decompress_kafka_msg(
     msg: &[u8],
@@ -28,7 +28,7 @@ pub fn decompress_kafka_msg(
     (start, end, data)
 }
 
-pub fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> usize {
+pub fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> u64 {
     let mut client = KafkaClient::new(bootstraps.split(',').map(String::from).collect());
     client.load_metadata_all().unwrap();
 
@@ -53,8 +53,8 @@ pub fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> usize {
     for set in consumer.poll().unwrap().iter() {
         let _p = set.partition();
         for msg in set.messages().iter() {
-            let (_start, end, _data) = decompress_kafka_msg(msg.value, buffer.as_mut_slice());
-            max_ts = max_ts.max(end as usize);
+            let batch = SingleSourceBatch::<SeriesId>::decompress(msg.value, buffer.as_mut_slice());
+            max_ts = max_ts.max(batch.end);
         }
     }
     max_ts
@@ -64,8 +64,7 @@ pub fn init_kafka_consumer(kafka_bootstraps: &'static str, kafka_topic: &'static
     loop {
         std::thread::spawn(move || {
             let max_ts = get_last_kafka_timestamp(kafka_topic, kafka_bootstraps);
-            let now: usize = timestamp_now_micros().try_into().unwrap();
-            //println!("max ts: {}, age: {}", max_ts, now - max_ts);
+            let now = timestamp_now_micros();
             if max_ts > 0 {
                 COUNTERS.data_age.store(now - max_ts, SeqCst);
             }

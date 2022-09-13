@@ -18,6 +18,7 @@ use mach_extern::{
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::sync::atomic::AtomicU64;
 use std::sync::{atomic::AtomicUsize, atomic::Ordering::SeqCst, Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -35,7 +36,7 @@ pub struct Counters {
     unflushed_blocklists: Arc<AtomicUsize>,
     bytes_flushed: Arc<AtomicUsize>,
     raw_data_size: Arc<AtomicUsize>,
-    data_age: Arc<AtomicUsize>,
+    data_age: Arc<AtomicU64>,
     start_gate: Arc<Barrier>,
     writer_flush_queue: Arc<AtomicUsize>,
     unflushed_blocks: Arc<AtomicUsize>,
@@ -48,7 +49,7 @@ impl Counters {
             samples_dropped: Arc::new(AtomicUsize::new(0)),
             samples_written: Arc::new(AtomicUsize::new(0)),
             raw_data_size: Arc::new(AtomicUsize::new(0)),
-            data_age: Arc::new(AtomicUsize::new(0)),
+            data_age: Arc::new(AtomicU64::new(0)),
             unflushed_blocklists: PENDING_UNFLUSHED_BLOCKLISTS.clone(),
             bytes_flushed: TOTAL_BYTES_FLUSHED.clone(),
             start_gate: Arc::new(Barrier::new(2)),
@@ -106,7 +107,7 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
             pushed / secs
         };
 
-        let data_age = COUNTERS.data_age.load(SeqCst) as u64;
+        let data_age = COUNTERS.data_age.load(SeqCst);
         let delay = Duration::from_micros(data_age);
 
         last_pushed = pushed;
