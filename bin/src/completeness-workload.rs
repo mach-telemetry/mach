@@ -167,7 +167,7 @@ fn main() {
             );
             COUNTERS.start_watcher();
             for workload in workloads {
-                workload.run_with_source_batching(&kafka_es, samples, ARGS.source_count);
+                workload.run_with_writer_batching(&kafka_es, samples);
             }
             kafka_es.done();
         }
