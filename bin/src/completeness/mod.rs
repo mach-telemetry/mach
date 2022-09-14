@@ -119,7 +119,7 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
         let writer_flush_queue = COUNTERS.writer_flush_queue.load(SeqCst);
         let unflushed_blocks = COUNTERS.unflushed_blocks.load(SeqCst);
 
-        println!("Completeness: {}, Writer Flush Queue: {}, Unflushed Blocks: {}, Throughput: {}, Raw data size: {}, Data flushed: {}, Data age: {:?}", completeness, writer_flush_queue, unflushed_blocks, rate, raw_data_size, bytes_flushed, delay);
+        println!("Completeness: {}, Writer Flush Queue: {}, Unflushed Blocks: {}, Throughput: {}, Raw data size: {}, Bytes flushed: {}, Data age: {:?}", completeness, writer_flush_queue, unflushed_blocks, rate, raw_data_size, bytes_flushed, delay);
         thread::sleep(interval);
     }
 }
