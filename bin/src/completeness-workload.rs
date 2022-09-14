@@ -111,6 +111,9 @@ struct Args {
     #[clap(short, long, default_value_t = 4)]
     kafka_writers: usize,
 
+    #[clap(short, long, default_value_t = 1)]
+    writer_queue_len: usize,
+
     #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
     kafka_bootstraps: String,
 
@@ -156,6 +159,7 @@ fn main() {
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
+                ARGS.writer_queue_len,
                 KafkaTopicOptions {
                     num_replications: ARGS.kafka_replicas,
                     num_partitions: ARGS.kafka_partitions,
@@ -174,6 +178,7 @@ fn main() {
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
+                ARGS.writer_queue_len,
                 KafkaTopicOptions {
                     num_replications: ARGS.kafka_replicas,
                     num_partitions: ARGS.kafka_partitions,

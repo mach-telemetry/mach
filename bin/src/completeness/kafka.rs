@@ -113,6 +113,7 @@ pub fn init_kafka<B: 'static + Batch + Send>(
     kafka_bootstraps: &'static str,
     kafka_topic: &'static str,
     num_writers: usize,
+    writer_queue_bound: usize,
     kafka_topic_opts: KafkaTopicOptions,
 ) -> WriterGroup<B> {
     make_topic(&kafka_bootstraps, &kafka_topic, kafka_topic_opts);
@@ -121,7 +122,7 @@ pub fn init_kafka<B: 'static + Batch + Send>(
 
     for wid in 0..num_writers {
         let barrier = barrier.clone();
-        let (tx, rx) = bounded(1000);
+        let (tx, rx) = bounded(writer_queue_bound);
         senders.push(tx);
         let writer_partition = wid as i32 % kafka_topic_opts.num_partitions;
         let kafka_dest = KafkaTopicPartition::new(kafka_bootstraps, kafka_topic, writer_partition);
