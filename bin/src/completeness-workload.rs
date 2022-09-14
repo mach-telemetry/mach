@@ -1,5 +1,6 @@
 #[allow(dead_code)]
 mod bytes_server;
+#[allow(dead_code)]
 mod completeness;
 #[allow(dead_code)]
 mod elastic;
@@ -17,7 +18,6 @@ use clap::*;
 use lazy_static::lazy_static;
 use mach::id::{SeriesId, SeriesRef};
 use mach::sample::SampleType;
-use rand::prelude::*;
 use std::fs::File;
 use std::io::*;
 use std::{

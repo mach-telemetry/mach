@@ -14,7 +14,7 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
-use super::{Batch, Decompress, MultiSourceBatch, SingleSourceBatch};
+use super::{Batch, Decompress, MultiSourceBatch};
 
 pub fn decompress_kafka_msg(
     msg: &[u8],
