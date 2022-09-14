@@ -104,6 +104,7 @@ pub fn kafka_writer<B: Batch>(
             compressed.as_slice(),
         );
         COUNTERS.samples_written.fetch_add(num_samples, SeqCst);
+        COUNTERS.bytes_flushed.fetch_add(compressed.len(), SeqCst);
     }
     barrier.wait();
 }
