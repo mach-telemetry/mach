@@ -13,7 +13,7 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{SingleSourceBatch, MultiSourceBatch};
+use super::{MultiSourceBatch, SingleSourceBatch};
 
 lazy_static! {
     pub static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
