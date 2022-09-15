@@ -28,6 +28,7 @@ lazy_static! {
     pub static ref COUNTERS: Counters = Counters::new();
 }
 
+pub type SampleRef<I> = (I, u64, &'static [SampleType]);
 pub type SampleOwned<I> = (I, u64, Vec<SampleType>);
 
 pub struct Counters {
@@ -124,13 +125,25 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
     }
 }
 
+pub struct Writer<B: Batch> {
+    sender: Sender<B>,
+    barrier: Arc<Barrier>,
+}
+
+impl<B: Batch> Writer<B> {
+    fn done(self) {
+        drop(self.sender);
+        self.barrier.wait();
+    }
+}
+
 pub struct WriterGroup<B: Batch> {
     senders: Vec<Sender<B>>,
     barrier: Arc<Barrier>,
 }
 
 impl<B: Batch> WriterGroup<B> {
-    pub fn done(self) {
+    fn done(self) {
         drop(self.senders);
         self.barrier.wait();
     }
@@ -231,13 +244,13 @@ impl<I: Copy + Serialize + DeserializeOwned + Into<usize>> Decompress for Single
 pub struct MultiSourceBatch<I: Serialize + DeserializeOwned> {
     pub start: u64,
     pub end: u64,
-    pub data: Vec<(I, u64, &'static [SampleType])>,
+    pub data: Vec<SampleRef<I>>,
 }
 
 pub struct MultiSourceOwnedBatch<I: Serialize + DeserializeOwned> {
     pub start: u64,
     pub end: u64,
-    pub data: Vec<(I, u64, Vec<SampleType>)>,
+    pub data: Vec<SampleOwned<I>>,
 }
 
 impl<I: Serialize + DeserializeOwned> MultiSourceBatch<I> {
@@ -282,44 +295,64 @@ impl<I: Serialize + DeserializeOwned> Decompress for MultiSourceBatch<I> {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct Workload {
-    samples_per_second: f64,
-    duration: Duration,
-    sample_interval: Duration,
-    batch_bytes: usize,
-    production_interval: Duration,
-    production_sz: u64,
+pub enum BatchThreshold {
+    SampleCount(usize),
+    Bytes(usize),
 }
 
-impl Workload {
-    pub fn new(samples_per_second: f64, duration: Duration, batch_bytes: usize) -> Self {
-        let sample_interval = Duration::from_secs_f64(1.0 / samples_per_second);
-        let production_interval = Duration::from_millis(50);
-        let production_sz = (samples_per_second / 20.0) as u64;
+pub struct RunWorkloadOutput {
+    duration: Duration,
+    num_samples_sent: u32,
+}
+
+impl RunWorkloadOutput {
+    fn samples_per_sec(&self) -> f64 {
+        f64::from(self.num_samples_sent) / self.duration.as_secs_f64()
+    }
+}
+
+pub trait RunWorkload<S> {
+    fn run(&self, workload: &Workload, samples: &'static [S]) -> RunWorkloadOutput;
+    fn done(self);
+}
+
+pub struct MultiWriterBatchProducer<B: Batch> {
+    writers: WriterGroup<B>,
+    batch_size: BatchThreshold,
+}
+
+impl<B: Batch> MultiWriterBatchProducer<B> {
+    pub fn new(writers: WriterGroup<B>, batch_size: BatchThreshold) -> Self {
         Self {
-            samples_per_second,
-            sample_interval,
-            duration,
-            batch_bytes,
-            production_interval,
-            production_sz,
+            writers,
+            batch_size,
         }
     }
+}
 
-    pub fn run_with_writer_batching<I: Copy + Into<usize> + Serialize + DeserializeOwned>(
+impl<I> RunWorkload<(I, &'static [SampleType])> for MultiWriterBatchProducer<MultiSourceBatch<I>>
+where
+    I: Copy + Into<usize> + Serialize + DeserializeOwned,
+{
+    fn run(
         &self,
-        writer: &WriterGroup<MultiSourceBatch<I>>,
+        workload: &Workload,
         samples: &'static [(I, &[SampleType])],
-    ) {
-        println!("Running rate: {}", self.samples_per_second);
+    ) -> RunWorkloadOutput {
+        let batch_bytes = match self.batch_size {
+            BatchThreshold::SampleCount(_) => unimplemented!("not supported"),
+            BatchThreshold::Bytes(batch_bytes) => batch_bytes,
+        };
 
-        let mut batches: Vec<Vec<(I, u64, &[SampleType])>> =
-            (0..writer.num_writers()).map(|_| Vec::new()).collect();
+        let mut batches: Vec<Vec<(I, u64, &[SampleType])>> = (0..self.writers.num_writers())
+            .map(|_| Vec::new())
+            .collect();
         let mut batch_size_bytes: Vec<usize> = batches.iter().map(|_| 0).collect();
 
-        let mut produced_samples = 0u32;
+        let production_interval = Duration::from_millis(50);
+        let production_sz = (workload.samples_per_second / 20.0) as u64;
 
+        let mut produced_samples = 0u32;
         let mut batched_samples = 0;
 
         let start = Instant::now();
@@ -336,13 +369,13 @@ impl Workload {
                 batch.push((item.0, timestamp, item.1));
                 batched_samples += 1;
 
-                if batched_samples == self.production_sz {
-                    while batch_start.elapsed() < self.production_interval {}
+                if batched_samples == production_sz {
+                    while batch_start.elapsed() < production_interval {}
                     batch_start = std::time::Instant::now();
                     batched_samples = 0;
                 }
 
-                if batch_size_bytes[batch_idx] >= self.batch_bytes {
+                if batch_size_bytes[batch_idx] >= batch_bytes {
                     let batch_size = batches[batch_idx].len();
 
                     batch_size_bytes[batch_idx] = 0;
@@ -354,7 +387,7 @@ impl Workload {
                     let (start_ts, end_ts) = (batch[0].1, batch.last().unwrap().1);
                     let batch = MultiSourceBatch::new(start_ts, end_ts, batch);
 
-                    match writer.senders[batch_idx].try_send(batch) {
+                    match self.writers.senders[batch_idx].try_send(batch) {
                         Ok(_) => {
                             COUNTERS.samples_enqueued.fetch_add(batch_size, SeqCst);
                         }
@@ -364,18 +397,124 @@ impl Workload {
                     };
 
                     produced_samples += batch_size as u32;
-                    if start.elapsed() > self.duration {
+                    if start.elapsed() > workload.duration {
                         break 'outer;
                     }
                 }
             }
         }
 
-        let run_duration = start.elapsed();
+        RunWorkloadOutput {
+            duration: start.elapsed(),
+            num_samples_sent: produced_samples,
+        }
+    }
+
+    fn done(self) {
+        self.writers.done();
+    }
+}
+
+pub struct BatchProducer<B: Batch> {
+    writer: Writer<B>,
+    batch_size: BatchThreshold,
+}
+
+impl<B: Batch> BatchProducer<B> {
+    pub fn new(writer: Writer<B>, batch_size: BatchThreshold) -> Self {
+        Self { writer, batch_size }
+    }
+}
+
+impl<I> RunWorkload<(I, &'static [SampleType])> for BatchProducer<MultiSourceBatch<I>>
+where
+    I: Copy + Serialize + DeserializeOwned,
+{
+    fn run(
+        &self,
+        workload: &Workload,
+        samples: &'static [(I, &[SampleType])],
+    ) -> RunWorkloadOutput {
+        let batch_size = match self.batch_size {
+            BatchThreshold::SampleCount(num_samples) => num_samples,
+            BatchThreshold::Bytes(_) => unimplemented!("not supported"),
+        };
+
+        let batch_interval = workload.sample_interval * batch_size.try_into().unwrap();
+
+        let start = Instant::now();
+        let mut last_batch = start;
+        let mut batch = Vec::with_capacity(batch_size);
+        let mut produced_samples = 0u32;
+        'outer: loop {
+            for item in samples {
+                let timestamp: u64 = timestamp_now_micros();
+                batch.push((item.0, timestamp, item.1));
+                if batch.len() == batch_size {
+                    while last_batch.elapsed() < batch_interval {}
+
+                    let (start_ts, end_ts) = (batch[0].1, batch.last().unwrap().1);
+                    let batch_to_send = MultiSourceBatch::new(start_ts, end_ts, batch);
+
+                    match self.writer.sender.try_send(batch_to_send) {
+                        Ok(_) => {
+                            COUNTERS.samples_enqueued.fetch_add(batch_size, SeqCst);
+                        }
+                        Err(_) => {
+                            COUNTERS.samples_dropped.fetch_add(batch_size, SeqCst);
+                        }
+                    };
+                    produced_samples += batch_size as u32;
+                    batch = Vec::with_capacity(batch_size);
+                    last_batch = std::time::Instant::now();
+                    if start.elapsed() > workload.duration {
+                        break 'outer;
+                    }
+                }
+            }
+        }
+
+        RunWorkloadOutput {
+            duration: start.elapsed(),
+            num_samples_sent: produced_samples,
+        }
+    }
+
+    fn done(self) {
+        self.writer.done();
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Workload {
+    samples_per_second: f64,
+    duration: Duration,
+    sample_interval: Duration,
+}
+
+impl Workload {
+    pub fn new(samples_per_second: f64, duration: Duration) -> Self {
+        let sample_interval = Duration::from_secs_f64(1.0 / samples_per_second);
+        Self {
+            samples_per_second,
+            sample_interval,
+            duration,
+        }
+    }
+
+    pub fn run<I, R: RunWorkload<(I, &'static [SampleType])>>(
+        &self,
+        runner: &R,
+        samples: &'static [(I, &[SampleType])],
+    ) {
+        println!("Running rate: {}", self.samples_per_second);
+
+        let result = runner.run(self, samples);
+
         println!(
             "Expected rate: {}, measured rate: {}",
             self.samples_per_second,
-            f64::from(produced_samples) / run_duration.as_secs_f64()
+            result.samples_per_sec(),
         );
     }
 }

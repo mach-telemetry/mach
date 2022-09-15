@@ -15,6 +15,10 @@ use crate::completeness::{kafka::init_kafka, mach::init_mach, Workload, COUNTERS
 
 use crate::completeness::mach::{MACH, MACH_WRITER};
 use clap::*;
+use completeness::{
+    BatchProducer, BatchThreshold, MultiSourceBatch, MultiWriterBatchProducer, RunWorkload,
+    WriterGroup,
+};
 use lazy_static::lazy_static;
 use mach::id::{SeriesId, SeriesRef};
 use mach::sample::SampleType;
@@ -39,7 +43,7 @@ lazy_static! {
         let data: HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> = bincode::deserialize(&bytes).unwrap();
         println!("Read data for {} sources", data.len());
         data
-        //prep_data::load_samples(ARGS.file_path.as_str())
+        // prep_data::load_samples(ARGS.file_path.as_str())
     };
     static ref SAMPLES: Vec<(SeriesId, &'static [SampleType])> = {
         let keys: Vec<SeriesId> = BASE_DATA.keys().copied().collect();
@@ -143,11 +147,8 @@ struct Args {
 fn main() {
     COUNTERS.init_watcher(Duration::from_secs_f64(ARGS.counter_interval_seconds));
     let workloads = &[
-        Workload::new(500_000., Duration::from_secs(60), ARGS.batch_bytes),
-        Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_bytes),
-        //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
-        //Workload::new(2_000_000., Duration::from_secs(60), ARGS.batch_size),
-        //Workload::new(500_000., Duration::from_secs(60), ARGS.batch_size),
+        Workload::new(500_000., Duration::from_secs(60)),
+        Workload::new(2_000_000., Duration::from_secs(60)),
     ];
     match ARGS.tsdb.as_str() {
         "kafka-es" => {
@@ -155,7 +156,7 @@ fn main() {
             // Note: this is the producer part of the ES completeness workload.
             // The subsequent part of this pipeline consumes data from Kafka and
             // writes to ES (see kafka-es-connector).
-            let kafka_es = init_kafka(
+            let kafka_writers = init_kafka(
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
@@ -165,16 +166,20 @@ fn main() {
                     num_partitions: ARGS.kafka_partitions,
                 },
             );
+            let runner = MultiWriterBatchProducer::new(
+                kafka_writers,
+                BatchThreshold::Bytes(ARGS.batch_bytes),
+            );
             COUNTERS.start_watcher();
             for workload in workloads {
-                workload.run_with_writer_batching(&kafka_es, samples);
+                workload.run(&runner, samples);
             }
-            kafka_es.done();
+            runner.done();
         }
         "kafka" => {
             let samples = SAMPLES.as_slice();
             let _ = SERIES_IDS.len();
-            let kafka = init_kafka(
+            let kafka_writers = init_kafka(
                 ARGS.kafka_bootstraps.as_str(),
                 ARGS.kafka_topic.as_str(),
                 ARGS.kafka_writers,
@@ -184,24 +189,29 @@ fn main() {
                     num_partitions: ARGS.kafka_partitions,
                 },
             );
+            let runner = MultiWriterBatchProducer::new(
+                kafka_writers,
+                BatchThreshold::Bytes(ARGS.batch_bytes),
+            );
             COUNTERS.init_kafka_consumer(ARGS.kafka_bootstraps.as_str(), ARGS.kafka_topic.as_str());
             COUNTERS.start_watcher();
             for workload in workloads {
-                workload.run_with_writer_batching(&kafka, samples);
+                workload.run(&runner, samples);
             }
-            kafka.done();
+            runner.done();
         }
         "mach" => {
             let samples = MACH_SAMPLES.as_slice();
             let _ = SERIES_IDS.len();
-            let mach = init_mach();
+            let mach_writer = init_mach();
+            let runner = BatchProducer::new(mach_writer, BatchThreshold::SampleCount(100_000));
             COUNTERS.init_mach_querier(SERIES_IDS[0]);
             COUNTERS.start_watcher();
             snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap());
             for workload in workloads {
-                workload.run_with_writer_batching(&mach, samples);
+                workload.run(&runner, samples);
             }
-            mach.done();
+            runner.done();
         }
         _ => panic!(),
     }
