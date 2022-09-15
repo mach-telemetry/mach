@@ -15,10 +15,7 @@ use crate::completeness::{kafka::init_kafka, mach::init_mach, Workload, COUNTERS
 
 use crate::completeness::mach::{MACH, MACH_WRITER};
 use clap::*;
-use completeness::{
-    BatchProducer, BatchThreshold, MultiSourceBatch, MultiWriterBatchProducer, RunWorkload,
-    WriterGroup,
-};
+use completeness::{BatchProducer, BatchThreshold, MultiWriterBatchProducer, RunWorkload};
 use lazy_static::lazy_static;
 use mach::id::{SeriesId, SeriesRef};
 use mach::sample::SampleType;
@@ -34,16 +31,13 @@ use kafka_utils::KafkaTopicOptions;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 
+type SourceToSamplesMap = HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>>;
+
 lazy_static! {
     static ref ARGS: Args = Args::parse();
-    static ref BASE_DATA: HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> = {
-        let mut file = File::open(&ARGS.file_path).unwrap();
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).unwrap();
-        let data: HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> = bincode::deserialize(&bytes).unwrap();
-        println!("Read data for {} sources", data.len());
-        data
-        // prep_data::load_samples(ARGS.file_path.as_str())
+    static ref BASE_DATA: SourceToSamplesMap = {
+        read_intel_data()
+        // read_train_tickets_data()
     };
     static ref SAMPLES: Vec<(SeriesId, &'static [SampleType])> = {
         let keys: Vec<SeriesId> = BASE_DATA.keys().copied().collect();
@@ -105,6 +99,22 @@ lazy_static! {
 
     };
     static ref DECOMPRESS_BUFFER: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(vec![0u8; 1_000_000]));
+}
+
+#[allow(dead_code)]
+fn read_intel_data() -> SourceToSamplesMap {
+    let mut file = File::open(&ARGS.file_path).unwrap();
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).unwrap();
+    let data: HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> =
+        bincode::deserialize(&bytes).unwrap();
+    println!("Read data for {} sources", data.len());
+    data
+}
+
+#[allow(dead_code)]
+fn read_train_tickets_data() -> SourceToSamplesMap {
+    prep_data::load_samples(ARGS.file_path.as_str())
 }
 
 #[derive(Parser, Debug, Clone)]
