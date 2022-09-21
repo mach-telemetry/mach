@@ -117,8 +117,9 @@ fn watcher(start_gate: Arc<Barrier>, interval: Duration) {
         let _unflushed_blocklists = COUNTERS.unflushed_blocklists.load(SeqCst);
         let writer_flush_queue = COUNTERS.writer_flush_queue.load(SeqCst);
         let unflushed_blocks = COUNTERS.unflushed_blocks.load(SeqCst);
+        let stat = procinfo::pid::stat_self().unwrap();
 
-        println!("Completeness: {}, Writer Flush Queue: {}, Unflushed Blocks: {}, Throughput: {}, Raw data size: {}, Data flushed: {}, Data age: {:?}", completeness, writer_flush_queue, unflushed_blocks, rate, raw_data_size, bytes_flushed, delay);
+        println!("Completeness: {}, Throughput: {}, Raw data size: {}, Data flushed: {}, Memory Usage: {}", completeness,  rate, raw_data_size, bytes_flushed, stat.vsize);
         thread::sleep(interval);
     }
 }

@@ -44,6 +44,8 @@ elasticsearch = "7.14.0-alpha.1"
 chrono = "0.4.22"
 flame = "0.2.2"
 rand_chacha = "0.3.1"
+libc = "0.2.133"
+procinfo = "0.4.2"
 
 [build-dependencies]
 tonic-build = { version = "0.6.2", features = ["prost", "compression"] }
@@ -150,6 +152,10 @@ path = "src/from-json.rs"
 [[bin]]
 name = "simple-kafka-query"
 path = "src/simple-kafka-query.rs"
+
+[[bin]]
+name = "getrusage"
+path = "src/getrusage.rs"
 
 
 #[[bin]]
