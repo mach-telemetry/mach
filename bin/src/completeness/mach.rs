@@ -1,4 +1,4 @@
-use crate::completeness::{WriterGroup, COUNTERS};
+use crate::completeness::COUNTERS;
 use crossbeam_channel::{bounded, Receiver};
 use lazy_static::lazy_static;
 use mach::{
@@ -13,7 +13,7 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{SingleSourceBatch, MultiSourceBatch};
+use super::{MultiSourceBatch, Writer};
 
 lazy_static! {
     pub static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -90,7 +90,7 @@ fn mach_writer(barrier: Arc<Barrier>, receiver: Receiver<MultiSourceBatch<Series
     barrier.wait();
 }
 
-pub fn init_mach() -> WriterGroup<MultiSourceBatch<SeriesRef>> {
+pub fn init_mach() -> Writer<MultiSourceBatch<SeriesRef>> {
     let (tx, rx) = bounded(1);
     let barrier = Arc::new(Barrier::new(2));
 
@@ -102,8 +102,8 @@ pub fn init_mach() -> WriterGroup<MultiSourceBatch<SeriesRef>> {
         });
     }
 
-    WriterGroup {
-        senders: vec![tx],
+    Writer {
+        sender: tx,
         barrier,
     }
 }

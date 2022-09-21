@@ -1,16 +1,13 @@
+use crossbeam::channel::{unbounded, Receiver, Sender};
+use mach::{id::SeriesId, sample::SampleType};
 use otlp::ResourceMetrics;
+use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::convert::TryInto;
 use std::env;
 use std::fs::{self, File};
-use std::io::{*, self, BufRead};
-use std::path::{Path, PathBuf};
-use std::collections::{HashMap, HashSet, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
-use mach::{
-    sample::SampleType,
-    id::SeriesId,
-};
-use crossbeam::channel::{unbounded, Sender, Receiver};
+use std::io::{self, BufRead, *};
+use std::path::{Path, PathBuf};
 
 #[derive(Hash, Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 struct Attributes(Vec<(String, String)>);
@@ -133,7 +130,11 @@ impl MetricSample {
             values.push((item.0, SampleType::F64(item.1)));
         }
         values.sort_by(|a, b| a.0.cmp(&b.0));
-        (SeriesId(self.id), self.timestamp, values.drain(..).map(|x| x.1).collect())
+        (
+            SeriesId(self.id),
+            self.timestamp,
+            values.drain(..).map(|x| x.1).collect(),
+        )
     }
 
     fn parse_otel_resource_metrics(json_data: &serde_json::Value) -> Vec<Self> {
@@ -150,7 +151,7 @@ impl MetricSample {
                     resource_attribs.hash(&mut hasher);
                     metric_name.hash(&mut hasher);
                     let id = hasher.finish();
-                    let mut value =  HashMap::new();
+                    let mut value = HashMap::new();
                     let mut timestamp = u64::MAX;
 
                     // Gauge
@@ -200,8 +201,11 @@ impl MetricSample {
                                 timestamp = ts;
                             }
                             let mut quantiles: Vec<(f64, f64)> = Vec::new();
-                            for quantile_value in point["quantileValues"].as_array().unwrap().iter() {
-                                if quantile_value["quantile"].is_null() || quantile_value["quantile"] == "0.0" {
+                            for quantile_value in point["quantileValues"].as_array().unwrap().iter()
+                            {
+                                if quantile_value["quantile"].is_null()
+                                    || quantile_value["quantile"] == "0.0"
+                                {
                                     let v = quantile_value["value"].as_f64().unwrap();
                                     let mut attribs = point_attribs.clone();
                                     attribs.insert("quantile".into(), "0.0".into());
@@ -221,7 +225,11 @@ impl MetricSample {
                         panic!("Missed a metric: {:?}", keys);
                     }
 
-                    all_points.push(MetricSample { id, timestamp, value });
+                    all_points.push(MetricSample {
+                        id,
+                        timestamp,
+                        value,
+                    });
                 }
             }
         }
@@ -246,7 +254,11 @@ impl LogSample {
         for resource_logs in json_data["resourceLogs"].as_array().unwrap().iter() {
             for scope_logs in resource_logs["scopeLogs"].as_array().unwrap().iter() {
                 for log_record in scope_logs["logRecords"].as_array().unwrap().iter() {
-                    let timestamp = log_record["timeUnixNano"].as_str().unwrap().parse().unwrap();
+                    let timestamp = log_record["timeUnixNano"]
+                        .as_str()
+                        .unwrap()
+                        .parse()
+                        .unwrap();
                     let mut id = 0;
                     for attrib in log_record["attributes"].as_array().unwrap().iter() {
                         if attrib["key"].as_str().unwrap() == "log.file.path" {
@@ -272,7 +284,11 @@ impl LogSample {
     }
 
     fn into_sample(self) -> (SeriesId, u64, Vec<SampleType>) {
-        (SeriesId(self.id), self.timestamp, vec![SampleType::Bytes(self.value)])
+        (
+            SeriesId(self.id),
+            self.timestamp,
+            vec![SampleType::Bytes(self.value)],
+        )
     }
 }
 
@@ -284,7 +300,11 @@ struct SpanSample {
 
 impl SpanSample {
     fn into_sample(self) -> (SeriesId, u64, Vec<SampleType>) {
-        (SeriesId(self.id), self.timestamp, vec![SampleType::Bytes(self.value)])
+        (
+            SeriesId(self.id),
+            self.timestamp,
+            vec![SampleType::Bytes(self.value)],
+        )
     }
 
     fn parse_jaeger_span(span: &serde_json::Value) -> Self {
@@ -333,7 +353,10 @@ impl SpanSample {
             }
         }
 
-        span["process"]["serviceName"].as_str().unwrap().hash(&mut hasher);
+        span["process"]["serviceName"]
+            .as_str()
+            .unwrap()
+            .hash(&mut hasher);
         Attributes::from_jaeger_tags(&span["process"]["tags"]).hash(&mut hasher);
         let id = hasher.finish();
         //let id = Attributes::from_jaeger_tags(&span["tags"]);
@@ -502,7 +525,10 @@ fn load_metrics() -> Vec<(SeriesId, u64, Vec<SampleType>)> {
         }
     }
 
-    all_points.drain(..).filter(|x| keep.contains(&x.0)).collect()
+    all_points
+        .drain(..)
+        .filter(|x| keep.contains(&x.0))
+        .collect()
 }
 
 fn main() {

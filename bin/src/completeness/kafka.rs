@@ -14,7 +14,7 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Duration;
 
-use super::{Batch, Decompress, SingleSourceBatch};
+use super::{Batch, Decompress, MultiSourceBatch};
 
 pub fn decompress_kafka_msg(
     msg: &[u8],
@@ -53,7 +53,7 @@ pub fn get_last_kafka_timestamp(topic: &str, bootstraps: &str) -> u64 {
     for set in consumer.poll().unwrap().iter() {
         let _p = set.partition();
         for msg in set.messages().iter() {
-            let batch = SingleSourceBatch::<SeriesId>::decompress(msg.value, buffer.as_mut_slice());
+            let batch = MultiSourceBatch::<SeriesId>::decompress(msg.value, buffer.as_mut_slice());
             max_ts = max_ts.max(batch.end);
         }
     }
@@ -104,6 +104,7 @@ pub fn kafka_writer<B: Batch>(
             compressed.as_slice(),
         );
         COUNTERS.samples_written.fetch_add(num_samples, SeqCst);
+        COUNTERS.bytes_flushed.fetch_add(compressed.len(), SeqCst);
     }
     barrier.wait();
 }
@@ -112,6 +113,7 @@ pub fn init_kafka<B: 'static + Batch + Send>(
     kafka_bootstraps: &'static str,
     kafka_topic: &'static str,
     num_writers: usize,
+    writer_queue_bound: usize,
     kafka_topic_opts: KafkaTopicOptions,
 ) -> WriterGroup<B> {
     make_topic(&kafka_bootstraps, &kafka_topic, kafka_topic_opts);
@@ -120,7 +122,7 @@ pub fn init_kafka<B: 'static + Batch + Send>(
 
     for wid in 0..num_writers {
         let barrier = barrier.clone();
-        let (tx, rx) = bounded(1000);
+        let (tx, rx) = bounded(writer_queue_bound);
         senders.push(tx);
         let writer_partition = wid as i32 % kafka_topic_opts.num_partitions;
         let kafka_dest = KafkaTopicPartition::new(kafka_bootstraps, kafka_topic, writer_partition);
