@@ -2,6 +2,7 @@ mod elastic;
 mod prep_data;
 mod utils;
 
+use crate::prep_data::ESSample;
 use clap::*;
 use elastic::{ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier, IngestStats};
 use lazy_static::lazy_static;
@@ -43,10 +44,10 @@ struct Args {
     #[clap(short, long)]
     es_password: Option<String>,
 
-    #[clap(short, long, default_value_t = 1024)]
-    es_ingest_batch_size: usize,
+    #[clap(short, long, default_value_t = 15_000_000)]
+    es_batch_bytes: usize,
 
-    #[clap(short, long, default_value_t = 40)]
+    #[clap(short, long, default_value_t = 2)]
     es_num_writers: usize,
 
     #[clap(short, long, default_value_t = 3)]
@@ -62,15 +63,17 @@ struct Args {
 async fn bench(
     barr: Arc<Barrier>,
     es_builder: ESClientBuilder,
-    batch_size: usize,
+    batch_bytes: usize,
     run_duration: Duration,
 ) {
-    let mut client = ESBatchedIndexClient::<prep_data::ESSample>::new(
+    let mut client = ESBatchedIndexClient::<ESSample>::new(
         es_builder.build().unwrap(),
         INDEX_NAME.to_string(),
-        batch_size,
+        batch_bytes,
         INGESTION_STATS.clone(),
     );
+
+    let print_responses = false;
 
     barr.wait().await;
     let start = Instant::now();
@@ -83,6 +86,10 @@ async fn bench(
                     Ok(r) => {
                         if !r.status_code().is_success() {
                             println!("Flush error {}", r.status_code().as_u16());
+                        }
+                        if print_responses {
+                            let resp = r.text().await.unwrap();
+                            println!("{resp}");
                         }
                     }
                 },
@@ -125,10 +132,10 @@ async fn main() {
         .username_optional(ARGS.es_username.clone())
         .password_optional(ARGS.es_password.clone());
 
-    let client = ESBatchedIndexClient::<prep_data::ESSample>::new(
+    let client = ESBatchedIndexClient::<ESSample>::new(
         elastic_builder.clone().build().unwrap(),
         INDEX_NAME.clone(),
-        ARGS.es_ingest_batch_size,
+        ARGS.es_batch_bytes,
         INGESTION_STATS.clone(),
     );
 
@@ -151,7 +158,7 @@ async fn main() {
     for _ in 0..ARGS.es_num_writers {
         let barr = barr.clone();
         let es_builder = elastic_builder.clone();
-        let batch_size = ARGS.es_ingest_batch_size;
+        let batch_size = ARGS.es_batch_bytes;
         let run_dur = run_duration.clone();
         tokio::spawn(async move {
             bench(barr, es_builder, batch_size, run_dur).await;
@@ -178,12 +185,21 @@ async fn main() {
 
     let bench_dur = start.elapsed();
 
-    let num_flushed = INGESTION_STATS
-        .num_flushed
-        .load(std::sync::atomic::Ordering::SeqCst);
+    let num_flushed = INGESTION_STATS.num_flushed.load(SeqCst);
+    let bytes_flushed = INGESTION_STATS.bytes_flushed.load(SeqCst);
+    let num_flush_completed = INGESTION_STATS.num_flush_reqs_completed.load(SeqCst);
+    let flush_ms = INGESTION_STATS.flush_dur_millis.load(SeqCst);
     let samples_per_sec = num_flushed as f64 / bench_dur.as_secs_f64();
+    let bytes_per_sec = bytes_flushed as f64 / bench_dur.as_secs_f64();
+    let avg_batch_size = num_flushed as f64 / num_flush_completed as f64;
+    let avg_flush_ms = flush_ms as f64 / num_flush_completed as f64;
+    let avg_sample_flush_ms = flush_ms as f64 / num_flushed as f64;
+
     println!(
-        "bench duration: {}, number of samples: {}, samples per sec: {samples_per_sec}",
+        "bench duration: {}, number of samples: {}, samples per sec: {samples_per_sec}, \
+        bytes per sec {bytes_per_sec}, average batch size: {avg_batch_size}, \
+        average flush ms {avg_flush_ms}, \
+        average sample flush ms {avg_sample_flush_ms}",
         bench_dur.as_secs_f64(),
         num_flushed
     );

@@ -149,3 +149,9 @@ impl Into<JsonBody<serde_json::Value>> for ESSample {
         serde_json::to_value(self).unwrap().into()
     }
 }
+
+impl Into<Vec<u8>> for ESSample {
+    fn into(self) -> Vec<u8> {
+        serde_json::to_vec(&self).unwrap()
+    }
+}

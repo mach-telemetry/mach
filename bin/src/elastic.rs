@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::marker::PhantomData;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{atomic::AtomicUsize, Arc};
@@ -136,6 +137,7 @@ impl CreateIndexArgs {
 #[derive(Default)]
 pub struct IngestStats {
     pub num_flushed: AtomicUsize,
+    pub bytes_flushed: AtomicUsize,
     pub num_flush_reqs_initiated: AtomicUsize,
     pub num_flush_reqs_completed: AtomicUsize,
     pub num_flush_retries: AtomicUsize,
@@ -149,43 +151,67 @@ pub enum IngestResponse {
     Flushed(ESResponse),
 }
 
-pub struct ESBatchedIndexClient<T: Clone + Into<JsonBody<serde_json::Value>>> {
+pub struct ESBatchedIndexClient<T: Into<Vec<u8>>> {
     client: Elasticsearch,
-    batch: Vec<T>,
-    batch_size: usize,
+    batch: Vec<Vec<u8>>,
+    batched_bytes: usize,
+    batched_samples: usize,
+    target_batch_size: usize,
     index_name: String,
     backoff: ExponentialBackoff,
     max_retries: usize,
+    index_cmd_bytes: Vec<u8>,
     stats: Arc<IngestStats>,
+    _sample_type: PhantomData<T>,
 }
 
-impl<T: Clone + Into<JsonBody<serde_json::Value>>> Drop for ESBatchedIndexClient<T> {
+impl<T> Drop for ESBatchedIndexClient<T>
+where
+    T: Into<Vec<u8>>,
+{
     fn drop(&mut self) {
         assert!(self.batch.len() == 0, "Some samples were not flushed");
     }
 }
 
-impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
+impl<T> ESBatchedIndexClient<T>
+where
+    T: Into<Vec<u8>>,
+{
     pub fn new(
         client: Elasticsearch,
         index_name: String,
-        batch_size: usize,
+        batch_size_bytes: usize,
         stats: Arc<IngestStats>,
     ) -> Self {
+        let index_cmd = json!({"index": {}});
+        let index_cmd_bytes = serde_json::to_vec(&index_cmd).unwrap();
+
         Self {
             client,
-            batch: Vec::with_capacity(batch_size),
-            batch_size,
+            batch: Vec::new(),
+            batched_bytes: 0,
+            batched_samples: 0,
+            target_batch_size: batch_size_bytes,
             index_name,
             backoff: ExponentialBackoff::new(Duration::from_secs(1), Duration::from_secs(5)),
             max_retries: 3,
+            index_cmd_bytes,
             stats,
+            _sample_type: PhantomData,
         }
     }
 
     pub async fn ingest(&mut self, doc: T) -> IngestResponse {
-        self.batch.push(doc);
-        match self.batch.len() == self.batch_size {
+        let bytes = doc.into();
+
+        self.batched_bytes += bytes.len();
+        self.batched_samples += 1;
+
+        self.batch.push(self.index_cmd_bytes.clone());
+        self.batch.push(bytes);
+
+        match self.batched_bytes >= self.target_batch_size {
             true => IngestResponse::Flushed(self.flush().await),
             false => IngestResponse::Batched,
         }
@@ -194,26 +220,30 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
     pub async fn flush(&mut self) -> ESResponse {
         self.stats.num_flush_reqs_initiated.fetch_add(1, SeqCst);
         let mut num_retries = 0;
-        loop {
-            let batch_sz = self.batch.len();
-            let mut bulk_msg_body: Vec<JsonBody<_>> = Vec::with_capacity(batch_sz * 2);
-            for item in self.batch.iter() {
-                bulk_msg_body.push(json!({"index": {}}).into());
-                bulk_msg_body.push(item.clone().into());
-            }
 
+        let bulk_msg_body = std::mem::replace(
+            &mut self.batch,
+            Vec::with_capacity(self.batched_samples * 2),
+        );
+
+        loop {
             let start = Instant::now();
             let r = self
                 .client
                 .bulk(BulkParts::Index(self.index_name.as_str()))
-                .body(bulk_msg_body)
+                .body(bulk_msg_body.clone())
                 .send()
                 .await;
             let bulk_dur = start.elapsed();
 
             if let Ok(ref r) = r {
                 if r.status_code().is_success() {
-                    self.stats.num_flushed.fetch_add(batch_sz, SeqCst);
+                    self.stats
+                        .num_flushed
+                        .fetch_add(self.batched_samples, SeqCst);
+                    self.stats
+                        .bytes_flushed
+                        .fetch_add(self.batched_bytes, SeqCst);
                 } else if num_retries < self.max_retries && r.status_code().as_u16() == 429 {
                     // too-many-requests
                     tokio::time::sleep(self.backoff.next_backoff()).await;
@@ -222,7 +252,9 @@ impl<T: Clone + Into<JsonBody<serde_json::Value>>> ESBatchedIndexClient<T> {
                     continue;
                 }
             }
-            self.batch.clear();
+
+            self.batched_samples = 0;
+            self.batched_bytes = 0;
             self.backoff.reset();
             self.stats
                 .flush_dur_millis
