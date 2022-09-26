@@ -10,7 +10,7 @@ mod prep_data;
 #[allow(dead_code)]
 mod snapshotter;
 mod utils;
-use crate::completeness::{kafka::decompress_kafka_msg, Sample, SampleOwned, Writer, COUNTERS};
+use crate::completeness::{kafka::decompress_kafka_msg, SampleOwned, Writer, COUNTERS};
 
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message};
 use lazy_static::*;
@@ -22,9 +22,26 @@ use std::collections::BTreeMap;
 use std::ops::{Bound::Included, RangeBounds};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use dashmap::DashMap;
+
+struct Index(Arc<DashMap<SeriesId, Arc<Mutex<BTreeMap<(u64, u64), Arc<Entry>>>>>>);
+
+impl Index {
+    fn insert(&self, id: SeriesId, range: (u64, u64), entry: Arc<Entry>) {
+        self.0.entry(id).or_insert(Arc::new(Mutex::new(BTreeMap::new()))).value().lock().unwrap().insert(range, entry);
+    }
+
+    fn last_timestamp(&self, id: SeriesId) -> Option<(u64, u64)> {
+        Some(*self.0.get(&id)?.lock().unwrap().last_key_value()?.0)
+    }
+
+    fn get_map(&self, id: SeriesId) -> Option<Arc<Mutex<BTreeMap<(u64, u64), Arc<Entry>>>>> {
+        Some(self.0.get(&id)?.clone())
+    }
+}
 
 enum Entry {
-    Bytes(Arc<[u8]>),
+    Bytes(Box<[u8]>),
     Processed(Vec<SampleOwned<SeriesId>>),
 }
 

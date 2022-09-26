@@ -157,6 +157,13 @@ path = "src/simple-kafka-query.rs"
 name = "getrusage"
 path = "src/getrusage.rs"
 
+#[[bin]]
+#name = "data-generator"
+#path = "src/data-generator.rs"
+
+[[bin]]
+name = "mach-write-workload"
+path = "src/mach-write-workload.rs"
 
 #[[bin]]
 #name = "convert-otlp-data"
