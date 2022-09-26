@@ -165,6 +165,11 @@ path = "src/getrusage.rs"
 name = "mach-write-workload"
 path = "src/mach-write-workload.rs"
 
+[[bin]]
+name = "kafka-write-workload"
+path = "src/kafka-write-workload.rs"
+
+
 #[[bin]]
 #name = "convert-otlp-data"
 #path = "src/convert-otlp-data.rs"

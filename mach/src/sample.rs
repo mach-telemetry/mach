@@ -3,7 +3,7 @@ pub use crate::utils::bytes::*;
 pub use serde::*;
 use std::convert::TryInto;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub enum SampleType {
     I64(i64),
     U64(u64),
