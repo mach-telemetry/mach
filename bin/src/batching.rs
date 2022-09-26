@@ -2,6 +2,7 @@ use super::*;
 use mach::sample::SampleType;
 use std::collections::HashSet;
 use std::io::Write;
+use lzzzz::lz4;
 
 pub struct WriteBatch {
     buf: Box<[u8]>,
@@ -16,7 +17,7 @@ impl WriteBatch {
             buf: vec![0u8; size].into_boxed_slice(),
             ids: HashSet::new(),
             range: (u64::MAX, 0),
-            offset: 8, // first 8 bytes show where the tail metadata of the batch is
+            offset: 0, // first 8 bytes show where the tail metadata of the batch is
         }
     }
 
@@ -65,46 +66,53 @@ impl WriteBatch {
     }
 
     pub fn total_size(&self) -> usize {
+        // total size calculated this way because all the metadata required could still exceed the
+        // logically assigned batch size - even after compression. Loglically, batch size should
+        // include the metadata
         self.offset + 8 + self.ids.len() * 8 + 16 // bytes in buf + number of ids + ids + range of batch
     }
 
     pub fn close(mut self) -> Box<[u8]> {
 
-        // write offset of tail in the beginning
-        self.buf[..8].copy_from_slice(&self.offset.to_be_bytes());
+        let mut data = vec![0u8; 16];
 
-        let mut offset = self.offset;
+        let size = lz4::compress_to_vec(&self.buf[..self.offset], &mut data, lz4::ACC_LEVEL_DEFAULT).unwrap();
+
+        // write offset of tail in first 8 bytes
+        data[..8].copy_from_slice(&(16 + size).to_be_bytes());
+
+        // write raw data size in second 8 bytes
+        data[8..16].copy_from_slice(&self.offset.to_be_bytes());
 
         // write the number of ids
-        self.buf[offset..offset + 8].copy_from_slice(&self.ids.len().to_be_bytes());
-        offset += 8;
+        data.extend_from_slice(&self.ids.len().to_be_bytes());
 
         // write each ID
         self.ids.iter().for_each(|x| {
-            self.buf[offset..offset + 8].copy_from_slice(&x.to_be_bytes());
-            offset += 8;
+            data.extend_from_slice(&x.to_be_bytes());
         });
 
         // write the range
-        self.buf[offset..offset + 8].copy_from_slice(&self.range.0.to_be_bytes());
-        offset += 8;
-        self.buf[offset..offset + 8].copy_from_slice(&self.range.1.to_be_bytes());
-        offset += 8;
+        data.extend_from_slice(&self.range.0.to_be_bytes());
+        data.extend_from_slice(&self.range.1.to_be_bytes());
 
-        self.buf
+        data.into_boxed_slice()
     }
 }
 
 pub struct BytesBatch {
     bytes: Box<[u8]>,
+    raw_size: usize,
     tail: usize,
 }
 
 impl BytesBatch {
     pub fn new(bytes: Box<[u8]>) -> Self {
         let tail = usize::from_be_bytes(bytes[..8].try_into().unwrap());
+        let raw_size = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
         BytesBatch {
             bytes,
+            raw_size,
             tail,
         }
     }
@@ -134,7 +142,9 @@ impl BytesBatch {
     }
 
     pub fn entries(&self) -> Vec<(u64, u64, Vec<SampleType>)> {
-        let data = &self.bytes[8..self.tail];
+        let mut data = vec![0u8; self.raw_size];
+        let _ = lz4::decompress(&self.bytes[16..self.tail], &mut data).unwrap();
+
         let mut result = Vec::new();
 
         let mut offset = 0;
