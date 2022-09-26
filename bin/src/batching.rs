@@ -9,6 +9,7 @@ pub struct WriteBatch {
     ids: HashSet<u64>,
     range: (u64, u64),
     offset: usize,
+    count: usize,
 }
 
 impl WriteBatch {
@@ -18,6 +19,7 @@ impl WriteBatch {
             ids: HashSet::new(),
             range: (u64::MAX, 0),
             offset: 0, // first 8 bytes show where the tail metadata of the batch is
+            count: 0,
         }
     }
 
@@ -59,10 +61,15 @@ impl WriteBatch {
             }
             self.range.1 = ts;
             self.ids.insert(id);
+            self.count += 1;
 
             Ok(self.total_size())
         }
 
+    }
+
+    pub fn count(&self) -> usize {
+        self.count
     }
 
     pub fn total_size(&self) -> usize {

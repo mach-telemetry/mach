@@ -12,13 +12,13 @@ use std::time::Duration;
 #[derive(Copy, Clone)]
 pub struct KafkaTopicOptions {
     pub num_partitions: i32,
-    pub num_replications: i32,
+    pub num_replicas: i32,
 }
 
 impl Default for KafkaTopicOptions {
     fn default() -> Self {
         Self {
-            num_replications: 3,
+            num_replicas: 3,
             num_partitions: 3,
         }
     }
@@ -33,15 +33,16 @@ pub fn make_topic(bootstrap: &str, topic: &str, opts: KafkaTopicOptions) {
         .create()
         .unwrap();
     let admin_opts = AdminOptions::new().request_timeout(Some(Duration::from_secs(3)));
-    let min_insync_replicas = opts.num_replications.to_string();
+    let min_insync_replicas = opts.num_replicas.to_string();
     let topics = &[NewTopic {
         name: topic,
         num_partitions: opts.num_partitions,
-        replication: TopicReplication::Fixed(opts.num_replications),
+        replication: TopicReplication::Fixed(opts.num_replicas),
         config: vec![("min.insync.replicas", min_insync_replicas.as_str())],
     }];
     rt.block_on(client.create_topics(topics, &admin_opts))
         .unwrap();
+    println!("MADE TOPIC {}", topic);
 }
 
 pub struct Producer(KafkaClient);
@@ -71,10 +72,17 @@ impl Producer {
         let req = &[ProduceMessage::new(topic, partition, None, Some(item))];
         let resp = self
             .0
-            .produce_messages(RequiredAcks::All, Duration::from_millis(1000), req)
-            .unwrap();
-        let part = resp[0].partition_confirms[0].partition;
-        let offset = resp[0].partition_confirms[0].offset.unwrap();
-        (part, offset)
+            .produce_messages(RequiredAcks::All, Duration::from_secs(10), req);
+        match resp {
+            Ok(resp) => {
+                let part = resp[0].partition_confirms[0].partition;
+                let offset = resp[0].partition_confirms[0].offset.unwrap();
+                (part, offset)
+            },
+            Err(x) => {
+                panic!("ERROR writing to {} {}", topic, partition);
+            }
+        }
+
     }
 }

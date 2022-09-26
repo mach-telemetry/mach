@@ -43,19 +43,14 @@ lazy_static! {
         let registered_samples: Vec<(SeriesRef, &'static [SampleType], f64)> = samples
             .iter()
             .map(|x| {
-                let (id, values) = x;
+                let (id, values, size) = x;
                 let id_ref = *refmap.entry(*id).or_insert_with(|| {
                     let conf = get_series_config(*id, &*values);
                     let (_, _) = mach_guard.add_series(conf).unwrap();
                     let id_ref = writer_guard.get_reference(*id);
                     id_ref
                 });
-                let size: usize = values.iter().map(|x| x.size()).sum::<usize>() + 16usize;
-                let size: f64 = {
-                    let x: u32 = size.try_into().unwrap();
-                    x.try_into().unwrap()
-                };
-                (id_ref, *values, size)
+                (id_ref, *values, *size)
             })
             .collect();
         registered_samples

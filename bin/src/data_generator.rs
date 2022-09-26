@@ -14,10 +14,10 @@ type SourceMap = HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>>;
 
 lazy_static! {
     static ref BASE_DATA: SourceMap = read_intel_data();
-    pub static ref SAMPLES: Vec<(SeriesId, &'static[SampleType])> = generate_samples();
+    pub static ref SAMPLES: Vec<(SeriesId, &'static[SampleType], f64)> = generate_samples();
 }
 
-fn generate_samples() -> Vec<(SeriesId, &'static[SampleType])> {
+fn generate_samples() -> Vec<(SeriesId, &'static[SampleType], f64)> {
     let source_count = constants::PARAMETERS.source_count;
     let keys: Vec<SeriesId> = BASE_DATA.keys().copied().collect();
     println!("Expanding data based on source_count = {}", source_count);
@@ -41,7 +41,14 @@ fn generate_samples() -> Vec<(SeriesId, &'static[SampleType])> {
     tmp_samples.sort_by(|a, b| a.1.cmp(&b.1)); // sort by timestamp
 
     println!("Setting up final samples");
-    let samples: Vec<(SeriesId, &[SampleType])> = tmp_samples.drain(..).map(|x| (x.0, x.2)).collect();
+    let samples: Vec<(SeriesId, &[SampleType], f64)> = tmp_samples.drain(..).map(|x| {
+        let size: f64 = {
+            let size: usize = x.2.iter().map(|x| x.size()).sum::<usize>() + 16usize; // include id and timestamp in size
+            let x: u32 = size.try_into().unwrap();
+            x.try_into().unwrap()
+        };
+        (x.0, x.2, size)
+    }).collect();
 
     println!("Samples stats:");
     println!("Total number of unique samples: {}", samples.len());

@@ -14,23 +14,24 @@ lazy_static! {
 
 #[derive(Parser, Debug, Clone)]
 pub struct Args {
-    //#[clap(short, long, default_value_t = 4)]
-    //pub kafka_writers: usize,
+
+    #[clap(short, long, default_value_t = 1_000_000)]
+    pub kafka_batch_bytes: usize,
 
     //#[clap(short, long, default_value_t = 1)]
     //pub writer_queue_len: usize,
 
-    //#[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
-    //pub kafka_bootstraps: String,
+    #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
+    pub kafka_bootstraps: String,
 
-    //#[clap(short, long, default_value_t = 3)]
-    //pub kafka_partitions: i32,
+    #[clap(short, long, default_value_t = 4)]
+    pub kafka_partitions: i32,
 
-    //#[clap(short, long, default_value_t = 3)]
-    //pub kafka_replicas: i32,
+    #[clap(short, long, default_value_t = 3)]
+    pub kafka_replicas: i32,
 
-    //#[clap(short, long, default_value_t = String::from("kafka-completeness-bench"))]
-    //pub kafka_topic: String,
+    #[clap(short, long, default_value_t = String::from("kafka-completeness-bench"))]
+    pub kafka_topic: String,
 
     //#[clap(short, long, default_value_t = 1_000_000)]
     //pub batch_bytes: usize,
