@@ -58,6 +58,20 @@ pub struct Args {
     #[clap(long, default_value_t = 5.0)]
     pub counter_interval_seconds: f64,
 
+    #[clap(long, default_value_t = 1000)]
+    pub kafka_index_size: usize,
+
+    #[clap(long, default_value_t = 60)]
+    pub query_max_delay: u64,
+
+    #[clap(long, default_value_t = 10)]
+    pub min_query_duration: u64,
+
+    #[clap(long, default_value_t = 60)]
+    pub max_query_duration: u64,
+
+    #[clap(long, default_value_t = 1)]
+    pub query_count: u64,
 }
 
 pub struct Counters {

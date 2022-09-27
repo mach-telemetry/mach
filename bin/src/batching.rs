@@ -149,6 +149,10 @@ impl BytesBatch {
         (set, (low, high))
     }
 
+    pub fn total_size(&self) -> usize {
+        self.bytes.len() + 16
+    }
+
     pub fn entries(&self) -> Vec<(u64, u64, Vec<SampleType>)> {
         let mut data = vec![0u8; self.raw_size];
         let _ = lz4::decompress(&self.bytes[16..self.tail], &mut data).unwrap();
