@@ -67,19 +67,19 @@ impl Mach {
         Ok(writer)
     }
 
-    pub fn add_series(&mut self, config: SeriesConfig) -> Result<(WriterId, SeriesId), Error> {
-        // For now, randomly choose a writer
-        let writer = *self.writers.choose(&mut rand::thread_rng()).unwrap();
-        //let (writer_meta, durability) = self.writer_table.get(&writer).unwrap();
+    pub fn add_series_to_writer(&mut self, config: SeriesConfig, writer: WriterId) -> Result<SeriesId, Error> {
         let writer_meta = self.writer_table.get(&writer).unwrap();
-
         let series_id = config.id;
         let block_list = writer_meta.block_list.clone();
         let source_block_list = block_list.add_source(series_id);
         let series = Series::new(config, block_list, source_block_list);
-        //durability.register_series(series.clone());
         self.series_table.insert(series_id, series);
+        Ok(series_id)
+    }
 
+    pub fn add_series(&mut self, config: SeriesConfig) -> Result<(WriterId, SeriesId), Error> {
+        let writer = *self.writers.choose(&mut rand::thread_rng()).unwrap();
+        let series_id = self.add_series_to_writer(config, writer)?;
         Ok((writer, series_id))
     }
 

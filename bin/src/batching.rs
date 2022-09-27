@@ -1,8 +1,6 @@
-use super::*;
-use lzzzz::lz4;
 use mach::sample::SampleType;
 use std::collections::HashSet;
-use std::io::Write;
+use lzzzz::lz4;
 
 pub struct WriteBatch {
     buf: Box<[u8]>,
@@ -50,7 +48,7 @@ impl WriteBatch {
             offset += 8;
 
             // write samples
-            bincode::serialize_into(&mut self.buf[offset..offset + serialized_size], samples);
+            bincode::serialize_into(&mut self.buf[offset..offset + serialized_size], samples).unwrap();
             offset += serialized_size;
 
             // update ids, range, and offset
@@ -77,7 +75,8 @@ impl WriteBatch {
         self.offset + 8 + self.ids.len() * 8 + 16 // bytes in buf + number of ids + ids + range of batch
     }
 
-    pub fn close(mut self) -> Box<[u8]> {
+    pub fn close(self) -> Box<[u8]> {
+
         let mut data = vec![0u8; 16];
 
         let size =
@@ -143,8 +142,7 @@ impl BytesBatch {
         let low = u64::from_be_bytes(tail[offset..offset + 8].try_into().unwrap());
         offset += 8;
 
-        let high = u64::from_be_bytes(tail[offset..offset + 8].try_into().unwrap());
-        offset += 8;
+        let high = u64::from_be_bytes(tail[offset..offset+8].try_into().unwrap());
 
         (set, (low, high))
     }
