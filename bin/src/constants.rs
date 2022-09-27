@@ -9,7 +9,9 @@ use std::time::Duration;
 // PARAMETERS to toggle for evaluations
 lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
-    pub static ref WORKLOAD: Vec<Workload> = { vec![Workload::new(500, Duration::from_secs(60 * 60)),] };
+    pub static ref WORKLOAD: Vec<Workload> = vec![
+        Workload::new(500, Duration::from_secs(60 * 60)),
+    ];
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
 
@@ -71,6 +73,9 @@ pub struct Args {
 
     #[clap(long, default_value_t = 1)]
     pub query_count: u64,
+
+    #[clap(long, default_value_t = 10)]
+    pub query_interval_seconds: u64,
 }
 
 pub struct Counters {

@@ -43,35 +43,8 @@ lazy_static! {
     static ref HOSTS: Vec<String> = {
         PARAMETERS.kafka_bootstraps.split(',').map(|x| x.into()).collect()
     };
-    //static ref SAMPLES: Arc<Mutex<Vec<Arc<[u8]>>>> = {
-    //    let data = Arc::new(Mutex::new(Vec::new()));
-    //    let data2 = data.clone();
-    //    std::thread::spawn(move || {
-    //        let mut consumer = Consumer::from_hosts(HOSTS.clone())
-    //            .with_topic_partitions("kafka-completeness-bench".to_owned(), &[0, 1, 2])
-    //            .with_fallback_offset(FetchOffset::Latest)
-    //            .with_group(random_id())
-    //            .with_offset_storage(GroupOffsetStorage::Kafka)
-    //            .with_fetch_max_bytes_per_partition(5_000_000)
-    //            .create()
-    //            .unwrap();
-    //        //let mut counter = 0;
-    //        loop {
-    //            for ms in consumer.poll().unwrap().iter() {
-    //                for m in ms.messages() {
-    //                    data2.lock().unwrap().push(m.value.into());
-    //                }
-    //            }
-    //        }
-    //    });
-    //    data
-    //};
     static ref INDEX: Arc<Index> = Arc::new(Index::new());
-
-    static ref SNAPSHOT_INTERVAL: Duration = Duration::from_secs_f64(0.5);
-    static ref SNAPSHOT_TIMEOUT: Duration = Duration::from_secs_f64(0.5);
 }
-
 
 struct Index {
     index: Arc<DashMap<SeriesId, Arc<Mutex<BTreeMap<(u64, u64), Entry>>>>>,
@@ -219,7 +192,7 @@ fn main() {
     let micros_in_sec: u64 = Duration::from_secs(1).as_micros().try_into().unwrap();
 
     for i in 0..PARAMETERS.query_count as usize {
-        thread::sleep(Duration::from_secs(10));
+        thread::sleep(Duration::from_secs(PARAMETERS.query_interval_seconds));
         let id = SeriesId(rng.gen_range(0..PARAMETERS.source_count));
         let now: u64 = micros_from_epoch().try_into().unwrap();
         let start = now - rng.gen_range(0..PARAMETERS.query_max_delay) * micros_in_sec;
