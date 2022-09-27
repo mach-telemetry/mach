@@ -172,7 +172,7 @@ fn main() {
                 ARGS.kafka_writers,
                 ARGS.writer_queue_len,
                 KafkaTopicOptions {
-                    num_replications: ARGS.kafka_replicas,
+                    num_replicas: ARGS.kafka_replicas,
                     num_partitions: ARGS.kafka_partitions,
                 },
             );
@@ -195,7 +195,7 @@ fn main() {
                 ARGS.kafka_writers,
                 ARGS.writer_queue_len,
                 KafkaTopicOptions {
-                    num_replications: ARGS.kafka_replicas,
+                    num_replicas: ARGS.kafka_replicas,
                     num_partitions: ARGS.kafka_partitions,
                 },
             );

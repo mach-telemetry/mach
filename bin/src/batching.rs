@@ -1,6 +1,6 @@
+use lzzzz::lz4;
 use mach::sample::SampleType;
 use std::collections::HashSet;
-use lzzzz::lz4;
 use std::sync::Arc;
 
 pub struct WriteBatch {
@@ -49,7 +49,8 @@ impl WriteBatch {
             offset += 8;
 
             // write samples
-            bincode::serialize_into(&mut self.buf[offset..offset + serialized_size], samples).unwrap();
+            bincode::serialize_into(&mut self.buf[offset..offset + serialized_size], samples)
+                .unwrap();
             offset += serialized_size;
 
             // update ids, range, and offset
@@ -77,7 +78,6 @@ impl WriteBatch {
     }
 
     pub fn close(self) -> Box<[u8]> {
-
         let mut data = vec![0u8; 16];
 
         let size =
@@ -108,13 +108,13 @@ impl WriteBatch {
 
 #[derive(Clone)]
 pub struct BytesBatch {
-    bytes: Arc<[u8]>,
+    bytes: Arc<Box<[u8]>>,
     raw_size: usize,
     tail: usize,
 }
 
 impl BytesBatch {
-    pub fn new(bytes: Arc<[u8]>) -> Self {
+    pub fn new(bytes: Arc<Box<[u8]>>) -> Self {
         let tail = usize::from_be_bytes(bytes[..8].try_into().unwrap());
         let raw_size = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
         BytesBatch {
@@ -144,7 +144,7 @@ impl BytesBatch {
         let low = u64::from_be_bytes(tail[offset..offset + 8].try_into().unwrap());
         offset += 8;
 
-        let high = u64::from_be_bytes(tail[offset..offset+8].try_into().unwrap());
+        let high = u64::from_be_bytes(tail[offset..offset + 8].try_into().unwrap());
 
         (set, (low, high))
     }

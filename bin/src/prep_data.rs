@@ -117,6 +117,29 @@ pub fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
     conf
 }
 
+#[derive(Serialize)]
+pub struct ESSampleRef<'a> {
+    series_id: u64,
+    timestamp: u64,
+    data: &'a [SampleType],
+}
+
+impl<'a> From<&'a (u64, u64, Vec<SampleType>)> for ESSampleRef<'a> {
+    fn from(other: &'a (u64, u64, Vec<SampleType>)) -> Self {
+        Self {
+            series_id: other.0,
+            timestamp: other.1,
+            data: other.2.as_slice(),
+        }
+    }
+}
+
+impl Into<Vec<u8>> for ESSampleRef<'_> {
+    fn into(self) -> Vec<u8> {
+        serde_json::to_vec(&self).unwrap()
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ESSample {
     pub series_id: SeriesId,

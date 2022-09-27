@@ -1,16 +1,15 @@
 use clap::*;
 use lazy_static::*;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
 use std::time::Duration;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
 
 // PARAMETERS to toggle for evaluations
 lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
-    pub static ref WORKLOAD: Vec<Workload> = {
-        vec![
-            Workload::new(500, Duration::from_secs(60)),
-        ]
-    };
+    pub static ref WORKLOAD: Vec<Workload> = { vec![Workload::new(500, Duration::from_secs(60)),] };
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
 
