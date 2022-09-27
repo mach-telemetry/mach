@@ -93,6 +93,9 @@ pub struct Args {
 
     #[clap(long, default_value_t = 10)]
     pub query_interval_seconds: u64,
+
+    #[clap(long, default_value_t = 5)]
+    pub print_interval_seconds: u64,
 }
 
 pub struct Counters {

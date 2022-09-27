@@ -198,7 +198,6 @@ fn es_writer(es_conf: ESClientBuilder, rx: Receiver<EsWriterInput>) {
 }
 
 fn stats_watcher() {
-    let interval = std::time::Duration::from_secs(2);
     loop {
         let flushed_count = INGESTION_STATS.num_flushed.load(SeqCst);
         let indexed_count = INDEXED_COUNT.load(SeqCst);
@@ -229,7 +228,7 @@ fn stats_watcher() {
                  avg decmp ms: {avg_decomp_ms}, completeness: {completeness}"
         );
 
-        thread::sleep(interval);
+        thread::sleep(Duration::from_secs(PARAMETERS.print_interval_seconds));
     }
 }
 

@@ -8,26 +8,20 @@ mod constants;
 #[allow(dead_code)]
 mod utils;
 
-use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
-use std::mem;
-use std::thread;
-use mach::{
-    id::SeriesId,
-    sample::SampleType
-};
-use std::time::{Duration, Instant};
 use constants::*;
+use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use lazy_static::*;
+use mach::{id::SeriesId, sample::SampleType};
+use std::mem;
 use std::sync::Barrier;
+use std::thread;
+use std::time::{Duration, Instant};
 
 lazy_static! {
     static ref STATS_BARRIER: Barrier = Barrier::new(2);
 }
 
-fn kafka_writer(
-    partition: i32,
-    receiver: Receiver<Batch>,
-) {
+fn kafka_writer(partition: i32, receiver: Receiver<Batch>) {
     let mut producer = kafka_utils::Producer::new(PARAMETERS.kafka_bootstraps.as_str());
     let kafka_batch_size = PARAMETERS.kafka_batch_bytes;
     let mut batcher = batching::WriteBatch::new(kafka_batch_size);
@@ -39,11 +33,7 @@ fn kafka_writer(
             if batcher.insert(*item.0, item.1, item.2).is_err() {
                 let bytes = batcher.close();
                 batcher = batching::WriteBatch::new(kafka_batch_size);
-                producer.send(
-                    PARAMETERS.kafka_topic.as_str(),
-                    partition,
-                    &bytes,
-                );
+                producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
             }
         }
         COUNTERS.add_samples_written(batch_count);
@@ -65,7 +55,13 @@ impl Batcher {
         }
     }
 
-    fn push(&mut self, r: SeriesId, ts: u64, samples: &'static [SampleType], size: usize) -> Option<Batch> {
+    fn push(
+        &mut self,
+        r: SeriesId,
+        ts: u64,
+        samples: &'static [SampleType],
+        size: usize,
+    ) -> Option<Batch> {
         self.batch.push((r, ts, samples, size));
         if self.batch.len() == self.batch_size {
             let batch = mem::replace(&mut self.batch, Vec::new());
@@ -75,7 +71,6 @@ impl Batcher {
         }
     }
 }
-
 
 fn init_kafka() {
     let kafka_topic_options = kafka_utils::KafkaTopicOptions {
@@ -119,10 +114,9 @@ fn stats_printer() {
         print!("Bytes generated: {}, ", bytes_generated);
         print!("Bytes written: {}, ", bytes_written);
         println!("");
-        thread::sleep(Duration::from_secs(5));
+        thread::sleep(Duration::from_secs(PARAMETERS.print_interval_seconds));
     }
 }
-
 
 fn main() {
     thread::spawn(stats_printer);
@@ -135,19 +129,21 @@ fn main() {
 
     println!("KAFKA WRITERS: {}", n_writers);
     let mut batches: Vec<Batcher> = (0..n_writers).map(|_| Batcher::new(batch_size)).collect();
-    let writers: Vec<Sender<Batch>> = (0..n_writers).map(|i| {
-        let (tx, rx) = {
-            if unbounded_queue {
-                unbounded()
-            } else {
-                bounded(1)
-            }
-        };
-        thread::spawn(move || {
-            kafka_writer(i as i32, rx);
-        });
-        tx
-    }).collect();
+    let writers: Vec<Sender<Batch>> = (0..n_writers)
+        .map(|i| {
+            let (tx, rx) = {
+                if unbounded_queue {
+                    unbounded()
+                } else {
+                    bounded(1)
+                }
+            };
+            thread::spawn(move || {
+                kafka_writer(i as i32, rx);
+            });
+            tx
+        })
+        .collect();
 
     let mut data_idx = 0;
     let mut sample_size_acc = 0;
@@ -173,8 +169,8 @@ fn main() {
 
             if let Some(batch) = batches[writer_id].push(id, timestamp, items, sample_size) {
                 match writers[writer_id].try_send(batch) {
-                    Ok(_) => {},
-                    Err(_) => {}, // drop batch
+                    Ok(_) => {}
+                    Err(_) => {} // drop batch
                 }
             }
 
@@ -206,7 +202,12 @@ fn main() {
                 }
             }
         }
-        println!("Expected rate: {} mbps, Actual rate: {} mbps, Sampling rate: {}", workload.mbps, workload_total_size / duration.as_secs_f64(), workload_total_samples / duration.as_secs_f64());
+        println!(
+            "Expected rate: {} mbps, Actual rate: {} mbps, Sampling rate: {}",
+            workload.mbps,
+            workload_total_size / duration.as_secs_f64(),
+            workload_total_samples / duration.as_secs_f64()
+        );
         //println!("Samples produced: {}, Samples dropped: {}", total_samples, samples_dropped);
     }
 }
