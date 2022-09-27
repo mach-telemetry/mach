@@ -148,11 +148,11 @@ async fn write_to_es(mut es_writer: ESBatchedIndexClient<Vec<u8>>, rx: Receiver<
     while let Ok(msets) = rx.recv() {
         for mset in msets.iter() {
             for m in mset.messages() {
-                let mut v = Vec::new();
-                v.extend_from_slice(m.value);
+                //let mut v = Vec::new();
+                //v.extend_from_slice(m.value);
 
-                let bytes = Arc::new(v.into_boxed_slice());
-                let entries = BytesBatch::new(bytes).entries();
+                //let bytes = v.as_slice().into();
+                let entries = BytesBatch::new(m.value.into()).entries();
 
                 for entry in entries.iter() {
                     let bytes = ESSampleRef::from(entry).into();

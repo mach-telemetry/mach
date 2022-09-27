@@ -29,8 +29,8 @@ fn kafka_writer(
     receiver: Receiver<Batch>,
 ) {
     let mut producer = kafka_utils::Producer::new(PARAMETERS.kafka_bootstraps.as_str());
-    let batch_size = PARAMETERS.kafka_batch_bytes;
-    let mut batcher = batching::WriteBatch::new(batch_size);
+    let kafka_batch_size = PARAMETERS.kafka_batch_bytes;
+    let mut batcher = batching::WriteBatch::new(kafka_batch_size);
     while let Ok(batch) = receiver.recv() {
         let batch_count = batch.len();
         let mut batch_size = 0;
@@ -38,7 +38,7 @@ fn kafka_writer(
             batch_size += item.3;
             if batcher.insert(*item.0, item.1, item.2).is_err() {
                 let bytes = batcher.close();
-                batcher = batching::WriteBatch::new(batch_size);
+                batcher = batching::WriteBatch::new(kafka_batch_size);
                 producer.send(
                     PARAMETERS.kafka_topic.as_str(),
                     partition,

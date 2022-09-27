@@ -3,6 +3,8 @@ use mach::sample::SampleType;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+static MAGIC: &str = "blahblah";
+
 pub struct WriteBatch {
     buf: Box<[u8]>,
     ids: HashSet<u64>,
@@ -78,17 +80,25 @@ impl WriteBatch {
     }
 
     pub fn close(self) -> Box<[u8]> {
-        let mut data = vec![0u8; 16];
+        let mut data = Vec::new();
+        data.extend_from_slice(MAGIC.as_bytes());
+        data.extend_from_slice(&[0u8; 16]);
 
+        let before_compress = data.len();
         let size =
             lz4::compress_to_vec(&self.buf[..self.offset], &mut data, lz4::ACC_LEVEL_DEFAULT)
                 .unwrap();
 
+        let mut offset = MAGIC.as_bytes().len();
+        let tail = data.len();
+        assert_eq!(size, tail - before_compress);
         // write offset of tail in first 8 bytes
-        data[..8].copy_from_slice(&(16 + size).to_be_bytes());
+        //let tail = 16 + size + MAGIC.as_bytes().len();
+        data[offset..offset+8].copy_from_slice(&tail.to_be_bytes());
+        offset += 8;
 
         // write raw data size in second 8 bytes
-        data[8..16].copy_from_slice(&self.offset.to_be_bytes());
+        data[offset..offset+8].copy_from_slice(&self.offset.to_be_bytes());
 
         // write the number of ids
         data.extend_from_slice(&self.ids.len().to_be_bytes());
@@ -108,23 +118,27 @@ impl WriteBatch {
 
 #[derive(Clone)]
 pub struct BytesBatch {
-    bytes: Arc<Box<[u8]>>,
+    bytes: Arc<[u8]>,
     raw_size: usize,
     tail: usize,
 }
 
 impl BytesBatch {
-    pub fn new(bytes: Arc<Box<[u8]>>) -> Self {
+    pub fn new(bytes: Arc<[u8]>) -> Self {
+        assert_eq!(MAGIC.as_bytes(), &bytes[..MAGIC.as_bytes().len()]);
+        let og = bytes;
+        let bytes = &og[MAGIC.as_bytes().len()..];
         let tail = usize::from_be_bytes(bytes[..8].try_into().unwrap());
         let raw_size = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
         BytesBatch {
-            bytes,
+            bytes: og,
             raw_size,
             tail,
         }
     }
 
     pub fn metadata(&self) -> (HashSet<u64>, (u64, u64)) {
+        //let bytes = &self.bytes[MAGIC.as_bytes().len()..];
         let tail = &self.bytes[self.tail..];
         let mut set = HashSet::new();
 
@@ -154,14 +168,22 @@ impl BytesBatch {
     }
 
     pub fn entries(&self) -> Vec<(u64, u64, Vec<SampleType>)> {
-        let mut data = vec![0u8; self.raw_size];
-        let _ = lz4::decompress(&self.bytes[16..self.tail], &mut data).unwrap();
+        let bytes = &self.bytes[MAGIC.as_bytes().len() + 16..self.tail];
+        //println!("TAIL: {}", self.tail);
+        let mut data = vec![0u8; 5_000_000];
+        let decompress_sz = match lz4::decompress(&bytes, &mut data) {
+            Ok(x) => x,
+            Err(x) => {
+                println!("tail {}, raw_sz: {}", self.tail, self.raw_size);
+                panic!("Can't decompress: {:?}", x);
+            },
+        };
 
         let mut result = Vec::new();
 
         let mut offset = 0;
 
-        while offset < data.len() {
+        while offset < decompress_sz {
             let id = u64::from_be_bytes(data[offset..offset + 8].try_into().unwrap());
             offset += 8;
 
@@ -222,7 +244,7 @@ mod test {
         });
 
         // Read Batch
-        let batch = BytesBatch::new(bytes);
+        let batch = BytesBatch::new(bytes.into());
         let (ids, range) = batch.metadata();
         let entries = batch.entries();
 
