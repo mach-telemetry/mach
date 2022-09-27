@@ -58,16 +58,6 @@ pub struct Args {
     pub counter_interval_seconds: f64,
 }
 
-// counters
-#[allow(dead_code)]
-pub static SAMPLES_GENERATED: AtomicUsize = AtomicUsize::new(0);
-#[allow(dead_code)]
-pub static SAMPLES_INGESTED: AtomicUsize = AtomicUsize::new(0);
-#[allow(dead_code)]
-pub static BYTES_GENERATED: AtomicUsize = AtomicUsize::new(0);
-#[allow(dead_code)]
-pub static BYTES_FLUSHED: AtomicUsize = AtomicUsize::new(0);
-
 pub struct Counters {
     samples_generated: AtomicUsize,
     samples_written: AtomicUsize,
@@ -91,16 +81,32 @@ impl Counters {
         self.samples_generated.fetch_add(n, SeqCst);
     }
 
+    pub fn samples_generated(&self) -> usize {
+        self.samples_generated.load(SeqCst)
+    }
+
     pub fn add_samples_written(&self, n: usize) {
         self.samples_written.fetch_add(n, SeqCst);
+    }
+
+    pub fn samples_written(&self) -> usize {
+        self.samples_written.load(SeqCst)
     }
 
     pub fn add_bytes_generated(&self, n: usize) {
         self.bytes_generated.fetch_add(n, SeqCst);
     }
 
+    pub fn bytes_generated(&self) -> usize {
+        self.bytes_generated.load(SeqCst)
+    }
+
     pub fn add_bytes_written(&self, n: usize) {
         self.bytes_written.fetch_add(n, SeqCst);
+    }
+
+    pub fn bytes_written(&self) -> usize {
+        self.bytes_written.load(SeqCst)
     }
 
     pub fn add_bytes_written_to_kafka(&self, n: usize) {

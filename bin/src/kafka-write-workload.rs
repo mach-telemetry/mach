@@ -17,6 +17,12 @@ use mach::{
 };
 use std::time::{Duration, Instant};
 use constants::*;
+use lazy_static::*;
+use std::sync::Barrier;
+
+lazy_static! {
+    static ref STATS_BARRIER: Barrier = Barrier::new(2);
+}
 
 fn kafka_writer(
     partition: i32,
@@ -83,7 +89,43 @@ fn init_kafka() {
     );
 }
 
+fn stats_printer() {
+    STATS_BARRIER.wait();
+    println!("Samples generated, Samples written, Bytes generated, Bytes written");
+    loop {
+        let samples_generated = COUNTERS.samples_generated();
+        let samples_written = COUNTERS.samples_written();
+        let samples_completeness = {
+            let a: i32 = samples_written.try_into().unwrap();
+            let a: f64 = a.try_into().unwrap();
+            let b: i32 = samples_generated.try_into().unwrap();
+            let b: f64 = b.try_into().unwrap();
+            a / b
+        };
+        let bytes_generated = COUNTERS.bytes_generated();
+        let bytes_written = COUNTERS.bytes_written();
+        //let mb_generated = COUNTERS.bytes_generated() / 1_000_000;
+        //let mb_written = COUNTERS.bytes_written() / 1_000_000;
+        //let mb_completeness = {
+        //    let a: i32 = mb_written.try_into().unwrap();
+        //    let a: f64 = a.try_into().unwrap();
+        //    let b: i32 = mb_generated.try_into().unwrap();
+        //    let b: f64 = b.try_into().unwrap();
+        //    a / b
+        //};
+        print!("Samples generated: {}, ", samples_generated);
+        print!("Samples written: {}, ", samples_written);
+        print!("Sample completeness: {}, ", samples_completeness);
+        print!("Bytes generated: {}, ", bytes_generated);
+        print!("Bytes written: {}, ", bytes_written);
+        println!("");
+        thread::sleep(Duration::from_secs(5));
+    }
+}
+
+
 fn main() {
+    thread::spawn(stats_printer);
     init_kafka();
 
     let n_writers = PARAMETERS.kafka_partitions as usize;
@@ -110,6 +152,8 @@ fn main() {
     let mut data_idx = 0;
     let mut sample_size_acc = 0;
     let mut sample_count_acc = 0;
+
+    STATS_BARRIER.wait();
 
     for workload in WORKLOAD.iter() {
         let duration = workload.duration.clone();

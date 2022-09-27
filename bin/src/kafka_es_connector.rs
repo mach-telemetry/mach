@@ -150,7 +150,10 @@ async fn write_to_es(mut es_writer: ESBatchedIndexClient<Vec<u8>>, rx: Receiver<
             for m in mset.messages() {
                 let mut v = Vec::new();
                 v.extend_from_slice(m.value);
-                let entries = BytesBatch::new(v.into_boxed_slice()).entries();
+
+                let bytes = Arc::new(v.into_boxed_slice());
+                let entries = BytesBatch::new(bytes).entries();
+
                 for entry in entries.iter() {
                     let bytes = ESSampleRef::from(entry).into();
                     match es_writer.ingest(bytes).await {
@@ -170,6 +173,9 @@ async fn write_to_es(mut es_writer: ESBatchedIndexClient<Vec<u8>>, rx: Receiver<
             }
         }
     }
+
+    let r = es_writer.flush().await.unwrap();
+    assert!(r.status_code().is_success());
 }
 
 #[allow(dead_code)]

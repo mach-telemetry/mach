@@ -1,6 +1,7 @@
 use lzzzz::lz4;
 use mach::sample::SampleType;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 pub struct WriteBatch {
     buf: Box<[u8]>,
@@ -105,14 +106,15 @@ impl WriteBatch {
     }
 }
 
+#[derive(Clone)]
 pub struct BytesBatch {
-    bytes: Box<[u8]>,
+    bytes: Arc<Box<[u8]>>,
     raw_size: usize,
     tail: usize,
 }
 
 impl BytesBatch {
-    pub fn new(bytes: Box<[u8]>) -> Self {
+    pub fn new(bytes: Arc<Box<[u8]>>) -> Self {
         let tail = usize::from_be_bytes(bytes[..8].try_into().unwrap());
         let raw_size = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
         BytesBatch {
@@ -176,8 +178,6 @@ impl BytesBatch {
         result
     }
 }
-
-fn main() {}
 
 #[cfg(test)]
 mod test {
