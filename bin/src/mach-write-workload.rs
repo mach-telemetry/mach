@@ -18,7 +18,7 @@ use mach::{
 use constants::*;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Barrier};
 use std::thread;
 use crossbeam::channel::{Receiver, Sender, bounded, unbounded};
 use std::mem;
@@ -70,6 +70,9 @@ lazy_static! {
             .collect();
         registered_samples
     };
+
+    static ref STATS_BARRIER: Barrier = Barrier::new(2);
+    static ref WRITERS_BARRIER: Barrier = Barrier::new(PARAMETERS.mach_writers + 1);
 }
 
 fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
@@ -194,9 +197,45 @@ fn mach_writer(
         COUNTERS.add_samples_written(batch_len);
         COUNTERS.add_bytes_written(batch_size);
     }
+    WRITERS_BARRIER.wait();
+}
+
+fn stats_printer() {
+    STATS_BARRIER.wait();
+    println!("Samples generated, Samples written, Bytes generated, Bytes written");
+    loop {
+        let samples_generated = COUNTERS.samples_generated();
+        let samples_written = COUNTERS.samples_written();
+        let samples_completeness = {
+            let a: i32 = samples_written.try_into().unwrap();
+            let a: f64 = a.try_into().unwrap();
+            let b: i32 = samples_generated.try_into().unwrap();
+            let b: f64 = b.try_into().unwrap();
+            a / b
+        };
+        let bytes_generated = COUNTERS.bytes_generated();
+        let bytes_written = COUNTERS.bytes_written();
+        //let mb_generated = COUNTERS.bytes_generated() / 1_000_000;
+        //let mb_written = COUNTERS.bytes_written() / 1_000_000;
+        //let mb_completeness = {
+        //    let a: i32 = mb_written.try_into().unwrap();
+        //    let a: f64 = a.try_into().unwrap();
+        //    let b: i32 = mb_generated.try_into().unwrap();
+        //    let b: f64 = b.try_into().unwrap();
+        //    a / b
+        //};
+        print!("Samples generated: {}, ", samples_generated);
+        print!("Samples written: {}, ", samples_written);
+        print!("Sample completeness: {}, ", samples_completeness);
+        print!("Bytes generated: {}, ", bytes_generated);
+        print!("Bytes written: {}, ", bytes_written);
+        println!("");
+        thread::sleep(Duration::from_secs(5));
+    }
 }
 
 fn main() {
+    thread::spawn(stats_printer);
     let q = PARAMETERS.bounded_queue;
     println!("BOUNDED_QUEUE: {}", q);
     let samples = SAMPLES.clone();
@@ -221,6 +260,7 @@ fn main() {
         tx
     }).collect();
 
+    STATS_BARRIER.wait();
     for workload in WORKLOAD.iter() {
         let workload_start = Instant::now();    // used to verify the MBPs rate of the workload
 
@@ -290,4 +330,6 @@ fn main() {
         let workload_duration = workload_start.elapsed();
         println!("Expected rate: {} mbps, Actual rate: {} mbps, Sampling rate: {}", workload.mbps, workload_total_size / workload_duration.as_secs_f64(), workload_total_samples / workload_duration.as_secs_f64());
     }
+
+    WRITER_BARRIER.wait();
 }
