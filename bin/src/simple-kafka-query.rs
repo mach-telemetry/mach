@@ -12,6 +12,7 @@ mod snapshotter;
 mod utils;
 use crate::completeness::{kafka::decompress_kafka_msg, SampleOwned, Writer, COUNTERS};
 
+use dashmap::DashMap;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message};
 use lazy_static::*;
 use mach::id::SeriesId;
@@ -22,13 +23,18 @@ use std::collections::BTreeMap;
 use std::ops::{Bound::Included, RangeBounds};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use dashmap::DashMap;
 
 struct Index(Arc<DashMap<SeriesId, Arc<Mutex<BTreeMap<(u64, u64), Arc<Entry>>>>>>);
 
 impl Index {
     fn insert(&self, id: SeriesId, range: (u64, u64), entry: Arc<Entry>) {
-        self.0.entry(id).or_insert(Arc::new(Mutex::new(BTreeMap::new()))).value().lock().unwrap().insert(range, entry);
+        self.0
+            .entry(id)
+            .or_insert(Arc::new(Mutex::new(BTreeMap::new())))
+            .value()
+            .lock()
+            .unwrap()
+            .insert(range, entry);
     }
 
     fn last_timestamp(&self, id: SeriesId) -> Option<(u64, u64)> {

@@ -1,23 +1,23 @@
 use super::*;
 
 use clap::*;
-use std::fs::File;
-use std::io::*;
+use lazy_static::*;
 use mach::id::SeriesId;
 use mach::sample::SampleType;
-use std::collections::HashMap;
-use lazy_static::*;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::*;
 
 type SourceMap = HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>>;
 
 lazy_static! {
     static ref BASE_DATA: SourceMap = read_intel_data();
-    pub static ref SAMPLES: Vec<(SeriesId, &'static[SampleType], f64)> = generate_samples();
+    pub static ref SAMPLES: Vec<(SeriesId, &'static [SampleType], f64)> = generate_samples();
 }
 
-fn generate_samples() -> Vec<(SeriesId, &'static[SampleType], f64)> {
+fn generate_samples() -> Vec<(SeriesId, &'static [SampleType], f64)> {
     let source_count = constants::PARAMETERS.source_count;
     let keys: Vec<SeriesId> = BASE_DATA.keys().copied().collect();
     println!("Expanding data based on source_count = {}", source_count);
@@ -41,14 +41,17 @@ fn generate_samples() -> Vec<(SeriesId, &'static[SampleType], f64)> {
     tmp_samples.sort_by(|a, b| a.1.cmp(&b.1)); // sort by timestamp
 
     println!("Setting up final samples");
-    let samples: Vec<(SeriesId, &[SampleType], f64)> = tmp_samples.drain(..).map(|x| {
-        let size: f64 = {
-            let size: usize = x.2.iter().map(|x| x.size()).sum::<usize>() + 16usize; // include id and timestamp in size
-            let x: u32 = size.try_into().unwrap();
-            x.try_into().unwrap()
-        };
-        (x.0, x.2, size)
-    }).collect();
+    let samples: Vec<(SeriesId, &[SampleType], f64)> = tmp_samples
+        .drain(..)
+        .map(|x| {
+            let size: f64 = {
+                let size: usize = x.2.iter().map(|x| x.size()).sum::<usize>() + 16usize; // include id and timestamp in size
+                let x: u32 = size.try_into().unwrap();
+                x.try_into().unwrap()
+            };
+            (x.0, x.2, size)
+        })
+        .collect();
 
     println!("Samples stats:");
     println!("Total number of unique samples: {}", samples.len());
@@ -59,13 +62,16 @@ fn generate_samples() -> Vec<(SeriesId, &'static[SampleType], f64)> {
     };
     let max_source_length: u64 = stats_map.iter().map(|x| x.1 as u64).max().unwrap();
     let min_source_length: u64 = stats_map.iter().map(|x| x.1 as u64).min().unwrap();
-    println!("Number of sources: {}, Number of metrics: {}", stats_map.len(), metrics_count);
+    println!(
+        "Number of sources: {}, Number of metrics: {}",
+        stats_map.len(),
+        metrics_count
+    );
     println!("Max source length: {}", max_source_length);
     println!("Average source length: {}", average_source_length);
     println!("Min source length: {}", min_source_length);
     samples
 }
-
 
 fn read_intel_data() -> SourceMap {
     let mut file = File::open(&constants::PARAMETERS.file_path).unwrap();
@@ -81,4 +87,3 @@ fn read_intel_data() -> SourceMap {
     println!("Read data for {} sources", data.len());
     data
 }
-

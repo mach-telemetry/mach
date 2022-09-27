@@ -1,8 +1,8 @@
 use super::*;
+use lzzzz::lz4;
 use mach::sample::SampleType;
 use std::collections::HashSet;
 use std::io::Write;
-use lzzzz::lz4;
 
 pub struct WriteBatch {
     buf: Box<[u8]>,
@@ -24,7 +24,6 @@ impl WriteBatch {
     }
 
     pub fn insert(&mut self, id: u64, ts: u64, samples: &[SampleType]) -> Result<usize, usize> {
-
         let serialized_size = bincode::serialized_size(samples).unwrap() as usize;
         let has_id = self.ids.contains(&id);
 
@@ -65,7 +64,6 @@ impl WriteBatch {
 
             Ok(self.total_size())
         }
-
     }
 
     pub fn count(&self) -> usize {
@@ -80,10 +78,11 @@ impl WriteBatch {
     }
 
     pub fn close(mut self) -> Box<[u8]> {
-
         let mut data = vec![0u8; 16];
 
-        let size = lz4::compress_to_vec(&self.buf[..self.offset], &mut data, lz4::ACC_LEVEL_DEFAULT).unwrap();
+        let size =
+            lz4::compress_to_vec(&self.buf[..self.offset], &mut data, lz4::ACC_LEVEL_DEFAULT)
+                .unwrap();
 
         // write offset of tail in first 8 bytes
         data[..8].copy_from_slice(&(16 + size).to_be_bytes());
@@ -129,20 +128,22 @@ impl BytesBatch {
         let mut set = HashSet::new();
 
         let mut offset = 0;
-        let n_ids = usize::from_be_bytes(tail[offset..offset+8].try_into().unwrap());
+        let n_ids = usize::from_be_bytes(tail[offset..offset + 8].try_into().unwrap());
         offset += 8;
 
         (0..n_ids).for_each(|_| {
-            set.insert(u64::from_be_bytes(tail[offset..offset+8].try_into().unwrap()));
+            set.insert(u64::from_be_bytes(
+                tail[offset..offset + 8].try_into().unwrap(),
+            ));
             offset += 8;
         });
 
         assert_eq!(set.len(), n_ids);
 
-        let low = u64::from_be_bytes(tail[offset..offset+8].try_into().unwrap());
+        let low = u64::from_be_bytes(tail[offset..offset + 8].try_into().unwrap());
         offset += 8;
 
-        let high = u64::from_be_bytes(tail[offset..offset+8].try_into().unwrap());
+        let high = u64::from_be_bytes(tail[offset..offset + 8].try_into().unwrap());
         offset += 8;
 
         (set, (low, high))
@@ -167,7 +168,8 @@ impl BytesBatch {
             offset += 8;
 
             let end_samples = offset + samples_size;
-            let samples: Vec<SampleType> = bincode::deserialize(&data[offset..end_samples]).unwrap();
+            let samples: Vec<SampleType> =
+                bincode::deserialize(&data[offset..end_samples]).unwrap();
             offset = end_samples;
 
             result.push((id, ts, samples));
@@ -179,14 +181,17 @@ impl BytesBatch {
 
 #[cfg(test)]
 mod test {
-    use crate::data_generator;
     use super::*;
+    use crate::data_generator;
     use rand::prelude::*;
 
     #[test]
     fn test_batching() {
         let samples = data_generator::SAMPLES.clone();
-        let expected: Vec<(u64, u64, &'static [SampleType])> = samples.iter().map(|x| (x.0.0, thread_rng().gen(), x.1)).collect();
+        let expected: Vec<(u64, u64, &'static [SampleType])> = samples
+            .iter()
+            .map(|x| (x.0 .0, thread_rng().gen(), x.1))
+            .collect();
 
         // Insert into batch
         let mut batch = WriteBatch::new(1_000_000);
@@ -226,5 +231,3 @@ mod test {
         }
     }
 }
-
-

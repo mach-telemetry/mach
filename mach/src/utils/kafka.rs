@@ -364,7 +364,6 @@ impl KafkaEntry {
                 hashmap.insert(key, bytes);
                 hashset.remove(&key);
             }
-
         }
         ThreadLocalCounter::new("kafka messages fetched").increment(hashmap.len());
         hashmap

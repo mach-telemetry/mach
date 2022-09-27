@@ -1,23 +1,22 @@
-mod data_generator;
 mod constants;
+mod data_generator;
 
 #[allow(dead_code)]
 mod utils;
 
 use lazy_static::*;
 use mach::{
+    compression::{CompressFn, Compression},
     id::{SeriesId, SeriesRef},
     sample::SampleType,
+    series::{FieldType, SeriesConfig},
     tsdb::Mach,
     writer::Writer,
     writer::WriterConfig,
-    compression::{CompressFn, Compression},
-    series::{FieldType, SeriesConfig},
 };
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{Instant, Duration};
-
+use std::time::{Duration, Instant};
 
 lazy_static! {
     pub static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -162,13 +161,18 @@ fn main() {
                 println!("Current check size: {}", current_check_size);
                 current_check_size = 0.;
                 // calculate expected time
-                while batch_start.elapsed() < Duration::from_secs(1) { }
+                while batch_start.elapsed() < Duration::from_secs(1) {}
                 batch_start = Instant::now();
                 if workload_start.elapsed() > duration {
                     break 'outer;
                 }
             }
         }
-        println!("Expected rate: {} mbps, Actual rate: {} mbps, Sampling rate: {}", workload.mbps, workload_total_size / duration.as_secs_f64(), workload_total_samples / duration.as_secs_f64());
+        println!(
+            "Expected rate: {} mbps, Actual rate: {} mbps, Sampling rate: {}",
+            workload.mbps,
+            workload_total_size / duration.as_secs_f64(),
+            workload_total_samples / duration.as_secs_f64()
+        );
     }
 }

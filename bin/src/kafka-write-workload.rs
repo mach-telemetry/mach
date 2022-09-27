@@ -1,23 +1,20 @@
 mod batching;
-mod data_generator;
 mod constants;
-mod utils;
+mod data_generator;
 mod kafka_utils;
+mod utils;
 
-use std::time::{Instant, Duration};
+use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use std::mem;
 use std::thread;
-use crossbeam::channel::{Sender, Receiver, bounded, unbounded};
+use std::time::{Duration, Instant};
 
-fn kafka_writer(
-    partition: i32,
-    receiver: Receiver<batching::WriteBatch>,
-) {
+fn kafka_writer(partition: i32, receiver: Receiver<batching::WriteBatch>) {
     let mut producer = kafka_utils::Producer::new(constants::PARAMETERS.kafka_bootstraps.as_str());
     while let Ok(batch) = receiver.recv() {
         let bytes = batch.close();
         producer.send(
-                constants::PARAMETERS.kafka_topic.as_str(),
+            constants::PARAMETERS.kafka_topic.as_str(),
             partition,
             &bytes,
         );
@@ -37,7 +34,6 @@ fn init_kafka() {
 }
 
 fn main() {
-
     init_kafka();
 
     let n_writers = constants::PARAMETERS.kafka_partitions as usize;
@@ -46,20 +42,24 @@ fn main() {
     let samples = data_generator::SAMPLES.clone();
 
     println!("KAFKA WRITERS: {}", n_writers);
-    let mut batches: Vec<batching::WriteBatch> = (0..n_writers).map(|_| batching::WriteBatch::new(batch_size)).collect();
-    let mut writers: Vec<Sender<batching::WriteBatch>> = (0..n_writers).map(|i| {
-        let (tx, rx) = {
-            if bounded_queue {
-                bounded(1)
-            } else {
-                unbounded()
-            }
-        };
-        thread::spawn(move || {
-            kafka_writer(i as i32, rx);
-        });
-        tx
-    }).collect();
+    let mut batches: Vec<batching::WriteBatch> = (0..n_writers)
+        .map(|_| batching::WriteBatch::new(batch_size))
+        .collect();
+    let mut writers: Vec<Sender<batching::WriteBatch>> = (0..n_writers)
+        .map(|i| {
+            let (tx, rx) = {
+                if bounded_queue {
+                    bounded(1)
+                } else {
+                    unbounded()
+                }
+            };
+            thread::spawn(move || {
+                kafka_writer(i as i32, rx);
+            });
+            tx
+        })
+        .collect();
 
     let mut offset = 0;
     let mut total_samples = 0;
@@ -74,22 +74,23 @@ fn main() {
         let mut workload_total_samples = 0.;
         let mbps: f64 = workload.mbps.try_into().unwrap();
         'outer: loop {
-            let id = samples[offset].0.0;
+            let id = samples[offset].0 .0;
             let batch_id = id as usize % n_writers;
             let items = samples[offset].1;
             let sample_size = samples[offset].2 / 1_000_000.;
             let timestamp: u64 = utils::timestamp_now_micros().try_into().unwrap();
 
             match batches[batch_id].insert(id, timestamp, items) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(_) => {
-                    let old_batch = mem::replace(&mut batches[batch_id], batching::WriteBatch::new(batch_size));
+                    let old_batch = mem::replace(
+                        &mut batches[batch_id],
+                        batching::WriteBatch::new(batch_size),
+                    );
                     let count = old_batch.count();
                     match writers[batch_id].try_send(old_batch) {
-                        Ok(_) => {},
-                        Err(_) => {
-                            samples_dropped += count
-                        }
+                        Ok(_) => {}
+                        Err(_) => samples_dropped += count,
                     };
                     // TODO do something with old batch
                 }
@@ -109,15 +110,22 @@ fn main() {
                 println!("Current check size: {}", current_check_size);
                 current_check_size = 0.;
                 // calculate expected time
-                while batch_start.elapsed() < Duration::from_secs(1) { }
+                while batch_start.elapsed() < Duration::from_secs(1) {}
                 batch_start = Instant::now();
                 if workload_start.elapsed() > duration {
                     break 'outer;
                 }
             }
         }
-        println!("Expected rate: {} mbps, Actual rate: {} mbps, Sampling rate: {}", workload.mbps, workload_total_size / duration.as_secs_f64(), workload_total_samples / duration.as_secs_f64());
-        println!("Samples produced: {}, Samples dropped: {}", total_samples, samples_dropped);
+        println!(
+            "Expected rate: {} mbps, Actual rate: {} mbps, Sampling rate: {}",
+            workload.mbps,
+            workload_total_size / duration.as_secs_f64(),
+            workload_total_samples / duration.as_secs_f64()
+        );
+        println!(
+            "Samples produced: {}, Samples dropped: {}",
+            total_samples, samples_dropped
+        );
     }
 }
-

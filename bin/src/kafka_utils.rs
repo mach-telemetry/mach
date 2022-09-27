@@ -78,11 +78,10 @@ impl Producer {
                 let part = resp[0].partition_confirms[0].partition;
                 let offset = resp[0].partition_confirms[0].offset.unwrap();
                 (part, offset)
-            },
+            }
             Err(x) => {
                 panic!("ERROR writing to {} {}", topic, partition);
             }
         }
-
     }
 }

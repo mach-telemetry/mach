@@ -1,26 +1,20 @@
-use lazy_static::*;
 use clap::*;
-use std::time::{Duration};
+use lazy_static::*;
+use std::time::Duration;
 
 // PARAMETERS to toggle for evaluations
 lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
-    pub static ref WORKLOAD: Vec<Workload> = {
-        vec![
-            Workload::new(500, Duration::from_secs(60)),
-        ]
-    };
+    pub static ref WORKLOAD: Vec<Workload> = { vec![Workload::new(500, Duration::from_secs(60)),] };
 }
 
 #[derive(Parser, Debug, Clone)]
 pub struct Args {
-
     #[clap(short, long, default_value_t = 1_000_000)]
     pub kafka_batch_bytes: usize,
 
     //#[clap(short, long, default_value_t = 1)]
     //pub writer_queue_len: usize,
-
     #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
     pub kafka_bootstraps: String,
 
@@ -35,7 +29,6 @@ pub struct Args {
 
     //#[clap(short, long, default_value_t = 1_000_000)]
     //pub batch_bytes: usize,
-
     #[clap(short, long)]
     pub bounded_queue: bool,
 
@@ -73,10 +66,6 @@ pub struct Workload {
 
 impl Workload {
     fn new(mbps: u32, duration: Duration) -> Self {
-        Self {
-            mbps,
-            duration,
-        }
+        Self { mbps, duration }
     }
 }
-
