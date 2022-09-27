@@ -33,6 +33,8 @@ lazy_static! {
     static ref INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
     static ref INDEXED_COUNT: AtomicU64 = AtomicU64::new(0);
+    static ref TOTAL_SAMPLES: AtomicU64 = AtomicU64::new(0);
+    static ref WRITTEN_SAMPLES: AtomicU64 = AtomicU64::new(0);
     static ref DECOMPRESSION_TIME_MS: AtomicU64 = AtomicU64::new(0);
     static ref NUM_MSGS_DECOMPRESSED: AtomicU64 = AtomicU64::new(0);
     static ref QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -77,7 +79,7 @@ macro_rules! await_on {
     };
 }
 
-type EsWriterInput = Arc<MessageSets>;
+type EsWriterInput = batching::BytesBatch;
 
 async fn es_watch_data_age(client: ESIndexQuerier, index_name: &String) {
     let one_sec = std::time::Duration::from_secs(1);
@@ -145,31 +147,22 @@ fn make_kafka_consumer(bootstraps: &str, topic: &str, partition: &[i32]) -> Cons
 }
 
 async fn write_to_es(mut es_writer: ESBatchedIndexClient<Vec<u8>>, rx: Receiver<EsWriterInput>) {
-    while let Ok(msets) = rx.recv() {
-        for mset in msets.iter() {
-            for m in mset.messages() {
-                //let mut v = Vec::new();
-                //v.extend_from_slice(m.value);
-
-                //let bytes = v.as_slice().into();
-                let entries = BytesBatch::new(m.value.into()).entries();
-
-                for entry in entries.iter() {
-                    let bytes = ESSampleRef::from(entry).into();
-                    match es_writer.ingest(bytes).await {
-                        IngestResponse::Batched => {}
-                        IngestResponse::Flushed(r) => match r {
-                            Ok(r) => {
-                                if !r.status_code().is_success() {
-                                    println!("error resp: {:?}", r);
-                                }
-                            }
-                            Err(e) => {
-                                println!("error: {:?}", e);
-                            }
-                        },
+    while let Ok(batch) = rx.recv() {
+        let entries = batch.entries();
+        for entry in entries.iter() {
+            let bytes = ESSampleRef::from(entry).into();
+            match es_writer.ingest(bytes).await {
+                IngestResponse::Batched => {}
+                IngestResponse::Flushed(r) => match r {
+                    Ok(r) => {
+                        if !r.status_code().is_success() {
+                            println!("error resp: {:?}", r);
+                        }
                     }
-                }
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                    }
+                },
             }
         }
     }
@@ -181,11 +174,15 @@ async fn write_to_es(mut es_writer: ESBatchedIndexClient<Vec<u8>>, rx: Receiver<
 #[allow(dead_code)]
 fn consume_or_drop_from_kafka(mut consumer: Consumer, tx: Sender<EsWriterInput>) {
     loop {
-        let msets = Arc::new(consumer.poll().unwrap());
-        if let Err(e) = tx.try_send(msets) {
-            match e {
-                TrySendError::Full(_) => continue,
-                TrySendError::Disconnected(_) => break,
+        for mset in consumer.poll().unwrap().iter() {
+            for m in mset.messages() {
+                let batch = BytesBatch::new(m.value.into());
+                let count = batch.count() as u64;
+                TOTAL_SAMPLES.fetch_add(count, SeqCst);
+                match tx.try_send(batch) {
+                    Ok(_) => { WRITTEN_SAMPLES.fetch_add(count, SeqCst); },
+                    Err(_) => {},
+                }
             }
         }
     }
@@ -193,16 +190,14 @@ fn consume_or_drop_from_kafka(mut consumer: Consumer, tx: Sender<EsWriterInput>)
 
 #[allow(dead_code)]
 fn blocking_consume_from_kafka(mut consumer: Consumer, tx: Sender<EsWriterInput>) {
-    'outer: loop {
-        let msets = Arc::new(consumer.poll().unwrap());
-        'send: loop {
-            let msets = msets.clone();
-            match tx.try_send(msets) {
-                Ok(_) => break 'send,
-                Err(e) => match e {
-                    TrySendError::Full(_) => continue,
-                    TrySendError::Disconnected(_) => break 'outer,
-                },
+    loop {
+        for mset in consumer.poll().unwrap().iter() {
+            for m in mset.messages() {
+                let batch = BytesBatch::new(m.value.into());
+                let count = batch.count() as u64;
+                TOTAL_SAMPLES.fetch_add(count, SeqCst);
+                WRITTEN_SAMPLES.fetch_add(count, SeqCst);
+                tx.send(batch).unwrap();
             }
         }
     }
@@ -248,13 +243,17 @@ fn stats_watcher() {
         let num_decomps = NUM_MSGS_DECOMPRESSED.load(SeqCst);
         let avg_decomp_ms = total_decomp_ms as f64 / num_decomps as f64;
 
+        let consumed_samples = TOTAL_SAMPLES.load(SeqCst);
+        let written_samples = WRITTEN_SAMPLES.load(SeqCst);
+        let completeness = written_samples as f64 / consumed_samples as f64;
+
         println!(
             "flushed count: {flushed_count}, indexed count: {indexed_count}, \
                  fraction indexed: {fraction_indexed}, queue len: {queue_len}, \
                  flushes (init: {num_flushes_initiated}, completed: {num_flushes_completed}, \
                           pending: {num_flushes_pending}, retries: {num_flush_retries}, \
                           avg dur {avg_flush_dur_ms} ms), \
-                 avg decmp ms: {avg_decomp_ms}"
+                 avg decmp ms: {avg_decomp_ms}, completeness: {completeness}"
         );
 
         thread::sleep(interval);

@@ -130,17 +130,17 @@ fn main() {
 
     let n_writers = PARAMETERS.kafka_partitions as usize;
     let batch_size = PARAMETERS.writer_batches;
-    let bounded_queue = PARAMETERS.bounded_queue;
+    let unbounded_queue = PARAMETERS.unbounded_queue;
     let samples = data_generator::SAMPLES.clone();
 
     println!("KAFKA WRITERS: {}", n_writers);
     let mut batches: Vec<Batcher> = (0..n_writers).map(|_| Batcher::new(batch_size)).collect();
     let writers: Vec<Sender<Batch>> = (0..n_writers).map(|i| {
         let (tx, rx) = {
-            if bounded_queue {
-                bounded(1)
-            } else {
+            if unbounded_queue {
                 unbounded()
+            } else {
+                bounded(1)
             }
         };
         thread::spawn(move || {

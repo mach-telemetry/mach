@@ -76,13 +76,13 @@ impl WriteBatch {
         // total size calculated this way because all the metadata required could still exceed the
         // logically assigned batch size - even after compression. Loglically, batch size should
         // include the metadata
-        self.offset + 8 + self.ids.len() * 8 + 16 // bytes in buf + number of ids + ids + range of batch
+        self.offset + 8 + self.ids.len() * 8 + 24 // bytes in buf + number of ids + ids + range of batch
     }
 
     pub fn close(self) -> Box<[u8]> {
         let mut data = Vec::new();
         data.extend_from_slice(MAGIC.as_bytes());
-        data.extend_from_slice(&[0u8; 16]);
+        data.extend_from_slice(&[0u8; 24]);
 
         let before_compress = data.len();
         let size =
@@ -93,12 +93,17 @@ impl WriteBatch {
         let tail = data.len();
         assert_eq!(size, tail - before_compress);
         // write offset of tail in first 8 bytes
-        //let tail = 16 + size + MAGIC.as_bytes().len();
+        //let tail = 24 + size + MAGIC.as_bytes().len();
         data[offset..offset+8].copy_from_slice(&tail.to_be_bytes());
         offset += 8;
 
         // write raw data size in second 8 bytes
         data[offset..offset+8].copy_from_slice(&self.offset.to_be_bytes());
+        offset += 8;
+
+        // write raw data size in second 8 bytes
+        data[offset..offset+8].copy_from_slice(&self.count.to_be_bytes());
+        //offset += 8;
 
         // write the number of ids
         data.extend_from_slice(&self.ids.len().to_be_bytes());
@@ -121,6 +126,7 @@ pub struct BytesBatch {
     bytes: Arc<[u8]>,
     raw_size: usize,
     tail: usize,
+    count: usize
 }
 
 impl BytesBatch {
@@ -130,10 +136,12 @@ impl BytesBatch {
         let bytes = &og[MAGIC.as_bytes().len()..];
         let tail = usize::from_be_bytes(bytes[..8].try_into().unwrap());
         let raw_size = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
+        let count = usize::from_be_bytes(bytes[16..24].try_into().unwrap());
         BytesBatch {
             bytes: og,
             raw_size,
             tail,
+            count,
         }
     }
 
@@ -163,12 +171,16 @@ impl BytesBatch {
         (set, (low, high))
     }
 
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
     pub fn total_size(&self) -> usize {
         self.bytes.len() + 16
     }
 
     pub fn entries(&self) -> Vec<(u64, u64, Vec<SampleType>)> {
-        let bytes = &self.bytes[MAGIC.as_bytes().len() + 16..self.tail];
+        let bytes = &self.bytes[MAGIC.as_bytes().len() + 24..self.tail];
         //println!("TAIL: {}", self.tail);
         let mut data = vec![0u8; 5_000_000];
         let decompress_sz = match lz4::decompress(&bytes, &mut data) {
@@ -248,6 +260,7 @@ mod test {
         let (ids, range) = batch.metadata();
         let entries = batch.entries();
 
+        assert_eq!(batch.count, counter);
         assert_eq!(ids, expected_ids);
         assert_eq!(range, expected_range);
         for (entry, expected) in entries.iter().zip(expected_samples.iter()) {

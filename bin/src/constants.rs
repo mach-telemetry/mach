@@ -9,7 +9,7 @@ use std::time::Duration;
 // PARAMETERS to toggle for evaluations
 lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
-    pub static ref WORKLOAD: Vec<Workload> = { vec![Workload::new(500, Duration::from_secs(60)),] };
+    pub static ref WORKLOAD: Vec<Workload> = { vec![Workload::new(500, Duration::from_secs(60 * 60)),] };
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
 
@@ -34,7 +34,7 @@ pub struct Args {
 
     /// The queue into which batches (e.g., Kafka or Mach batches) are written. If bounded, will be bounded to 1. If the queue is full, the workload will drop the batch.
     #[clap(short, long)]
-    pub bounded_queue: bool,
+    pub unbounded_queue: bool,
 
     /// The block size for each Kafka block written by Mach
     #[clap(long, default_value_t = 1_000_000)]

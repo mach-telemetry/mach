@@ -239,8 +239,6 @@ fn stats_printer() {
 
 fn main() {
     thread::spawn(stats_printer);
-    let q = PARAMETERS.bounded_queue;
-    println!("BOUNDED_QUEUE: {}", q);
     let samples = SAMPLES.clone();
     //let mut writer = MACH_WRITER.lock().unwrap();
 
@@ -253,10 +251,10 @@ fn main() {
     let mut batches: Vec<Batcher> = (0..mach_writers).map(|_| Batcher::new(batch_sz)).collect();
     let writers: Vec<Sender<Batch>> = (0..mach_writers)
         .map(|i| {
-            let (tx, rx) = if PARAMETERS.bounded_queue {
-                bounded(1)
-            } else {
+            let (tx, rx) = if PARAMETERS.unbounded_queue {
                 unbounded()
+            } else {
+                bounded(1)
             };
             thread::spawn(move || {
                 mach_writer(rx, i);
