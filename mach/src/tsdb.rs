@@ -67,7 +67,11 @@ impl Mach {
         Ok(writer)
     }
 
-    pub fn add_series_to_writer(&mut self, config: SeriesConfig, writer: WriterId) -> Result<SeriesId, Error> {
+    pub fn add_series_to_writer(
+        &mut self,
+        config: SeriesConfig,
+        writer: WriterId,
+    ) -> Result<SeriesId, Error> {
         let writer_meta = self.writer_table.get(&writer).unwrap();
         let series_id = config.id;
         let block_list = writer_meta.block_list.clone();
