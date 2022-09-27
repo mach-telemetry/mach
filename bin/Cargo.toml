@@ -53,22 +53,6 @@ tonic-build = { version = "0.6.2", features = ["prost", "compression"] }
 [profile.release]
 debug = true
 
-#[[bin]]
-#name = "tsdb"
-#path = "src/tsdb.rs"
-#
-#[[bin]]
-#name = "tsdb-client"
-#path = "src/tsdb_client.rs"
-#
-#[[bin]]
-#name = "file2mach"
-#path = "src/file_to_mach.rs"
-#
-#[[bin]]
-#name = "data-latency-bench"
-#path = "src/data_latency_bench.rs"
-
 [[bin]]
 name = "completeness-workload"
 path = "src/completeness-workload.rs"
@@ -84,42 +68,6 @@ path = "src/otlp_server.rs"
 [[bin]]
 name = "mach-otlp-server"
 path = "src/mach-otlp-server.rs"
-
-#[[bin]]
-#name = "mach-server"
-#path = "src/mach-server.rs"
-#
-#[[bin]]
-#name = "otlp-consumer"
-#path = "src/otlp-consumer.rs"
-#
-#[[bin]]
-#name = "load-data"
-#path = "src/load_data.rs"
-#
-#[[bin]]
-#name = "parse-traces"
-#path = "src/parse_traces.rs"
-#
-#[[bin]]
-#name = "otlp-load"
-#path = "src/otlp_load_bench.rs"
-
-[[bin]]
-name = "simple-bench"
-path = "src/simple_bench.rs"
-
-[[bin]]
-name = "write-bench"
-path = "src/write_bench.rs"
-
-[[bin]]
-name = "workload-gen"
-path = "src/workload_gen.rs"
-
-[[bin]]
-name = "mach-workload-gen"
-path = "src/mach_workload_gen.rs"
 
 [[bin]]
 name = "kafka_bench"
