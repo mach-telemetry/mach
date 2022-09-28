@@ -22,35 +22,34 @@ lazy_static! {
     static ref STATS_BARRIER: Barrier = Barrier::new(2);
 }
 
+fn kafka_flusher(partition: i32, rx: Receiver<Box<[u8]>>) {
+    let mut producer = kafka_utils::Producer::new(PARAMETERS.kafka_bootstraps.as_str());
+    while let Ok(bytes) = rx.recv() {
+        producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
+    }
+}
+
 fn kafka_writer(receiver: Receiver<(i32, Batch)>) {
     let mut partition_batch_map = HashMap::new();
 
-    let mut producer = kafka_utils::Producer::new(PARAMETERS.kafka_bootstraps.as_str());
     let kafka_batch_size = PARAMETERS.kafka_batch_bytes;
 
     //let mut batcher = batching::WriteBatch::new(kafka_batch_size);
 
     while let Ok((partition, batch)) = receiver.recv() {
         let mut batcher = partition_batch_map.entry(partition).or_insert_with(|| {
-            batching::WriteBatch::new(kafka_batch_size)
+            let (tx, rx) = unbounded();
+            std::thread::spawn(move || kafka_flusher(partition, rx));
+            (tx, batching::WriteBatch::new(kafka_batch_size))
         });
-        let batch_count = batch.len();
-        let mut batch_size = 0;
         for item in batch {
-            batch_size += item.3;
-            if batcher.insert(*item.0, item.1, item.2).is_err() {
+            if batcher.1.insert(*item.0, item.1, item.2).is_err() {
                 // replace batcher in the partition batch map, close the old batch
-                let old_batch = partition_batch_map
-                    .insert(partition, batching::WriteBatch::new(kafka_batch_size))
-                    .unwrap();
-                let old_batch_count = old_batch.count();
-                let old_batch_size = old_batch.data_size();
-
-                batcher = partition_batch_map.get_mut(&partition).unwrap();
-
-                let bytes = old_batch.close();
-                producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
-
+                //let entry = partition_batch_map.get_mut(&partition).unwrap();
+                let old_batch_count = batcher.1.count();
+                let old_batch_size = batcher.1.data_size();
+                let bytes = mem::replace(&mut batcher.1, batching::WriteBatch::new(kafka_batch_size)).close();
+                batcher.0.send(bytes).unwrap();
                 COUNTERS.add_samples_written(old_batch_count);
                 COUNTERS.add_bytes_written(old_batch_size);
             }
