@@ -19,7 +19,7 @@ use mach::{
 };
 use std::collections::HashMap;
 use std::mem;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -72,7 +72,7 @@ lazy_static! {
     };
 
     static ref STATS_BARRIER: Barrier = Barrier::new(2);
-    static ref WRITERS_BARRIER: Barrier = Barrier::new(PARAMETERS.mach_writers + 1);
+    //static ref WRITERS_BARRIER: Barrier = Barrier::new(PARAMETERS.mach_writers + 1);
 }
 
 fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
@@ -200,7 +200,7 @@ fn mach_writer(batches: Receiver<Batch>, writer_idx: usize) {
         COUNTERS.add_samples_written(batch_len);
         COUNTERS.add_bytes_written(batch_size);
     }
-    WRITERS_BARRIER.wait();
+    //WRITERS_BARRIER.wait();
 }
 
 fn stats_printer() {
@@ -338,5 +338,5 @@ fn main() {
         );
     }
 
-    WRITER_BARRIER.wait();
+    //WRITERS_BARRIER.wait();
 }
