@@ -46,6 +46,7 @@ flame = "0.2.2"
 rand_chacha = "0.3.1"
 libc = "0.2.133"
 procinfo = "0.4.2"
+ref_thread_local = "0.1.1"
 
 [build-dependencies]
 tonic-build = { version = "0.6.2", features = ["prost", "compression"] }

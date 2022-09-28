@@ -62,6 +62,14 @@ pub struct Args {
     #[clap(long, default_value_t = 1)]
     pub mach_writers: usize,
 
+    /// Snapshot interval for Mach when querying a source
+    #[clap(long, default_value_t = 0.5)]
+    pub mach_snapshot_interval: f64,
+
+    /// Snapshot timeout for Mach after initing a source
+    #[clap(long, default_value_t = 60. * 60.)]
+    pub mach_snapshot_timeout: f64,
+
     /// The workload uses a channel to send samples to a writer. This batching amortizes the
     /// cost of writing to a channel.
     #[clap(long, default_value_t = 1_000)]
@@ -94,8 +102,12 @@ pub struct Args {
     #[clap(long, default_value_t = 10)]
     pub query_interval_seconds: u64,
 
+    #[clap(long, default_value_t = 10)]
+    pub query_rand_seed: u64,
+
     #[clap(long, default_value_t = 5)]
     pub print_interval_seconds: u64,
+
 }
 
 pub struct Counters {

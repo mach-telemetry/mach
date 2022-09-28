@@ -1,5 +1,7 @@
 #![feature(map_first_last)]
 
+mod query_utils;
+
 #[allow(dead_code)]
 mod bytes_server;
 //mod completeness;
@@ -27,17 +29,19 @@ use dashmap::DashMap;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};//, Message};
 use lazy_static::*;
 use mach::id::SeriesId;
+use mach;
 //use mach::utils::random_id;
 use mach::sample::SampleType;
-use rand::{self, prelude::*};
+//use rand::{self, prelude::*};
 //use regex::Regex;
 use std::collections::BTreeMap;
 use std::ops::Bound::Included;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use std::thread;
 
 use crossbeam::channel::{Sender, Receiver, bounded, unbounded};
+use query_utils::SimpleQuery;
 
 lazy_static! {
     static ref HOSTS: Vec<String> = {
@@ -54,10 +58,10 @@ struct Index {
 
 impl Index {
     fn insert(&self, id: SeriesId, range: (u64, u64), entry: Entry) {
-        if self.in_queue.is_full() {
-            let x = self.out_queue.try_recv().unwrap();
-            self.index.get(&x.0).unwrap().lock().unwrap().remove(&(x.1, x.2)).unwrap();
-        }
+        //if self.in_queue.is_full() {
+        //    let x = self.out_queue.try_recv().unwrap();
+        //    self.index.get(&x.0).unwrap().lock().unwrap().remove(&(x.1, x.2)).unwrap();
+        //}
 
         self.index
             .entry(id)
@@ -66,7 +70,7 @@ impl Index {
             .lock()
             .unwrap()
             .insert(range, entry);
-        self.in_queue.send((id, range.0, range.1)).unwrap();
+        //self.in_queue.send((id, range.0, range.1)).unwrap();
     }
 
     //fn last_timestamp(&self, id: SeriesId) -> Option<(u64, u64)> {
@@ -121,11 +125,15 @@ fn init_consumer() {
     thread::spawn(consumer);
 }
 
-fn execute_query(i: usize, source: SeriesId, start: u64, end: u64, signal: Sender<()>) {
+fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
     println!("Executing query: {}", i);
     // Waiting for timestamp
     //println!("Waiting for timestamp {}", now);
     //let mut buf = vec![0u8; 500_000_000];
+
+    let source = query.source;
+    let start = query.start;
+    let end = query.end;
 
     let timer = Instant::now();
     let index = INDEX.get_map(source).unwrap();
@@ -148,7 +156,7 @@ fn execute_query(i: usize, source: SeriesId, start: u64, end: u64, signal: Sende
     let mut counter = 0;
     let mut blocks_seen = 0;
     let mut guard = index.lock().unwrap();
-    let timer = Instant::now();
+    //let timer = Instant::now();
     let low = Included((end, end));
     let high = Included((start, start));
     for (_k, msg) in guard.range_mut((low, high)).rev() {
@@ -172,8 +180,9 @@ fn execute_query(i: usize, source: SeriesId, start: u64, end: u64, signal: Sende
             }
         }
     }
-    let execution_latency = timer.elapsed();
-    let total_latency = data_latency + execution_latency;
+    let total_latency = timer.elapsed();
+    let execution_latency = total_latency - data_latency;
+    print!("Query ID: {}, Source: {:?}, Duration: {}, ", i, source, end - start);
     print!("Query ID: {}, ", i);
     print!("Total Latency: {}, ", total_latency.as_secs_f64());
     print!("Data Latency: {}, ", data_latency.as_secs_f64());
@@ -199,30 +208,18 @@ fn main() {
     thread::sleep(Duration::from_secs(2 * PARAMETERS.query_max_delay));
     println!("Done Sleeping");
 
-    let mut rng = rand::thread_rng();
-    let micros_in_sec: u64 = Duration::from_secs(1).as_micros().try_into().unwrap();
-
-    for i in 0..PARAMETERS.query_count as usize {
+    for i in 0..(PARAMETERS.query_count as usize) {
         thread::sleep(Duration::from_secs(PARAMETERS.query_interval_seconds));
-        let id = SeriesId(rng.gen_range(0..PARAMETERS.source_count));
-        let now: u64 = micros_from_epoch().try_into().unwrap();
-        let start = now - rng.gen_range(0..PARAMETERS.query_max_delay) * micros_in_sec;
-        let end = start - rng.gen_range(PARAMETERS.min_query_duration..PARAMETERS.max_query_duration) * micros_in_sec;
+        let now: u64 = utils::timestamp_now_micros().try_into().unwrap();
+        let query = SimpleQuery::new_relative_to(now);
         let tx = tx.clone();
 
         thread::spawn(move || {
-            execute_query(i, id, start, end, tx);
+            execute_query(i, query, tx);
         });
         // todo: Fire off query
     }
     drop(tx);
     while let Ok(_) = rx.recv() {
     }
-}
-
-fn micros_from_epoch() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_micros()
 }
