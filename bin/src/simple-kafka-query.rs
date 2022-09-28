@@ -37,7 +37,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::thread;
 
-use crossbeam::channel::{Sender, Receiver, bounded};
+use crossbeam::channel::{Sender, Receiver, bounded, unbounded};
 
 lazy_static! {
     static ref HOSTS: Vec<String> = {
@@ -121,7 +121,8 @@ fn init_consumer() {
     thread::spawn(consumer);
 }
 
-fn execute_query(i: usize, source: SeriesId, start: u64, end: u64) {
+fn execute_query(i: usize, source: SeriesId, start: u64, end: u64, signal: Sender<()>) {
+    println!("Executing query: {}", i);
     // Waiting for timestamp
     //println!("Waiting for timestamp {}", now);
     //let mut buf = vec![0u8; 500_000_000];
@@ -131,6 +132,9 @@ fn execute_query(i: usize, source: SeriesId, start: u64, end: u64) {
 
     'outer: loop {
         let guard = index.lock().unwrap();
+        if guard.len() == 0 {
+            continue
+        }
         let (_s, e) = *guard.last_key_value().unwrap().0;
         if e > start {
             break 'outer;
@@ -142,11 +146,13 @@ fn execute_query(i: usize, source: SeriesId, start: u64, end: u64) {
     let data_latency = timer.elapsed();
 
     let mut counter = 0;
+    let mut blocks_seen = 0;
     let mut guard = index.lock().unwrap();
     let timer = Instant::now();
     let low = Included((end, end));
     let high = Included((start, start));
     for (_k, msg) in guard.range_mut((low, high)).rev() {
+        blocks_seen += 1;
         let samples = match msg {
             Entry::Bytes(x) => {
                 let entries = x.entries();
@@ -166,13 +172,16 @@ fn execute_query(i: usize, source: SeriesId, start: u64, end: u64) {
             }
         }
     }
-    let total_latency = timer.elapsed();
+    let execution_latency = timer.elapsed();
+    let total_latency = data_latency + execution_latency;
     print!("Query ID: {}, ", i);
     print!("Total Latency: {}, ", total_latency.as_secs_f64());
     print!("Data Latency: {}, ", data_latency.as_secs_f64());
-    print!("Execution Latency: {}, ", (total_latency - data_latency).as_secs_f64());
+    print!("Execution Latency: {}, ", execution_latency.as_secs_f64());
     print!("Sink: {}, ", counter);
+    print!("Blocks seen: {}, ", blocks_seen);
     println!("");
+    signal.send(()).unwrap();
 }
 
 //const START_MAX_DELAY: u64 = 60;
@@ -183,6 +192,8 @@ fn execute_query(i: usize, source: SeriesId, start: u64, end: u64) {
 
 fn main() {
     init_consumer();
+
+    let (tx, rx) = unbounded();
 
     println!("Sleeping");
     thread::sleep(Duration::from_secs(2 * PARAMETERS.query_max_delay));
@@ -197,11 +208,15 @@ fn main() {
         let now: u64 = micros_from_epoch().try_into().unwrap();
         let start = now - rng.gen_range(0..PARAMETERS.query_max_delay) * micros_in_sec;
         let end = start - rng.gen_range(PARAMETERS.min_query_duration..PARAMETERS.max_query_duration) * micros_in_sec;
+        let tx = tx.clone();
 
         thread::spawn(move || {
-            execute_query(i, id, start, end);
+            execute_query(i, id, start, end, tx);
         });
         // todo: Fire off query
+    }
+    drop(tx);
+    while let Ok(_) = rx.recv() {
     }
 }
 
