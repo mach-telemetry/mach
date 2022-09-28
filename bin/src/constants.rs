@@ -42,7 +42,7 @@ pub struct Args {
     #[clap(short, long)]
     pub es_password: Option<String>,
 
-    #[clap(long, default_value_t = 1_000_000)]
+    #[clap(long, default_value_t = 15_000_000)]
     pub es_batch_bytes: usize,
 
     #[clap(short, long, default_value_t = 10)]
@@ -107,7 +107,6 @@ pub struct Args {
 
     #[clap(long, default_value_t = 5)]
     pub print_interval_seconds: u64,
-
 }
 
 pub struct Counters {

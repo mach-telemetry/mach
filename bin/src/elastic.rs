@@ -74,6 +74,7 @@ pub enum ESFieldType {
     Long,
     Integer,
     UnsignedLong,
+    Keyword,
 }
 
 impl Into<&'static str> for ESFieldType {
@@ -84,6 +85,7 @@ impl Into<&'static str> for ESFieldType {
             ESFieldType::Long => "long",
             ESFieldType::Integer => "integer",
             ESFieldType::UnsignedLong => "unsigned_long",
+            ESFieldType::Keyword => "keyword",
         }
     }
 }
@@ -120,6 +122,10 @@ impl CreateIndexArgs {
                 "index": {
                   "number_of_shards": self.num_shards,
                   "number_of_replicas": self.num_replicas,
+                  "translog": {
+                      "sync_interval": "30s",
+                      "durability": "async"
+                  }
                 }
               }
         });

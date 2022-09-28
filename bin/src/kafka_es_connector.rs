@@ -216,11 +216,18 @@ fn es_writer(es_conf: ESClientBuilder, rx: Receiver<EsWriterInput>) {
 }
 
 fn stats_watcher() {
+    let mut prev_bytes_written = 0;
+    let interval = Duration::from_secs(PARAMETERS.print_interval_seconds);
+
     loop {
         let flushed_count = INGESTION_STATS.num_flushed.load(SeqCst);
         let indexed_count = INDEXED_COUNT.load(SeqCst);
         let fraction_indexed = indexed_count as f64 / flushed_count as f64;
-        let queue_len = QUEUE_LEN.load(SeqCst);
+
+        let bytes_written = INGESTION_STATS.bytes_flushed.load(SeqCst);
+        let flushed_delta = bytes_written - prev_bytes_written;
+        let bytes_per_sec = flushed_delta as f64 / interval.as_secs_f64();
+        prev_bytes_written = bytes_written;
 
         let num_flushes_initiated = INGESTION_STATS.num_flush_reqs_initiated.load(SeqCst);
         let num_flushes_completed = INGESTION_STATS.num_flush_reqs_completed.load(SeqCst);
@@ -243,8 +250,8 @@ fn stats_watcher() {
         let completeness = written_samples as f64 / consumed_samples as f64;
 
         println!(
-            "flushed count: {flushed_count}, indexed count: {indexed_count}, \
-                 fraction indexed: {fraction_indexed}, queue len: {queue_len}, \
+            "bytes per sec: {bytes_per_sec}, flushed count: {flushed_count}, \
+            indexed count: {indexed_count}, fraction indexed: {fraction_indexed}, \
                  flushes (init: {num_flushes_initiated}, completed: {num_flushes_completed}, \
                           pending: {num_flushes_pending}, retries: {num_flush_retries}, \
                           avg dur {avg_flush_dur_ms} ms), \
@@ -254,7 +261,7 @@ fn stats_watcher() {
                  completeness: {completeness}"
         );
 
-        thread::sleep(Duration::from_secs(PARAMETERS.print_interval_seconds));
+        thread::sleep(interval);
     }
 }
 
@@ -269,8 +276,7 @@ fn create_es_index(elastic_builder: ESClientBuilder) {
         );
 
         let mut schema = HashMap::new();
-        schema.insert("series_id".into(), ESFieldType::UnsignedLong);
-        schema.insert("timestamp".into(), ESFieldType::UnsignedLong);
+        schema.insert("series_id".into(), ESFieldType::Keyword);
 
         let r = client
             .create_index(elastic::CreateIndexArgs {
@@ -283,7 +289,7 @@ fn create_es_index(elastic_builder: ESClientBuilder) {
 
         assert!(r.status_code().is_success());
 
-        println!("ES Index {} created", INDEX_NAME.as_str());
+        println!("ES Index {} created, resp: {:?}", INDEX_NAME.as_str(), r);
     });
 }
 
