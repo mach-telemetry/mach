@@ -233,7 +233,7 @@ fn stats_printer() {
         print!("Bytes generated: {}, ", bytes_generated);
         print!("Bytes written: {}, ", bytes_written);
         println!("");
-        thread::sleep(Duration::from_secs(5));
+        thread::sleep(Duration::from_secs(PARAMETERS.print_interval_seconds));
     }
 }
 

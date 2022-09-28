@@ -9,9 +9,8 @@ use std::time::Duration;
 // PARAMETERS to toggle for evaluations
 lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
-    pub static ref WORKLOAD: Vec<Workload> = vec![
-        Workload::new(500, Duration::from_secs(60 * 60)),
-    ];
+    pub static ref WORKLOAD: Vec<Workload> =
+        vec![Workload::new(500, Duration::from_secs(60 * 60)),];
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
 
@@ -33,6 +32,24 @@ pub struct Args {
 
     #[clap(long, default_value_t = String::from("kafka-completeness-bench"))]
     pub kafka_topic: String,
+
+    #[clap(short, long, default_value_t = String::from("http://localhost:9200"))]
+    pub es_endpoint: String,
+
+    #[clap(short, long)]
+    pub es_username: Option<String>,
+
+    #[clap(short, long)]
+    pub es_password: Option<String>,
+
+    #[clap(long, default_value_t = 1_000_000)]
+    pub es_batch_bytes: usize,
+
+    #[clap(short, long, default_value_t = 10)]
+    pub es_num_shards: usize,
+
+    #[clap(short, long, default_value_t = 0)]
+    pub es_num_replicas: usize,
 
     /// The queue into which batches (e.g., Kafka or Mach batches) are written. If bounded, will be bounded to 1. If the queue is full, the workload will drop the batch.
     #[clap(short, long)]
@@ -76,6 +93,9 @@ pub struct Args {
 
     #[clap(long, default_value_t = 10)]
     pub query_interval_seconds: u64,
+
+    #[clap(long, default_value_t = 5)]
+    pub print_interval_seconds: u64,
 }
 
 pub struct Counters {

@@ -1,6 +1,8 @@
 #[allow(dead_code)]
 mod batching;
 #[allow(dead_code)]
+mod constants;
+#[allow(dead_code)]
 mod elastic;
 #[allow(dead_code)]
 mod kafka_utils;
@@ -12,11 +14,11 @@ mod utils;
 use crate::batching::BytesBatch;
 use crate::prep_data::ESSampleRef;
 use clap::*;
-use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
+use constants::PARAMETERS;
+use crossbeam_channel::{bounded, Receiver, Sender};
 use elastic::{
     ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier, IngestResponse, IngestStats,
 };
-use kafka::consumer::MessageSets;
 use kafka::{client::KafkaClient, consumer::Consumer};
 use lazy_static::lazy_static;
 use std::collections::HashMap;
@@ -29,7 +31,6 @@ use std::time::Duration;
 use utils::timestamp_now_micros;
 
 lazy_static! {
-    static ref ARGS: Args = Args::parse();
     static ref INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
     static ref INDEXED_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -38,36 +39,6 @@ lazy_static! {
     static ref DECOMPRESSION_TIME_MS: AtomicU64 = AtomicU64::new(0);
     static ref NUM_MSGS_DECOMPRESSED: AtomicU64 = AtomicU64::new(0);
     static ref QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
-}
-
-#[derive(Parser, Debug, Clone)]
-struct Args {
-    #[clap(short, long, default_value_t = String::from("localhost:9093,localhost:9094,localhost:9095"))]
-    kafka_bootstraps: String,
-
-    #[clap(short, long, default_value_t = String::from("kafka-completeness-bench"))]
-    kafka_topic: String,
-
-    #[clap(short, long, default_value_t = String::from("http://localhost:9200"))]
-    es_endpoint: String,
-
-    #[clap(short, long)]
-    es_username: Option<String>,
-
-    #[clap(short, long)]
-    es_password: Option<String>,
-
-    #[clap(short, long, default_value_t = 1_000_000)]
-    batch_bytes: usize,
-
-    #[clap(short, long, default_value_t = 10)]
-    num_threads: usize,
-
-    #[clap(short, long, default_value_t = 10)]
-    es_num_shards: usize,
-
-    #[clap(short, long, default_value_t = 0)]
-    es_num_replicas: usize,
 }
 
 macro_rules! await_on {
@@ -140,7 +111,7 @@ fn make_kafka_consumer(bootstraps: &str, topic: &str, partition: &[i32]) -> Cons
 
     println!(
         "Kafka consumer created, begin consuming {:?} from topic {}",
-        partition, ARGS.kafka_topic
+        partition, PARAMETERS.kafka_topic
     );
 
     kafka_consumer
@@ -180,8 +151,10 @@ fn consume_or_drop_from_kafka(mut consumer: Consumer, tx: Sender<EsWriterInput>)
                 let count = batch.count() as u64;
                 TOTAL_SAMPLES.fetch_add(count, SeqCst);
                 match tx.try_send(batch) {
-                    Ok(_) => { WRITTEN_SAMPLES.fetch_add(count, SeqCst); },
-                    Err(_) => {},
+                    Ok(_) => {
+                        WRITTEN_SAMPLES.fetch_add(count, SeqCst);
+                    }
+                    Err(_) => {}
                 }
             }
         }
@@ -205,8 +178,8 @@ fn blocking_consume_from_kafka(mut consumer: Consumer, tx: Sender<EsWriterInput>
 
 fn kafka_consumer(partition: i32, tx: Sender<EsWriterInput>) {
     let kafka_consumer = make_kafka_consumer(
-        ARGS.kafka_bootstraps.as_str(),
-        ARGS.kafka_topic.as_str(),
+        PARAMETERS.kafka_bootstraps.as_str(),
+        PARAMETERS.kafka_topic.as_str(),
         &[partition.try_into().unwrap()],
     );
 
@@ -217,7 +190,7 @@ fn es_writer(es_conf: ESClientBuilder, rx: Receiver<EsWriterInput>) {
     let es_writer = ESBatchedIndexClient::new(
         es_conf.build().unwrap(),
         INDEX_NAME.clone(),
-        ARGS.batch_bytes,
+        PARAMETERS.es_batch_bytes,
         INGESTION_STATS.clone(),
     );
 
@@ -225,7 +198,6 @@ fn es_writer(es_conf: ESClientBuilder, rx: Receiver<EsWriterInput>) {
 }
 
 fn stats_watcher() {
-    let interval = std::time::Duration::from_secs(2);
     loop {
         let flushed_count = INGESTION_STATS.num_flushed.load(SeqCst);
         let indexed_count = INDEXED_COUNT.load(SeqCst);
@@ -256,7 +228,7 @@ fn stats_watcher() {
                  avg decmp ms: {avg_decomp_ms}, completeness: {completeness}"
         );
 
-        thread::sleep(interval);
+        thread::sleep(Duration::from_secs(PARAMETERS.print_interval_seconds));
     }
 }
 
@@ -266,7 +238,7 @@ fn create_es_index(elastic_builder: ESClientBuilder) {
         let client = ESBatchedIndexClient::<prep_data::ESSample>::new(
             elastic_builder.build().unwrap(),
             INDEX_NAME.clone(),
-            ARGS.batch_bytes,
+            PARAMETERS.es_batch_bytes,
             INGESTION_STATS.clone(),
         );
 
@@ -276,8 +248,8 @@ fn create_es_index(elastic_builder: ESClientBuilder) {
 
         let r = client
             .create_index(elastic::CreateIndexArgs {
-                num_shards: ARGS.es_num_shards,
-                num_replicas: ARGS.es_num_replicas,
+                num_shards: PARAMETERS.es_num_shards,
+                num_replicas: PARAMETERS.es_num_replicas,
                 schema: Some(schema),
             })
             .await
@@ -291,15 +263,15 @@ fn create_es_index(elastic_builder: ESClientBuilder) {
 
 fn main() {
     let es_client_config = ESClientBuilder::default()
-        .username_optional(ARGS.es_username.clone())
-        .password_optional(ARGS.es_password.clone())
-        .endpoint(ARGS.es_endpoint.clone());
+        .username_optional(PARAMETERS.es_username.clone())
+        .password_optional(PARAMETERS.es_password.clone())
+        .endpoint(PARAMETERS.es_endpoint.clone());
 
     create_es_index(es_client_config.clone());
 
     let mut consumers = Vec::new();
     let mut writers = Vec::new();
-    for partition in 0..ARGS.num_threads {
+    for partition in 0..PARAMETERS.kafka_partitions {
         let es_conf = es_client_config.clone();
         let (tx, rx) = bounded(1);
         consumers.push(thread::spawn(move || kafka_consumer(partition as i32, tx)));
