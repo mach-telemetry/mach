@@ -27,7 +27,7 @@ use std::sync::atomic::Ordering::SeqCst;
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use utils::timestamp_now_micros;
 
 lazy_static! {
@@ -37,8 +37,8 @@ lazy_static! {
     static ref TOTAL_SAMPLES: AtomicU64 = AtomicU64::new(0);
     static ref WRITTEN_SAMPLES: AtomicU64 = AtomicU64::new(0);
     static ref DECOMPRESSION_TIME_MS: AtomicU64 = AtomicU64::new(0);
-    static ref NUM_MSGS_DECOMPRESSED: AtomicU64 = AtomicU64::new(0);
     static ref QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
+    static ref SERIALIZE_TIME_MICROS: AtomicUsize = AtomicUsize::new(0);
 }
 
 macro_rules! await_on {
@@ -118,10 +118,28 @@ fn make_kafka_consumer(bootstraps: &str, topic: &str, partition: &[i32]) -> Cons
 }
 
 async fn write_to_es(mut es_writer: ESBatchedIndexClient<Vec<u8>>, rx: Receiver<EsWriterInput>) {
+    let mut serialize_time = 0;
+    let mut decomp_time = 0;
+
     while let Ok(batch) = rx.recv() {
+        let t = Instant::now();
         let entries = batch.entries();
+        decomp_time += t.elapsed().as_micros();
+        if decomp_time >= 1_000_000 {
+            DECOMPRESSION_TIME_MS.fetch_add(decomp_time.try_into().unwrap(), SeqCst);
+            decomp_time = 0;
+        }
+
         for entry in entries.iter() {
+            let t = Instant::now();
             let bytes = ESSampleRef::from(entry).into();
+            serialize_time += t.elapsed().as_micros();
+
+            if serialize_time > 1_000_000 {
+                SERIALIZE_TIME_MICROS.fetch_add(serialize_time.try_into().unwrap(), SeqCst);
+                serialize_time = 0;
+            }
+
             match es_writer.ingest(bytes).await {
                 IngestResponse::Batched => {}
                 IngestResponse::Flushed(r) => match r {
@@ -210,10 +228,15 @@ fn stats_watcher() {
         let num_flush_retries = INGESTION_STATS.num_flush_retries.load(SeqCst);
         let total_flush_ms = INGESTION_STATS.flush_dur_millis.load(SeqCst);
         let avg_flush_dur_ms = total_flush_ms as f64 / num_flushes_completed as f64;
+        let cumulative_flush_avg = total_flush_ms as f64 / num_flushes_initiated as f64;
+
+        let total_serialize_time_micros = SERIALIZE_TIME_MICROS.load(SeqCst);
+        let total_serialize_time_ms = total_serialize_time_micros / 1_000;
+        let per_batch_serialize_time =
+            total_serialize_time_ms as f64 / num_flushes_initiated as f64;
 
         let total_decomp_ms = DECOMPRESSION_TIME_MS.load(SeqCst);
-        let num_decomps = NUM_MSGS_DECOMPRESSED.load(SeqCst);
-        let avg_decomp_ms = total_decomp_ms as f64 / num_decomps as f64;
+        let per_batch_decomp_ms = total_decomp_ms as f64 / num_flushes_initiated as f64;
 
         let consumed_samples = TOTAL_SAMPLES.load(SeqCst);
         let written_samples = WRITTEN_SAMPLES.load(SeqCst);
@@ -225,7 +248,10 @@ fn stats_watcher() {
                  flushes (init: {num_flushes_initiated}, completed: {num_flushes_completed}, \
                           pending: {num_flushes_pending}, retries: {num_flush_retries}, \
                           avg dur {avg_flush_dur_ms} ms), \
-                 avg decmp ms: {avg_decomp_ms}, completeness: {completeness}"
+                 per batch stats (decomp ms: {per_batch_decomp_ms}, \
+                                  serialize: {per_batch_serialize_time}, \
+                                  flush: {cumulative_flush_avg}) \
+                 completeness: {completeness}"
         );
 
         thread::sleep(Duration::from_secs(PARAMETERS.print_interval_seconds));
