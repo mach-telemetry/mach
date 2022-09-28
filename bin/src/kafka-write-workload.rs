@@ -40,16 +40,21 @@ fn kafka_writer(receiver: Receiver<(i32, Batch)>) {
             batch_size += item.3;
             if batcher.insert(*item.0, item.1, item.2).is_err() {
                 // replace batcher in the partition batch map, close the old batch
-                let bytes = partition_batch_map
+                let old_batch = partition_batch_map
                     .insert(partition, batching::WriteBatch::new(kafka_batch_size))
-                    .unwrap()
-                    .close();
+                    .unwrap();
+                let old_batch_count = old_batch.count();
+                let old_batch_size = old_batch.data_size();
+
                 batcher = partition_batch_map.get_mut(&partition).unwrap();
+
+                let bytes = old_batch.close();
                 producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
+
+                COUNTERS.add_samples_written(old_batch_count);
+                COUNTERS.add_bytes_written(old_batch_size);
             }
         }
-        COUNTERS.add_samples_written(batch_count);
-        COUNTERS.add_bytes_written(batch_size);
     }
 }
 

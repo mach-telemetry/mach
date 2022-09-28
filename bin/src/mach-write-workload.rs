@@ -249,21 +249,25 @@ fn main() {
     let mach_writers = PARAMETERS.mach_writers;
     let batch_sz = PARAMETERS.writer_batches;
     let mut batches: Vec<Batcher> = (0..mach_writers).map(|_| Batcher::new(batch_sz)).collect();
-    let writers: Vec<Sender<Batch>> = (0..mach_writers)
-        .map(|i| {
-            let (tx, rx) = if PARAMETERS.unbounded_queue {
-                unbounded()
-            } else {
-                bounded(1)
-            };
-            thread::spawn(move || {
-                mach_writer(rx, i);
-            });
-            tx
-        })
-        .collect();
+    //let writers: Vec<Sender<Batch>> = (0..mach_writers)
+    //    .map(|i| {
+    //        let (tx, rx) = if PARAMETERS.unbounded_queue {
+    //            unbounded()
+    //        } else {
+    //            bounded(1)
+    //        };
+    //        thread::spawn(move || {
+    //            mach_writer(rx, i);
+    //        });
+    //        tx
+    //    })
+    //    .collect();
 
     STATS_BARRIER.wait();
+    let mut writers = Vec::new();
+    for w in MACH_WRITERS.iter() {
+        writers.push(w.lock().unwrap());
+    }
     for workload in WORKLOAD.iter() {
         let workload_start = Instant::now(); // used to verify the MBPs rate of the workload
 
@@ -287,10 +291,16 @@ fn main() {
             let writer_idx = samples[data_idx].3;
             let timestamp: u64 = utils::timestamp_now_micros().try_into().unwrap();
 
-            if let Some(batch) = batches[writer_idx].push(id, timestamp, items, sz) {
-                match writers[writer_idx].try_send(batch) {
-                    Ok(_) => {}
-                    Err(_) => {} // drop batch
+            //if let Some(batch) = batches[writer_idx].push(id, timestamp, items, sz) {
+            //    match writers[writer_idx].try_send(batch) {
+            //        Ok(_) => {}
+            //        Err(_) => {} // drop batch
+            //    }
+            //}
+
+            'push: loop {
+                if writers[writer_idx].push(id, timestamp, items).is_ok() {
+                    break 'push;
                 }
             }
 

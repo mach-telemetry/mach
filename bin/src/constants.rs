@@ -10,7 +10,7 @@ use std::time::Duration;
 lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
     pub static ref WORKLOAD: Vec<Workload> =
-        vec![Workload::new(500, Duration::from_secs(60 * 60)),];
+        vec![Workload::new(500, Duration::from_secs(60 * 2)),];
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
 
@@ -75,7 +75,7 @@ pub struct Args {
 
     /// The workload uses a channel to send samples to a writer. This batching amortizes the
     /// cost of writing to a channel.
-    #[clap(long, default_value_t = 1_000)]
+    #[clap(long, default_value_t = 1_000_000)]
     pub writer_batches: usize,
 
     #[clap(long, default_value_t = 1000)]

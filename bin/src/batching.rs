@@ -72,6 +72,10 @@ impl WriteBatch {
         self.count
     }
 
+    pub fn data_size(&self) -> usize {
+        self.offset
+    }
+
     pub fn total_size(&self) -> usize {
         // total size calculated this way because all the metadata required could still exceed the
         // logically assigned batch size - even after compression. Loglically, batch size should
