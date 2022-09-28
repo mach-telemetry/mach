@@ -154,7 +154,7 @@ fn main() {
                 if unbounded_queue {
                     unbounded()
                 } else {
-                    bounded(1)
+                    bounded(100)
                 }
             };
             thread::spawn(move || {

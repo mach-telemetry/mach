@@ -186,19 +186,21 @@ impl Batcher {
 fn mach_writer(batches: Receiver<Batch>, writer_idx: usize) {
     let mut writer = MACH_WRITERS[writer_idx].lock().unwrap();
 
-    while let Ok(batch) = batches.recv() {
-        let mut batch_size = 0usize;
-        let batch_len = batch.len();
-        for item in batch {
-            'push: loop {
-                if writer.push(item.0, item.1, item.2).is_ok() {
-                    break 'push;
+    loop {
+        if let Ok(batch) = batches.try_recv() {
+            let mut batch_size = 0usize;
+            let batch_len = batch.len();
+            for item in batch {
+                'push: loop {
+                    if writer.push(item.0, item.1, item.2).is_ok() {
+                        break 'push;
+                    }
                 }
+                batch_size += item.3 as usize;
             }
-            batch_size += item.3 as usize;
+            COUNTERS.add_samples_written(batch_len);
+            COUNTERS.add_bytes_written(batch_size);
         }
-        COUNTERS.add_samples_written(batch_len);
-        COUNTERS.add_bytes_written(batch_size);
     }
     //WRITERS_BARRIER.wait();
 }
@@ -249,25 +251,21 @@ fn main() {
     let mach_writers = PARAMETERS.mach_writers;
     let batch_sz = PARAMETERS.writer_batches;
     let mut batches: Vec<Batcher> = (0..mach_writers).map(|_| Batcher::new(batch_sz)).collect();
-    //let writers: Vec<Sender<Batch>> = (0..mach_writers)
-    //    .map(|i| {
-    //        let (tx, rx) = if PARAMETERS.unbounded_queue {
-    //            unbounded()
-    //        } else {
-    //            bounded(1)
-    //        };
-    //        thread::spawn(move || {
-    //            mach_writer(rx, i);
-    //        });
-    //        tx
-    //    })
-    //    .collect();
+    let writers: Vec<Sender<Batch>> = (0..mach_writers)
+        .map(|i| {
+            let (tx, rx) = if PARAMETERS.unbounded_queue {
+                unbounded()
+            } else {
+                bounded(100)
+            };
+            thread::spawn(move || {
+                mach_writer(rx, i);
+            });
+            tx
+        })
+        .collect();
 
     STATS_BARRIER.wait();
-    let mut writers = Vec::new();
-    for w in MACH_WRITERS.iter() {
-        writers.push(w.lock().unwrap());
-    }
     for workload in WORKLOAD.iter() {
         let workload_start = Instant::now(); // used to verify the MBPs rate of the workload
 
@@ -291,16 +289,10 @@ fn main() {
             let writer_idx = samples[data_idx].3;
             let timestamp: u64 = utils::timestamp_now_micros().try_into().unwrap();
 
-            //if let Some(batch) = batches[writer_idx].push(id, timestamp, items, sz) {
-            //    match writers[writer_idx].try_send(batch) {
-            //        Ok(_) => {}
-            //        Err(_) => {} // drop batch
-            //    }
-            //}
-
-            'push: loop {
-                if writers[writer_idx].push(id, timestamp, items).is_ok() {
-                    break 'push;
+            if let Some(batch) = batches[writer_idx].push(id, timestamp, items, sz) {
+                match writers[writer_idx].try_send(batch) {
+                    Ok(_) => {}
+                    Err(_) => {} // drop batch
                 }
             }
 

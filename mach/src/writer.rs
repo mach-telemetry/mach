@@ -174,13 +174,15 @@ fn block_list_worker(block_list: Arc<BlockList>, chan: Receiver<FlushItem>) {
         chan_watcher(chan2);
     });
 
-    while let Ok(x) = chan.recv() {
-        //println!("GOT SOMETHING");
-        block_list.push(x.id, &x.segment, &x.compression);
-        // Safety: self.list.push call above that contains a clone doesn't mark the segment as
-        // flushed
-        unsafe {
-            x.segment.flushed();
+    loop {
+        while let Ok(x) = chan.try_recv() {
+            //println!("GOT SOMETHING");
+            block_list.push(x.id, &x.segment, &x.compression);
+            // Safety: self.list.push call above that contains a clone doesn't mark the segment as
+            // flushed
+            unsafe {
+                x.segment.flushed();
+            }
         }
     }
     println!("BLOCK WORKER EXITED");
