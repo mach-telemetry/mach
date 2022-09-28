@@ -27,6 +27,9 @@ pub struct Args {
     #[clap(long, default_value_t = 4)]
     pub kafka_partitions: i32,
 
+    #[clap(long, default_value_t = 4)]
+    pub kafka_writers: i32,
+
     #[clap(long, default_value_t = 3)]
     pub kafka_replicas: i32,
 

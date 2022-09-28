@@ -16,23 +16,35 @@ use std::mem;
 use std::sync::Barrier;
 use std::thread;
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
 
 lazy_static! {
     static ref STATS_BARRIER: Barrier = Barrier::new(2);
 }
 
-fn kafka_writer(partition: i32, receiver: Receiver<Batch>) {
+fn kafka_writer(receiver: Receiver<(i32, Batch)>) {
+    let mut partition_batch_map = HashMap::new();
+
     let mut producer = kafka_utils::Producer::new(PARAMETERS.kafka_bootstraps.as_str());
     let kafka_batch_size = PARAMETERS.kafka_batch_bytes;
-    let mut batcher = batching::WriteBatch::new(kafka_batch_size);
-    while let Ok(batch) = receiver.recv() {
+
+    //let mut batcher = batching::WriteBatch::new(kafka_batch_size);
+
+    while let Ok((partition, batch)) = receiver.recv() {
+        let mut batcher = partition_batch_map.entry(partition).or_insert_with(|| {
+            batching::WriteBatch::new(kafka_batch_size)
+        });
         let batch_count = batch.len();
         let mut batch_size = 0;
         for item in batch {
             batch_size += item.3;
             if batcher.insert(*item.0, item.1, item.2).is_err() {
-                let bytes = batcher.close();
-                batcher = batching::WriteBatch::new(kafka_batch_size);
+                // replace batcher in the partition batch map, close the old batch
+                let bytes = partition_batch_map
+                    .insert(partition, batching::WriteBatch::new(kafka_batch_size))
+                    .unwrap()
+                    .close();
+                batcher = partition_batch_map.get_mut(&partition).unwrap();
                 producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
             }
         }
@@ -122,15 +134,17 @@ fn main() {
     thread::spawn(stats_printer);
     init_kafka();
 
-    let n_writers = PARAMETERS.kafka_partitions as usize;
+    let n_writers = PARAMETERS.kafka_writers as usize;
+    let n_partitions = PARAMETERS.kafka_partitions as usize;
     let batch_size = PARAMETERS.writer_batches;
     let unbounded_queue = PARAMETERS.unbounded_queue;
     let samples = data_generator::SAMPLES.clone();
 
     println!("KAFKA WRITERS: {}", n_writers);
-    let mut batches: Vec<Batcher> = (0..n_writers).map(|_| Batcher::new(batch_size)).collect();
-    let writers: Vec<Sender<Batch>> = (0..n_writers)
-        .map(|i| {
+    let mut batches: Vec<Batcher> = (0..n_partitions).map(|_| Batcher::new(batch_size)).collect();
+
+    let writers: Vec<Sender<(i32, Batch)>> = (0..n_writers)
+        .map(|_| {
             let (tx, rx) = {
                 if unbounded_queue {
                     unbounded()
@@ -139,7 +153,7 @@ fn main() {
                 }
             };
             thread::spawn(move || {
-                kafka_writer(i as i32, rx);
+                kafka_writer(rx);
             });
             tx
         })
@@ -161,14 +175,15 @@ fn main() {
         let mbps: f64 = workload.mbps.try_into().unwrap();
         'outer: loop {
             let id = samples[data_idx].0;
-            let writer_id = id.0 as usize % n_writers;
+            let partition_id = id.0 as usize % n_partitions;
             let items = samples[data_idx].1;
             let sample_size = samples[data_idx].2 as usize;
             let sample_size_mb = samples[data_idx].2 / 1_000_000.;
             let timestamp: u64 = utils::timestamp_now_micros().try_into().unwrap();
 
-            if let Some(batch) = batches[writer_id].push(id, timestamp, items, sample_size) {
-                match writers[writer_id].try_send(batch) {
+            if let Some(batch) = batches[partition_id].push(id, timestamp, items, sample_size) {
+                let writer_id = partition_id % n_writers;
+                match writers[writer_id].try_send((partition_id as i32, batch)) {
                     Ok(_) => {}
                     Err(_) => {} // drop batch
                 }
