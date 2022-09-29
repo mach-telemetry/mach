@@ -530,6 +530,7 @@ impl Producer {
     }
 
     pub fn send(&mut self, item: &[u8]) -> KafkaEntry {
+        //return KafkaEntry::new();
         //println!("item length: {}", item.len());
         let mut start = 0;
 

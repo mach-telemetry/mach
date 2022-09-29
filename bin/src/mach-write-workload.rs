@@ -22,6 +22,7 @@ use std::mem;
 use std::sync::{Arc, Mutex, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
+use num::NumCast;
 
 lazy_static! {
     pub static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -141,28 +142,23 @@ fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
 //    (barrier, tx)
 //}
 
-#[allow(dead_code)]
-fn counter_printer() {
-    println!("Samples Generated, Samples Written, Bytes Generated, Bytes Written, Bytes Written To Kafka");
-    loop {
-        let start = Instant::now();
+type Batch = Vec<(SeriesRef, u64, &'static [SampleType], f64)>;
 
-        let end = Instant::now();
-        thread::sleep(Duration::from_secs(5) - (end - start));
-    }
+struct ClosedBatch {
+    batch: Batch,
+    batch_bytes: f64,
 }
 
-type Batch = Vec<(SeriesRef, u64, &'static [SampleType], f64)>;
 struct Batcher {
     batch: Batch,
-    batch_size: usize,
+    batch_bytes: f64,
 }
 
 impl Batcher {
-    fn new(batch_size: usize) -> Self {
+    fn new() -> Self {
         Batcher {
             batch: Vec::new(),
-            batch_size,
+            batch_bytes: 0.,
         }
     }
 
@@ -172,11 +168,14 @@ impl Batcher {
         ts: u64,
         samples: &'static [SampleType],
         sample_size: f64,
-    ) -> Option<Batch> {
+    ) -> Option<ClosedBatch> {
         self.batch.push((r, ts, samples, sample_size));
-        if self.batch.len() == self.batch_size {
+        self.batch_bytes += sample_size;
+        if self.batch.len() == PARAMETERS.writer_batches {
             let batch = mem::replace(&mut self.batch, Vec::new());
-            Some(batch)
+            let batch_bytes = self.batch_bytes;
+            self.batch_bytes = 0.;
+            Some(ClosedBatch {batch, batch_bytes})
         } else {
             None
         }
@@ -185,57 +184,78 @@ impl Batcher {
 
 fn mach_writer(batches: Receiver<Batch>, writer_idx: usize) {
     let mut writer = MACH_WRITERS[writer_idx].lock().unwrap();
-
     loop {
         if let Ok(batch) = batches.try_recv() {
-            let mut batch_size = 0usize;
-            let batch_len = batch.len();
             for item in batch {
                 'push: loop {
                     if writer.push(item.0, item.1, item.2).is_ok() {
                         break 'push;
                     }
                 }
-                batch_size += item.3 as usize;
             }
-            COUNTERS.add_samples_written(batch_len);
-            COUNTERS.add_bytes_written(batch_size);
         }
     }
-    //WRITERS_BARRIER.wait();
 }
 
 fn stats_printer() {
     STATS_BARRIER.wait();
-    println!("Samples generated, Samples written, Bytes generated, Bytes written");
+
+    let interval = PARAMETERS.print_interval_seconds as usize;
+    let len = interval * 2;
+
+    let mut samples_generated = vec![0; len];
+    let mut samples_dropped = vec![0; len];
+    let mut bytes_generated = vec![0; len];
+    let mut bytes_dropped = vec![0; len];
+
+    let mut counter = 0;
+
+
+    thread::sleep(Duration::from_secs(10));
     loop {
-        let samples_generated = COUNTERS.samples_generated();
-        let samples_written = COUNTERS.samples_written();
-        let samples_completeness = {
-            let a: i32 = samples_written.try_into().unwrap();
-            let a: f64 = a.try_into().unwrap();
-            let b: i32 = samples_generated.try_into().unwrap();
-            let b: f64 = b.try_into().unwrap();
-            a / b
-        };
-        let bytes_generated = COUNTERS.bytes_generated();
-        let bytes_written = COUNTERS.bytes_written();
-        //let mb_generated = COUNTERS.bytes_generated() / 1_000_000;
-        //let mb_written = COUNTERS.bytes_written() / 1_000_000;
-        //let mb_completeness = {
-        //    let a: i32 = mb_written.try_into().unwrap();
-        //    let a: f64 = a.try_into().unwrap();
-        //    let b: i32 = mb_generated.try_into().unwrap();
-        //    let b: f64 = b.try_into().unwrap();
-        //    a / b
-        //};
-        print!("Samples generated: {}, ", samples_generated);
-        print!("Samples written: {}, ", samples_written);
-        print!("Sample completeness: {}, ", samples_completeness);
-        print!("Bytes generated: {}, ", bytes_generated);
-        print!("Bytes written: {}, ", bytes_written);
-        println!("");
-        thread::sleep(Duration::from_secs(PARAMETERS.print_interval_seconds));
+        thread::sleep(Duration::from_secs(1));
+
+        let idx = counter % len;
+        counter += 1;
+
+        samples_generated[idx] = COUNTERS.samples_generated();
+        samples_dropped[idx] = COUNTERS.samples_dropped();
+        bytes_generated[idx] = COUNTERS.bytes_generated();
+        bytes_dropped[idx] = COUNTERS.bytes_dropped();
+
+        if counter % interval == 0 {
+
+            let max_min_delta = |a: &[usize]| -> usize {
+                let mut min = usize::MAX;
+                let mut max = 0;
+                for idx in 0..a.len() {
+                    min = min.min(a[idx]);
+                    max = max.max(a[idx]);
+                }
+                max - min
+            };
+
+            let percent = |num: usize, den: usize| -> f64 {
+                let num: f64 = <f64 as NumCast>::from(num).unwrap();
+                let den: f64 = <f64 as NumCast>::from(den).unwrap();
+                num / den
+            };
+
+            let samples_generated_delta = max_min_delta(&samples_generated);
+            let samples_dropped_delta = max_min_delta(&samples_dropped);
+            let samples_completeness = 1. - percent(samples_dropped_delta, samples_generated_delta);
+
+            let bytes_generated_delta = max_min_delta(&bytes_generated);
+            let bytes_dropped_delta = max_min_delta(&bytes_dropped);
+            let bytes_completeness = 1. - percent(bytes_dropped_delta, bytes_generated_delta);
+
+            //let samples_completeness = samples_completeness.iter().sum::<f64>() / denom;
+            //let bytes_completeness = bytes_completeness.iter().sum::<f64>() / denom;
+            //let bytes_rate = bytes_rate.iter().sum::<f64>() / denom;
+            print!("Sample completeness: {:.2}, ", samples_completeness);
+            print!("Bytes completeness: {:.2}, ", bytes_completeness);
+            println!("");
+        }
     }
 }
 
@@ -249,8 +269,7 @@ fn main() {
     let mut sample_count_acc = 0; // total count of samples generated
 
     let mach_writers = PARAMETERS.mach_writers;
-    let batch_sz = PARAMETERS.writer_batches;
-    let mut batches: Vec<Batcher> = (0..mach_writers).map(|_| Batcher::new(batch_sz)).collect();
+    let mut batches: Vec<Batcher> = (0..mach_writers).map(|_| Batcher::new()).collect();
     let writers: Vec<Sender<Batch>> = (0..mach_writers)
         .map(|i| {
             let (tx, rx) = if PARAMETERS.unbounded_queue {
@@ -289,10 +308,17 @@ fn main() {
             let writer_idx = samples[data_idx].3;
             let timestamp: u64 = utils::timestamp_now_micros().try_into().unwrap();
 
-            if let Some(batch) = batches[writer_idx].push(id, timestamp, items, sz) {
-                match writers[writer_idx].try_send(batch) {
+            if let Some(closed_batch) = batches[writer_idx].push(id, timestamp, items, sz) {
+                let batch_len = closed_batch.batch.len();
+                let batch_bytes = closed_batch.batch_bytes as usize;
+                COUNTERS.add_samples_generated(batch_len);
+                COUNTERS.add_bytes_generated(batch_bytes);
+                match writers[writer_idx].try_send(closed_batch.batch) {
                     Ok(_) => {}
-                    Err(_) => {} // drop batch
+                    Err(_) => {
+                        COUNTERS.add_samples_dropped(batch_len);
+                        COUNTERS.add_bytes_dropped(batch_bytes);
+                    } // drop batch
                 }
             }
 
@@ -305,21 +331,15 @@ fn main() {
             // Increment counters
             current_check_size += sample_size_mb;
             workload_total_size += sample_size_mb;
-            workload_total_samples += 1.;
-            sample_size_acc += sample_size;
-            sample_count_acc += 1;
+            //workload_total_samples += 1.;
+            // sample_size_acc += sample_size;
+            // sample_count_acc += 1;
 
             // Checking to see if workload should wait. These checks amortize the expensize
             // operations to every second
             if current_check_size >= mbps {
                 // Reset the check size to accumulate for next check
                 current_check_size = 0.;
-
-                // Store samples generated and total size since last check. Reset these counters
-                COUNTERS.add_samples_generated(sample_count_acc);
-                COUNTERS.add_bytes_generated(sample_size_acc);
-                sample_count_acc = 0;
-                sample_size_acc = 0;
 
                 // If behind, wait until the check duration
                 while check_start.elapsed() < check_duration {}
@@ -331,13 +351,12 @@ fn main() {
                 }
             }
         }
-        let workload_duration = workload_start.elapsed();
-        println!(
-            "Expected rate: {} mbps, Actual rate: {} mbps, Sampling rate: {}",
-            workload.mbps,
-            workload_total_size / workload_duration.as_secs_f64(),
-            workload_total_samples / workload_duration.as_secs_f64()
-        );
+         let workload_duration = workload_start.elapsed();
+         println!(
+             "Expected rate: {} mbps, Actual rate: {} mbps",
+             workload.mbps,
+             workload_total_size / workload_duration.as_secs_f64(),
+         );
     }
 
     //WRITERS_BARRIER.wait();

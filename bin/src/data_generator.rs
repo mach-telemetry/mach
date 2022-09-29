@@ -10,6 +10,8 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::*;
 
+const RNG_SEED: u64 = 1234567890;
+
 type SourceMap = HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>>;
 
 lazy_static! {
@@ -19,13 +21,15 @@ lazy_static! {
 
 fn generate_samples() -> Vec<(SeriesId, &'static [SampleType], f64)> {
     let source_count = constants::PARAMETERS.source_count;
-    let keys: Vec<SeriesId> = BASE_DATA.keys().copied().collect();
+    let mut keys: Vec<u64> = BASE_DATA.keys().map(|x| x.0).collect();
+    keys.sort();
     println!("Expanding data based on source_count = {}", source_count);
-    let mut rng = ChaCha8Rng::seed_from_u64(1);
+    let mut rng = ChaCha8Rng::seed_from_u64(RNG_SEED);
     let mut tmp_samples = Vec::new();
     let mut stats_map: Vec<(bool, usize)> = Vec::new();
     for id in 0..source_count {
-        let s = BASE_DATA.get(keys.choose(&mut rng).unwrap()).unwrap();
+        let ser_id = SeriesId(*keys.choose(&mut rng).unwrap());
+        let s = BASE_DATA.get(&ser_id).unwrap();
         // count metrics
         let is_metric = match s[0].1[0] {
             SampleType::F64(_) => true,

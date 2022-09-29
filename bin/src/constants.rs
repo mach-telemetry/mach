@@ -114,9 +114,9 @@ pub struct Args {
 
 pub struct Counters {
     samples_generated: AtomicUsize,
-    samples_written: AtomicUsize,
+    samples_dropped: AtomicUsize,
     bytes_generated: AtomicUsize,
-    bytes_written: AtomicUsize,
+    bytes_dropped: AtomicUsize,
     bytes_written_to_kafka: AtomicUsize,
 }
 
@@ -124,9 +124,9 @@ impl Counters {
     fn new() -> Self {
         Counters {
             samples_generated: AtomicUsize::new(0),
-            samples_written: AtomicUsize::new(0),
+            samples_dropped: AtomicUsize::new(0),
             bytes_generated: AtomicUsize::new(0),
-            bytes_written: AtomicUsize::new(0),
+            bytes_dropped: AtomicUsize::new(0),
             bytes_written_to_kafka: AtomicUsize::new(0),
         }
     }
@@ -139,12 +139,12 @@ impl Counters {
         self.samples_generated.load(SeqCst)
     }
 
-    pub fn add_samples_written(&self, n: usize) {
-        self.samples_written.fetch_add(n, SeqCst);
+    pub fn add_samples_dropped(&self, n: usize) {
+        self.samples_dropped.fetch_add(n, SeqCst);
     }
 
-    pub fn samples_written(&self) -> usize {
-        self.samples_written.load(SeqCst)
+    pub fn samples_dropped(&self) -> usize {
+        self.samples_dropped.load(SeqCst)
     }
 
     pub fn add_bytes_generated(&self, n: usize) {
@@ -155,12 +155,12 @@ impl Counters {
         self.bytes_generated.load(SeqCst)
     }
 
-    pub fn add_bytes_written(&self, n: usize) {
-        self.bytes_written.fetch_add(n, SeqCst);
+    pub fn add_bytes_dropped(&self, n: usize) {
+        self.bytes_dropped.fetch_add(n, SeqCst);
     }
 
-    pub fn bytes_written(&self) -> usize {
-        self.bytes_written.load(SeqCst)
+    pub fn bytes_dropped(&self) -> usize {
+        self.bytes_dropped.load(SeqCst)
     }
 
     pub fn add_bytes_written_to_kafka(&self, n: usize) {

@@ -73,9 +73,9 @@ impl Writer {
         let block_list = Arc::new(BlockList::new());
         let block_list_clone = block_list.clone();
         let (block_worker, rx) = unbounded();
-        std::thread::spawn(move || {
-            block_list_worker(block_list_clone, rx);
-        });
+        //std::thread::spawn(move || {
+        //    block_list_worker(block_list_clone, rx);
+        //});
         //let active_block = Arc::new(WpLock::new(ActiveBlock::new(block_flush_sz)));
         //let durable_queue = Arc::new(queue_config.clone().make().unwrap());
         //let list_maker = ListMaker::new(durable_queue.writer().unwrap());
@@ -139,16 +139,17 @@ impl Writer {
                 let id = series.config.id;
                 let compression = series.config.compression.clone();
                 let segment = self.writers[reference].flush();
-                //unsafe {
-                //    segment.flushed();
-                //}
-                self.block_worker
-                    .send(FlushItem {
-                        id,
-                        segment,
-                        compression,
-                    })
-                    .unwrap();
+                self._block_list.push(id, &segment, &compression);
+                unsafe {
+                    segment.flushed();
+                }
+                //self.block_worker
+                //    .send(FlushItem {
+                //        id,
+                //        segment,
+                //        compression,
+                //    })
+                //    .unwrap();
             } //segment::PushStatus::Flush(_) => self.list_maker.flush(self.list_maker_id[reference]),
         }
         Ok(())
