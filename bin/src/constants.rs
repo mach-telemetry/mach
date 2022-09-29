@@ -10,7 +10,7 @@ use std::time::Duration;
 lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
     pub static ref WORKLOAD: Vec<Workload> =
-        vec![Workload::new(500, Duration::from_secs(60 * 2)),];
+        vec![Workload::new(5_000_000, Duration::from_secs(60 * 2)),];
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
 
@@ -171,12 +171,12 @@ impl Counters {
 // Workload
 #[derive(Debug, Copy, Clone)]
 pub struct Workload {
-    pub mbps: u32,
+    pub samples_per_second: usize,
     pub duration: Duration,
 }
 
 impl Workload {
-    fn new(mbps: u32, duration: Duration) -> Self {
-        Self { mbps, duration }
+    fn new(samples_per_second: usize, duration: Duration) -> Self {
+        Self { samples_per_second, duration }
     }
 }

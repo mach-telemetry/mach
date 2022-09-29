@@ -291,7 +291,7 @@ fn main() {
         // Every workload.mbps check if we need to wait. This field tracks current check size
         let mut check_start = Instant::now(); // check this field to see if the workload needs to wait
         let mut current_check_size = 0.; // check this field to see size since last check
-        let mbps: f64 = workload.mbps.try_into().unwrap(); // check every mbps (e.g., check every second)
+        let samples_per_second: f64 = <f64 as NumCast>::from(workload.samples_per_second).unwrap(); // check every mbps (e.g., check every second)
         let check_duration = Duration::from_secs(1); // check duration should line up with mbps (e.g., 1 second)
 
         // Execute workload
@@ -326,7 +326,6 @@ fn main() {
             }
 
             // Increment counters
-            current_check_size += sample_size_mb;
             workload_total_size += sample_size_mb;
             workload_total_samples += 1.;
             // sample_size_acc += sample_size;
@@ -334,9 +333,7 @@ fn main() {
 
             // Checking to see if workload should wait. These checks amortize the expensize
             // operations to every second
-            if current_check_size >= mbps {
-                // Reset the check size to accumulate for next check
-                current_check_size = 0.;
+            if workload_total_samples > 0. && workload_total_samples % samples_per_second == 0. {
 
                 // If behind, wait until the check duration
                 while check_start.elapsed() < check_duration {}
@@ -350,8 +347,8 @@ fn main() {
         }
          let workload_duration = workload_start.elapsed();
          println!(
-             "Expected rate: {} mbps, Actual rate: {:.2} mbps, Samples per second: {:.2}",
-             workload.mbps,
+             "Expected rate: {} samples per second, Actual rate: {:.2} mbps, Samples per second: {:.2}",
+             workload.samples_per_second,
              workload_total_size / workload_duration.as_secs_f64(),
              workload_total_samples / workload_duration.as_secs_f64(),
          );

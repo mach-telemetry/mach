@@ -246,7 +246,7 @@ fn main() {
         let mut current_check_size = 0.;
         let mut workload_total_size = 0.;
         let mut workload_total_samples = 0.;
-        let mbps: f64 = workload.mbps.try_into().unwrap();
+        let samples_per_second : f64 = <f64 as NumCast>::from(workload.samples_per_second).unwrap();
         'outer: loop {
             let id = samples[data_idx].0;
             let partition_id = id.0 as usize % n_partitions;
@@ -270,7 +270,7 @@ fn main() {
                 }
             }
 
-            current_check_size += sample_size_mb;
+            //current_check_size += sample_size_mb;
             workload_total_size += sample_size_mb;
             workload_total_samples += 1.;
 
@@ -278,10 +278,7 @@ fn main() {
             if data_idx == samples.len() {
                 data_idx = 0;
             }
-            if current_check_size >= mbps {
-                current_check_size = 0.;
-
-                // calculate expected time
+            if workload_total_samples > 0. && workload_total_samples % samples_per_second == 0. {
                 while batch_start.elapsed() < Duration::from_secs(1) {}
                 batch_start = Instant::now();
                 if workload_start.elapsed() > duration {
@@ -290,8 +287,8 @@ fn main() {
             }
         }
         println!(
-            "Expected rate: {} mbps, Actual rate: {:.2} mbps, Sampling rate: {:.2}",
-            workload.mbps,
+            "Expected rate: {} samples per second, Actual rate: {:.2} mbps, Sampling rate: {:.2}",
+            workload.samples_per_second,
             workload_total_size / duration.as_secs_f64(),
             workload_total_samples / duration.as_secs_f64()
         );
