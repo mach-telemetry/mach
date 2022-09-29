@@ -7,6 +7,7 @@ static MAGIC: &str = "blahblah";
 
 pub struct WriteBatch {
     buf: Box<[u8]>,
+    //scratch: Box<[u8]>,
     ids: HashSet<u64>,
     range: (u64, u64),
     offset: usize,
@@ -25,7 +26,8 @@ impl WriteBatch {
     }
 
     pub fn insert(&mut self, id: u64, ts: u64, samples: &[SampleType]) -> Result<usize, usize> {
-        let serialized_size = bincode::serialized_size(samples).unwrap() as usize;
+        let serialized = bincode::serialize(samples).unwrap();
+        let serialized_size = serialized.len();
         let has_id = self.ids.contains(&id);
 
         let total_size = {
@@ -51,8 +53,9 @@ impl WriteBatch {
             offset += 8;
 
             // write samples
-            bincode::serialize_into(&mut self.buf[offset..offset + serialized_size], samples)
-                .unwrap();
+            self.buf[offset..offset + serialized_size].copy_from_slice(&serialized);
+            //bincode::serialize_into(&mut self.buf[offset..offset + serialized_size], samples)
+            //    .unwrap();
             offset += serialized_size;
 
             // update ids, range, and offset

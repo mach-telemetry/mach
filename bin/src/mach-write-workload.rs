@@ -187,11 +187,7 @@ fn mach_writer(batches: Receiver<Batch>, writer_idx: usize) {
     loop {
         if let Ok(batch) = batches.try_recv() {
             for item in batch {
-                'push: loop {
-                    if writer.push(item.0, item.1, item.2).is_ok() {
-                        break 'push;
-                    }
-                }
+                while writer.push(item.0, item.1, item.2).is_err() {}
             }
         }
     }
@@ -275,7 +271,7 @@ fn main() {
             let (tx, rx) = if PARAMETERS.unbounded_queue {
                 unbounded()
             } else {
-                bounded(100)
+                bounded(1)
             };
             thread::spawn(move || {
                 mach_writer(rx, i);
@@ -311,6 +307,7 @@ fn main() {
             if let Some(closed_batch) = batches[writer_idx].push(id, timestamp, items, sz) {
                 let batch_len = closed_batch.batch.len();
                 let batch_bytes = closed_batch.batch_bytes as usize;
+                //println!("queue len {}", writers[writer_idx].len());
                 COUNTERS.add_samples_generated(batch_len);
                 COUNTERS.add_bytes_generated(batch_bytes);
                 match writers[writer_idx].try_send(closed_batch.batch) {
@@ -331,7 +328,7 @@ fn main() {
             // Increment counters
             current_check_size += sample_size_mb;
             workload_total_size += sample_size_mb;
-            //workload_total_samples += 1.;
+            workload_total_samples += 1.;
             // sample_size_acc += sample_size;
             // sample_count_acc += 1;
 
@@ -353,9 +350,10 @@ fn main() {
         }
          let workload_duration = workload_start.elapsed();
          println!(
-             "Expected rate: {} mbps, Actual rate: {} mbps",
+             "Expected rate: {} mbps, Actual rate: {:.2} mbps, Samples per second: {:.2}",
              workload.mbps,
              workload_total_size / workload_duration.as_secs_f64(),
+             workload_total_samples / workload_duration.as_secs_f64(),
          );
     }
 

@@ -223,7 +223,7 @@ fn main() {
                 if unbounded_queue {
                     unbounded()
                 } else {
-                    bounded(100)
+                    bounded(1)
                 }
             };
             thread::spawn(move || {
@@ -290,7 +290,7 @@ fn main() {
             }
         }
         println!(
-            "Expected rate: {} mbps, Actual rate: {} mbps, Sampling rate: {}",
+            "Expected rate: {} mbps, Actual rate: {:.2} mbps, Sampling rate: {:.2}",
             workload.mbps,
             workload_total_size / duration.as_secs_f64(),
             workload_total_samples / duration.as_secs_f64()

@@ -75,7 +75,7 @@ pub struct Args {
 
     /// The workload uses a channel to send samples to a writer. This batching amortizes the
     /// cost of writing to a channel.
-    #[clap(long, default_value_t = 1_000_000)]
+    #[clap(long, default_value_t = 10_000_000)]
     pub writer_batches: usize,
 
     #[clap(long, default_value_t = 1000)]

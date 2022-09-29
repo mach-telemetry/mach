@@ -42,9 +42,9 @@ lazy_static! {
         let flushers = DashMap::new();
         for idx in 0..N_FLUSHERS.load(SeqCst) {
             let (tx, rx) = crossbeam::channel::unbounded();
-            std::thread::spawn(move || {
+            std::thread::Builder::new().name(format!("Kafka Flusher {}", idx)).spawn(move || {
                 flush_worker(rx);
-            });
+            }).unwrap();
             flushers.insert(idx, tx);
         }
         flushers
@@ -68,6 +68,12 @@ pub(self) fn add_flush_worker() {
 
 fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new();
+    //loop {
+    //    if let Ok(block) = chan.try_recv() {
+    //        block.flush(&mut producer);
+    //        PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
+    //    }
+    //}
     while let Ok(block) = chan.recv() {
         block.flush(&mut producer);
         PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);

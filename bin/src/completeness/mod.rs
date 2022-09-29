@@ -379,6 +379,7 @@ where
                 if batch_size_bytes[batch_idx] >= batch_bytes {
                     let batch_size = batches[batch_idx].len();
 
+                    COUNTERS.raw_data_size.fetch_add(batch_size_bytes[batch_idx], SeqCst);
                     batch_size_bytes[batch_idx] = 0;
                     let batch = std::mem::replace(
                         &mut batches[batch_idx],
