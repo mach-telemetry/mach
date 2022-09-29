@@ -17,12 +17,12 @@ use mach::{
     writer::Writer,
     writer::WriterConfig,
 };
+use num::NumCast;
 use std::collections::HashMap;
 use std::mem;
-use std::sync::{Arc, Mutex, Barrier};
+use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use num::NumCast;
 
 lazy_static! {
     pub static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -175,7 +175,7 @@ impl Batcher {
             let batch = mem::replace(&mut self.batch, Vec::new());
             let batch_bytes = self.batch_bytes;
             self.batch_bytes = 0.;
-            Some(ClosedBatch {batch, batch_bytes})
+            Some(ClosedBatch { batch, batch_bytes })
         } else {
             None
         }
@@ -206,7 +206,6 @@ fn stats_printer() {
 
     let mut counter = 0;
 
-
     thread::sleep(Duration::from_secs(10));
     loop {
         thread::sleep(Duration::from_secs(1));
@@ -220,7 +219,6 @@ fn stats_printer() {
         bytes_dropped[idx] = COUNTERS.bytes_dropped();
 
         if counter % interval == 0 {
-
             let max_min_delta = |a: &[usize]| -> usize {
                 let mut min = usize::MAX;
                 let mut max = 0;
@@ -334,7 +332,6 @@ fn main() {
             // Checking to see if workload should wait. These checks amortize the expensize
             // operations to every second
             if workload_total_samples > 0. && workload_total_samples % samples_per_second == 0. {
-
                 // If behind, wait until the check duration
                 while check_start.elapsed() < check_duration {}
                 check_start = Instant::now();
@@ -345,8 +342,8 @@ fn main() {
                 }
             }
         }
-         let workload_duration = workload_start.elapsed();
-         println!(
+        let workload_duration = workload_start.elapsed();
+        println!(
              "Expected rate: {} samples per second, Actual rate: {:.2} mbps, Samples per second: {:.2}",
              workload.samples_per_second,
              workload_total_size / workload_duration.as_secs_f64(),

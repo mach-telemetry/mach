@@ -101,15 +101,15 @@ impl WriteBatch {
         assert_eq!(size, tail - before_compress);
         // write offset of tail in first 8 bytes
         //let tail = 24 + size + MAGIC.as_bytes().len();
-        data[offset..offset+8].copy_from_slice(&tail.to_be_bytes());
+        data[offset..offset + 8].copy_from_slice(&tail.to_be_bytes());
         offset += 8;
 
         // write raw data size in second 8 bytes
-        data[offset..offset+8].copy_from_slice(&self.offset.to_be_bytes());
+        data[offset..offset + 8].copy_from_slice(&self.offset.to_be_bytes());
         offset += 8;
 
         // write raw data size in second 8 bytes
-        data[offset..offset+8].copy_from_slice(&self.count.to_be_bytes());
+        data[offset..offset + 8].copy_from_slice(&self.count.to_be_bytes());
         //offset += 8;
 
         // write the number of ids
@@ -133,7 +133,7 @@ pub struct BytesBatch {
     bytes: Arc<[u8]>,
     raw_size: usize,
     tail: usize,
-    count: usize
+    count: usize,
 }
 
 impl BytesBatch {
@@ -195,7 +195,7 @@ impl BytesBatch {
             Err(x) => {
                 println!("tail {}, raw_sz: {}", self.tail, self.raw_size);
                 panic!("Can't decompress: {:?}", x);
-            },
+            }
         };
 
         let mut result = Vec::new();

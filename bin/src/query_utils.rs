@@ -1,8 +1,8 @@
-use ref_thread_local::{ref_thread_local, RefThreadLocal};
 use crate::constants::*;
 use crate::mach::id::SeriesId;
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use rand::{SeedableRng, Rng};
+use ref_thread_local::{ref_thread_local, RefThreadLocal};
 
 ref_thread_local! {
     static managed RNG: ChaCha8Rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
@@ -22,11 +22,9 @@ impl SimpleQuery {
         let mut rng = RNG.borrow_mut();
         let source = SeriesId(rng.gen_range(0..PARAMETERS.source_count));
         let start = now - rng.gen_range(0..PARAMETERS.query_max_delay) * MICROS_IN_SECOND;
-        let end = start - rng.gen_range(PARAMETERS.min_query_duration..PARAMETERS.max_query_duration) * MICROS_IN_SECOND;
-        SimpleQuery {
-            source,
-            start,
-            end,
-        }
+        let end = start
+            - rng.gen_range(PARAMETERS.min_query_duration..PARAMETERS.max_query_duration)
+                * MICROS_IN_SECOND;
+        SimpleQuery { source, start, end }
     }
 }

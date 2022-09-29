@@ -143,13 +143,13 @@ impl Writer {
                 unsafe {
                     segment.flushed();
                 }
-               // self.block_worker
-               //     .send(FlushItem {
-               //         id,
-               //         segment,
-               //         compression,
-               //     })
-               //     .unwrap();
+                // self.block_worker
+                //     .send(FlushItem {
+                //         id,
+                //         segment,
+                //         compression,
+                //     })
+                //     .unwrap();
             } //segment::PushStatus::Flush(_) => self.list_maker.flush(self.list_maker_id[reference]),
         }
         Ok(())
