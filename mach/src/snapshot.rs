@@ -5,6 +5,7 @@ use crate::{
     series::FieldType,
     utils::{counter::*, timer::*},
 };
+use std::collections::{BinaryHeap, HashMap};
 use std::convert::TryInto;
 
 pub type Heap = Vec<Option<Vec<u8>>>;
@@ -138,6 +139,14 @@ impl Segment {
         self.nvars = 0;
     }
 
+    pub fn field_idx(&self, field: usize, idx: usize) -> SampleType {
+        let field_type = self.types[field];
+        let heap_vec = self.heap[field].as_ref();
+        let heap_slice = heap_vec.map(|x| x.as_slice());
+        let value = self.data[field][idx];
+        SampleType::from_field_item(field_type, value, heap_slice)
+    }
+
     pub fn new_empty() -> Self {
         let heap = Vec::new();
         let data = Vec::new();
@@ -244,9 +253,9 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub fn into_iterator(self) -> SnapshotIterator {
+    pub fn into_iterator(self) -> InternalSnapshotIterator {
         let id = self.id;
-        SnapshotIterator::new(self, id)
+        InternalSnapshotIterator::new(self, id)
     }
 }
 
@@ -360,7 +369,7 @@ impl ReadOnlyBlockReader {
     }
 }
 
-pub struct SnapshotIterator {
+pub struct InternalSnapshotIterator {
     active_segment: Option<ActiveSegmentReader>,
     block_reader: ReadOnlyBlockReader,
     source_blocks: SourceBlocks2,
@@ -368,7 +377,7 @@ pub struct SnapshotIterator {
     state: State,
 }
 
-impl SnapshotIterator {
+impl InternalSnapshotIterator {
     //pub fn cached_messages_read(&self) -> usize {
     //    self.source_blocks.cached_messages_read
     //}
@@ -521,3 +530,156 @@ impl SnapshotIterator {
         }
     }
 }
+
+use std::cmp::*;
+
+struct HeapEntry {
+    timestamp: u64,
+    data: Vec<SampleType>,
+    idx: usize,
+}
+
+impl Ord for HeapEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.timestamp.cmp(&other.timestamp)
+    }
+}
+
+impl PartialOrd for HeapEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl PartialEq for HeapEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.timestamp == other.timestamp
+    }
+}
+
+impl Eq for HeapEntry {}
+
+struct IteratorMetadata {
+    iterator: InternalSnapshotIterator,
+    idx: usize,
+    fields: Vec<usize>,
+    segment: *const Segment,
+    timestamp: u64,
+}
+
+impl IteratorMetadata {
+    fn new(snapshot: Snapshot, fields: Vec<usize>, timestamp: u64) -> Option<Self> {
+        let mut iterator = snapshot.into_iterator();
+        iterator.next_segment_at_timestamp(timestamp)?;
+        let segment = iterator.get_segment();
+        let idx = segment.len() - 1;
+        let segment: *const Segment = segment;
+        Some(IteratorMetadata {
+            iterator,
+            segment,
+            fields,
+            idx,
+            timestamp,
+        })
+    }
+
+    fn segment(&self) -> &Segment {
+        unsafe { self.segment.as_ref().unwrap() }
+    }
+
+    fn next(&mut self) -> Option<(u64, Vec<SampleType>)> {
+        let idx = self.idx;
+        if idx == 0 {
+            self.idx -= 1;
+            let segment = self.segment();
+            let timestamp = segment.ts[idx];
+            let data: Vec<SampleType> = self
+                .fields
+                .iter()
+                .map(|x| segment.field_idx(*x, idx))
+                .collect();
+            Some((timestamp, data))
+        } else {
+            self.iterator.next_segment_at_timestamp(self.timestamp)?;
+            let segment = self.iterator.get_segment();
+            self.idx = segment.len() - 1;
+            self.segment = segment;
+            self.next()
+        }
+    }
+}
+
+pub struct SnapshotZipper {
+    iterators: Vec<IteratorMetadata>,
+    queue: BinaryHeap<HeapEntry>,
+}
+
+impl SnapshotZipper {
+    fn new(snapshot_map: HashMap<Snapshot, Vec<usize>>, start: u64) -> Self {
+        let mut iterators: Vec<IteratorMetadata> = snapshot_map
+            .into_iter()
+            .filter_map(|(k, v)| IteratorMetadata::new(k, v, start))
+            .collect();
+        let mut queue = BinaryHeap::new();
+        for (idx, iterator) in iterators.iter_mut().enumerate() {
+            match iterator.next() {
+                Some((timestamp, data)) => {
+                    queue.push(HeapEntry {
+                        timestamp,
+                        data,
+                        idx,
+                    });
+                }
+                None => {}
+            }
+        }
+        Self { iterators, queue }
+    }
+
+    fn next(&mut self) -> Option<(u64, Vec<SampleType>)> {
+        let x = self.queue.pop()?;
+
+        let HeapEntry {
+            timestamp,
+            data,
+            idx,
+        } = x;
+
+        match self.iterators[idx].next() {
+            Some((timestamp, data)) => {
+                self.queue.push(HeapEntry {
+                    timestamp,
+                    data,
+                    idx,
+                });
+            }
+            None => {}
+        }
+        Some((timestamp, data))
+    }
+}
+
+//'segment: while let Some(_) = snapshot.next_segment_at_timestamp(now) {
+//    let seg = snapshot.get_segment();
+//    if last_segment == usize::MAX {
+//        last_segment = seg.segment_id;
+//    } else {
+//        assert_eq!(last_segment, seg.segment_id + 1);
+//        last_segment = seg.segment_id;
+//    }
+//    seg_count += 1;
+//    let mut timestamps = seg.timestamps().iterator();
+//    let mut field0 = seg.field(0).iterator();
+//    while let Some(x) = timestamps.next_timestamp() {
+//        if x > last_timestamp {
+//            continue 'segment;
+//        }
+//        result_timestamps.push(x);
+//        last_timestamp = x;
+//    }
+//    while let Some(x) = field0.next_item() {
+//        result_field0.push(x.as_bytes().into());
+//    }
+//    println!("result_timestamps.len() {}", result_timestamps.len());
+//}
+//println!("seg count: {}", seg_count);

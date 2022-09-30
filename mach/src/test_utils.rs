@@ -1,4 +1,5 @@
 //use crate::tsdb::{Fl, Sample};
+use crate::constants::*;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -8,7 +9,6 @@ use std::{
     path::{Path, PathBuf},
     sync::{atomic::AtomicU64, Arc},
 };
-use crate::constants::*;
 
 #[derive(Clone)]
 pub struct Sample {

@@ -13,6 +13,7 @@ use rdkafka::{
     //Message,
 };
 //use std::convert::TryInto;
+use crate::constants::*;
 use crate::utils::counter::*;
 use crate::utils::timer::*;
 use lazy_static::lazy_static;
@@ -22,7 +23,6 @@ use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use std::time::Duration;
-use crate::constants::*;
 
 ref_thread_local! {
     static managed THREAD_LOCAL_CONSUMER: KafkaClient = {
@@ -42,7 +42,6 @@ ref_thread_local! {
 }
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
-
 
 lazy_static! {
     //static ref KAFKA_CONSUMER: Arc<DashMap<(i32, i64), Arc<[u8]>>> = {

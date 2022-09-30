@@ -1,5 +1,3 @@
-
-
 // mem list parameters
 pub const INIT_FLUSHERS: usize = 4;
 pub const BLOCK_SZ: usize = 1_000_000;

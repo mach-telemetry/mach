@@ -1,6 +1,7 @@
 mod source_block_list;
 pub use source_block_list::{SourceBlockList, SourceBlocks2, PENDING_UNFLUSHED_BLOCKLISTS};
 
+use crate::constants::*;
 use crate::{
     compression::Compression,
     id::SeriesId,
@@ -23,7 +24,6 @@ use std::sync::{
     atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst},
     Arc, RwLock,
 };
-use crate::constants::*;
 
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
