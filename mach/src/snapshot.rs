@@ -90,7 +90,6 @@ pub struct TimestampsIterator<'a> {
 impl<'a> TimestampsIterator<'a> {
     pub fn new(timestamps: Timestamps<'a>) -> Self {
         let idx = timestamps.v.len();
-        //println!("new timestamps iterator with length: {}", idx);
         Self { timestamps, idx }
     }
 
@@ -161,39 +160,12 @@ impl Segment {
         }
     }
 
-    //pub fn new_with_types(types: &[FieldType]) -> Self {
-    //    let mut heap = Vec::new();
-    //    let mut data = Vec::new();
-    //    for t in types {
-    //        data.push(Vec::with_capacity(256));
-    //        match t {
-    //            FieldType::Bytes => heap.push(Some(Vec::with_capacity(1024))),
-    //            FieldType::I64 => heap.push(None),
-    //            FieldType::U64 => heap.push(None),
-    //            FieldType::F64 => heap.push(None),
-    //            FieldType::Timestamp => heap.push(None),
-    //        }
-    //    }
-    //    Self {
-    //        len: 0,
-    //        ts: Vec::with_capacity(256),
-    //        data,
-    //        heap,
-    //        types: types.into(),
-    //        nvars: 0,
-    //    }
-    //}
-
     pub fn len(&self) -> usize {
         self.len
     }
 
     pub fn field(&self, i: usize) -> Field {
         let h = self.heap[i].as_deref();
-        //match &self.heap[i] {
-        //    Some(x) => Some(x.as_slice()),
-        //    None => None,
-        //};
         Field {
             t: self.types[i],
             v: &self.data[i][..self.len],
@@ -249,13 +221,12 @@ pub struct Snapshot {
     pub active_block: Option<ReadOnlyBlock>,
     pub source_blocks: SourceBlocks2,
     pub id: SeriesId,
-    //pub historical_blocks: Option<Vec<kafka::KafkaEntry>>,
 }
 
 impl Snapshot {
-    pub fn into_iterator(self) -> InternalSnapshotIterator {
+    pub fn into_iterator(self) -> SnapshotIterator {
         let id = self.id;
-        InternalSnapshotIterator::new(self, id)
+        SnapshotIterator::new(self, id)
     }
 }
 
@@ -323,22 +294,6 @@ impl ReadOnlyBlockReader {
         }
     }
 
-    //fn next_segment(&mut self) -> Option<()> {
-    //    let _timer_1 = ThreadLocalTimer::new("ReadOnlyBlockReader::next_segment");
-    //    if self.current_idx > 0 {
-    //        self.current_idx -= 1;
-    //        //println!("Getting offset:{}", self.offsets[self.current_idx as usize]);
-    //        self.block.segment_at_offset(
-    //            self.offsets[self.current_idx as usize],
-    //            &mut self.read_buffer,
-    //        );
-    //        Some(())
-    //    } else {
-    //        //println!("NONE HERE");
-    //        None
-    //    }
-    //}
-
     fn next_segment_at_timestamp(&mut self, ts: u64) -> Option<()> {
         let _timer_1 = ThreadLocalTimer::new("ReadOnlyBlockReader::next_segment");
         if self.current_idx > 0 {
@@ -369,7 +324,7 @@ impl ReadOnlyBlockReader {
     }
 }
 
-pub struct InternalSnapshotIterator {
+pub struct SnapshotIterator {
     active_segment: Option<ActiveSegmentReader>,
     block_reader: ReadOnlyBlockReader,
     source_blocks: SourceBlocks2,
@@ -377,7 +332,7 @@ pub struct InternalSnapshotIterator {
     state: State,
 }
 
-impl InternalSnapshotIterator {
+impl SnapshotIterator {
     //pub fn cached_messages_read(&self) -> usize {
     //    self.source_blocks.cached_messages_read
     //}
@@ -423,12 +378,10 @@ impl InternalSnapshotIterator {
 
     pub fn next_segment_at_timestamp(&mut self, ts: u64) -> Option<()> {
         let _timer_1 = ThreadLocalTimer::new("SnapshotIterator::next_segment");
-        //println!("getting next segment");
         match self.state {
             State::ActiveSegment => {
                 let _timer_2 =
                     ThreadLocalTimer::new("SnapshotIterator::next_segment active segment");
-                //println!("currently in active segment, getting next");
                 match self.active_segment.as_mut().unwrap().next_segment() {
                     None => {
                         //println!("moving into blocks");
@@ -449,10 +402,8 @@ impl InternalSnapshotIterator {
             }
             State::Blocks => {
                 let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment blocks");
-                //println!("currently in blocks");
                 match self.block_reader.next_segment_at_timestamp(ts) {
                     None => {
-                        //let mut min_ts = u64::MAX;
                         loop {
                             match self.source_blocks.next_block() {
                                 Some(block) => {
@@ -477,51 +428,6 @@ impl InternalSnapshotIterator {
             }
         }
     }
-
-    //pub fn next_segment(&mut self) -> Option<()> {
-    //    let _timer_1 = ThreadLocalTimer::new("SnapshotIterator::next_segment");
-    //    //println!("getting next segment");
-    //    match self.state {
-    //        State::ActiveSegment => {
-    //            let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment active segment");
-    //            //println!("currently in active segment, getting next");
-    //            match self.active_segment.as_mut().unwrap().next_segment() {
-    //                None => {
-    //                    //println!("moving into blocks");
-    //                    self.state = State::Blocks;
-    //                    self.next_segment()
-    //                }
-    //                Some(_) => Some(()),
-    //            }
-    //        }
-    //        State::Blocks => {
-    //            let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment blocks");
-    //            //println!("currently in blocks");
-    //            match self.block_reader.next_segment() {
-    //                None => {
-    //                    //println!("No segment in current block, fetching next block");
-    //                    if let Some(block) = self.source_blocks.next_block() {
-    //                        self.blocks_read += 1;
-    //                        //println!("Found next block");
-    //                        let bytes = block.as_bytes();
-    //                        let id = self.block_reader.id;
-    //                        let block_reader = ReadOnlyBlockReader::new(bytes, id);
-    //                        self.block_reader = block_reader;
-    //                        self.next_segment()
-    //                    } else {
-    //                        //println!("No next block");
-    //                        None
-    //                    }
-    //                }
-    //                Some(_) => {
-    //                    //println!("Found segment in current block");
-    //                    self.segments_read += 1;
-    //                    Some(())
-    //                }
-    //            }
-    //        }
-    //    }
-    //}
 
     pub fn get_segment(&self) -> &Segment {
         match self.state {
@@ -560,7 +466,7 @@ impl PartialEq for HeapEntry {
 impl Eq for HeapEntry {}
 
 struct IteratorMetadata {
-    iterator: InternalSnapshotIterator,
+    iterator: SnapshotIterator,
     idx: usize,
     fields: Vec<usize>,
     segment: *const Segment,
@@ -615,7 +521,7 @@ pub struct SnapshotZipper {
 }
 
 impl SnapshotZipper {
-    fn new(snapshot_map: HashMap<Snapshot, Vec<usize>>, start: u64) -> Self {
+    pub fn new(snapshot_map: HashMap<Snapshot, Vec<usize>>, start: u64) -> Self {
         let mut iterators: Vec<IteratorMetadata> = snapshot_map
             .into_iter()
             .filter_map(|(k, v)| IteratorMetadata::new(k, v, start))
@@ -636,7 +542,7 @@ impl SnapshotZipper {
         Self { iterators, queue }
     }
 
-    fn next(&mut self) -> Option<(u64, Vec<SampleType>)> {
+    pub fn next(&mut self) -> Option<(u64, Vec<SampleType>)> {
         let x = self.queue.pop()?;
 
         let HeapEntry {
@@ -658,28 +564,3 @@ impl SnapshotZipper {
         Some((timestamp, data))
     }
 }
-
-//'segment: while let Some(_) = snapshot.next_segment_at_timestamp(now) {
-//    let seg = snapshot.get_segment();
-//    if last_segment == usize::MAX {
-//        last_segment = seg.segment_id;
-//    } else {
-//        assert_eq!(last_segment, seg.segment_id + 1);
-//        last_segment = seg.segment_id;
-//    }
-//    seg_count += 1;
-//    let mut timestamps = seg.timestamps().iterator();
-//    let mut field0 = seg.field(0).iterator();
-//    while let Some(x) = timestamps.next_timestamp() {
-//        if x > last_timestamp {
-//            continue 'segment;
-//        }
-//        result_timestamps.push(x);
-//        last_timestamp = x;
-//    }
-//    while let Some(x) = field0.next_item() {
-//        result_field0.push(x.as_bytes().into());
-//    }
-//    println!("result_timestamps.len() {}", result_timestamps.len());
-//}
-//println!("seg count: {}", seg_count);
