@@ -9,7 +9,11 @@ use rdkafka::{
     producer::FutureProducer,
     producer::FutureRecord,
 };
-use std::{sync::atomic::AtomicU64, thread, time::Duration};
+use std::{
+    sync::atomic::{AtomicU64, Ordering::SeqCst},
+    thread,
+    time::Duration,
+};
 
 macro_rules! mb_to_bytes {
     ($mb: expr) => {
@@ -42,7 +46,7 @@ fn collect_median(threshold: usize) -> u64 {
     let mut prev = 0;
     let mut collected = Vec::new();
     loop {
-        let curr = COUNTER.load(std::sync::atomic::Ordering::SeqCst);
+        let curr = COUNTER.load(SeqCst);
 
         let bytes_sent = curr - prev;
         prev = curr;
@@ -101,7 +105,7 @@ fn kafka_write(producer: FutureProducer, payload: &[u8]) {
     loop {
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&TOPIC).payload(payload);
         futures::executor::block_on(producer.send(to_send, Duration::from_secs(0))).unwrap();
-        COUNTER.fetch_add(payload_len, std::sync::atomic::Ordering::SeqCst);
+        COUNTER.fetch_add(payload_len, SeqCst);
     }
 }
 
