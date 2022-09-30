@@ -144,9 +144,8 @@ impl InnerBuffer {
         let guard = self.data.protected_read();
         let len = guard.offset.load(SeqCst) % 256;
         //println!("Snapshot len: {}", len);
-        let copy: Vec<InnerListEntry> = unsafe {
-            MaybeUninit::slice_assume_init_ref(&guard.data[..len]).to_vec()
-        };
+        let copy: Vec<InnerListEntry> =
+            unsafe { MaybeUninit::slice_assume_init_ref(&guard.data[..len]).to_vec() };
         let current = self.next.read().unwrap().clone();
         if guard.release().is_err() {
             return Err(Error::Snapshot);
