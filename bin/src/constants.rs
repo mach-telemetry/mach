@@ -177,6 +177,9 @@ pub struct Workload {
 
 impl Workload {
     fn new(samples_per_second: usize, duration: Duration) -> Self {
-        Self { samples_per_second, duration }
+        Self {
+            samples_per_second,
+            duration,
+        }
     }
 }

@@ -26,10 +26,10 @@ mod constants;
 
 use constants::*;
 use dashmap::DashMap;
-use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};//, Message};
+use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage}; //, Message};
 use lazy_static::*;
-use mach::id::SeriesId;
 use mach;
+use mach::id::SeriesId;
 //use mach::utils::random_id;
 use mach::sample::SampleType;
 //use rand::{self, prelude::*};
@@ -37,15 +37,19 @@ use mach::sample::SampleType;
 use std::collections::BTreeMap;
 use std::ops::Bound::Included;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
 use std::thread;
+use std::time::{Duration, Instant};
 
-use crossbeam::channel::{Sender, Receiver, bounded, unbounded};
+use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use query_utils::SimpleQuery;
 
 lazy_static! {
     static ref HOSTS: Vec<String> = {
-        PARAMETERS.kafka_bootstraps.split(',').map(|x| x.into()).collect()
+        PARAMETERS
+            .kafka_bootstraps
+            .split(',')
+            .map(|x| x.into())
+            .collect()
     };
     static ref INDEX: Arc<Index> = Arc::new(Index::new());
 }
@@ -141,7 +145,7 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
     'outer: loop {
         let guard = index.lock().unwrap();
         if guard.len() == 0 {
-            continue
+            continue;
         }
         let (_s, e) = *guard.last_key_value().unwrap().0;
         if e > start {
@@ -182,7 +186,12 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
     }
     let total_latency = timer.elapsed();
     let execution_latency = total_latency - data_latency;
-    print!("Query ID: {}, Source: {:?}, Duration: {}, ", i, source, end - start);
+    print!(
+        "Query ID: {}, Source: {:?}, Duration: {}, ",
+        i,
+        source,
+        end - start
+    );
     print!("Query ID: {}, ", i);
     print!("Total Latency: {}, ", total_latency.as_secs_f64());
     print!("Data Latency: {}, ", data_latency.as_secs_f64());
@@ -220,6 +229,5 @@ fn main() {
         // todo: Fire off query
     }
     drop(tx);
-    while let Ok(_) = rx.recv() {
-    }
+    while let Ok(_) = rx.recv() {}
 }

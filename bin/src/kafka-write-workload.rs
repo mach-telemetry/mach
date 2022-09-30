@@ -12,12 +12,12 @@ use constants::*;
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use lazy_static::*;
 use mach::{id::SeriesId, sample::SampleType};
+use num::NumCast;
+use std::collections::HashMap;
 use std::mem;
 use std::sync::Barrier;
 use std::thread;
 use std::time::{Duration, Instant};
-use std::collections::HashMap;
-use num::NumCast;
 
 lazy_static! {
     static ref STATS_BARRIER: Barrier = Barrier::new(2);
@@ -122,7 +122,6 @@ fn stats_printer() {
 
     let mut counter = 0;
 
-
     thread::sleep(Duration::from_secs(10));
     loop {
         thread::sleep(Duration::from_secs(1));
@@ -136,7 +135,6 @@ fn stats_printer() {
         bytes_dropped[idx] = COUNTERS.bytes_dropped();
 
         if counter % interval == 0 {
-
             let max_min_delta = |a: &[usize]| -> usize {
                 let mut min = usize::MAX;
                 let mut max = 0;
@@ -170,7 +168,6 @@ fn stats_printer() {
         }
     }
 }
-
 
 //fn stats_printer() {
 //    STATS_BARRIER.wait();
@@ -248,7 +245,7 @@ fn main() {
         let mut current_check_size = 0.;
         let mut workload_total_size = 0.;
         let mut workload_total_samples = 0.;
-        let samples_per_second : f64 = <f64 as NumCast>::from(workload.samples_per_second).unwrap();
+        let samples_per_second: f64 = <f64 as NumCast>::from(workload.samples_per_second).unwrap();
         'outer: loop {
             let id = samples[data_idx].0;
             let partition_id = id.0 as usize % n_partitions;
@@ -257,7 +254,9 @@ fn main() {
             let sample_size_mb = samples[data_idx].2 / 1_000_000.;
             let timestamp: u64 = utils::timestamp_now_micros().try_into().unwrap();
 
-            if let Some(closed_batch) = batches[partition_id].push(id, timestamp, items, sample_size) {
+            if let Some(closed_batch) =
+                batches[partition_id].push(id, timestamp, items, sample_size)
+            {
                 let writer_id = partition_id % n_writers;
                 let batch_size = closed_batch.batch_size;
                 let batch_count = closed_batch.batch.len();
@@ -268,7 +267,7 @@ fn main() {
                     Err(_) => {
                         COUNTERS.add_samples_dropped(batch_count);
                         COUNTERS.add_bytes_dropped(batch_size);
-                    }// drop batch
+                    } // drop batch
                 }
             }
 
