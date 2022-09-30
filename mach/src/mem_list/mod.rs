@@ -56,15 +56,15 @@ pub enum Error {
     Snapshot,
 }
 
-pub(self) fn add_flush_worker() {
-    let idx = N_FLUSHERS.fetch_add(1, SeqCst);
-    let (tx, rx) = crossbeam::channel::unbounded();
-    std::thread::spawn(move || {
-        flush_worker(rx);
-    });
-    FLUSH_WORKERS.insert(idx, tx);
-    println!("ADDED FLUSH WORKER: {}", idx);
-}
+//pub(self) fn add_flush_worker() {
+//    let idx = N_FLUSHERS.fetch_add(1, SeqCst);
+//    let (tx, rx) = crossbeam::channel::unbounded();
+//    std::thread::spawn(move || {
+//        flush_worker(rx);
+//    });
+//    FLUSH_WORKERS.insert(idx, tx);
+//    println!("ADDED FLUSH WORKER: {}", idx);
+//}
 
 fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new();
@@ -98,8 +98,7 @@ pub struct BlockList {
     head_block: WpLock<Block>,
     id_set: RefCell<HashMap<SeriesId, (u64, u64)>>,
     series_map: Arc<DashMap<SeriesId, Arc<SourceBlockList>>>,
-    chunks: Arc<DashMap<usize, Segment>>,
-    counter: RefCell<usize>,
+    //chunks: Arc<DashMap<usize, Segment>>,
 }
 
 /// Safety
@@ -114,8 +113,7 @@ impl BlockList {
             head_block: WpLock::new(Block::new()),
             id_set: RefCell::new(HashMap::new()),
             series_map: Arc::new(DashMap::new()),
-            chunks: Arc::new(DashMap::new()),
-            counter: RefCell::new(0),
+            //chunks: Arc::new(DashMap::new()),
         }
     }
 
@@ -231,9 +229,9 @@ impl Block {
     ) -> bool {
         let start_offset = self.len.load(SeqCst);
 
-        let mut bytes = &mut self.bytes[start_offset..];
+        let bytes = &mut self.bytes[start_offset..];
         let items = self.items.load(SeqCst);
-        let u64sz = mem::size_of::<u64>();
+        //let u64sz = mem::size_of::<u64>();
 
         bytes[0..8].copy_from_slice(&1234567890u64.to_be_bytes());
         bytes[8..16].copy_from_slice(&series_id.0.to_be_bytes()); // series ID
@@ -285,7 +283,7 @@ impl Block {
         bytes.extend_from_slice(&len.to_be_bytes());
         BlockListEntry {
             inner: RwLock::new(InnerBlockListEntry::Bytes(bytes.into())),
-            id: BLOCK_LIST_ENTRY_ID.fetch_add(1, SeqCst),
+            _id: BLOCK_LIST_ENTRY_ID.fetch_add(1, SeqCst),
         }
     }
 }
@@ -328,7 +326,7 @@ impl ReadOnlyBlockBytes {
         let bytes = &self.0[offset..];
 
         let magic = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
-        let series_id = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
+        let _series_id = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
         let chunk_size = u64::from_be_bytes(bytes[16..24].try_into().unwrap()) as usize;
 
         assert_eq!(magic, 1234567890);
@@ -336,9 +334,7 @@ impl ReadOnlyBlockBytes {
 
         // decompress data
         let bytes = &bytes[24..24 + chunk_size];
-        {
-            let size = Compression::decompress(bytes, segment).unwrap();
-        }
+        Compression::decompress(bytes, segment).unwrap();
         //println!("size decompressed: {}", size);
     }
 }
@@ -408,7 +404,7 @@ enum InnerBlockListEntry {
 
 pub struct BlockListEntry {
     inner: RwLock<InnerBlockListEntry>,
-    id: usize,
+    _id: usize,
 }
 
 impl BlockListEntry {

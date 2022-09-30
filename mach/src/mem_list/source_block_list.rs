@@ -1,6 +1,6 @@
 use crate::{
     id::SeriesId,
-    mem_list::{add_flush_worker, BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2},
+    mem_list::{BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2},
     utils::{
         kafka,
         timer::*,
@@ -8,14 +8,11 @@ use crate::{
     },
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
-use dashmap::DashMap;
-use std::cell::RefCell;
 use std::mem::MaybeUninit;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
-    Arc, Mutex, RwLock,
+    Arc, RwLock,
 };
-use std::time::{Duration, Instant};
 
 lazy_static::lazy_static! {
     pub static ref PENDING_UNFLUSHED_BLOCKLISTS: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
@@ -28,7 +25,7 @@ lazy_static::lazy_static! {
 }
 
 fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
-    while let Ok((id, list_item)) = channel.recv() {
+    while let Ok((_id, list_item)) = channel.recv() {
         let (data, next) = {
             let guard = list_item.read().unwrap();
             match &*guard {
@@ -255,7 +252,7 @@ impl SourceBlocks2 {
             None
         } else {
             let mut vec = Vec::new();
-            let stats = {
+            {
                 let _timer_2 = ThreadLocalTimer::new("SourceBlocks::next_block loading from kafka");
                 self.next.load(&mut vec).unwrap()
             };

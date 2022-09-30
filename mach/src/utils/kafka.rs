@@ -15,10 +15,8 @@ use rdkafka::{
 //use std::convert::TryInto;
 use crate::utils::counter::*;
 use crate::utils::timer::*;
-use crossbeam::channel::{unbounded, Receiver, Sender};
-use dashmap::DashMap;
 use lazy_static::lazy_static;
-use ref_thread_local::{ref_thread_local, Ref, RefThreadLocal};
+use ref_thread_local::ref_thread_local;
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
@@ -40,14 +38,10 @@ ref_thread_local! {
     };
 
     static managed THREAD_LOCAL_QUERY_CACHE: HashMap<(i32, i64), Arc<[u8]>> = HashMap::new();
-    static managed CACHE_FIFO: (Sender<(i32, i64)>, Receiver<(i32, i64)>) = unbounded();
-    static managed CACHE_SIZE: usize = 0;
 }
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 
-const CACHE_CAPACITY: usize = 1_000_000_000;
-const CACHED: bool = false;
 const PARTITIONS: i32 = 3;
 const REPLICAS: i32 = 3;
 pub const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
@@ -352,7 +346,7 @@ impl KafkaEntry {
                 client = new_client(MAX_FETCH_BYTES * 2);
             }
             if hashset.len() == 0 {
-                break;
+                break 'poll_loop;
             }
             make_requests(&hashset, &mut requests);
             parse_response(
@@ -576,8 +570,7 @@ impl Producer {
 #[cfg(test)]
 mod test {
     use super::*;
-    use kafka::consumer::{Consumer, FetchOffset};
-    use rand::{thread_rng, Fill, Rng};
+    use rand::{thread_rng, Fill};
 
     #[test]
     fn test_big() {

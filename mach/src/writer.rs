@@ -13,7 +13,7 @@ use crate::{
 };
 use dashmap::DashMap;
 //use std::sync::mpsc::{channel, Receiver, Sender};
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use crossbeam::channel::Receiver;
 use std::{
     collections::HashMap,
     sync::{
@@ -57,9 +57,9 @@ pub struct Writer {
     _references: HashMap<SeriesId, usize>,
     series: Vec<Series>,
     writers: Vec<WriteSegment>,
-    _block_list: Arc<BlockList>,
+    block_list: Arc<BlockList>,
     id: WriterId,
-    block_worker: Sender<FlushItem>,
+    //block_worker: Sender<FlushItem>,
 }
 
 impl Writer {
@@ -71,8 +71,8 @@ impl Writer {
         //let queue_config = writer_config.queue_config;
         let id = WriterId::new();
         let block_list = Arc::new(BlockList::new());
-        let block_list_clone = block_list.clone();
-        let (block_worker, rx) = unbounded();
+        //let block_list_clone = block_list.clone();
+        //let (block_worker, rx) = unbounded();
         //std::thread::spawn(move || {
         //    block_list_worker(block_list_clone, rx);
         //});
@@ -94,8 +94,8 @@ impl Writer {
             _references: HashMap::new(),
             writers: Vec::new(),
             series: Vec::new(),
-            _block_list: block_list,
-            block_worker,
+            block_list: block_list,
+            //block_worker,
             //list_maker,
             id,
             //list_maker_id: Vec::new(),
@@ -139,7 +139,7 @@ impl Writer {
                 let id = series.config.id;
                 let compression = series.config.compression.clone();
                 let segment = self.writers[reference].flush();
-                self._block_list.push(id, &segment, &compression);
+                self.block_list.push(id, &segment, &compression);
                 unsafe {
                     segment.flushed();
                 }
@@ -169,6 +169,7 @@ fn chan_watcher(chan: Receiver<FlushItem>) {
     }
 }
 
+#[allow(dead_code)]
 fn block_list_worker(block_list: Arc<BlockList>, chan: Receiver<FlushItem>) {
     let chan2 = chan.clone();
     std::thread::spawn(move || {
@@ -186,7 +187,6 @@ fn block_list_worker(block_list: Arc<BlockList>, chan: Receiver<FlushItem>) {
             }
         }
     }
-    println!("BLOCK WORKER EXITED");
 }
 
 //struct ListMakerMeta {

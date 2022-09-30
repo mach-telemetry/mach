@@ -13,9 +13,8 @@
 #![feature(new_uninit)]
 #![feature(maybe_uninit_extra)]
 #![feature(thread_local)]
-#![allow(warnings)]
 
-//#![deny(unused_imports)]
+//#![allow(unused_imports)]
 //#![deny(unreachable_patterns)]
 //#![deny(unused_variables)]
 //#![deny(unused_mut)]

@@ -1,9 +1,9 @@
 use crate::{
     id::SeriesId,
-    mem_list::{ReadOnlyBlock, ReadOnlyBlock2, ReadOnlyBlockBytes, SourceBlocks2},
+    mem_list::{ReadOnlyBlock, ReadOnlyBlockBytes, SourceBlocks2},
     sample::SampleType,
     series::FieldType,
-    utils::{counter::*, kafka, timer::*},
+    utils::{counter::*, timer::*},
 };
 use std::convert::TryInto;
 
@@ -445,7 +445,7 @@ impl SnapshotIterator {
                 //println!("currently in blocks");
                 match self.block_reader.next_segment_at_timestamp(ts) {
                     None => {
-                        let mut min_ts = u64::MAX;
+                        //let mut min_ts = u64::MAX;
                         loop {
                             match self.source_blocks.next_block() {
                                 Some(block) => {

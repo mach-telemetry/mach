@@ -107,7 +107,7 @@ mod test {
         snapshot::Snapshot,
         writer::WriterConfig,
     };
-    use rand::{thread_rng, Rng};
+    use rand::Rng;
 
     #[test]
     fn end_to_end() {
@@ -139,7 +139,7 @@ mod test {
         let mut expected_timestamps = Vec::new();
         let mut expected_values = Vec::new();
         let epoch = std::time::UNIX_EPOCH;
-        let mut rng = thread_rng();
+        //let mut rng = thread_rng();
         println!("PUSHING");
         for _ in 0..10_000_000 {
             let mut v = vec![0; 400];
@@ -207,6 +207,7 @@ mod test {
             while let Some(x) = field0.next_item() {
                 result_field0.push(x.as_bytes().into());
             }
+            println!("result_timestamps.len() {}", result_timestamps.len());
         }
         println!("seg count: {}", seg_count);
 

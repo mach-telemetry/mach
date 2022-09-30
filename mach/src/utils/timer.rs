@@ -1,12 +1,5 @@
-use lazy_static::*;
 use ref_thread_local::{ref_thread_local, Ref, RefThreadLocal};
-use std::cell::RefCell;
-use std::collections::{hash_map, HashMap};
-use std::convert::TryInto;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering::SeqCst},
-    Arc,
-};
+use std::collections::HashMap;
 pub use std::time::{Duration, Instant};
 
 ref_thread_local! {

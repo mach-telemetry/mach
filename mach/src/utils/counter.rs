@@ -1,6 +1,5 @@
 use ref_thread_local::{ref_thread_local, Ref, RefThreadLocal};
-use std::collections::{hash_map, HashMap};
-use std::convert::TryInto;
+use std::collections::HashMap;
 
 ref_thread_local! {
     static managed MAP: HashMap<String, usize> = HashMap::new();
