@@ -94,7 +94,7 @@ impl Writer {
             _references: HashMap::new(),
             writers: Vec::new(),
             series: Vec::new(),
-            block_list: block_list,
+            block_list,
             //block_worker,
             //list_maker,
             id,

@@ -180,10 +180,11 @@ impl Segment {
     }
 
     pub fn field(&self, i: usize) -> Field {
-        let h = match &self.heap[i] {
-            Some(x) => Some(x.as_slice()),
-            None => None,
-        };
+        let h = self.heap[i].as_deref();
+        //match &self.heap[i] {
+        //    Some(x) => Some(x.as_slice()),
+        //    None => None,
+        //};
         Field {
             t: self.types[i],
             v: &self.data[i][..self.len],
@@ -386,10 +387,7 @@ impl SnapshotIterator {
         //        }
         //    }
         //}
-        let active_segment = match snapshot.active_segment {
-            Some(x) => Some(ActiveSegmentReader::new(x)),
-            None => None,
-        };
+        let active_segment = snapshot.active_segment.map(ActiveSegmentReader::new);
         let mut source_blocks = snapshot.source_blocks;
         let block_reader = match snapshot.active_block {
             Some(x) => ReadOnlyBlockReader::new(x.as_bytes(), id),

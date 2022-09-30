@@ -42,9 +42,9 @@ impl Deref for SeriesId {
     }
 }
 
-impl Into<usize> for SeriesId {
-    fn into(self) -> usize {
-        self.0 as usize
+impl From<usize> for SeriesId {
+    fn from(id: usize) -> Self {
+        SeriesId(id as u64)
     }
 }
 
@@ -64,9 +64,9 @@ impl Deref for SeriesRef {
     }
 }
 
-impl Into<usize> for SeriesRef {
-    fn into(self) -> usize {
-        self.0
+impl From<usize> for SeriesRef {
+    fn from(id: usize) -> Self {
+        SeriesRef(id)
     }
 }
 

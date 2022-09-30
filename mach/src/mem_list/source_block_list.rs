@@ -71,6 +71,7 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
 }
 
 enum ListItem {
+    #[allow(clippy::type_complexity)]
     Block(Arc<(Arc<[InnerListEntry]>, Arc<RwLock<ListItem>>)>),
     Kafka(kafka::KafkaEntry),
 }
@@ -96,7 +97,7 @@ impl InnerData {
         };
         let offset = self.offset.load(SeqCst);
         let idx = offset % self.data.len();
-        self.data[idx].write(list_entry.clone());
+        self.data[idx].write(list_entry);
 
         self.offset.fetch_add(1, SeqCst);
 
@@ -144,10 +145,7 @@ impl InnerBuffer {
         let len = guard.offset.load(SeqCst) % 256;
         //println!("Snapshot len: {}", len);
         let copy: Vec<InnerListEntry> = unsafe {
-            MaybeUninit::slice_assume_init_ref(&guard.data[..len])
-                .iter()
-                .cloned()
-                .collect()
+            MaybeUninit::slice_assume_init_ref(&guard.data[..len]).to_vec()
         };
         let current = self.next.read().unwrap().clone();
         if guard.release().is_err() {
@@ -166,7 +164,7 @@ impl InnerBuffer {
 
         #[allow(unused_assignments)]
         let mut next = kafka::KafkaEntry::new();
-        let mut current = current.clone(); // I know this is repetitive but merp
+        let mut current = current; // I know this is repetitive but merp
 
         let mut loop_counter = 0;
         loop {

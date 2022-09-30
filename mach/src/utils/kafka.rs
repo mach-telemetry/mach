@@ -217,9 +217,9 @@ fn parse_response(resps: Vec<Response>, buffer: &mut Vec<(i32, i64, Arc<[u8]>)>)
                     Err(ref e) => {
                         panic!("partition error: {}:{}: {}", t.topic(), p.partition(), e)
                     }
-                    Ok(ref data) => {
+                    Ok(data) => {
                         for msg in data.messages() {
-                            if msg.value.len() > 0 {
+                            if !msg.value.is_empty() {
                                 buffer.push((p.partition(), msg.offset, msg.value.into()));
                             }
                         }
@@ -345,7 +345,7 @@ impl KafkaEntry {
                 println!("HERE");
                 client = new_client(MAX_FETCH_BYTES * 2);
             }
-            if hashset.len() == 0 {
+            if hashset.is_empty() {
                 break 'poll_loop;
             }
             make_requests(&hashset, &mut requests);
@@ -562,8 +562,7 @@ impl Producer {
         //    }
         //}
         TOTAL_MB_WRITTEN.fetch_add(item.len(), SeqCst);
-        let produced = KafkaEntry { items };
-        produced
+        KafkaEntry { items }
     }
 }
 

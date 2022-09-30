@@ -33,7 +33,7 @@ impl<'a> Drop for ThreadLocalTimer<'a> {
         let dur = self.instant.elapsed();
         *MAP.borrow_mut()
             .entry(self.key.into())
-            .or_insert(Duration::from_secs(0)) += dur;
+            .or_insert_with(|| Duration::from_secs(0)) += dur;
     }
 }
 
