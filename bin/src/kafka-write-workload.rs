@@ -39,7 +39,7 @@ fn kafka_writer(receiver: Receiver<(i32, Batch)>) {
 
     while let Ok((partition, batch)) = receiver.recv() {
         let mut batcher = partition_batch_map.entry(partition).or_insert_with(|| {
-            let (tx, rx) = unbounded();
+            let (tx, rx) = bounded(1);
             std::thread::spawn(move || kafka_flusher(partition, rx));
             (tx, batching::WriteBatch::new(kafka_batch_size))
         });
@@ -49,7 +49,9 @@ fn kafka_writer(receiver: Receiver<(i32, Batch)>) {
                 //let entry = partition_batch_map.get_mut(&partition).unwrap();
                 let old_batch_count = batcher.1.count();
                 let old_batch_size = batcher.1.data_size();
-                let bytes = mem::replace(&mut batcher.1, batching::WriteBatch::new(kafka_batch_size)).close();
+                let old_batch = mem::replace(&mut batcher.1, batching::WriteBatch::new(kafka_batch_size));
+                let bytes = old_batch.close();
+                // let bytes = old_batch.close_no_compress();
                 batcher.0.send(bytes).unwrap();
             }
         }

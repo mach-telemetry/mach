@@ -6,7 +6,7 @@ use std::sync::Arc;
 static MAGIC: &str = "blahblah";
 
 pub struct WriteBatch {
-    buf: Box<[u8]>,
+    buf: Vec<u8>,
     //scratch: Box<[u8]>,
     ids: HashSet<u64>,
     range: (u64, u64),
@@ -17,7 +17,7 @@ pub struct WriteBatch {
 impl WriteBatch {
     pub fn new(size: usize) -> Self {
         WriteBatch {
-            buf: vec![0u8; size].into_boxed_slice(),
+            buf: vec![0u8; size],
             ids: HashSet::new(),
             range: (u64::MAX, 0),
             offset: 0, // first 8 bytes show where the tail metadata of the batch is
@@ -84,6 +84,21 @@ impl WriteBatch {
         // logically assigned batch size - even after compression. Loglically, batch size should
         // include the metadata
         self.offset + 8 + self.ids.len() * 8 + 24 // bytes in buf + number of ids + ids + range of batch
+    }
+
+    pub fn close_no_compress(self) -> Box<[u8]> {
+        let mut data = self.buf;
+        data.resize(self.offset, 0u8);
+        let data_offset = data.len();
+
+        data.extend_from_slice(&bincode::serialize(&self.ids).unwrap());
+        let ids_offset = data.len();
+
+        data.extend_from_slice(&self.range.0.to_be_bytes());
+        data.extend_from_slice(&self.range.1.to_be_bytes());
+        data.extend_from_slice(&ids_offset.to_be_bytes());
+        data.extend_from_slice(&data_offset.to_be_bytes());
+        data.into_boxed_slice()
     }
 
     pub fn close(self) -> Box<[u8]> {
