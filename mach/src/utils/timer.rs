@@ -6,15 +6,17 @@ ref_thread_local! {
     static managed MAP: HashMap<String, Duration> = HashMap::new();
 }
 
+const TIMER_ON: bool = false;
+
 pub struct ThreadLocalTimer<'a> {
-    instant: Instant,
+    instant: Option<Instant>,
     key: &'a str,
 }
 
 impl<'a> ThreadLocalTimer<'a> {
     pub fn new(key: &'a str) -> Self {
         Self {
-            instant: Instant::now(),
+            instant: if TIMER_ON { Some(Instant::now()) } else { None },
             key,
         }
     }
@@ -30,10 +32,12 @@ impl<'a> ThreadLocalTimer<'a> {
 
 impl<'a> Drop for ThreadLocalTimer<'a> {
     fn drop(&mut self) {
-        let dur = self.instant.elapsed();
-        *MAP.borrow_mut()
-            .entry(self.key.into())
-            .or_insert_with(|| Duration::from_secs(0)) += dur;
+        if let Some(instant) = self.instant {
+            let dur = instant.elapsed();
+            *MAP.borrow_mut()
+                .entry(self.key.into())
+                .or_insert_with(|| Duration::from_secs(0)) += dur;
+        }
     }
 }
 
