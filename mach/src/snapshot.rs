@@ -471,6 +471,7 @@ struct IteratorMetadata {
     fields: Vec<usize>,
     segment: *const Segment,
     timestamp: u64,
+    last_timestamp: u64
 }
 
 impl IteratorMetadata {
@@ -478,7 +479,7 @@ impl IteratorMetadata {
         let mut iterator = snapshot.into_iterator();
         iterator.next_segment_at_timestamp(timestamp)?;
         let segment = iterator.get_segment();
-        let idx = segment.len() - 1;
+        let idx = 0;
         let segment: *const Segment = segment;
         Some(IteratorMetadata {
             iterator,
@@ -486,6 +487,7 @@ impl IteratorMetadata {
             fields,
             idx,
             timestamp,
+            last_timestamp: u64::MAX,
         })
     }
 
@@ -494,26 +496,68 @@ impl IteratorMetadata {
     }
 
     fn next(&mut self) -> Option<(u64, Vec<SampleType>)> {
-        let idx = self.idx;
-        if idx == 0 {
-            self.idx -= 1;
-            let segment = self.segment();
-            let timestamp = segment.ts[idx];
-            let data: Vec<SampleType> = self
-                .fields
-                .iter()
-                .map(|x| segment.field_idx(*x, idx))
-                .collect();
-            Some((timestamp, data))
-        } else {
+        let segment_done = {
+            self.idx == self.segment().len()
+        };
+        if segment_done {
             self.iterator.next_segment_at_timestamp(self.timestamp)?;
             let segment = self.iterator.get_segment();
-            self.idx = segment.len() - 1;
-            self.segment = segment;
-            self.next()
+
+            // Segments could be duplicated between in-mem and kafka, skip if it is
+            if *segment.ts.last().unwrap() > self.last_timestamp {
+                self.next()
+            } else {
+                self.idx = 0;
+                self.segment = segment;
+                self.next()
+            }
+        } else {
+            let mut idx = self.idx;
+            self.idx += 1;
+
+            // this scoping ensures borrowing isnt an issue
+            let (timestamp, data) = {
+                let segment = self.segment();
+                let idx = segment.len() - idx - 1;
+                let timestamp = segment.ts[idx];
+                let data: Vec<SampleType> = self
+                    .fields
+                    .iter()
+                    .map(|x| segment.field_idx(*x, idx))
+                    .collect();
+                (timestamp, data)
+            };
+            self.last_timestamp = timestamp;
+            Some((timestamp, data))
         }
     }
 }
+
+        //'segment: while let Some(_) = snapshot.next_segment_at_timestamp(now) {
+        //    let seg = snapshot.get_segment();
+        //    if last_segment == usize::MAX {
+        //        last_segment = seg.segment_id;
+        //    } else {
+        //        assert_eq!(last_segment, seg.segment_id + 1);
+        //        last_segment = seg.segment_id;
+        //    }
+        //    seg_count += 1;
+        //    let mut timestamps = seg.timestamps().iterator();
+        //    let mut field0 = seg.field(0).iterator();
+        //    while let Some(x) = timestamps.next_timestamp() {
+        //        if x > last_timestamp {
+        //            continue 'segment;
+        //        }
+        //        result_timestamps.push(x);
+        //        last_timestamp = x;
+        //    }
+        //    while let Some(x) = field0.next_item() {
+        //        result_field0.push(x.as_bytes().into());
+        //    }
+        //    println!("result_timestamps.len() {}", result_timestamps.len());
+        //}
+        //println!("seg count: {}", seg_count);
+
 
 pub struct SnapshotZipper {
     iterators: Vec<IteratorMetadata>,
@@ -521,7 +565,7 @@ pub struct SnapshotZipper {
 }
 
 impl SnapshotZipper {
-    pub fn new(snapshot_map: HashMap<Snapshot, Vec<usize>>, start: u64) -> Self {
+    pub fn new(snapshot_map: Vec<(Snapshot, Vec<usize>)>, start: u64) -> Self {
         let mut iterators: Vec<IteratorMetadata> = snapshot_map
             .into_iter()
             .filter_map(|(k, v)| IteratorMetadata::new(k, v, start))
@@ -564,3 +608,4 @@ impl SnapshotZipper {
         Some((timestamp, data))
     }
 }
+

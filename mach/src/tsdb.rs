@@ -104,9 +104,10 @@ mod test {
         //mem_list::{BOOTSTRAPS, TOPIC},
         //test_utils::*,
         sample::SampleType,
-        snapshot::Snapshot,
+        snapshot::{Snapshot, SnapshotZipper},
         writer::WriterConfig,
     };
+    use std::collections::HashMap;
     use rand::Rng;
 
     #[test]
@@ -178,39 +179,17 @@ mod test {
         let bytes = bincode::serialize(&snapshot).unwrap();
         let snapshot: Snapshot = bincode::deserialize(bytes.as_slice()).unwrap();
 
-        let mut snapshot = snapshot.into_iterator();
+        let mut for_zipper = Vec::new();
+        for_zipper.push((snapshot, vec![0]));
+        let now = epoch.elapsed().unwrap().as_micros() as u64;
+        let mut zipper = SnapshotZipper::new(for_zipper, now);
 
         let mut result_timestamps = Vec::new();
         let mut result_field0: Vec<Vec<u8>> = Vec::new();
-        let mut last_timestamp = u64::MAX;
-        let mut seg_count = 0;
-        let mut last_segment = usize::MAX;
-        let now = epoch.elapsed().unwrap().as_micros() as u64;
-        'segment: while let Some(_) = snapshot.next_segment_at_timestamp(now) {
-            let seg = snapshot.get_segment();
-            if last_segment == usize::MAX {
-                last_segment = seg.segment_id;
-            } else {
-                assert_eq!(last_segment, seg.segment_id + 1);
-                last_segment = seg.segment_id;
-            }
-            seg_count += 1;
-            let mut timestamps = seg.timestamps().iterator();
-            let mut field0 = seg.field(0).iterator();
-            while let Some(x) = timestamps.next_timestamp() {
-                if x > last_timestamp {
-                    continue 'segment;
-                }
-                result_timestamps.push(x);
-                last_timestamp = x;
-            }
-            while let Some(x) = field0.next_item() {
-                result_field0.push(x.as_bytes().into());
-            }
-            println!("result_timestamps.len() {}", result_timestamps.len());
+        while let Some((ts, value)) = zipper.next() {
+            result_timestamps.push(ts);
+            result_field0.push(value[0].as_bytes().into());
         }
-        println!("seg count: {}", seg_count);
-
         assert_eq!(result_timestamps.len(), expected_timestamps.len());
         assert_eq!(&result_timestamps, &expected_timestamps);
         for (a, b) in result_field0.iter().zip(expected_values.iter()) {
@@ -219,5 +198,52 @@ mod test {
             //    panic!("{} - {} = {}", a, b, (a - b).abs());
             //}
         }
+
+
+
+
+
+
+        //let mut snapshot = snapshot.into_iterator();
+
+        //let mut result_timestamps = Vec::new();
+        //let mut result_field0: Vec<Vec<u8>> = Vec::new();
+        //let mut last_timestamp = u64::MAX;
+        //let mut seg_count = 0;
+        //let mut last_segment = usize::MAX;
+        //let now = epoch.elapsed().unwrap().as_micros() as u64;
+        //'segment: while let Some(_) = snapshot.next_segment_at_timestamp(now) {
+        //    let seg = snapshot.get_segment();
+        //    if last_segment == usize::MAX {
+        //        last_segment = seg.segment_id;
+        //    } else {
+        //        assert_eq!(last_segment, seg.segment_id + 1);
+        //        last_segment = seg.segment_id;
+        //    }
+        //    seg_count += 1;
+        //    let mut timestamps = seg.timestamps().iterator();
+        //    let mut field0 = seg.field(0).iterator();
+        //    while let Some(x) = timestamps.next_timestamp() {
+        //        if x > last_timestamp {
+        //            continue 'segment;
+        //        }
+        //        result_timestamps.push(x);
+        //        last_timestamp = x;
+        //    }
+        //    while let Some(x) = field0.next_item() {
+        //        result_field0.push(x.as_bytes().into());
+        //    }
+        //    println!("result_timestamps.len() {}", result_timestamps.len());
+        //}
+        //println!("seg count: {}", seg_count);
+
+        //assert_eq!(result_timestamps.len(), expected_timestamps.len());
+        //assert_eq!(&result_timestamps, &expected_timestamps);
+        //for (a, b) in result_field0.iter().zip(expected_values.iter()) {
+        //    assert_eq!(&a[..], &b[..]);
+        //    //if (a - b).abs() > 0.001 {
+        //    //    panic!("{} - {} = {}", a, b, (a - b).abs());
+        //    //}
+        //}
     }
 }
