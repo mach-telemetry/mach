@@ -8,17 +8,13 @@ use std::{
     path::{Path, PathBuf},
     sync::{atomic::AtomicU64, Arc},
 };
+use crate::constants::*;
 
 #[derive(Clone)]
 pub struct Sample {
     pub ts: u64,
     pub values: Box<[f64]>,
 }
-
-pub const UNIVARIATE: &str = "bench1_univariate_small.json";
-pub const MULTIVARIATE: &str = "bench1_multivariate_small.json";
-pub const LOGS: &str = "SSH.log";
-pub const MIN_SAMPLES: usize = 30_000;
 
 lazy_static! {
     pub static ref TEST_DATA_PATH: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");

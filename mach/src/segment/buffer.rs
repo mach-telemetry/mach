@@ -9,8 +9,8 @@ use std::sync::{
     Arc,
 };
 
-const HEAP_SZ: usize = 1_000_000;
-const HEAP_TH: usize = 3 * (HEAP_SZ / 4);
+//const HEAP_SZ: usize = 1_000_000;
+//const HEAP_TH: usize = 3 * (HEAP_SZ / 4);
 lazy_static::lazy_static! {
     static ref SEGMENT_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
 }

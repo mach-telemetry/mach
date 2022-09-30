@@ -7,7 +7,7 @@ use crate::{
     segment::FlushSegment,
     snapshot::Segment,
     utils::byte_buffer::ByteBuffer,
-    utils::kafka::{self, BOOTSTRAPS, TOPIC},
+    utils::kafka,
     utils::timer::*,
     utils::wp_lock::{NoDealloc, WpLock},
 };
@@ -23,15 +23,13 @@ use std::sync::{
     atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst},
     Arc, RwLock,
 };
+use crate::constants::*;
 
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 
 #[allow(dead_code)]
 static BLOCK_LIST_ENTRY_ID: AtomicUsize = AtomicUsize::new(0);
-
-pub const INIT_FLUSHERS: usize = 4;
-pub const BLOCK_SZ: usize = 1_000_000;
 
 lazy_static! {
     pub static ref PENDING_UNFLUSHED_BLOCKS: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));

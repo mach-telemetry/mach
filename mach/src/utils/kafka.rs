@@ -22,6 +22,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use std::time::Duration;
+use crate::constants::*;
 
 ref_thread_local! {
     static managed THREAD_LOCAL_CONSUMER: KafkaClient = {
@@ -42,13 +43,6 @@ ref_thread_local! {
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
 
-const PARTITIONS: i32 = 3;
-const REPLICAS: i32 = 3;
-pub const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
-pub const TOPIC: &str = "MACH";
-
-pub const MAX_MSG_SZ: usize = 1_500_000;
-pub const MAX_FETCH_BYTES: i32 = 1_750_000;
 
 lazy_static! {
     //static ref KAFKA_CONSUMER: Arc<DashMap<(i32, i64), Arc<[u8]>>> = {

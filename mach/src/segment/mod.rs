@@ -308,7 +308,6 @@ mod test {
             assert!(writer.push_item(item.ts, &v[..]).unwrap().is_flush());
         }
 
-        println!("PUSH HERE");
         {
             let item = &data[768];
             let v = to_values(&item.values[..]);
@@ -316,17 +315,14 @@ mod test {
             assert_eq!(res.err(), Some(Error::PushIntoFull));
         }
 
-        println!("FLUSHING");
         unsafe {
             writer.flush().flushed();
         }
-        println!("FLUSHED");
 
         for item in &data[768..1023] {
             let v = to_values(&item.values[..]);
             assert!(writer.push_item(item.ts, &v[..]).unwrap().is_done());
         }
-        println!("PUSH DOESNT REACH HERE");
 
         {
             let item = &data[1023];
