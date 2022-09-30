@@ -12,7 +12,7 @@ use rdkafka::{
 use std::{
     sync::atomic::{AtomicU64, Ordering::SeqCst},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 macro_rules! mb_to_bytes {
@@ -101,11 +101,21 @@ fn make_payload(num_bytes: usize) -> Vec<u8> {
 }
 
 fn kafka_write(producer: FutureProducer, payload: &[u8]) {
+    let sync_interval = Duration::from_secs(1);
+    let mut last_synced = Instant::now();
+    let mut bytes_sent = 0;
+
     let payload_len: u64 = payload.len().try_into().unwrap();
+
     loop {
         let to_send: FutureRecord<str, [u8]> = FutureRecord::to(&TOPIC).payload(payload);
         futures::executor::block_on(producer.send(to_send, Duration::from_secs(0))).unwrap();
-        COUNTER.fetch_add(payload_len, SeqCst);
+        bytes_sent += payload_len;
+        if last_synced.elapsed() > sync_interval {
+            COUNTER.fetch_add(bytes_sent, SeqCst);
+            last_synced = Instant::now();
+            bytes_sent = 0;
+        }
     }
 }
 
