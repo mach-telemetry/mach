@@ -5,7 +5,7 @@ use crate::{
     series::FieldType,
     utils::{counter::*, timer::*},
 };
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::BinaryHeap;
 use std::convert::TryInto;
 
 pub type Heap = Vec<Option<Vec<u8>>>;
@@ -403,26 +403,24 @@ impl SnapshotIterator {
             State::Blocks => {
                 let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment blocks");
                 match self.block_reader.next_segment_at_timestamp(ts) {
-                    None => {
-                        loop {
-                            match self.source_blocks.next_block() {
-                                Some(block) => {
-                                    if block.min_ts > ts {
-                                        ThreadLocalCounter::new("skipping block").increment(1);
-                                        continue;
-                                    } else {
-                                        ThreadLocalCounter::new("loading block").increment(1);
-                                        let bytes = block.as_bytes();
-                                        let id = self.block_reader.id;
-                                        let block_reader = ReadOnlyBlockReader::new(bytes, id);
-                                        self.block_reader = block_reader;
-                                        return self.next_segment_at_timestamp(ts);
-                                    }
+                    None => loop {
+                        match self.source_blocks.next_block() {
+                            Some(block) => {
+                                if block.min_ts > ts {
+                                    ThreadLocalCounter::new("skipping block").increment(1);
+                                    continue;
+                                } else {
+                                    ThreadLocalCounter::new("loading block").increment(1);
+                                    let bytes = block.as_bytes();
+                                    let id = self.block_reader.id;
+                                    let block_reader = ReadOnlyBlockReader::new(bytes, id);
+                                    self.block_reader = block_reader;
+                                    return self.next_segment_at_timestamp(ts);
                                 }
-                                None => return None,
                             }
+                            None => return None,
                         }
-                    }
+                    },
                     Some(_) => Some(()),
                 }
             }
@@ -453,7 +451,7 @@ impl Ord for HeapEntry {
 
 impl PartialOrd for HeapEntry {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -471,7 +469,7 @@ struct IteratorMetadata {
     fields: Vec<usize>,
     segment: *const Segment,
     timestamp: u64,
-    last_timestamp: u64
+    last_timestamp: u64,
 }
 
 impl IteratorMetadata {
@@ -495,29 +493,27 @@ impl IteratorMetadata {
         unsafe { self.segment.as_ref().unwrap() }
     }
 
-    fn next(&mut self) -> Option<(u64, Vec<SampleType>)> {
-        let segment_done = {
-            self.idx == self.segment().len()
-        };
+    fn next_item(&mut self) -> Option<(u64, Vec<SampleType>)> {
+        let segment_done = { self.idx == self.segment().len() };
         if segment_done {
             self.iterator.next_segment_at_timestamp(self.timestamp)?;
             let segment = self.iterator.get_segment();
 
             // Segments could be duplicated between in-mem and kafka, skip if it is
             if *segment.ts.last().unwrap() > self.last_timestamp {
-                self.next()
+                self.next_item()
             } else {
                 self.idx = 0;
                 self.segment = segment;
-                self.next()
+                self.next_item()
             }
         } else {
-            let mut idx = self.idx;
+            let idx = self.idx;
             self.idx += 1;
 
             // this scoping ensures borrowing isnt an issue
             let (timestamp, data) = {
-                let segment = self.segment();
+                let segment = self.segment(); // borrowing occurs here
                 let idx = segment.len() - idx - 1;
                 let timestamp = segment.ts[idx];
                 let data: Vec<SampleType> = self
@@ -533,31 +529,30 @@ impl IteratorMetadata {
     }
 }
 
-        //'segment: while let Some(_) = snapshot.next_segment_at_timestamp(now) {
-        //    let seg = snapshot.get_segment();
-        //    if last_segment == usize::MAX {
-        //        last_segment = seg.segment_id;
-        //    } else {
-        //        assert_eq!(last_segment, seg.segment_id + 1);
-        //        last_segment = seg.segment_id;
-        //    }
-        //    seg_count += 1;
-        //    let mut timestamps = seg.timestamps().iterator();
-        //    let mut field0 = seg.field(0).iterator();
-        //    while let Some(x) = timestamps.next_timestamp() {
-        //        if x > last_timestamp {
-        //            continue 'segment;
-        //        }
-        //        result_timestamps.push(x);
-        //        last_timestamp = x;
-        //    }
-        //    while let Some(x) = field0.next_item() {
-        //        result_field0.push(x.as_bytes().into());
-        //    }
-        //    println!("result_timestamps.len() {}", result_timestamps.len());
-        //}
-        //println!("seg count: {}", seg_count);
-
+//'segment: while let Some(_) = snapshot.next_segment_at_timestamp(now) {
+//    let seg = snapshot.get_segment();
+//    if last_segment == usize::MAX {
+//        last_segment = seg.segment_id;
+//    } else {
+//        assert_eq!(last_segment, seg.segment_id + 1);
+//        last_segment = seg.segment_id;
+//    }
+//    seg_count += 1;
+//    let mut timestamps = seg.timestamps().iterator();
+//    let mut field0 = seg.field(0).iterator();
+//    while let Some(x) = timestamps.next_timestamp() {
+//        if x > last_timestamp {
+//            continue 'segment;
+//        }
+//        result_timestamps.push(x);
+//        last_timestamp = x;
+//    }
+//    while let Some(x) = field0.next_item() {
+//        result_field0.push(x.as_bytes().into());
+//    }
+//    println!("result_timestamps.len() {}", result_timestamps.len());
+//}
+//println!("seg count: {}", seg_count);
 
 pub struct SnapshotZipper {
     iterators: Vec<IteratorMetadata>,
@@ -572,21 +567,18 @@ impl SnapshotZipper {
             .collect();
         let mut queue = BinaryHeap::new();
         for (idx, iterator) in iterators.iter_mut().enumerate() {
-            match iterator.next() {
-                Some((timestamp, data)) => {
+            if let Some((timestamp, data)) = iterator.next_item() {
                     queue.push(HeapEntry {
                         timestamp,
                         data,
                         idx,
                     });
-                }
-                None => {}
             }
         }
         Self { iterators, queue }
     }
 
-    pub fn next(&mut self) -> Option<(u64, Vec<SampleType>)> {
+    pub fn next_item(&mut self) -> Option<(u64, Vec<SampleType>)> {
         let x = self.queue.pop()?;
 
         let HeapEntry {
@@ -595,17 +587,13 @@ impl SnapshotZipper {
             idx,
         } = x;
 
-        match self.iterators[idx].next() {
-            Some((timestamp, data)) => {
-                self.queue.push(HeapEntry {
-                    timestamp,
-                    data,
-                    idx,
-                });
-            }
-            None => {}
+        if let Some((timestamp, data)) = self.iterators[idx].next_item() {
+            self.queue.push(HeapEntry {
+                timestamp,
+                data,
+                idx,
+            });
         }
         Some((timestamp, data))
     }
 }
-

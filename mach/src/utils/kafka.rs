@@ -16,8 +16,7 @@ use rdkafka::{
 use crate::constants::*;
 use crate::utils::counter::*;
 use crate::utils::timer::*;
-use lazy_static::lazy_static;
-use ref_thread_local::ref_thread_local;
+use ref_thread_local::{ref_thread_local, RefThreadLocal};
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
@@ -38,168 +37,10 @@ ref_thread_local! {
         client
     };
 
-    static managed THREAD_LOCAL_QUERY_CACHE: HashMap<(i32, i64), Arc<[u8]>> = HashMap::new();
+    static managed THREAD_LOCAL_KAFKA_MESSAGES: HashMap<(i32, i64), Arc<[u8]>> = HashMap::new();
 }
 
 pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
-
-lazy_static! {
-    //static ref KAFKA_CONSUMER: Arc<DashMap<(i32, i64), Arc<[u8]>>> = {
-    //    use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
-    //    let bootstraps = BOOTSTRAPS.split(',').map(String::from).collect();
-    //    let mut consumer = Consumer::from_hosts(bootstraps)
-    //        .with_topic(TOPIC.to_owned())
-    //        .with_fallback_offset(FetchOffset::Latest)
-    //        .with_group(random_id())
-    //        .with_offset_storage(GroupOffsetStorage::Kafka)
-    //        .with_fetch_max_bytes_per_partition(5_000_000)
-    //        .create()
-    //        .unwrap();
-    //    let dict = Arc::new(DashMap::new());
-    //    let dict2 = dict.clone();
-    //    std::thread::spawn(move || loop {
-    //        for ms in consumer.poll().unwrap().iter() {
-    //            let partition = ms.partition();
-    //            for m in ms.messages() {
-    //                let offset = m.offset;
-    //                let value = m.value;
-    //                dict2.insert((partition, offset), value.into());
-    //            }
-    //        }
-    //    });
-    //    dict
-    //};
-    //pub static ref PREFETCHER: Sender<KafkaEntry> = {
-    //    let (tx, rx): (Sender<KafkaEntry>, Receiver<KafkaEntry>) = unbounded();
-    //    //for _ in 0..4 {
-    //    //    std::thread::spawn(move || {
-    //    //        while let Ok(entry) = rx.recv() {
-    //    //            entry.fetch();
-    //    //        }
-    //    //    });
-    //    //}
-    //    tx
-    //};
-
-    //static ref CACHE: Arc<Cache> = {
-    //    let cache = Arc::new(Cache::new());
-    //    let cache2 = cache.clone();
-    //    std::thread::spawn(move || {
-    //        use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
-    //        let bootstraps = BOOTSTRAPS.split(',').map(String::from).collect();
-    //        let mut consumer = Consumer::from_hosts(bootstraps)
-    //            .with_topic(TOPIC.to_owned())
-    //            .with_fallback_offset(FetchOffset::Latest)
-    //            .with_group(random_id())
-    //            .with_offset_storage(GroupOffsetStorage::Kafka)
-    //            .with_fetch_max_bytes_per_partition(5_000_000)
-    //            .create()
-    //            .unwrap();
-    //        for ms in consumer.poll().unwrap().iter() {
-    //            let partition = ms.partition();
-    //            for m in ms.messages() {
-    //                let offset = m.offset;
-    //                let value: Arc<[u8]> = m.value.into();
-    //                let sz = value.len();
-    //                cache2.map.insert((partition, offset), value);
-    //                cache2.head.send((partition, offset, sz)).unwrap();
-    //                let mut total_sz = cache2.size.load(SeqCst);
-    //                while total_sz > 500_000_000 {
-    //                    let (p, o, l) = cache2.tail.recv().unwrap();
-    //                    cache2.map.remove(&(p, o));
-    //                    total_sz = cache2.size.fetch_sub(l, SeqCst) - l;
-    //                }
-    //            }
-    //        }
-    //    });
-    //    cache
-    //};
-}
-
-//pub fn prefetch(items: &[KafkaEntry]) {
-//    let _timer_1 = ThreadLocalTimer::new("kafka::prefetch");
-//    let mut map: HashMap<i32, Vec<i64>> = HashMap::new();
-//    for entry in items.iter() {
-//        for (p, o) in entry.items.iter() {
-//            let mut v = map.entry(*p).or_insert_with(Vec::new);
-//            v.push(*o);
-//        }
-//    }
-//    println!("prefetching: items {:?}", items);
-//    for (p, v) in map.drain() {
-//        std::thread::spawn(move || {
-//            println!("prefetching from partition {}, slice: {:?}", p, &v);
-//            let slice = v.as_slice();
-//            CACHE.fetch(p, slice);
-//        });
-//    }
-//}
-//
-//pub fn init_thread_local_consumer() {
-//    let _this = THREAD_LOCAL_CONSUMER.borrow();
-//}
-//
-//struct Cache {
-//    map: DashMap<(i32, i64), Arc<[u8]>>,
-//    head: Sender<(i32, i64, usize)>,
-//    tail: Receiver<(i32, i64, usize)>,
-//    size: AtomicUsize,
-//}
-//
-//impl Cache {
-//    fn new() -> Self {
-//        let (head, tail) = unbounded();
-//        Self {
-//            map: DashMap::new(),
-//            size: AtomicUsize::new(0),
-//            head,
-//            tail,
-//        }
-//    }
-//
-//    pub fn clear(&self) {
-//        self.map.clear();
-//        while let Ok(_x) = self.tail.try_recv() {}
-//    }
-//
-//    fn fetch(&self, partition: i32, offsets: &[i64]) {
-//        let _timer = ThreadLocalTimer::new("Cache::fetch");
-//        let mut client = THREAD_LOCAL_CONSUMER.borrow_mut();
-//        let mut hashset = HashSet::new();
-//        let mut reqs = Vec::new();
-//        for offset in offsets.iter().copied() {
-//            match self.map.get(&(partition, offset)) {
-//                Some(kv) => {}
-//                None => {
-//                    hashset.insert(offset);
-//                    reqs.push(FetchPartition::new(TOPIC, partition, offset));
-//                }
-//            }
-//        }
-//
-//        while hashset.len() > 0 {
-//            let resps = parse_response(client.fetch_messages(reqs.as_slice()).unwrap());
-//            for (p, o, bytes) in resps {
-//                hashset.remove(&o);
-//                let len = bytes.len();
-//                self.map.insert((p, o), bytes);
-//                self.size.fetch_add(len, SeqCst);
-//                self.head.send((p, o, len)).unwrap();
-//            }
-//            reqs.clear();
-//            for offset in hashset.iter() {
-//                reqs.push(FetchPartition::new(TOPIC, partition, *offset));
-//            }
-//        }
-//
-//        let mut total_sz = self.size.load(SeqCst);
-//        while total_sz > 500_000_000 {
-//            let (p, o, l) = self.tail.recv().unwrap();
-//            self.map.remove(&(p, o));
-//            total_sz = self.size.fetch_sub(l, SeqCst) - l;
-//        }
-//    }
-//}
 
 fn parse_response(resps: Vec<Response>, buffer: &mut Vec<(i32, i64, Arc<[u8]>)>) {
     buffer.clear();
@@ -222,10 +63,6 @@ fn parse_response(resps: Vec<Response>, buffer: &mut Vec<(i32, i64, Arc<[u8]>)>)
         }
     }
 }
-
-//pub fn init_kafka_consumer() {
-//    let _ = CACHE.clone();
-//}
 
 fn make_requests(set: &HashSet<(i32, i64)>, buffer: &mut Vec<FetchPartition>) {
     buffer.clear();
@@ -261,72 +98,23 @@ impl KafkaEntry {
         self.items.is_empty()
     }
 
-    //fn fetch_with_cache(&self) -> HashMap<(i32, i64), Arc<[u8]>> {
-    //    let _timer_1 = ThreadLocalTimer::new("KafkaEntry::fetch_with_cache");
-    //    ThreadLocalCounter::new("kafka fetch").increment(1);
-    //    let mut hashset = HashSet::new();
-    //    let mut cache = THREAD_LOCAL_QUERY_CACHE.borrow_mut();
-    //    let mut hashmap = HashMap::new();
-    //    ThreadLocalCounter::new("kafka messages to read").increment(self.items.len());
-    //    for item in self.items.iter().copied() {
-    //        match cache.get(&item) {
-    //            Some(x) => {
-    //                hashmap.insert(item, x.clone());
-    //                ThreadLocalCounter::new("cached kafka messages read").increment(1);
-    //            },
-    //            None => { hashset.insert(item); },
-    //        }
-    //    }
-
-    //    let mut requests = Vec::new();
-    //    let mut responses = Vec::new();
-    //    let mut client = THREAD_LOCAL_CONSUMER.borrow_mut();
-    //    let mut loop_counter = 0;
-    //    let mut added_cache = 0;
-    //    'poll_loop: loop {
-    //        loop_counter += 1;
-    //        if loop_counter > 1000 {
-    //            panic!("Loop counter exceeded");
-    //        }
-    //        if hashset.len() == 0 {
-    //            break;
-    //        }
-    //        make_requests(&hashset, &mut requests);
-    //        parse_response(client.fetch_messages(requests.as_slice()).unwrap(), &mut responses);
-    //        for (p, o, bytes) in responses.drain(..) {
-    //            let key = (p, o);
-    //            if !cache.contains_key(&key) {
-    //                cache.insert(key, bytes.clone());
-    //                added_cache += bytes.len();
-    //                CACHE_FIFO.borrow_mut().0.send(key).unwrap();
-    //            }
-    //            hashmap.insert(key, bytes);
-    //            hashset.remove(&key);
-    //        }
-
-    //    }
-
-    //    *CACHE_SIZE.borrow_mut() +=  added_cache;
-    //    let mut current_cache_size = *CACHE_SIZE.borrow();
-    //    while current_cache_size > CACHE_CAPACITY {
-    //        let key = CACHE_FIFO.borrow_mut().1.recv().unwrap();
-    //        let item = cache.remove(&key).unwrap();
-    //        current_cache_size -= item.len();
-    //    }
-    //    *CACHE_SIZE.borrow_mut() = current_cache_size;
-
-    //    hashmap
-    //}
-
     fn fetch(&self) -> HashMap<(i32, i64), Arc<[u8]>> {
         let _timer_1 = ThreadLocalTimer::new("KafkaEntry::fetch");
         ThreadLocalCounter::new("kafka fetch").increment(1);
-        let mut hashset = HashSet::new();
-        for item in self.items.iter().copied() {
-            hashset.insert(item);
-        }
+
+        let mut tmp_block_store = THREAD_LOCAL_KAFKA_MESSAGES.borrow_mut();
 
         let mut hashmap = HashMap::new();
+        let mut hashset = HashSet::new();
+        for item in self.items.iter().copied() {
+            if let Some(block) = tmp_block_store.get(&item) {
+                hashmap.insert(item, block.clone());
+                ThreadLocalCounter::new("kafka message already fetched").increment(1);
+            } else {
+                hashset.insert(item);
+            }
+        }
+
         let mut requests = Vec::new();
         let mut responses = Vec::new();
         //let mut client = THREAD_LOCAL_CONSUMER.borrow_mut();
@@ -348,79 +136,20 @@ impl KafkaEntry {
             );
             for (p, o, bytes) in responses.drain(..) {
                 let key = (p, o);
-                hashmap.insert(key, bytes);
+                hashmap.insert(key, bytes.clone());
+                tmp_block_store.insert(key, bytes);
                 hashset.remove(&key);
             }
         }
         ThreadLocalCounter::new("kafka messages fetched").increment(hashmap.len());
         hashmap
-        //'outer_loop: loop {
-        //    //loop_counter += 1;
-        //    if hashset.len() == 0 {
-        //        break;
-        //    }
-        //    //if loop_counter > 0 && loop_counter % 1000 == 0 {
-        //    //    println!("loop: {} hashset length: {} todo: {:?}", loop_counter, hashset.len(), hashset);
-        //    //}
-        //    let mut found = Vec::new();
-        //    for item in hashset.iter().copied() {
-        //        let requests = &[FetchPartition::new(TOPIC, item.0, item.1)];
-        //        let resps = client.fetch_messages(requests).unwrap();
-        //        let mut responses = Vec::new();
-        //        for resp in resps {
-        //            for t in resp.topics() {
-        //                for p in t.partitions() {
-        //                    match p.data() {
-        //                        Err(ref e) => {
-        //                            panic!("partition error: {}:{}: {}", t.topic(), p.partition(), e)
-        //                        }
-        //                        Ok(ref data) => {
-        //                            for msg in data.messages() {
-        //                                if msg.value.len() > 0 {
-        //                                    responses.push((p.partition(), msg.offset, msg.value.into()));
-        //                                }
-        //                            }
-        //                        }
-        //                    }
-        //                }
-        //            }
-        //        }
-        //        for (p, o, bytes) in responses.drain(..) {
-        //            let key = (p, o);
-        //            hashmap.insert(key, bytes);
-        //            found.push(item);
-        //        }
-        //    }
-        //    //println!("Found: {:?}", found);
-        //    for item in found {
-        //        hashset.remove(&item);
-        //    }
-        //}
-        //hashmap
     }
 
     pub fn load(&self, buffer: &mut Vec<u8>) -> Result<(), &'static str> {
         let blocks = self.fetch();
-        //if CACHED {
-        //    self.fetch_with_cache()
-        //} else {
-        //    self.fetch()
-        //};
-
-        //let mut hashset = HashSet::new();
         for item in self.items.iter() {
-            //for i in 1..10 {
-            //    hashset.insert((item.0, item.1 - i as i64));
-            //}
             buffer.extend_from_slice(&blocks.get(item).unwrap()[..]);
         }
-        // Testing, clear the cache
-        //CACHE.clear();
-
-        //let mut items: Vec<(i32, i64)> = hashset.drain().collect();
-        //items.sort();
-        //let to_prefetch = Self { items };
-        //PREFETCHER.send(to_prefetch).unwrap();
         Ok(())
     }
 }

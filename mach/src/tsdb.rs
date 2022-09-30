@@ -105,10 +105,11 @@ mod test {
         //test_utils::*,
         sample::SampleType,
         snapshot::{Snapshot, SnapshotZipper},
+        utils::counter::*,
         writer::WriterConfig,
     };
-    use std::collections::HashMap;
     use rand::Rng;
+    use std::collections::HashMap;
 
     #[test]
     fn end_to_end() {
@@ -178,9 +179,8 @@ mod test {
             .snapshot();
         let bytes = bincode::serialize(&snapshot).unwrap();
         let snapshot: Snapshot = bincode::deserialize(bytes.as_slice()).unwrap();
-
         let mut for_zipper = Vec::new();
-        for_zipper.push((snapshot, vec![0]));
+        for_zipper.push((snapshot.clone(), vec![0]));
         let now = epoch.elapsed().unwrap().as_micros() as u64;
         let mut zipper = SnapshotZipper::new(for_zipper, now);
 
@@ -194,15 +194,9 @@ mod test {
         assert_eq!(&result_timestamps, &expected_timestamps);
         for (a, b) in result_field0.iter().zip(expected_values.iter()) {
             assert_eq!(&a[..], &b[..]);
-            //if (a - b).abs() > 0.001 {
-            //    panic!("{} - {} = {}", a, b, (a - b).abs());
-            //}
         }
-
-
-
-
-
+        let counters = ThreadLocalCounter::counters();
+        println!("Kafka messages already fetched: {:?}", counters);
 
         //let mut snapshot = snapshot.into_iterator();
 
