@@ -35,21 +35,16 @@ fn kafka_writer(receiver: Receiver<(i32, Batch)>) {
 
     let kafka_batch_size = PARAMETERS.kafka_batch_bytes;
 
-    //let mut batcher = batching::WriteBatch::new(kafka_batch_size);
-
     while let Ok((partition, batch)) = receiver.recv() {
-        let mut batcher = partition_batch_map.entry(partition).or_insert_with(|| {
+        let batcher = partition_batch_map.entry(partition).or_insert_with(|| {
             let (tx, rx) = bounded(1);
             std::thread::spawn(move || kafka_flusher(partition, rx));
             (tx, batching::WriteBatch::new(kafka_batch_size))
         });
         for item in batch {
             if batcher.1.insert(*item.0, item.1, item.2).is_err() {
-                // replace batcher in the partition batch map, close the old batch
-                //let entry = partition_batch_map.get_mut(&partition).unwrap();
-                let old_batch_count = batcher.1.count();
-                let old_batch_size = batcher.1.data_size();
-                let old_batch = mem::replace(&mut batcher.1, batching::WriteBatch::new(kafka_batch_size));
+                let old_batch =
+                    mem::replace(&mut batcher.1, batching::WriteBatch::new(kafka_batch_size));
                 let bytes = old_batch.close();
                 // let bytes = old_batch.close_no_compress();
                 batcher.0.send(bytes).unwrap();
@@ -169,41 +164,6 @@ fn stats_printer() {
     }
 }
 
-//fn stats_printer() {
-//    STATS_BARRIER.wait();
-//    println!("Samples generated, Samples written, Bytes generated, Bytes written");
-//    loop {
-//
-//        let samples_generated = COUNTERS.samples_generated();
-//        let samples_written = COUNTERS.samples_written();
-//        let samples_completeness = {
-//            let a: i32 = samples_written.try_into().unwrap();
-//            let a: f64 = a.try_into().unwrap();
-//            let b: i32 = samples_generated.try_into().unwrap();
-//            let b: f64 = b.try_into().unwrap();
-//            a / b
-//        };
-//        let bytes_generated = COUNTERS.bytes_generated();
-//        let bytes_written = COUNTERS.bytes_written();
-//        //let mb_generated = COUNTERS.bytes_generated() / 1_000_000;
-//        //let mb_written = COUNTERS.bytes_written() / 1_000_000;
-//        //let mb_completeness = {
-//        //    let a: i32 = mb_written.try_into().unwrap();
-//        //    let a: f64 = a.try_into().unwrap();
-//        //    let b: i32 = mb_generated.try_into().unwrap();
-//        //    let b: f64 = b.try_into().unwrap();
-//        //    a / b
-//        //};
-//        print!("Samples generated: {}, ", samples_generated);
-//        print!("Samples written: {}, ", samples_written);
-//        print!("Sample completeness: {}, ", samples_completeness);
-//        print!("Bytes generated: {}, ", bytes_generated);
-//        print!("Bytes written: {}, ", bytes_written);
-//        println!("");
-//        thread::sleep(Duration::from_secs(PARAMETERS.print_interval_seconds));
-//    }
-//}
-
 fn main() {
     thread::spawn(stats_printer);
     init_kafka();
@@ -233,8 +193,6 @@ fn main() {
         .collect();
 
     let mut data_idx = 0;
-    let mut sample_size_acc = 0;
-    let mut sample_count_acc = 0;
 
     STATS_BARRIER.wait();
 
@@ -242,7 +200,6 @@ fn main() {
         let duration = workload.duration.clone();
         let workload_start = Instant::now();
         let mut batch_start = Instant::now();
-        let mut current_check_size = 0.;
         let mut workload_total_size = 0.;
         let mut workload_total_samples = 0.;
         let samples_per_second: f64 = <f64 as NumCast>::from(workload.samples_per_second).unwrap();
@@ -271,7 +228,6 @@ fn main() {
                 }
             }
 
-            //current_check_size += sample_size_mb;
             workload_total_size += sample_size_mb;
             workload_total_samples += 1.;
 
@@ -288,11 +244,10 @@ fn main() {
             }
         }
         println!(
-            "Expected rate: {} samples per second, Actual rate: {:.2} mbps, Sampling rate: {:.2}",
+            "Expected rate: {} samples per second, Actual rate: {:.2} mbps, Sampling/sec: {:.2}",
             workload.samples_per_second,
             workload_total_size / duration.as_secs_f64(),
             workload_total_samples / duration.as_secs_f64()
         );
-        //println!("Samples produced: {}, Samples dropped: {}", total_samples, samples_dropped);
     }
 }
