@@ -154,9 +154,6 @@ fn stats_printer() {
             let bytes_dropped_delta = max_min_delta(&bytes_dropped);
             let bytes_completeness = 1. - percent(bytes_dropped_delta, bytes_generated_delta);
 
-            //let samples_completeness = samples_completeness.iter().sum::<f64>() / denom;
-            //let bytes_completeness = bytes_completeness.iter().sum::<f64>() / denom;
-            //let bytes_rate = bytes_rate.iter().sum::<f64>() / denom;
             print!("Sample completeness: {:.2}, ", samples_completeness);
             print!("Bytes completeness: {:.2}, ", bytes_completeness);
             println!("");
@@ -164,17 +161,76 @@ fn stats_printer() {
     }
 }
 
+fn produce_samples(workload: &Workload, writers: &Vec<Sender<(i32, Batch)>>) {
+    let samples = data_generator::SAMPLES.clone();
+    let n_partitions = PARAMETERS.kafka_partitions as usize;
+    let n_writers = writers.len();
+    let mut batches: Vec<Batcher> = (0..n_partitions).map(|_| Batcher::new()).collect();
+
+    let mut data_idx = 0;
+
+    let duration = workload.duration.clone();
+    let workload_start = Instant::now();
+    let mut batch_start = Instant::now();
+    let mut workload_total_size = 0.;
+    let mut workload_total_samples = 0.;
+    let samples_per_second: f64 = <f64 as NumCast>::from(workload.samples_per_second).unwrap();
+
+    'outer: loop {
+        let id = samples[data_idx].0;
+        let partition_id = id.0 as usize % n_partitions;
+        let items = samples[data_idx].1;
+        let sample_size = samples[data_idx].2 as usize;
+        let sample_size_mb = samples[data_idx].2 / 1_000_000.;
+        let timestamp: u64 = utils::timestamp_now_micros().try_into().unwrap();
+
+        if let Some(closed_batch) = batches[partition_id].push(id, timestamp, items, sample_size) {
+            let writer_id = partition_id % n_writers;
+            let batch_size = closed_batch.batch_size;
+            let batch_count = closed_batch.batch.len();
+            COUNTERS.add_samples_generated(batch_count);
+            COUNTERS.add_bytes_generated(batch_size);
+            match writers[writer_id].try_send((partition_id as i32, closed_batch.batch)) {
+                Ok(_) => {}
+                Err(_) => {
+                    COUNTERS.add_samples_dropped(batch_count);
+                    COUNTERS.add_bytes_dropped(batch_size);
+                } // drop batch
+            }
+        }
+
+        workload_total_size += sample_size_mb;
+        workload_total_samples += 1.;
+
+        data_idx += 1;
+        if data_idx == samples.len() {
+            data_idx = 0;
+        }
+        if workload_total_samples > 0. && workload_total_samples % samples_per_second == 0. {
+            while batch_start.elapsed() < Duration::from_secs(1) {}
+            batch_start = Instant::now();
+            if workload_start.elapsed() > duration {
+                break 'outer;
+            }
+        }
+    }
+
+    println!(
+        "Expected rate: {} samples per second, Actual rate: {:.2} mbps, Samples/sec: {:.2}",
+        workload.samples_per_second,
+        workload_total_size / duration.as_secs_f64(),
+        workload_total_samples / duration.as_secs_f64()
+    );
+}
+
 fn main() {
     thread::spawn(stats_printer);
     init_kafka();
 
     let n_writers = PARAMETERS.kafka_writers as usize;
-    let n_partitions = PARAMETERS.kafka_partitions as usize;
     let unbounded_queue = PARAMETERS.unbounded_queue;
-    let samples = data_generator::SAMPLES.clone();
 
     println!("KAFKA WRITERS: {}", n_writers);
-    let mut batches: Vec<Batcher> = (0..n_partitions).map(|_| Batcher::new()).collect();
 
     let writers: Vec<Sender<(i32, Batch)>> = (0..n_writers)
         .map(|_| {
@@ -192,62 +248,9 @@ fn main() {
         })
         .collect();
 
-    let mut data_idx = 0;
-
     STATS_BARRIER.wait();
 
     for workload in WORKLOAD.iter() {
-        let duration = workload.duration.clone();
-        let workload_start = Instant::now();
-        let mut batch_start = Instant::now();
-        let mut workload_total_size = 0.;
-        let mut workload_total_samples = 0.;
-        let samples_per_second: f64 = <f64 as NumCast>::from(workload.samples_per_second).unwrap();
-        'outer: loop {
-            let id = samples[data_idx].0;
-            let partition_id = id.0 as usize % n_partitions;
-            let items = samples[data_idx].1;
-            let sample_size = samples[data_idx].2 as usize;
-            let sample_size_mb = samples[data_idx].2 / 1_000_000.;
-            let timestamp: u64 = utils::timestamp_now_micros().try_into().unwrap();
-
-            if let Some(closed_batch) =
-                batches[partition_id].push(id, timestamp, items, sample_size)
-            {
-                let writer_id = partition_id % n_writers;
-                let batch_size = closed_batch.batch_size;
-                let batch_count = closed_batch.batch.len();
-                COUNTERS.add_samples_generated(batch_count);
-                COUNTERS.add_bytes_generated(batch_size);
-                match writers[writer_id].try_send((partition_id as i32, closed_batch.batch)) {
-                    Ok(_) => {}
-                    Err(_) => {
-                        COUNTERS.add_samples_dropped(batch_count);
-                        COUNTERS.add_bytes_dropped(batch_size);
-                    } // drop batch
-                }
-            }
-
-            workload_total_size += sample_size_mb;
-            workload_total_samples += 1.;
-
-            data_idx += 1;
-            if data_idx == samples.len() {
-                data_idx = 0;
-            }
-            if workload_total_samples > 0. && workload_total_samples % samples_per_second == 0. {
-                while batch_start.elapsed() < Duration::from_secs(1) {}
-                batch_start = Instant::now();
-                if workload_start.elapsed() > duration {
-                    break 'outer;
-                }
-            }
-        }
-        println!(
-            "Expected rate: {} samples per second, Actual rate: {:.2} mbps, Sampling/sec: {:.2}",
-            workload.samples_per_second,
-            workload_total_size / duration.as_secs_f64(),
-            workload_total_samples / duration.as_secs_f64()
-        );
+        produce_samples(workload, &writers);
     }
 }
