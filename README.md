@@ -5,8 +5,9 @@
 * run the following
 
 ```
+sudo apt install openssl libssl-dev build-essential pkg-config
 cd this/directory
-rustup override set nightly-2021-11-16
+rustup override set nightly
 ```
 
 ### To run a test Kafka setup
