@@ -19,22 +19,22 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 lazy_static! {
-    static ref PARTITION_WRITERS: Vec<Sender<Box<[u8]>>> = {
+    static ref PARTITION_WRITERS: Vec<Sender<(Box<[u8]>, u64)>> = {
         (0..PARAMETERS.kafka_partitions).map(|partition| {
-            let (tx, rx): (Sender<Box<[u8]>>, Receiver<Box<[u8]>>) = bounded(1);
+            let (tx, rx) = bounded(1);
             thread::spawn(move || partition_writer(partition, rx));
             tx
         }).collect()
     };
 
-    static ref BATCHER_WRITERS: Vec<Sender<(i32, Batch)>> = {
-        (0..PARAMETERS.kafka_writers).map(|_writer| {
+    static ref BATCHER_WRITERS: Vec<Sender<(i32, Batch, u64)>> = {
+        (0..PARAMETERS.kafka_writers).map(|writer| {
             let (tx, rx) = if PARAMETERS.unbounded_queue {
                 unbounded()
             } else {
                 bounded(1)
             };
-            thread::spawn(move || kafka_batcher(rx));
+            thread::spawn(move || kafka_batcher(writer, rx));
             tx
         }).collect()
     };
@@ -50,23 +50,37 @@ struct ClosedBatch {
 
 type Batch = Vec<(SeriesId, u64, &'static [SampleType], usize)>;
 
-fn partition_writer(partition: i32, rx: Receiver<Box<[u8]>>) {
+fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
     let mut producer = kafka_utils::Producer::new(PARAMETERS.kafka_bootstraps.as_str());
-    while let Ok(bytes) = rx.recv() {
+    let mut last_batch_writer = u64::MAX;
+    while let Ok((bytes, batch_writer)) = rx.recv() {
+        if last_batch_writer == u64::MAX {
+            last_batch_writer = batch_writer;
+        } else {
+            assert_eq!(last_batch_writer, batch_writer);
+        }
         producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
+        COUNTERS.add_bytes_written_to_kafka(bytes.len());
+        COUNTERS.add_messages_written_to_kafka(1);
     }
 }
 
-fn kafka_batcher(receiver: Receiver<(i32, Batch)>) {
+fn kafka_batcher(i: u64, receiver: Receiver<(i32, Batch, u64)>) {
     let mut batchers: Vec<batching::WriteBatch> = (0..PARAMETERS.kafka_partitions).map(|_| batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes)).collect();
-    while let Ok((partition, batch)) = receiver.recv() {
+    let mut last_data_generator = u64::MAX;
+    while let Ok((partition, batch, data_generator)) = receiver.recv() {
+        if last_data_generator == u64::MAX {
+            last_data_generator = data_generator;
+        } else {
+            assert_eq!(last_data_generator, data_generator);
+        }
         let partition = partition as usize;
         let batcher = &mut batchers[partition];
         for item in batch {
             if batcher.insert(*item.0, item.1, item.2).is_err() {
                 let old_batch = mem::replace(batcher, batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes));
                 let bytes = old_batch.close();
-                PARTITION_WRITERS[partition].send(bytes).unwrap();
+                PARTITION_WRITERS[partition].send((bytes, i)).unwrap();
             }
         }
     }
@@ -106,7 +120,7 @@ impl Batcher {
 }
 
 
-fn run_workload(workload: Workload, samples: &[(SeriesId, &'static [SampleType], f64)]) {
+fn run_workload(workload: Workload, samples: &[(SeriesId, &'static [SampleType], f64)], data_generator: u64) {
     let mut batches: Vec<Batcher> = (0..PARAMETERS.kafka_partitions).map(|_| Batcher::new()).collect();
     let mut data_idx = 0;
     let duration = workload.duration.clone();
@@ -130,7 +144,7 @@ fn run_workload(workload: Workload, samples: &[(SeriesId, &'static [SampleType],
             let batch_count = closed_batch.batch.len();
             COUNTERS.add_samples_generated(batch_count);
             COUNTERS.add_bytes_generated(batch_size);
-            match BATCHER_WRITERS[writer_id].try_send((partition_id as i32, closed_batch.batch)) {
+            match BATCHER_WRITERS[writer_id].try_send((partition_id as i32, closed_batch.batch, data_generator)) {
                 Ok(_) => {}
                 Err(_) => {
                     COUNTERS.add_samples_dropped(batch_count);
@@ -159,10 +173,10 @@ fn run_workload(workload: Workload, samples: &[(SeriesId, &'static [SampleType],
     println!("Workload expected rate: {}, Actual rate: {}", expected_rate, actual_rate);
 }
 
-fn workload_runner(workloads: Vec<Workload>, data: Vec<(SeriesId, &'static[SampleType], f64)>) {
+fn workload_runner(workloads: Vec<Workload>, data: Vec<(SeriesId, &'static[SampleType], f64)>, data_generator: u64) {
     println!("Workloads: {:?}", workloads);
     for workload in workloads {
-        run_workload(workload, data.as_slice());
+        run_workload(workload, data.as_slice(), data_generator);
     }
 }
 
@@ -216,7 +230,7 @@ fn main() {
         let workloads = workloads[i].clone();
         thread::spawn( move || {
             start_barrier.wait();
-            workload_runner(workloads, data);
+            workload_runner(workloads, data, i as u64);
             done_barrier.wait();
         });
     }
@@ -236,7 +250,7 @@ fn find_max_production_rate() {
         println!("Trying {} samples/sec", rate);
 
         let w = Workload::new(rate, Duration::from_secs(60));
-        run_workload(w, &SAMPLES[..]);
+        run_workload(w, &SAMPLES[..], 0u64);
     }
 }
 

@@ -28,7 +28,7 @@ pub struct Args {
     pub kafka_partitions: i32,
 
     #[clap(long, default_value_t = 1)]
-    pub kafka_writers: i32,
+    pub kafka_writers: u64,
 
     #[clap(long, default_value_t = 3)]
     pub kafka_replicas: i32,
@@ -127,6 +127,7 @@ pub struct Counters {
     bytes_generated: AtomicUsize,
     bytes_dropped: AtomicUsize,
     bytes_written_to_kafka: AtomicUsize,
+    messages_written_to_kafka: AtomicUsize,
 }
 
 impl Counters {
@@ -136,6 +137,7 @@ impl Counters {
             samples_dropped: AtomicUsize::new(0),
             bytes_generated: AtomicUsize::new(0),
             bytes_dropped: AtomicUsize::new(0),
+            messages_written_to_kafka: AtomicUsize::new(0),
             bytes_written_to_kafka: AtomicUsize::new(0),
         }
     }
@@ -174,6 +176,18 @@ impl Counters {
 
     pub fn add_bytes_written_to_kafka(&self, n: usize) {
         self.bytes_written_to_kafka.fetch_add(n, SeqCst);
+    }
+
+    pub fn bytes_written_to_kafka(&self) -> usize {
+        self.bytes_written_to_kafka.load(SeqCst)
+    }
+
+    pub fn add_messages_written_to_kafka(&self, n: usize) {
+        self.messages_written_to_kafka.fetch_add(n, SeqCst);
+    }
+
+    pub fn messages_written_to_kafka(&self) -> usize {
+        self.messages_written_to_kafka.load(SeqCst)
     }
 }
 
