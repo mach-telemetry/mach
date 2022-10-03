@@ -1,5 +1,17 @@
 use rand::Rng;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use crate::constants::*;
+use crossbeam::channel::{bounded, unbounded, Sender, Receiver};
+
+pub fn parameterized_queue<T>() -> (Sender<T>, Receiver<T>) {
+    if PARAMETERS.unbounded_queue {
+        unbounded()
+    } else {
+        bounded(1)
+    }
+}
+
+
 
 pub fn timestamp_now_micros() -> u64 {
     SystemTime::now()

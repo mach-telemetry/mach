@@ -110,6 +110,15 @@ pub struct Args {
 
     #[clap(long, default_value_t = 5)]
     pub print_interval_seconds: u64,
+
+    #[clap(long, default_value_t = 1)]
+    pub data_generator_count: u64,
+
+    #[clap(long, default_value_t = 10_000_000)]
+    pub max_sample_rate_per_generator: u64,
+
+    #[clap(long, default_value_t = 10_000_000)]
+    pub max_writers_per_generator: u64,
 }
 
 pub struct Counters {
@@ -171,12 +180,12 @@ impl Counters {
 // Workload
 #[derive(Debug, Copy, Clone)]
 pub struct Workload {
-    pub samples_per_second: usize,
+    pub samples_per_second: u64,
     pub duration: Duration,
 }
 
 impl Workload {
-    pub fn new(samples_per_second: usize, duration: Duration) -> Self {
+    pub fn new(samples_per_second: u64, duration: Duration) -> Self {
         Self {
             samples_per_second,
             duration,
