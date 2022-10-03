@@ -10,12 +10,37 @@ use std::time::Duration;
 lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
     pub static ref WORKLOAD: Vec<Workload> =
-        vec![Workload::new(10_000_000, Duration::from_secs(60 * 2)),];
+        vec![
+            Workload::new(1_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(2_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(3_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(4_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(5_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(6_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(7_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(8_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(9_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(10_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(11_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(12_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(13_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(14_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(15_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(16_000_000, Duration::from_secs(60 * 2)),
+            //Workload::new(20_000_000, Duration::from_secs(60 * 2)),
+        ];
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
 
 #[derive(Parser, Debug, Clone)]
 pub struct Args {
+
+    #[clap(long, default_value_t = 1_000_000)]
+    pub workload_rate: u64,
+
+    #[clap(long, default_value_t = 120)]
+    pub workload_seconds: u64,
+
     #[clap(long, default_value_t = 1_000_000)]
     pub kafka_batch_bytes: usize,
 
@@ -123,9 +148,9 @@ pub struct Args {
 
 pub struct Counters {
     samples_generated: AtomicUsize,
-    samples_dropped: AtomicUsize,
+    samples_written: AtomicUsize,
     bytes_generated: AtomicUsize,
-    bytes_dropped: AtomicUsize,
+    bytes_written: AtomicUsize,
     bytes_written_to_kafka: AtomicUsize,
     messages_written_to_kafka: AtomicUsize,
 }
@@ -134,9 +159,9 @@ impl Counters {
     fn new() -> Self {
         Counters {
             samples_generated: AtomicUsize::new(0),
-            samples_dropped: AtomicUsize::new(0),
+            samples_written: AtomicUsize::new(0),
             bytes_generated: AtomicUsize::new(0),
-            bytes_dropped: AtomicUsize::new(0),
+            bytes_written: AtomicUsize::new(0),
             messages_written_to_kafka: AtomicUsize::new(0),
             bytes_written_to_kafka: AtomicUsize::new(0),
         }
@@ -150,12 +175,12 @@ impl Counters {
         self.samples_generated.load(SeqCst)
     }
 
-    pub fn add_samples_dropped(&self, n: usize) {
-        self.samples_dropped.fetch_add(n, SeqCst);
+    pub fn add_samples_written(&self, n: usize) {
+        self.samples_written.fetch_add(n, SeqCst);
     }
 
-    pub fn samples_dropped(&self) -> usize {
-        self.samples_dropped.load(SeqCst)
+    pub fn samples_written(&self) -> usize {
+        self.samples_written.load(SeqCst)
     }
 
     pub fn add_bytes_generated(&self, n: usize) {
@@ -166,12 +191,12 @@ impl Counters {
         self.bytes_generated.load(SeqCst)
     }
 
-    pub fn add_bytes_dropped(&self, n: usize) {
-        self.bytes_dropped.fetch_add(n, SeqCst);
+    pub fn add_bytes_written(&self, n: usize) {
+        self.bytes_written.fetch_add(n, SeqCst);
     }
 
-    pub fn bytes_dropped(&self) -> usize {
-        self.bytes_dropped.load(SeqCst)
+    pub fn bytes_written(&self) -> usize {
+        self.bytes_written.load(SeqCst)
     }
 
     pub fn add_bytes_written_to_kafka(&self, n: usize) {

@@ -19,9 +19,9 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
     let len = interval * 2;
 
     let mut samples_generated = vec![0; len];
-    let mut samples_dropped = vec![0; len];
+    let mut samples_written = vec![0; len];
     let mut bytes_generated = vec![0; len];
-    let mut bytes_dropped = vec![0; len];
+    let mut bytes_written = vec![0; len];
     let mut bytes_to_kafka = vec![0; len];
     let mut msgs_to_kafka = vec![0; len];
 
@@ -37,10 +37,10 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
         counter += 1;
 
         samples_generated[idx] = COUNTERS.samples_generated();
-        samples_dropped[idx] = COUNTERS.samples_dropped();
+        samples_written[idx] = COUNTERS.samples_written();
 
         bytes_generated[idx] = COUNTERS.bytes_generated();
-        bytes_dropped[idx] = COUNTERS.bytes_dropped();
+        bytes_written[idx] = COUNTERS.bytes_written();
 
         bytes_to_kafka[idx] = COUNTERS.bytes_written_to_kafka();
         msgs_to_kafka[idx] = COUNTERS.messages_written_to_kafka();
@@ -63,12 +63,12 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
             };
 
             let samples_generated_delta = max_min_delta(&samples_generated);
-            let samples_dropped_delta = max_min_delta(&samples_dropped);
-            let samples_completeness = 1. - div(samples_dropped_delta, samples_generated_delta);
+            let samples_written_delta = max_min_delta(&samples_written);
+            let samples_completeness = div(samples_written_delta, samples_generated_delta);
 
             let bytes_generated_delta = max_min_delta(&bytes_generated);
-            let bytes_dropped_delta = max_min_delta(&bytes_dropped);
-            let bytes_completeness = 1. - div(bytes_dropped_delta, bytes_generated_delta);
+            let bytes_written_delta = max_min_delta(&bytes_written);
+            let bytes_completeness = div(bytes_written_delta, bytes_generated_delta);
 
             let bytes_to_kafka_delta = max_min_delta(&bytes_to_kafka);
             let msgs_to_kafka_delta = max_min_delta(&msgs_to_kafka);
@@ -83,10 +83,12 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
             //let samples_completeness = samples_completeness.iter().sum::<f64>() / denom;
             //let bytes_completeness = bytes_completeness.iter().sum::<f64>() / denom;
             //let bytes_rate = bytes_rate.iter().sum::<f64>() / denom;
-            print!("Sample completeness: {:.2}, ", samples_completeness);
-            print!("Bytes completeness: {:.2}, ", bytes_completeness);
-            print!("mbps to kafka: {:.2}, ", mbps);
-            print!("average bytes per msg: {:.2}, ", bytes_per_msg);
+            //print!("Sample completeness: {:.2}, ", samples_completeness);
+            print!("Samples generated: {}, ", samples_generated_delta);
+            print!("Samples written: {}, ", samples_written_delta);
+            print!("Samples completeness: {:.2}, ", samples_completeness);
+            //print!("mbps to kafka: {:.2}, ", mbps);
+            //print!("average bytes per msg: {:.2}, ", bytes_per_msg);
             println!("");
         }
     }

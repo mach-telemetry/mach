@@ -76,6 +76,7 @@ fn kafka_batcher(i: u64, receiver: Receiver<(i32, Batch, u64)>) {
         }
         let partition = partition as usize;
         let batcher = &mut batchers[partition];
+        let batch_len = batch.len();
         for item in batch {
             if batcher.insert(*item.0, item.1, item.2).is_err() {
                 let old_batch = mem::replace(batcher, batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes));
@@ -83,6 +84,7 @@ fn kafka_batcher(i: u64, receiver: Receiver<(i32, Batch, u64)>) {
                 PARTITION_WRITERS[partition].send((bytes, i)).unwrap();
             }
         }
+        COUNTERS.add_samples_written(batch_len);
     }
 }
 
@@ -126,7 +128,7 @@ fn run_workload(workload: Workload, samples: &[(SeriesId, &'static [SampleType],
     let duration = workload.duration.clone();
     let workload_start = Instant::now();
     let mut batch_start = Instant::now();
-    //let mut workload_total_mb = 0.;
+    let mut workload_total_mb = 0.;
     let mut workload_total_samples = 0;
 
     'outer: loop {
@@ -134,26 +136,23 @@ fn run_workload(workload: Workload, samples: &[(SeriesId, &'static [SampleType],
         let partition_id = id.0 as usize % PARAMETERS.kafka_partitions as usize;
         let items = samples[data_idx].1;
         let sample_size = samples[data_idx].2 as usize;
-        //let sample_size_mb = samples[data_idx].2 / 1_000_000.;
+        let sample_size_mb = samples[data_idx].2 / 1_000_000.;
         let timestamp: u64 = utils::timestamp_now_micros().try_into().unwrap();
         let batch = &mut batches[partition_id];
 
         if let Some(closed_batch) = batch.push(id, timestamp, items, sample_size) {
             let writer_id = partition_id % PARAMETERS.kafka_writers as usize;
-            let batch_size = closed_batch.batch_size;
+            //let batch_size = closed_batch.batch_size;
             let batch_count = closed_batch.batch.len();
             COUNTERS.add_samples_generated(batch_count);
-            COUNTERS.add_bytes_generated(batch_size);
             match BATCHER_WRITERS[writer_id].try_send((partition_id as i32, closed_batch.batch, data_generator)) {
                 Ok(_) => {}
-                Err(_) => {
-                    COUNTERS.add_samples_dropped(batch_count);
-                    COUNTERS.add_bytes_dropped(batch_size);
-                } // drop batch
+                Err(_) => {} // drop batch
             }
         }
-        //workload_total_mb += sample_size_mb;
+        workload_total_mb += sample_size_mb;
         workload_total_samples += 1;
+
 
         data_idx += 1;
         if data_idx == samples.len() {
@@ -170,7 +169,9 @@ fn run_workload(workload: Workload, samples: &[(SeriesId, &'static [SampleType],
 
     let expected_rate = workload.samples_per_second;
     let actual_rate = workload_total_samples as f64 / workload_start.elapsed().as_secs_f64();
-    println!("Workload expected rate: {}, Actual rate: {}", expected_rate, actual_rate);
+    let actual_mbps = workload_total_mb as f64 / workload_start.elapsed().as_secs_f64();
+    thread::sleep(Duration::from_secs(2));
+    println!("Workload expected rate: {}, Actual rate: {}, Mbps: {}", expected_rate, actual_rate, actual_mbps);
 }
 
 fn workload_runner(workloads: Vec<Workload>, data: Vec<(SeriesId, &'static[SampleType], f64)>, data_generator: u64) {

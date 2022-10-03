@@ -179,9 +179,11 @@ fn mach_writer(batches: Receiver<Batch>, writer_idx: usize) {
     let mut writer = MACH_WRITERS[writer_idx].lock().unwrap();
     loop {
         if let Ok(batch) = batches.try_recv() {
+            let batch_len = batch.len();
             for item in batch {
                 while writer.push(item.series_ref, item.timestamp, item.data).is_err() {}
             }
+            COUNTERS.add_samples_written(batch_len);
         }
     }
 }
@@ -218,13 +220,9 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
             let batch_bytes = closed_batch.batch_bytes as usize;
             //println!("queue len {}", writers[writer_idx].len());
             COUNTERS.add_samples_generated(batch_len);
-            COUNTERS.add_bytes_generated(batch_bytes);
             match MACH_WRITER_SENDER[writer_idx].try_send(closed_batch.batch) {
                 Ok(_) => {}
-                Err(_) => {
-                    COUNTERS.add_samples_dropped(batch_len);
-                    COUNTERS.add_bytes_dropped(batch_bytes);
-                } // drop batch
+                Err(_) => {} // drop batch
             }
         }
 
