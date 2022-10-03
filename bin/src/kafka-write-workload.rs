@@ -178,9 +178,13 @@ fn init_kafka() {
     );
 }
 
+fn validate_parameters() {
+    assert!(PARAMETERS.data_generator_count <= PARAMETERS.kafka_writers as u64);
+}
+
 fn main() {
 
-    assert!(PARAMETERS.data_generator_count <= (PARAMETERS.kafka_writers as u64));
+    validate_parameters();
     let stats_barrier = utils::stats_printer();
 
     init_kafka();

@@ -63,7 +63,7 @@ pub struct Args {
     pub mach_block_sz: usize,
 
     #[clap(long, default_value_t = 1)]
-    pub mach_writers: usize,
+    pub mach_writers: u64,
 
     /// Snapshot interval for Mach when querying a source
     #[clap(long, default_value_t = 0.5)]
