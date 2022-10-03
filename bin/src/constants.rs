@@ -191,4 +191,19 @@ impl Workload {
             duration,
         }
     }
+
+    pub fn split_rate(&self, n: u64) -> Vec<Self> {
+        let samples_per_second = self.samples_per_second / n;
+        let excess = self.samples_per_second % n;
+        let mut result = Vec::new();
+        for _ in 0..n {
+            let w = Workload {
+                samples_per_second,
+                duration: self.duration
+            };
+            result.push(w);
+        }
+        result[n as usize -1].samples_per_second += excess;
+        result
+    }
 }
