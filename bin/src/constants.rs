@@ -11,23 +11,20 @@ lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
     pub static ref WORKLOAD: Vec<Workload> =
         vec![
+            //Workload::new(100_000, Duration::from_secs(60 * 2)),
+            //Workload::new(200_000, Duration::from_secs(60 * 2)),
+            //Workload::new(300_000, Duration::from_secs(60 * 2)),
+            //Workload::new(400_000, Duration::from_secs(60 * 2)),
+            Workload::new(500_000, Duration::from_secs(60 * 2)),
+            Workload::new(600_000, Duration::from_secs(60 * 2)),
+            Workload::new(700_000, Duration::from_secs(60 * 2)),
+            Workload::new(800_000, Duration::from_secs(60 * 2)),
+            Workload::new(900_000, Duration::from_secs(60 * 2)),
             Workload::new(1_000_000, Duration::from_secs(60 * 2)),
             Workload::new(2_000_000, Duration::from_secs(60 * 2)),
             Workload::new(3_000_000, Duration::from_secs(60 * 2)),
             Workload::new(4_000_000, Duration::from_secs(60 * 2)),
             Workload::new(5_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(6_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(7_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(8_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(9_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(10_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(11_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(12_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(13_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(14_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(15_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(16_000_000, Duration::from_secs(60 * 2)),
-            //Workload::new(20_000_000, Duration::from_secs(60 * 2)),
         ];
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
