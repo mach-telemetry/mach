@@ -10,7 +10,7 @@ use std::time::Duration;
 lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
     pub static ref WORKLOAD: Vec<Workload> =
-        vec![Workload::new(5_000_000, Duration::from_secs(60 * 2)),];
+        vec![Workload::new(10_000_000, Duration::from_secs(60 * 2)),];
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
 
