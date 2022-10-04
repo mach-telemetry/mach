@@ -1,9 +1,9 @@
-use rand::Rng;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use crate::constants::*;
+use num::*;
+use rand::Rng;
 use std::sync::{Arc, Barrier};
 use std::thread;
-use num::*;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 pub fn stats_printer() -> Arc<Barrier> {
     let barrier = Arc::new(Barrier::new(2));
