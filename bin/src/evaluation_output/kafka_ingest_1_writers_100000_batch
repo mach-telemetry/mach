@@ -1,0 +1,23 @@
+MADE TOPIC kafka-completeness-bench
+Read data for 464 sources
+Expanding data based on source_count = 1000
+Sorting by time
+Setting up final samples
+Samples stats:
+Total number of unique samples: 74030031
+Number of sources: 1000, Number of metrics: 671
+Max source length: 108788
+Average source length: 74030
+Min source length: 4
+Workloads: [Workload { samples_per_second: 500000, duration: 75s }, Workload { samples_per_second: 600000, duration: 75s }, Workload { samples_per_second: 700000, duration: 75s }, Workload { samples_per_second: 800000, duration: 75s }, Workload { samples_per_second: 900000, duration: 75s }, Workload { samples_per_second: 1000000, duration: 75s }]
+Current workload rate: 500000, Samples generated: 6400000, Samples written: 2800000, Samples completeness: 0.44, 
+Current workload rate: 500000, Samples generated: 4100000, Samples written: 2300000, Samples completeness: 0.56, 
+Current workload rate: 500000, Samples generated: 4400000, Samples written: 2000000, Samples completeness: 0.45, 
+Current workload rate: 500000, Samples generated: 4400000, Samples written: 2000000, Samples completeness: 0.45, 
+Current workload rate: 500000, Samples generated: 4500000, Samples written: 2100000, Samples completeness: 0.47, 
+Current workload rate: 500000, Samples generated: 4600000, Samples written: 2000000, Samples completeness: 0.43, 
+Current workload rate: 500000, Samples generated: 4500000, Samples written: 1900000, Samples completeness: 0.42, 
+Current workload rate: 500000, Samples generated: 4400000, Samples written: 2000000, Samples completeness: 0.45, 
+Current workload rate: 500000, Samples generated: 4300000, Samples written: 2300000, Samples completeness: 0.53, 
+Current workload rate: 500000, Samples generated: 4600000, Samples written: 2200000, Samples completeness: 0.48, 
+Current workload rate: 500000, Samples generated: 4700000, Samples written: 2200000, Samples completeness: 0.47, 

@@ -195,17 +195,19 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
 
     // Tracking workload totals
     let mut workload_total_samples = 0.;
+    let mut workload_total_size = 0.;
 
     // Every workload.mbps check if we need to wait. This field tracks current check size
     let mut check_start = Instant::now(); // check this field to see if the workload needs to wait
     let samples_per_second: f64 = <f64 as NumCast>::from(workload.samples_per_second).unwrap(); // check every mbps (e.g., check every second)
     let check_duration = Duration::from_secs(1); // check duration should line up with mbps (e.g., 1 second)
 
+    COUNTERS.set_current_workload_rate(workload.samples_per_second as usize);
 
     // Execute workload
     'outer: loop {
         let src = &samples[data_idx];
-        //let sample_size: usize = src.size as usize;
+        let sample_size: usize = src.size as usize;
         let writer_idx = src.writer_idx;
 
         let sample = Sample {
@@ -234,6 +236,7 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
 
         // Increment counters
         workload_total_samples += 1.;
+        workload_total_size += <f64 as NumCast>::from(sample_size).unwrap();
 
         // Checking to see if workload should wait. These checks amortize the expensize
         // operations to every second
@@ -250,10 +253,10 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
     }
     let workload_duration = workload_start.elapsed();
     println!(
-        "Expected rate: {} samples per second, Samples per second: {:.2}",
+        "Expected rate: {} samples per second, Samples per second: {:.2}, Mbps: {:.2}",
         workload.samples_per_second,
-        //workload_total_size / workload_duration.as_secs_f64(),
         workload_total_samples / workload_duration.as_secs_f64(),
+        workload_total_size / 1_000_000. / workload_duration.as_secs_f64(),
     );
 }
 

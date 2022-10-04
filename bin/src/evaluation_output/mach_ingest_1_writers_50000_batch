@@ -1,0 +1,27 @@
+BOOTSTRAPS: b-2.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092
+Read data for 464 sources
+Expanding data based on source_count = 1000
+Sorting by time
+Setting up final samples
+Samples stats:
+Total number of unique samples: 74030031
+Number of sources: 1000, Number of metrics: 671
+Max source length: 108788
+Average source length: 74030
+Min source length: 4
+Registering sources to Mach
+Workloads: [Workload { samples_per_second: 1000000, duration: 75s }]
+Current workload rate: 1000000, Samples generated: 15000000, Samples written: 5150000, Samples completeness: 0.34, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 3450000, Samples completeness: 0.38, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 3600000, Samples completeness: 0.40, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 3600000, Samples completeness: 0.40, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 3500000, Samples completeness: 0.39, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 3550000, Samples completeness: 0.39, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 3550000, Samples completeness: 0.39, 
+Current workload rate: 1000000, Samples generated: 9050000, Samples written: 3500000, Samples completeness: 0.39, 
+Current workload rate: 1000000, Samples generated: 9050000, Samples written: 3400000, Samples completeness: 0.38, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 3200000, Samples completeness: 0.36, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 3200000, Samples completeness: 0.36, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 3250000, Samples completeness: 0.36, 
+Expected rate: 1000000 samples per second, Samples per second: 999999.74, Mbps: 70.89
+Current workload rate: 1000000, Samples generated: 8950000, Samples written: 3100000, Samples completeness: 0.35, 

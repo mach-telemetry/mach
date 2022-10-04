@@ -131,6 +131,8 @@ fn run_workload(workload: Workload, samples: &[(SeriesId, &'static [SampleType],
     let mut workload_total_mb = 0.;
     let mut workload_total_samples = 0;
 
+    COUNTERS.set_current_workload_rate(workload.samples_per_second as usize);
+
     'outer: loop {
         let id = samples[data_idx].0;
         let partition_id = id.0 as usize % PARAMETERS.kafka_partitions as usize;

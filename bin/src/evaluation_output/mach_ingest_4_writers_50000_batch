@@ -1,0 +1,53 @@
+BOOTSTRAPS: b-2.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092
+BOOTSTRAPS: b-2.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092
+BOOTSTRAPS: b-2.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092
+BOOTSTRAPS: b-2.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092
+Read data for 464 sources
+Expanding data based on source_count = 1000
+Sorting by time
+Setting up final samples
+Samples stats:
+Total number of unique samples: 74030031
+Number of sources: 1000, Number of metrics: 671
+Max source length: 108788
+Average source length: 74030
+Min source length: 4
+Registering sources to Mach
+Workloads: [Workload { samples_per_second: 1000000, duration: 120s }, Workload { samples_per_second: 2000000, duration: 120s }, Workload { samples_per_second: 3000000, duration: 120s }, Workload { samples_per_second: 4000000, duration: 120s }, Workload { samples_per_second: 5000000, duration: 120s }, Workload { samples_per_second: 6000000, duration: 120s }, Workload { samples_per_second: 7000000, duration: 120s }, Workload { samples_per_second: 8000000, duration: 120s }, Workload { samples_per_second: 9000000, duration: 120s }, Workload { samples_per_second: 10000000, duration: 120s }, Workload { samples_per_second: 11000000, duration: 120s }, Workload { samples_per_second: 12000000, duration: 120s }, Workload { samples_per_second: 13000000, duration: 120s }, Workload { samples_per_second: 14000000, duration: 120s }, Workload { samples_per_second: 15000000, duration: 120s }]
+Current workload rate: 1000000, Samples generated: 14900000, Samples written: 13800000, Samples completeness: 0.93, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 9000000, Samples completeness: 1.00, 
+Current workload rate: 1000000, Samples generated: 9100000, Samples written: 8950000, Samples completeness: 0.98, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 8950000, Samples completeness: 0.99, 
+Current workload rate: 1000000, Samples generated: 8950000, Samples written: 9050000, Samples completeness: 1.01, 
+Current workload rate: 1000000, Samples generated: 8950000, Samples written: 9000000, Samples completeness: 1.01, 
+Current workload rate: 1000000, Samples generated: 9050000, Samples written: 8950000, Samples completeness: 0.99, 
+Current workload rate: 1000000, Samples generated: 9050000, Samples written: 9000000, Samples completeness: 0.99, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 9000000, Samples completeness: 1.00, 
+Current workload rate: 1000000, Samples generated: 8950000, Samples written: 9000000, Samples completeness: 1.01, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 9000000, Samples completeness: 1.00, 
+Current workload rate: 1000000, Samples generated: 9100000, Samples written: 8900000, Samples completeness: 0.98, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 8600000, Samples completeness: 0.96, 
+Current workload rate: 1000000, Samples generated: 8950000, Samples written: 8250000, Samples completeness: 0.92, 
+Current workload rate: 1000000, Samples generated: 9050000, Samples written: 8700000, Samples completeness: 0.96, 
+Current workload rate: 1000000, Samples generated: 9050000, Samples written: 8550000, Samples completeness: 0.94, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 8950000, Samples completeness: 0.99, 
+Current workload rate: 1000000, Samples generated: 9050000, Samples written: 9100000, Samples completeness: 1.01, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 9000000, Samples completeness: 1.00, 
+Current workload rate: 1000000, Samples generated: 9000000, Samples written: 8950000, Samples completeness: 0.99, 
+Current workload rate: 1000000, Samples generated: 9050000, Samples written: 9100000, Samples completeness: 1.01, 
+Expected rate: 1000000 samples per second, Samples per second: 999999.77
+Current workload rate: 2000000, Samples generated: 9000000, Samples written: 8900000, Samples completeness: 0.99, 
+Current workload rate: 2000000, Samples generated: 13900000, Samples written: 12750000, Samples completeness: 0.92, 
+Current workload rate: 2000000, Samples generated: 18050000, Samples written: 17550000, Samples completeness: 0.97, 
+Current workload rate: 2000000, Samples generated: 18000000, Samples written: 17950000, Samples completeness: 1.00, 
+Current workload rate: 2000000, Samples generated: 17900000, Samples written: 18050000, Samples completeness: 1.01, 
+Current workload rate: 2000000, Samples generated: 18000000, Samples written: 18000000, Samples completeness: 1.00, 
+Current workload rate: 2000000, Samples generated: 18000000, Samples written: 18000000, Samples completeness: 1.00, 
+Current workload rate: 2000000, Samples generated: 18050000, Samples written: 18050000, Samples completeness: 1.00, 
+Current workload rate: 2000000, Samples generated: 17950000, Samples written: 16950000, Samples completeness: 0.94, 
+Current workload rate: 2000000, Samples generated: 18150000, Samples written: 16650000, Samples completeness: 0.92, 
+Current workload rate: 2000000, Samples generated: 17950000, Samples written: 17700000, Samples completeness: 0.99, 
+Current workload rate: 2000000, Samples generated: 17950000, Samples written: 18100000, Samples completeness: 1.01, 
+Current workload rate: 2000000, Samples generated: 18000000, Samples written: 18000000, Samples completeness: 1.00, 
+Current workload rate: 2000000, Samples generated: 18050000, Samples written: 18050000, Samples completeness: 1.00, 
+Current workload rate: 2000000, Samples generated: 18000000, Samples written: 18000000, Samples completeness: 1.00, 

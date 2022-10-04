@@ -11,26 +11,58 @@ lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
     pub static ref WORKLOAD: Vec<Workload> =
         vec![
-            //Workload::new(100_000, Duration::from_secs(60 * 2)),
-            //Workload::new(200_000, Duration::from_secs(60 * 2)),
-            //Workload::new(300_000, Duration::from_secs(60 * 2)),
-            //Workload::new(400_000, Duration::from_secs(60 * 2)),
-            Workload::new(500_000, Duration::from_secs(60 * 2)),
-            Workload::new(600_000, Duration::from_secs(60 * 2)),
-            Workload::new(700_000, Duration::from_secs(60 * 2)),
-            Workload::new(800_000, Duration::from_secs(60 * 2)),
-            Workload::new(900_000, Duration::from_secs(60 * 2)),
-            Workload::new(1_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(1_100_000, Duration::from_secs(60 * 2)),
-            Workload::new(1_200_000, Duration::from_secs(60 * 2)),
-            Workload::new(1_300_000, Duration::from_secs(60 * 2)),
-            Workload::new(1_400_000, Duration::from_secs(60 * 2)),
-            Workload::new(1_500_000, Duration::from_secs(60 * 2)),
-            Workload::new(1_600_000, Duration::from_secs(60 * 2)),
-            Workload::new(1_700_000, Duration::from_secs(60 * 2)),
-            Workload::new(1_800_000, Duration::from_secs(60 * 2)),
-            Workload::new(1_900_000, Duration::from_secs(60 * 2)),
-            Workload::new(2_000_000, Duration::from_secs(60 * 2)),
+            //Workload::new(50_000, Duration::from_secs(75)),
+            //Workload::new(60_000, Duration::from_secs(75)),
+            //Workload::new(70_000, Duration::from_secs(75)),
+            //Workload::new(80_000, Duration::from_secs(75)),
+            //Workload::new(90_000, Duration::from_secs(75)),
+            //Workload::new(100_000, Duration::from_secs(75)),
+            //Workload::new(200_000, Duration::from_secs(75)),
+            //Workload::new(300_000, Duration::from_secs(75)),
+            //Workload::new(400_000, Duration::from_secs(75)),
+            //Workload::new(500_000, Duration::from_secs(75)),
+            //Workload::new(600_000, Duration::from_secs(75)),
+            //Workload::new(700_000, Duration::from_secs(75)),
+            //Workload::new(800_000, Duration::from_secs(75)),
+            //Workload::new(900_000, Duration::from_secs(75)),
+            //Workload::new(1_000_000, Duration::from_secs(75)),
+            //Workload::new(1_100_000, Duration::from_secs(75)),
+            //Workload::new(1_200_000, Duration::from_secs(75)),
+            //Workload::new(1_300_000, Duration::from_secs(75)),
+            //Workload::new(1_400_000, Duration::from_secs(75)),
+            //Workload::new(1_500_000, Duration::from_secs(75)),
+            //Workload::new(1_600_000, Duration::from_secs(75)),
+            //Workload::new(1_700_000, Duration::from_secs(75)),
+            //Workload::new(1_800_000, Duration::from_secs(75)),
+            //Workload::new(1_900_000, Duration::from_secs(75)),
+            //Workload::new(2_000_000, Duration::from_secs(75)),
+            Workload::new(2_100_000, Duration::from_secs(75)),
+            Workload::new(2_200_000, Duration::from_secs(75)),
+            Workload::new(2_300_000, Duration::from_secs(75)),
+            Workload::new(2_400_000, Duration::from_secs(75)),
+            Workload::new(2_500_000, Duration::from_secs(75)),
+            Workload::new(2_600_000, Duration::from_secs(75)),
+            Workload::new(2_700_000, Duration::from_secs(75)),
+            Workload::new(2_800_000, Duration::from_secs(75)),
+            Workload::new(2_900_000, Duration::from_secs(75)),
+            Workload::new(3_000_000, Duration::from_secs(75)),
+
+
+            //Workload::new(1_000_000, Duration::from_secs(75)),
+            //Workload::new(2_000_000, Duration::from_secs(75)),
+            //Workload::new(3_000_000, Duration::from_secs(75)),
+            //Workload::new(4_000_000, Duration::from_secs(75)),
+            //Workload::new(5_000_000, Duration::from_secs(75)),
+            //Workload::new(6_000_000, Duration::from_secs(75)),
+            //Workload::new(7_000_000, Duration::from_secs(75)),
+            //Workload::new(8_000_000, Duration::from_secs(75)),
+            //Workload::new(9_000_000, Duration::from_secs(75)),
+            //Workload::new(10_000_000, Duration::from_secs(75)),
+            //Workload::new(11_000_000, Duration::from_secs(75)),
+            //Workload::new(12_000_000, Duration::from_secs(75)),
+            //Workload::new(13_000_000, Duration::from_secs(75)),
+            //Workload::new(14_000_000, Duration::from_secs(75)),
+            //Workload::new(15_000_000, Duration::from_secs(75)),
         ];
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
@@ -156,6 +188,7 @@ pub struct Counters {
     bytes_written: AtomicUsize,
     bytes_written_to_kafka: AtomicUsize,
     messages_written_to_kafka: AtomicUsize,
+    current_workload_rate: AtomicUsize,
 }
 
 impl Counters {
@@ -167,7 +200,16 @@ impl Counters {
             bytes_written: AtomicUsize::new(0),
             messages_written_to_kafka: AtomicUsize::new(0),
             bytes_written_to_kafka: AtomicUsize::new(0),
+            current_workload_rate: AtomicUsize::new(0),
         }
+    }
+
+    pub fn set_current_workload_rate(&self, n: usize) {
+        self.current_workload_rate.store(n, SeqCst);
+    }
+
+    pub fn current_workload_rate(&self) -> usize {
+        self.current_workload_rate.load(SeqCst)
     }
 
     pub fn add_samples_generated(&self, n: usize) {

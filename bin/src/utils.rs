@@ -36,6 +36,8 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
         let idx = counter % len;
         counter += 1;
 
+        let current_workload_rate = COUNTERS.current_workload_rate();
+
         samples_generated[idx] = COUNTERS.samples_generated();
         samples_written[idx] = COUNTERS.samples_written();
 
@@ -84,6 +86,7 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
             //let bytes_completeness = bytes_completeness.iter().sum::<f64>() / denom;
             //let bytes_rate = bytes_rate.iter().sum::<f64>() / denom;
             //print!("Sample completeness: {:.2}, ", samples_completeness);
+            print!("Current workload rate: {}, ", current_workload_rate);
             print!("Samples generated: {}, ", samples_generated_delta);
             print!("Samples written: {}, ", samples_written_delta);
             print!("Samples completeness: {:.2}, ", samples_completeness);
