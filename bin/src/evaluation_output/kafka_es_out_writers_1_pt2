@@ -1,0 +1,1884 @@
+ES Index test-data-1664899852528320 created, resp: Response { method: Put, url: Url { scheme: "https", cannot_be_a_base: false, username: "", password: None, host: Some(Domain("vpc-es01-6wvpspb2kiqdbokovy7svaxqli.us-east-1.es.amazonaws.com")), port: None, path: "/test-data-1664899852528320", query: None, fragment: None }, status_code: 200, headers: {"date": "Tue, 04 Oct 2022 16:10:52 GMT", "content-type": "application/json; charset=UTF-8", "content-length": "85", "connection": "keep-alive", "access-control-allow-origin": "*"} }
+bytes per sec: 0, flushed count: 0, indexed count: 0, fraction indexed: NaN, flushes (init: 0, completed: 0, pending: 0, retries: 0, avg dur NaN ms), per batch stats (decomp ms: NaN, serialize: NaN, flush: NaN) completeness: NaN
+Kafka consumer created, begin consuming [2] from topic k2
+Kafka consumer created, begin consuming [6] from topic k2
+Kafka consumer created, begin consuming [0] from topic k2
+Kafka consumer created, begin consuming [5] from topic k2
+Kafka consumer created, begin consuming [4] from topic k2
+Kafka consumer created, begin consuming [8] from topic k2
+Kafka consumer created, begin consuming [9] from topic k2
+Kafka consumer created, begin consuming [11] from topic k2
+Kafka consumer created, begin consuming [7] from topic k2
+Kafka consumer created, begin consuming [10] from topic k2
+Kafka consumer created, begin consuming [13] from topic k2
+Kafka consumer created, begin consuming [12] from topic k2
+Kafka consumer created, begin consuming [14] from topic k2
+Kafka consumer created, begin consuming [15] from topic k2
+Kafka consumer created, begin consuming [18] from topic k2
+Kafka consumer created, begin consuming [19] from topic k2
+Kafka consumer created, begin consuming [21] from topic k2
+Kafka consumer created, begin consuming [20] from topic k2
+Kafka consumer created, begin consuming [22] from topic k2
+Kafka consumer created, begin consuming [23] from topic k2
+Kafka consumer created, begin consuming [3] from topic k2
+Kafka consumer created, begin consuming [1] from topic k2
+Kafka consumer created, begin consuming [17] from topic k2
+Kafka consumer created, begin consuming [16] from topic k2
+bytes per sec: 0, flushed count: 0, indexed count: 0, fraction indexed: NaN, flushes (init: 0, completed: 0, pending: 0, retries: 0, avg dur NaN ms), per batch stats (decomp ms: NaN, serialize: NaN, flush: NaN) completeness: NaN
+bytes per sec: 0, flushed count: 0, indexed count: 0, fraction indexed: NaN, flushes (init: 0, completed: 0, pending: 0, retries: 0, avg dur NaN ms), per batch stats (decomp ms: NaN, serialize: NaN, flush: NaN) completeness: NaN
+bytes per sec: 0, flushed count: 0, indexed count: 0, fraction indexed: NaN, flushes (init: 0, completed: 0, pending: 0, retries: 0, avg dur NaN ms), per batch stats (decomp ms: NaN, serialize: NaN, flush: NaN) completeness: NaN
+bytes per sec: 0, flushed count: 0, indexed count: 0, fraction indexed: NaN, flushes (init: 0, completed: 0, pending: 0, retries: 0, avg dur NaN ms), per batch stats (decomp ms: NaN, serialize: NaN, flush: NaN) completeness: NaN
+bytes per sec: 0, flushed count: 0, indexed count: 0, fraction indexed: NaN, flushes (init: 0, completed: 0, pending: 0, retries: 0, avg dur NaN ms), per batch stats (decomp ms: NaN, serialize: NaN, flush: NaN) completeness: NaN
+bytes per sec: 0, flushed count: 0, indexed count: 0, fraction indexed: NaN, flushes (init: 0, completed: 0, pending: 0, retries: 0, avg dur NaN ms), per batch stats (decomp ms: NaN, serialize: NaN, flush: NaN) completeness: NaN
+bytes per sec: 0, flushed count: 0, indexed count: 0, fraction indexed: NaN, flushes (init: 0, completed: 0, pending: 0, retries: 0, avg dur NaN ms), per batch stats (decomp ms: NaN, serialize: NaN, flush: NaN) completeness: NaN
+got ts 1664899878754164, data age: 11.770483
+got ts 1664899878759290, data age: 12.774478
+got ts 1664899878767897, data age: 13.776032
+bytes per sec: 24002199.2, flushed count: 45781, indexed count: 28564, fraction indexed: 0.6239269565977152, flushes (init: 8, completed: 8, pending: 0, retries: 0, avg dur 512.75 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 512.75) completeness: 0.015201865163976808
+got ts 1664899878767897, data age: 14.785062
+got ts 1664899878767897, data age: 15.793973
+got ts 1664899878767897, data age: 16.802978
+got ts 1664899878767897, data age: 17.811968
+got ts 1664899878767897, data age: 18.820756
+bytes per sec: 3001071.2, flushed count: 51490, indexed count: 51490, fraction indexed: 1, flushes (init: 9, completed: 9, pending: 0, retries: 0, avg dur 504.44444444444446 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 504.44444444444446) completeness: 0.014070570014249849
+got ts 1664899878767897, data age: 19.830335
+got ts 1664899894729532, data age: 5.085379
+got ts 1664899894729533, data age: 6.095847
+got ts 1664899894729533, data age: 7.106759
+bytes per sec: 6000019.2, flushed count: 325334, indexed count: 325334, fraction indexed: 1, flushes (init: 12, completed: 11, pending: 1, retries: 0, avg dur 599.4545454545455 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 549.5) completeness: 0.17096155046983108
+got ts 1664899894729533, data age: 8.117878
+got ts 1664899897756662, data age: 6.099806
+got ts 1664899897756662, data age: 7.110104
+got ts 1664899897756662, data age: 8.156412
+got ts 1664899898770426, data age: 8.154084
+bytes per sec: 6000017.4, flushed count: 622279, indexed count: 622279, fraction indexed: 1, flushes (init: 14, completed: 13, pending: 1, retries: 0, avg dur 670.6923076923077 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 622.7857142857143) completeness: 0.21143414865976845
+got ts 1664899898770426, data age: 9.166185
+got ts 1664899901716000, data age: 7.302851
+got ts 1664899906727261, data age: 3.684181
+got ts 1664899906727261, data age: 4.73705
+got ts 1664899906727261, data age: 5.750649
+bytes per sec: 15000045, flushed count: 1522547, indexed count: 1522547, fraction indexed: 1, flushes (init: 19, completed: 18, pending: 1, retries: 0, avg dur 853.5 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 808.578947368421) completeness: 0.225591803884181
+got ts 1664899906727261, data age: 6.762824
+got ts 1664899906753990, data age: 7.750604
+got ts 1664899909714804, data age: 5.895557
+got ts 1664899909729780, data age: 6.894076
+got ts 1664899912717400, data age: 4.981479
+bytes per sec: 18000066.2, flushed count: 2520263, indexed count: 2343808, fraction indexed: 0.9299854816739365, flushes (init: 25, completed: 24, pending: 1, retries: 0, avg dur 946 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 908.16) completeness: 0.24141906681195524
+got ts 1664899912717400, data age: 5.995432
+got ts 1664899915733549, data age: 3.993765
+got ts 1664899916757719, data age: 3.993341
+got ts 1664899916757719, data age: 5.00606
+got ts 1664899918764353, data age: 4.012193
+bytes per sec: 15000027.2, flushed count: 3397729, indexed count: 3381577, fraction indexed: 0.9952462365303413, flushes (init: 32, completed: 29, pending: 3, retries: 0, avg dur 1000.5862068965517 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 906.78125) completeness: 0.25104541548575704
+got ts 1664899918767914, data age: 5.160769
+got ts 1664899920715859, data age: 4.2242750000000004
+got ts 1664899920715859, data age: 5.238657
+got ts 1664899920715859, data age: 6.254329
+bytes per sec: 18000052, flushed count: 4527519, indexed count: 4527519, fraction indexed: 1, flushes (init: 38, completed: 35, pending: 3, retries: 0, avg dur 1057.1714285714286 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 973.7105263157895) completeness: 0.25115559692785383
+got ts 1664899920715859, data age: 7.270028
+got ts 1664899922737050, data age: 6.314175
+got ts 1664899926724004, data age: 3.417153
+got ts 1664899926724004, data age: 4.466532
+got ts 1664899928722171, data age: 3.482619
+bytes per sec: 24000068, flushed count: 6078103, indexed count: 6078103, fraction indexed: 1, flushes (init: 45, completed: 43, pending: 2, retries: 0, avg dur 1124.1627906976744 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1074.2) completeness: 0.25794972664466675
+got ts 1664899928735301, data age: 4.481913
+got ts 1664899928757239, data age: 5.472114
+got ts 1664899928757239, data age: 6.48559
+got ts 1664899928757239, data age: 7.500738
+got ts 1664899932738140, data age: 4.621398
+bytes per sec: 18000057.8, flushed count: 7247228, indexed count: 7198961, fraction indexed: 0.9933399363177203, flushes (init: 52, completed: 49, pending: 3, retries: 0, avg dur 1146.530612244898 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1080.3846153846155) completeness: 0.2658628989481144
+got ts 1664899932738141, data age: 5.639064
+got ts 1664899932738141, data age: 6.675166
+got ts 1664899934776458, data age: 5.676865
+got ts 1664899937727630, data age: 3.778783
+got ts 1664899937742336, data age: 4.774788
+bytes per sec: 27000059.8, flushed count: 8951179, indexed count: 8951179, fraction indexed: 1, flushes (init: 59, completed: 58, pending: 1, retries: 0, avg dur 1175.2758620689656 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1155.3559322033898) completeness: 0.2767875024538351
+got ts 1664899937742336, data age: 5.890541
+got ts 1664899940727633, data age: 3.954158
+got ts 1664899940748143, data age: 4.945158
+got ts 1664899940748143, data age: 5.961818
+got ts 1664899943720597, data age: 4.019285
+bytes per sec: 12000039, flushed count: 9756413, indexed count: 9795929, fraction indexed: 1.0040502590449993, flushes (init: 65, completed: 62, pending: 3, retries: 0, avg dur 1184.9193548387098 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1130.2307692307693) completeness: 0.2864449642219621
+got ts 1664899944760765, data age: 3.991664
+got ts 1664899945711970, data age: 4.051835
+got ts 1664899946740011, data age: 4.399466
+got ts 1664899946763496, data age: 5.388546
+bytes per sec: 24000057.2, flushed count: 11284239, indexed count: 11250318, fraction indexed: 0.996993948816575, flushes (init: 72, completed: 70, pending: 2, retries: 0, avg dur 1200.3714285714286 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1167.0277777777778) completeness: 0.2931908630939712
+got ts 1664899946763496, data age: 6.401353
+got ts 1664899949727337, data age: 4.452204
+got ts 1664899949727339, data age: 5.466387
+got ts 1664899949727339, data age: 6.479188
+got ts 1664899949727339, data age: 7.492005
+bytes per sec: 9000013.6, flushed count: 11850008, indexed count: 11850008, fraction indexed: 1, flushes (init: 73, completed: 73, pending: 0, retries: 0, avg dur 1202.2602739726028 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1202.2602739726028) completeness: 0.2946399552192726
+got ts 1664899949727339, data age: 8.541409999999999
+got ts 1664899949727339, data age: 9.555259
+got ts 1664899949727339, data age: 10.568441
+got ts 1664899949727339, data age: 11.581275
+got ts 1664899949727339, data age: 12.593869
+bytes per sec: 0, flushed count: 11850008, indexed count: 11850008, fraction indexed: 1, flushes (init: 73, completed: 73, pending: 0, retries: 0, avg dur 1202.2602739726028 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1202.2602739726028) completeness: 0.2946399552192726
+got ts 1664899949727339, data age: 13.606258
+got ts 1664899949727339, data age: 14.619213
+got ts 1664899955733060, data age: 9.640641
+got ts 1664899955755647, data age: 10.633681
+got ts 1664899955762129, data age: 11.734017
+bytes per sec: 18002210.4, flushed count: 12108789, indexed count: 12065038, fraction indexed: 0.9963868393445455, flushes (init: 80, completed: 79, pending: 1, retries: 0, avg dur 1159.73417721519 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1145.2375) completeness: 0.2778915260939865
+got ts 1664899955762129, data age: 12.771101999999999
+got ts 1664899955762129, data age: 13.782317
+got ts 1664899955762129, data age: 14.83069
+got ts 1664899955762129, data age: 15.841077
+got ts 1664899955762129, data age: 16.851371
+bytes per sec: 9001238.2, flushed count: 12229741, indexed count: 12229741, fraction indexed: 1, flushes (init: 82, completed: 82, pending: 0, retries: 0, avg dur 1139.6707317073171 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1139.6707317073171) completeness: 0.27032484492696734
+got ts 1664899955762129, data age: 17.861589
+got ts 1664899967735748, data age: 6.898781
+got ts 1664899970733687, data age: 4.911736
+got ts 1664899971765071, data age: 4.918008
+got ts 1664899971765919, data age: 5.969697
+bytes per sec: 18000049.2, flushed count: 13217247, indexed count: 12748594, fraction indexed: 0.9645423135392718, flushes (init: 90, completed: 88, pending: 2, retries: 0, avg dur 1137.8295454545455 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1112.5444444444445) completeness: 0.27631573862552117
+got ts 1664899972756062, data age: 5.9926449999999996
+got ts 1664899973759131, data age: 6.003079
+got ts 1664899975755528, data age: 5.017666
+got ts 1664899975755528, data age: 6.031335
+bytes per sec: 21000079.6, flushed count: 14394271, indexed count: 14353420, fraction indexed: 0.9971619959079553, flushes (init: 97, completed: 95, pending: 2, retries: 0, avg dur 1141.7894736842106 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1118.2474226804125) completeness: 0.281767005166443
+got ts 1664899977740996, data age: 5.138242
+got ts 1664899981746306, data age: 2.143823
+got ts 1664899981746306, data age: 3.169644
+got ts 1664899981761520, data age: 4.171328
+got ts 1664899981761520, data age: 5.266298
+bytes per sec: 21000045.8, flushed count: 15583854, indexed count: 15581484, fraction indexed: 0.9998479195197799, flushes (init: 104, completed: 102, pending: 2, retries: 0, avg dur 1148.4607843137255 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1126.375) completeness: 0.2849363039290428
+got ts 1664899982770039, data age: 5.434547
+got ts 1664899985741421, data age: 3.475684
+got ts 1664899985741421, data age: 4.487781
+got ts 1664899985769510, data age: 5.508199
+got ts 1664899988767802, data age: 3.524287
+bytes per sec: 27000075.4, flushed count: 17258651, indexed count: 16979647, fraction indexed: 0.9838339624574366, flushes (init: 113, completed: 111, pending: 2, retries: 0, avg dur 1160.126126126126 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1139.5929203539822) completeness: 0.2913436711258144
+got ts 1664899988782563, data age: 4.521739
+got ts 1664899990744332, data age: 3.591384
+got ts 1664899990744332, data age: 4.652491
+got ts 1664899992782730, data age: 3.626759
+got ts 1664899992782730, data age: 4.644206
+bytes per sec: 21000067.2, flushed count: 18583529, indexed count: 18566323, fraction indexed: 0.999074126340589, flushes (init: 120, completed: 118, pending: 2, retries: 0, avg dur 1167.5254237288136 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1148.0666666666666) completeness: 0.2973107034584282
+got ts 1664899994778752, data age: 3.673966
+got ts 1664899994778752, data age: 4.781611
+got ts 1664899995765222, data age: 4.853486
+got ts 1664899995765222, data age: 5.9582049999999995
+got ts 1664899997765364, data age: 4.972067
+bytes per sec: 24000058, flushed count: 20071766, indexed count: 20025160, fraction indexed: 0.9976780319180684, flushes (init: 129, completed: 126, pending: 3, retries: 0, avg dur 1172.7460317460318 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1145.4728682170542) completeness: 0.30034732105046075
+got ts 1664899998774936, data age: 5.008008
+got ts 1664899998774936, data age: 6.019698
+got ts 1664900001745793, data age: 4.065263
+got ts 1664900002736840, data age: 4.0858
+bytes per sec: 21000032.8, flushed count: 21459450, indexed count: 21418857, fraction indexed: 0.9981083858160391, flushes (init: 135, completed: 133, pending: 2, retries: 0, avg dur 1182.5864661654136 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1165.0666666666666) completeness: 0.30366290951731273
+got ts 1664900002771062, data age: 5.064558
+got ts 1664900003739581, data age: 5.420251
+got ts 1664900003739581, data age: 6.43145
+got ts 1664900005776293, data age: 5.405901
+got ts 1664900007777603, data age: 4.4163689999999995
+bytes per sec: 21000069.4, flushed count: 22731095, indexed count: 22336696, fraction indexed: 0.9826493620302937, flushes (init: 142, completed: 140, pending: 2, retries: 0, avg dur 1185.8785714285714 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1169.1760563380283) completeness: 0.3064831199733212
+got ts 1664900009753364, data age: 3.571351
+got ts 1664900009753365, data age: 4.584709
+got ts 1664900010753635, data age: 4.59622
+got ts 1664900011778846, data age: 4.583144
+got ts 1664900011778846, data age: 5.597213
+bytes per sec: 18000055.6, flushed count: 23931010, indexed count: 23931010, fraction indexed: 1, flushes (init: 146, completed: 146, pending: 0, retries: 0, avg dur 1193.9041095890411 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1193.9041095890411) completeness: 0.30908331244835274
+got ts 1664900011778846, data age: 6.661635
+got ts 1664900014788032, data age: 4.664668
+got ts 1664900014788032, data age: 5.786371
+got ts 1664900017737539, data age: 3.872536
+got ts 1664900017737539, data age: 4.903825
+bytes per sec: 21000044.2, flushed count: 25229925, indexed count: 25212524, fraction indexed: 0.999310303142003, flushes (init: 155, completed: 153, pending: 2, retries: 0, avg dur 1196.0065359477123 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1180.574193548387) completeness: 0.31208165102355523
+got ts 1664900017763120, data age: 5.891135
+got ts 1664900020749431, data age: 3.972273
+got ts 1664900020749431, data age: 5.00814
+got ts 1664900021774050, data age: 5.029592
+got ts 1664900021774050, data age: 6.040959
+bytes per sec: 30000079.6, flushed count: 27172741, indexed count: 27082130, fraction indexed: 0.9966653713734658, flushes (init: 164, completed: 163, pending: 1, retries: 0, avg dur 1205.6687116564417 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1198.3170731707316) completeness: 0.315017635885144
+got ts 1664900022751772, data age: 6.109921
+got ts 1664900022771663, data age: 7.162136
+got ts 1664900022783225, data age: 8.214538
+got ts 1664900022783225, data age: 9.225882
+bytes per sec: 18001694.4, flushed count: 27973100, indexed count: 27973100, fraction indexed: 1, flushes (init: 169, completed: 169, pending: 0, retries: 0, avg dur 1199.4201183431953 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1199.4201183431953) completeness: 0.3113772460306687
+got ts 1664900022783225, data age: 10.237001
+got ts 1664900022783225, data age: 11.247901
+got ts 1664900022783225, data age: 12.258816
+got ts 1664900022783225, data age: 13.270017
+got ts 1664900022783225, data age: 14.315098
+bytes per sec: 0, flushed count: 27973100, indexed count: 27973100, fraction indexed: 1, flushes (init: 169, completed: 169, pending: 0, retries: 0, avg dur 1199.4201183431953 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1199.4201183431953) completeness: 0.3113772460306687
+got ts 1664900022783225, data age: 15.32653
+got ts 1664900022783225, data age: 16.337697
+got ts 1664900022783225, data age: 17.348803
+got ts 1664900032733188, data age: 8.415079
+got ts 1664900032749691, data age: 9.419636
+bytes per sec: 12000810, flushed count: 28066100, indexed count: 28048404, fraction indexed: 0.9993694884576054, flushes (init: 174, completed: 173, pending: 1, retries: 0, avg dur 1187.8323699421965 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1181.0057471264367) completeness: 0.30534185610337866
+got ts 1664900032759707, data age: 10.421742
+got ts 1664900032773012, data age: 11.423509
+got ts 1664900032773012, data age: 12.439444
+got ts 1664900032773012, data age: 13.45202
+got ts 1664900032773012, data age: 14.464836
+bytes per sec: 15001489.8, flushed count: 28227977, indexed count: 28227977, fraction indexed: 1, flushes (init: 178, completed: 178, pending: 0, retries: 0, avg dur 1170.6741573033707 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1170.6741573033707) completeness: 0.29801335743081037
+got ts 1664900032773012, data age: 15.4773
+got ts 1664900032773012, data age: 16.491385
+got ts 1664900045786420, data age: 4.54367
+got ts 1664900046795791, data age: 4.546197
+got ts 1664900048741662, data age: 3.697796
+bytes per sec: 15000032.6, flushed count: 29028512, indexed count: 28806706, fraction indexed: 0.9923590296326591, flushes (init: 186, completed: 183, pending: 3, retries: 0, avg dur 1169.704918032787 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1150.8387096774193) completeness: 0.2998614289865536
+got ts 1664900048741662, data age: 4.733304
+got ts 1664900049742262, data age: 4.751888
+got ts 1664900049801000, data age: 5.730169
+got ts 1664900050788452, data age: 5.753771
+got ts 1664900050788452, data age: 6.796636
+bytes per sec: 24000068.6, flushed count: 30262537, indexed count: 30237031, fraction indexed: 0.9991571757516563, flushes (init: 193, completed: 191, pending: 2, retries: 0, avg dur 1170.8638743455497 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1158.7305699481865) completeness: 0.30195741822102357
+got ts 1664900051787973, data age: 6.923077
+got ts 1664900056731997, data age: 3.013945
+got ts 1664900056772617, data age: 4.31389
+got ts 1664900056772617, data age: 5.351253
+bytes per sec: 27000068, flushed count: 31780491, indexed count: 31699534, fraction indexed: 0.9974526195960912, flushes (init: 203, completed: 200, pending: 3, retries: 0, avg dur 1172.46 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1155.1330049261085) completeness: 0.30461112251510175
+got ts 1664900058784181, data age: 4.353521
+got ts 1664900058789605, data age: 5.375388
+got ts 1664900060736808, data age: 4.600951
+got ts 1664900062757033, data age: 3.596425
+got ts 1664900064758836, data age: 2.765184
+bytes per sec: 30000083, flushed count: 33619417, indexed count: 33523006, fraction indexed: 0.9971322822165536, flushes (init: 211, completed: 210, pending: 1, retries: 0, avg dur 1179.3904761904762 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1173.8009478672986) completeness: 0.307343442197741
+got ts 1664900064758836, data age: 3.833498
+got ts 1664900065776009, data age: 3.873361
+got ts 1664900066740619, data age: 3.924385
+got ts 1664900067759814, data age: 3.958632
+got ts 1664900067759814, data age: 5.017023
+bytes per sec: 24000062.8, flushed count: 35160238, indexed count: 35136248, fraction indexed: 0.999317695176011, flushes (init: 219, completed: 218, pending: 1, retries: 0, avg dur 1184.197247706422 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1178.7899543378996) completeness: 0.3084515295963566
+got ts 1664900069787521, data age: 4.337319
+got ts 1664900071741123, data age: 3.4135619999999998
+got ts 1664900072767563, data age: 3.435093
+got ts 1664900072767563, data age: 4.447337
+bytes per sec: 21000048.8, flushed count: 36495660, indexed count: 36510247, fraction indexed: 1.0003996913605617, flushes (init: 226, completed: 225, pending: 1, retries: 0, avg dur 1186.671111111111 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1181.4203539823009) completeness: 0.3112233968699636
+got ts 1664900074757593, data age: 3.470559
+got ts 1664900075785551, data age: 3.529995
+got ts 1664900075785551, data age: 4.543912
+got ts 1664900076758718, data age: 4.586081
+got ts 1664900078731871, data age: 3.624977
+bytes per sec: 21000052.8, flushed count: 37847424, indexed count: 37873152, fraction indexed: 1.0006797820638995, flushes (init: 234, completed: 232, pending: 2, retries: 0, avg dur 1190.271551724138 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1180.0982905982905) completeness: 0.31330363393107435
+got ts 1664900078756538, data age: 4.612137
+got ts 1664900079752612, data age: 4.630063
+got ts 1664900081745990, data age: 3.647681
+got ts 1664900081745990, data age: 4.678392
+got ts 1664900082782180, data age: 4.700939
+bytes per sec: 21000077.2, flushed count: 39199774, indexed count: 38869516, fraction indexed: 0.9915750024477182, flushes (init: 241, completed: 239, pending: 2, retries: 0, avg dur 1194.1506276150628 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1184.240663900415) completeness: 0.3153360713510339
+got ts 1664900084739607, data age: 3.756734
+got ts 1664900084739607, data age: 4.768315
+got ts 1664900084739607, data age: 5.78901
+got ts 1664900087755310, data age: 3.786815
+got ts 1664900087755310, data age: 4.909286
+bytes per sec: 15000037.2, flushed count: 40168529, indexed count: 40065388, fraction indexed: 0.9974322933259517, flushes (init: 247, completed: 244, pending: 3, retries: 0, avg dur 1197.0737704918033 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1182.5344129554655) completeness: 0.3170296109156661
+got ts 1664900088785227, data age: 4.89407
+got ts 1664900089805841, data age: 4.8842870000000005
+got ts 1664900091770133, data age: 3.935834
+got ts 1664900092787372, data age: 3.9325229999999998
+got ts 1664900092787372, data age: 4.951894
+bytes per sec: 27000055.4, flushed count: 41915917, indexed count: 41622057, fraction indexed: 0.9929892980750009, flushes (init: 255, completed: 253, pending: 2, retries: 0, avg dur 1203.292490118577 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1193.8549019607842) completeness: 0.3183802339225516
+got ts 1664900093794856, data age: 4.956359
+got ts 1664900093794856, data age: 5.982513
+got ts 1664900094732951, data age: 6.260611
+got ts 1664900094739487, data age: 7.53719
+bytes per sec: 24001544.8, flushed count: 43106559, indexed count: 43066102, fraction indexed: 0.9990614653329207, flushes (init: 262, completed: 261, pending: 1, retries: 0, avg dur 1203.942528735632 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1199.3473282442749) completeness: 0.31627692755303743
+got ts 1664900094739487, data age: 8.60746
+got ts 1664900094739487, data age: 9.703679
+got ts 1664900094761963, data age: 10.692555
+got ts 1664900094761963, data age: 11.707656
+got ts 1664900101743199, data age: 5.737936
+bytes per sec: 24002451, flushed count: 43578993, indexed count: 43568579, fraction indexed: 0.9997610316511902, flushes (init: 269, completed: 269, pending: 0, retries: 0, avg dur 1187.4498141263941 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1187.4498141263941) completeness: 0.3095617857919031
+got ts 1664900101743199, data age: 6.749227
+got ts 1664900101743199, data age: 7.759836
+got ts 1664900101743199, data age: 8.770653
+got ts 1664900101743199, data age: 9.782121
+got ts 1664900101743199, data age: 10.792279
+bytes per sec: 0, flushed count: 43578993, indexed count: 43578993, fraction indexed: 1, flushes (init: 269, completed: 269, pending: 0, retries: 0, avg dur 1187.4498141263941 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1187.4498141263941) completeness: 0.3095617857919031
+got ts 1664900101743199, data age: 11.803394
+got ts 1664900101743199, data age: 12.814056
+got ts 1664900101743199, data age: 13.826128
+got ts 1664900101743199, data age: 14.836337
+got ts 1664900109749925, data age: 7.8419170000000005
+bytes per sec: 3000662.6, flushed count: 43619728, indexed count: 43594629, fraction indexed: 0.9994245952198509, flushes (init: 271, completed: 270, pending: 1, retries: 0, avg dur 1185.0148148148148 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1180.6420664206642) completeness: 0.30856884304580967
+got ts 1664900109749928, data age: 8.855181
+got ts 1664900109769667, data age: 9.84796
+got ts 1664900109773838, data age: 10.855134
+got ts 1664900109773838, data age: 11.868776
+got ts 1664900109773838, data age: 12.883541
+bytes per sec: 21001856, flushed count: 43790789, indexed count: 43790789, fraction indexed: 1, flushes (init: 277, completed: 277, pending: 0, retries: 0, avg dur 1169.2779783393503 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1169.2779783393503) completeness: 0.3018831929010686
+got ts 1664900109773838, data age: 13.897941
+got ts 1664900109773838, data age: 14.911639
+got ts 1664900122741320, data age: 3.222922
+got ts 1664900124739336, data age: 2.372716
+bytes per sec: 12000035.6, flushed count: 44380260, indexed count: 44362958, fraction indexed: 0.9996101419865498, flushes (init: 284, completed: 281, pending: 3, retries: 0, avg dur 1168.1209964412812 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1155.781690140845) completeness: 0.30223815185857783
+got ts 1664900124739337, data age: 3.388042
+got ts 1664900124739337, data age: 4.452088
+got ts 1664900124766395, data age: 5.441844
+got ts 1664900126784406, data age: 4.436226
+got ts 1664900126784406, data age: 5.449652
+bytes per sec: 24000106, flushed count: 45456333, indexed count: 45519545, fraction indexed: 1.0013906093128981, flushes (init: 291, completed: 289, pending: 2, retries: 0, avg dur 1165.2595155709344 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1157.250859106529) completeness: 0.30331959886748916
+got ts 1664900128783450, data age: 4.462556
+got ts 1664900131759846, data age: 2.523199
+got ts 1664900131789171, data age: 3.545715
+got ts 1664900132740082, data age: 3.607147
+got ts 1664900132781078, data age: 4.591781
+bytes per sec: 27000079.2, flushed count: 47049562, indexed count: 46740650, fraction indexed: 0.9934343278264737, flushes (init: 301, completed: 298, pending: 3, retries: 0, avg dur 1167.8993288590605 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1156.2591362126245) completeness: 0.3055077655908984
+got ts 1664900132791834, data age: 5.656283
+got ts 1664900134772613, data age: 4.775985
+got ts 1664900136732864, data age: 3.8343350000000003
+got ts 1664900136732864, data age: 4.915017
+bytes per sec: 24000049.6, flushed count: 48569145, indexed count: 48432562, fraction indexed: 0.9971878648471164, flushes (init: 308, completed: 306, pending: 2, retries: 0, avg dur 1171.6633986928105 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1164.0551948051948) completeness: 0.30729518564424346
+got ts 1664900139735471, data age: 3.272812
+got ts 1664900140766822, data age: 3.255834
+got ts 1664900140766822, data age: 4.269416
+got ts 1664900142762049, data age: 3.287446
+got ts 1664900142765053, data age: 4.3328
+bytes per sec: 21000066.6, flushed count: 49832651, indexed count: 49802840, fraction indexed: 0.9994017777621343, flushes (init: 316, completed: 313, pending: 3, retries: 0, avg dur 1174.6134185303515 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1163.4620253164558) completeness: 0.308833677916409
+got ts 1664900145750523, data age: 2.5662089999999997
+got ts 1664900145750523, data age: 3.581932
+got ts 1664900146766230, data age: 3.581588
+got ts 1664900146766230, data age: 4.593256
+got ts 1664900149767319, data age: 2.605367
+bytes per sec: 24000059.6, flushed count: 51369675, indexed count: 51228313, fraction indexed: 0.9972481429948701, flushes (init: 322, completed: 321, pending: 1, retries: 0, avg dur 1178.588785046729 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1174.9285714285713) completeness: 0.3104218216672962
+got ts 1664900149767319, data age: 3.624432
+got ts 1664900149787287, data age: 4.623964
+got ts 1664900150773571, data age: 4.651495
+got ts 1664900151783027, data age: 4.701069
+got ts 1664900152802298, data age: 4.708146
+bytes per sec: 21000066.8, flushed count: 52667837, indexed count: 52652522, fraction indexed: 0.9997092153224367, flushes (init: 330, completed: 328, pending: 2, retries: 0, avg dur 1180.9908536585365 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1173.8333333333333) completeness: 0.311758531483613
+got ts 1664900154757778, data age: 3.765193
+got ts 1664900154757778, data age: 4.863624
+got ts 1664900155800301, data age: 4.832518
+got ts 1664900157739757, data age: 3.9064259999999997
+got ts 1664900157739757, data age: 4.933781
+bytes per sec: 18000047.6, flushed count: 53866059, indexed count: 53873305, fraction indexed: 1.0001345188442317, flushes (init: 337, completed: 334, pending: 3, retries: 0, avg dur 1183.8502994011976 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1173.3115727002967) completeness: 0.31313608263187603
+got ts 1664900159763454, data age: 3.968932
+got ts 1664900161787799, data age: 3.00759
+got ts 1664900161788012, data age: 4.056261
+got ts 1664900161788012, data age: 5.104737
+bytes per sec: 30000112.4, flushed count: 55659891, indexed count: 55702313, fraction indexed: 1.0007621646258704, flushes (init: 346, completed: 344, pending: 2, retries: 0, avg dur 1186.718023255814 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1179.85838150289) completeness: 0.31441409426308564
+got ts 1664900163761302, data age: 4.14967
+got ts 1664900165767985, data age: 3.161632
+got ts 1664900165767985, data age: 4.181553
+got ts 1664900166745395, data age: 4.217217
+got ts 1664900166745395, data age: 5.266804
+bytes per sec: 24000949.8, flushed count: 57051608, indexed count: 56812985, fraction indexed: 0.9958174185029106, flushes (init: 355, completed: 352, pending: 3, retries: 0, avg dur 1188.9545454545455 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1178.9070422535212) completeness: 0.31365514928731847
+got ts 1664900166756019, data age: 6.267535
+got ts 1664900166756030, data age: 7.282207
+got ts 1664900166756030, data age: 8.299215
+got ts 1664900166772003, data age: 9.300636
+got ts 1664900166781887, data age: 10.347968
+bytes per sec: 33003856.8, flushed count: 58008046, indexed count: 57939661, fraction indexed: 0.9988211118161091, flushes (init: 365, completed: 363, pending: 2, retries: 0, avg dur 1178.4931129476583 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1172.035616438356) completeness: 0.3086326519531314
+got ts 1664900172792768, data age: 5.350511
+got ts 1664900172792768, data age: 6.364115
+got ts 1664900173771629, data age: 6.617706
+got ts 1664900176752638, data age: 4.651292
+got ts 1664900177754498, data age: 4.663657
+bytes per sec: 21003495, flushed count: 58911636, indexed count: 58794283, fraction indexed: 0.9980079826674649, flushes (init: 370, completed: 370, pending: 0, retries: 0, avg dur 1175.1486486486488 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1175.1486486486488) completeness: 0.3076373099570699
+got ts 1664900177754498, data age: 5.675041
+got ts 1664900177754498, data age: 6.691415
+got ts 1664900178801183, data age: 6.660708
+got ts 1664900178801183, data age: 7.673015
+got ts 1664900178801183, data age: 8.685186999999999
+bytes per sec: 6000403, flushed count: 59084858, indexed count: 59084858, fraction indexed: 1, flushes (init: 372, completed: 372, pending: 0, retries: 0, avg dur 1172.782258064516 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1172.782258064516) completeness: 0.3071067526583399
+got ts 1664900178801183, data age: 9.732357
+got ts 1664900178801183, data age: 10.74442
+got ts 1664900178801183, data age: 11.756079
+got ts 1664900178801183, data age: 12.768632
+got ts 1664900178801183, data age: 13.82518
+bytes per sec: 0, flushed count: 59084858, indexed count: 59084858, fraction indexed: 1, flushes (init: 372, completed: 372, pending: 0, retries: 0, avg dur 1172.782258064516 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1172.782258064516) completeness: 0.3071067526583399
+got ts 1664900178801183, data age: 14.895889
+got ts 1664900186748509, data age: 8.006124
+got ts 1664900186748515, data age: 9.096857
+got ts 1664900193745429, data age: 3.158128
+bytes per sec: 24002083.2, flushed count: 59215010, indexed count: 59190604, fraction indexed: 0.99958784098829, flushes (init: 380, completed: 380, pending: 0, retries: 0, avg dur 1160.5894736842106 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1160.5894736842106) completeness: 0.3021015681347649
+got ts 1664900193745429, data age: 4.202713
+got ts 1664900193745429, data age: 5.215593
+got ts 1664900193745429, data age: 6.233169
+got ts 1664900193745429, data age: 7.250303
+got ts 1664900198762459, data age: 3.249941
+bytes per sec: 6000015.4, flushed count: 59500645, indexed count: 59447690, fraction indexed: 0.9991100096477946, flushes (init: 385, completed: 382, pending: 3, retries: 0, avg dur 1159.916230366492 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1150.877922077922) completeness: 0.30231041736656283
+got ts 1664900199756637, data age: 3.266736
+got ts 1664900199778498, data age: 4.256087
+got ts 1664900200796720, data age: 4.3033850000000005
+got ts 1664900201746426, data age: 4.436394
+got ts 1664900201746426, data age: 5.449451
+bytes per sec: 30000084.8, flushed count: 60965138, indexed count: 60853000, fraction indexed: 0.9981606209109213, flushes (init: 393, completed: 392, pending: 1, retries: 0, avg dur 1159.1607142857142 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1156.211195928753) completeness: 0.3031508324266948
+got ts 1664900204766859, data age: 3.440984
+got ts 1664900206733150, data age: 2.4878
+got ts 1664900206808640, data age: 3.423847
+got ts 1664900207780960, data age: 3.483623
+got ts 1664900209763301, data age: 2.514422
+bytes per sec: 21000079.2, flushed count: 62240448, indexed count: 62271894, fraction indexed: 1.0005052341525562, flushes (init: 402, completed: 399, pending: 3, retries: 0, avg dur 1161.017543859649 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1152.3532338308457) completeness: 0.3045013456170682
+got ts 1664900209763301, data age: 3.55042
+got ts 1664900209801444, data age: 4.525463
+got ts 1664900211751434, data age: 3.586224
+got ts 1664900211751434, data age: 4.598245
+got ts 1664900214777783, data age: 2.600188
+bytes per sec: 24000077.4, flushed count: 63701919, indexed count: 63384572, fraction indexed: 0.9950182505490925, flushes (init: 410, completed: 407, pending: 3, retries: 0, avg dur 1163.8550368550368 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1155.3390243902438) completeness: 0.30612216737105336
+got ts 1664900215747439, data age: 2.74496
+got ts 1664900215747439, data age: 3.87654
+got ts 1664900217752990, data age: 2.882579
+got ts 1664900217752990, data age: 4.061116
+got ts 1664900219773409, data age: 3.05466
+bytes per sec: 27000055.2, flushed count: 65381430, indexed count: 65097784, fraction indexed: 0.995661673352816, flushes (init: 419, completed: 416, pending: 3, retries: 0, avg dur 1169.2932692307693 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1160.9212410501193) completeness: 0.30775028343597083
+got ts 1664900219802010, data age: 4.036542
+got ts 1664900221790723, data age: 3.248207
+got ts 1664900222800078, data age: 3.253988
+got ts 1664900222800080, data age: 4.265624
+bytes per sec: 24000058, flushed count: 66905287, indexed count: 66741324, fraction indexed: 0.9975493267071703, flushes (init: 427, completed: 424, pending: 3, retries: 0, avg dur 1171.9622641509434 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1163.728337236534) completeness: 0.3090629017297813
+got ts 1664900225749665, data age: 2.414269
+got ts 1664900225765346, data age: 3.412219
+got ts 1664900226793038, data age: 3.399394
+got ts 1664900226793038, data age: 4.4484960000000004
+got ts 1664900227785980, data age: 4.469421
+bytes per sec: 30000081.8, flushed count: 68712845, indexed count: 68331682, fraction indexed: 0.9944528130075243, flushes (init: 435, completed: 434, pending: 1, retries: 0, avg dur 1173.0599078341013 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1170.3632183908046) completeness: 0.3103308841391051
+got ts 1664900227785980, data age: 5.480446
+got ts 1664900229769664, data age: 4.527903
+got ts 1664900229769664, data age: 5.541916
+got ts 1664900229769664, data age: 6.574062
+got ts 1664900233766773, data age: 3.589481
+bytes per sec: 12000050.8, flushed count: 69484503, indexed count: 69247299, fraction indexed: 0.9965862316090827, flushes (init: 440, completed: 438, pending: 2, retries: 0, avg dur 1174.038812785388 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1168.7022727272727) completeness: 0.3112009723540636
+got ts 1664900235786610, data age: 2.641123
+got ts 1664900235789548, data age: 3.74844
+got ts 1664900236756294, data age: 3.870693
+got ts 1664900237780607, data age: 3.99781
+got ts 1664900238790788, data age: 4.033561
+bytes per sec: 30000069.4, flushed count: 71368191, indexed count: 71238146, fraction indexed: 0.9981778296720454, flushes (init: 450, completed: 448, pending: 2, retries: 0, avg dur 1177.1964285714287 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1171.9644444444446) completeness: 0.3123338368355397
+got ts 1664900238799363, data age: 5.124372
+got ts 1664900239746379, data age: 5.22226
+got ts 1664900239757592, data age: 6.224355
+got ts 1664900239757592, data age: 7.237935
+bytes per sec: 27001472.6, flushed count: 72601377, indexed count: 72574004, fraction indexed: 0.99962296858364, flushes (init: 459, completed: 457, pending: 2, retries: 0, avg dur 1174.9518599562364 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1169.8322440087145) completeness: 0.310189333412159
+got ts 1664900239757592, data age: 8.251367
+got ts 1664900239776848, data age: 9.246879
+got ts 1664900239779431, data age: 10.256162
+got ts 1664900239779431, data age: 11.27068
+got ts 1664900248752396, data age: 3.309974
+bytes per sec: 27004667.4, flushed count: 73323106, indexed count: 73208144, fraction indexed: 0.9984321177010695, flushes (init: 467, completed: 466, pending: 1, retries: 0, avg dur 1167.3798283261804 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1164.880085653105) completeness: 0.30711413863774645
+got ts 1664900248752396, data age: 4.323531
+got ts 1664900248752396, data age: 5.365006
+got ts 1664900248752396, data age: 6.425185
+got ts 1664900250802276, data age: 5.393931
+got ts 1664900252733275, data age: 4.474931
+bytes per sec: 18000820, flushed count: 74079864, indexed count: 73798427, fraction indexed: 0.9962008974530515, flushes (init: 475, completed: 472, pending: 3, retries: 0, avg dur 1164.5805084745762 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1157.2252631578947) completeness: 0.3070852320146198
+got ts 1664900255750360, data age: 2.497128
+got ts 1664900255774686, data age: 3.520731
+got ts 1664900256787151, data age: 3.52202
+got ts 1664900257759604, data age: 3.601571
+got ts 1664900258751995, data age: 3.623258
+bytes per sec: 30000077.6, flushed count: 75609826, indexed count: 75514706, fraction indexed: 0.9987419624533986, flushes (init: 482, completed: 482, pending: 0, retries: 0, avg dur 1163.3672199170123 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1163.3672199170123) completeness: 0.3071165091037651
+got ts 1664900258751995, data age: 4.634493
+got ts 1664900258751995, data age: 5.647983
+got ts 1664900258751995, data age: 6.661167
+got ts 1664900258751995, data age: 7.672494
+got ts 1664900258751995, data age: 8.684188
+bytes per sec: 0, flushed count: 75609826, indexed count: 75609826, fraction indexed: 1, flushes (init: 482, completed: 482, pending: 0, retries: 0, avg dur 1163.3672199170123 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1163.3672199170123) completeness: 0.3071165091037651
+got ts 1664900258751995, data age: 9.695967
+got ts 1664900258751995, data age: 10.707801
+got ts 1664900263750383, data age: 6.72202
+got ts 1664900263765597, data age: 7.791695
+got ts 1664900263774122, data age: 8.817666
+bytes per sec: 18002486.6, flushed count: 75887868, indexed count: 75808684, fraction indexed: 0.9989565657583107, flushes (init: 489, completed: 488, pending: 1, retries: 0, avg dur 1156.8176229508197 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1154.4519427402863) completeness: 0.3038568825505351
+got ts 1664900263774122, data age: 9.828835
+got ts 1664900263774122, data age: 10.839667
+got ts 1664900263774122, data age: 11.853283
+got ts 1664900263774122, data age: 12.900232
+got ts 1664900274764590, data age: 2.9213750000000003
+bytes per sec: 6000403.4, flushed count: 75913684, indexed count: 75921939, fraction indexed: 1.0001087419232613, flushes (init: 493, completed: 490, pending: 3, retries: 0, avg dur 1153.7857142857142 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1146.764705882353) completeness: 0.3030215561135273
+got ts 1664900274775567, data age: 3.92216
+got ts 1664900275750970, data age: 3.9610279999999998
+got ts 1664900276743304, data age: 4.613714
+got ts 1664900278798538, data age: 3.645455
+bytes per sec: 30000086.2, flushed count: 77519509, indexed count: 77467529, fraction indexed: 0.9993294591171882, flushes (init: 502, completed: 500, pending: 2, retries: 0, avg dur 1155.786 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1151.1812749003984) completeness: 0.3040704910071205
+got ts 1664900278798538, data age: 4.726481
+got ts 1664900279764919, data age: 4.772009
+got ts 1664900281785620, data age: 3.8537179999999998
+got ts 1664900283772411, data age: 2.981493
+got ts 1664900284734702, data age: 3.03307
+bytes per sec: 33000063.2, flushed count: 79318079, indexed count: 79141699, fraction indexed: 0.9977762951117362, flushes (init: 513, completed: 511, pending: 2, retries: 0, avg dur 1157.0958904109589 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1152.5847953216373) completeness: 0.30498404596371453
+got ts 1664900285770234, data age: 3.101353
+got ts 1664900286773804, data age: 3.353271
+got ts 1664900286773804, data age: 4.367888
+got ts 1664900288775924, data age: 3.384334
+bytes per sec: 21000045.2, flushed count: 80664946, indexed count: 80685460, fraction indexed: 1.0002543112097293, flushes (init: 521, completed: 518, pending: 3, retries: 0, avg dur 1159.0714285714287 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1152.3973128598848) completeness: 0.30633773168449213
+got ts 1664900289785887, data age: 3.544709
+got ts 1664900290798894, data age: 3.563043
+got ts 1664900290804146, data age: 4.570912
+got ts 1664900290804146, data age: 5.61725
+got ts 1664900292791398, data age: 4.643862
+bytes per sec: 27000031, flushed count: 82271189, indexed count: 82042191, fraction indexed: 0.9972165468521429, flushes (init: 529, completed: 527, pending: 2, retries: 0, avg dur 1161.066413662239 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1156.6767485822306) completeness: 0.3074203993010477
+got ts 1664900295765100, data age: 2.682819
+got ts 1664900295765100, data age: 3.703366
+got ts 1664900296804224, data age: 3.677487
+got ts 1664900298763670, data age: 2.7347
+got ts 1664900298763670, data age: 3.793839
+bytes per sec: 21000023.4, flushed count: 83631968, indexed count: 83636825, fraction indexed: 1.000058075878353, flushes (init: 536, completed: 534, pending: 2, retries: 0, avg dur 1164.2696629213483 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1159.9253731343283) completeness: 0.3083520952238432
+got ts 1664900299761680, data age: 3.879316
+got ts 1664900299787090, data age: 4.975065
+got ts 1664900300801367, data age: 5.067558
+got ts 1664900303793329, data age: 3.08892
+bytes per sec: 21000068.2, flushed count: 84948384, indexed count: 84952727, fraction indexed: 1.000051125163252, flushes (init: 543, completed: 541, pending: 2, retries: 0, avg dur 1167.630314232902 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1163.329650092081) completeness: 0.30923384282142846
+got ts 1664900303793329, data age: 4.102777
+got ts 1664900304775747, data age: 4.132612
+got ts 1664900307738002, data age: 2.676723
+got ts 1664900307782689, data age: 3.644486
+got ts 1664900309733696, data age: 2.742822
+bytes per sec: 24000059.4, flushed count: 86490475, indexed count: 86166148, fraction indexed: 0.9962501419954047, flushes (init: 551, completed: 549, pending: 2, retries: 0, avg dur 1170.6211293260474 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1166.3720508166969) completeness: 0.31036609647492336
+got ts 1664900309749601, data age: 3.79457
+got ts 1664900310794858, data age: 3.766564
+got ts 1664900312733265, data age: 2.87843
+got ts 1664900312776702, data age: 3.846219
+got ts 1664900312776717, data age: 4.870908
+bytes per sec: 24000101.2, flushed count: 88045436, indexed count: 88045436, fraction indexed: 1, flushes (init: 560, completed: 557, pending: 3, retries: 0, avg dur 1174.1956912028725 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1167.9053571428572) completeness: 0.3106995692937382
+got ts 1664900312785648, data age: 5.874085
+got ts 1664900312799341, data age: 6.871864
+got ts 1664900312799341, data age: 7.884313
+got ts 1664900312816010, data age: 8.911446
+got ts 1664900312816011, data age: 9.923971
+bytes per sec: 27003749.8, flushed count: 88894747, indexed count: 88797303, fraction indexed: 0.9989038272418954, flushes (init: 568, completed: 566, pending: 2, retries: 0, avg dur 1169.1113074204948 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1164.994718309859) completeness: 0.30807250789775076
+got ts 1664900318803914, data age: 5.005037
+got ts 1664900319794061, data age: 5.102998
+got ts 1664900319794061, data age: 6.113977
+got ts 1664900322785525, data age: 4.133994
+bytes per sec: 21000739, flushed count: 89778681, indexed count: 89778681, fraction indexed: 1, flushes (init: 574, completed: 573, pending: 1, retries: 0, avg dur 1166.846422338569 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1164.8135888501743) completeness: 0.30724880076136823
+got ts 1664900322785525, data age: 5.146652
+got ts 1664900323768537, data age: 5.177113
+got ts 1664900326749560, data age: 3.20841
+got ts 1664900327759863, data age: 3.30818
+got ts 1664900327775365, data age: 4.304733
+bytes per sec: 24000975.6, flushed count: 90866551, indexed count: 90860858, fraction indexed: 0.9999373476825372, flushes (init: 583, completed: 581, pending: 2, retries: 0, avg dur 1165.5301204819277 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1161.5317324185248) completeness: 0.3074096490507103
+got ts 1664900329734848, data age: 3.356887
+got ts 1664900330796290, data age: 3.306995
+got ts 1664900330796290, data age: 4.317362
+got ts 1664900331797009, data age: 4.329088
+got ts 1664900333759894, data age: 3.379952
+bytes per sec: 24000053.8, flushed count: 92177361, indexed count: 91963300, fraction indexed: 0.9976777269637823, flushes (init: 589, completed: 589, pending: 0, retries: 0, avg dur 1165.4940577249577 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1165.4940577249577) completeness: 0.3079696755983697
+got ts 1664900333759894, data age: 4.395858
+got ts 1664900336814467, data age: 2.357246
+got ts 1664900336814467, data age: 3.36963
+got ts 1664900336814467, data age: 4.383264
+got ts 1664900336814467, data age: 5.398711
+bytes per sec: 6000015.8, flushed count: 92554979, indexed count: 92554979, fraction indexed: 1, flushes (init: 591, completed: 591, pending: 0, retries: 0, avg dur 1165.751269035533 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1165.751269035533) completeness: 0.3079826678867785
+got ts 1664900336814467, data age: 6.410918
+got ts 1664900336814467, data age: 7.422983
+got ts 1664900336814467, data age: 8.469334
+got ts 1664900336814467, data age: 9.481619
+got ts 1664900340734342, data age: 6.632324
+bytes per sec: 6000483.6, flushed count: 92600307, indexed count: 92564617, fraction indexed: 0.9996145801114893, flushes (init: 594, completed: 593, pending: 1, retries: 0, avg dur 1163.460370994941 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1161.5016835016836) completeness: 0.3070327350127818
+got ts 1664900340751511, data age: 7.633845
+got ts 1664900340764757, data age: 8.637116
+got ts 1664900340768988, data age: 9.643286
+got ts 1664900340768988, data age: 10.654064
+got ts 1664900340768988, data age: 11.671264
+bytes per sec: 15001274.4, flushed count: 92732436, indexed count: 92732436, fraction indexed: 1, flushes (init: 598, completed: 598, pending: 0, retries: 0, avg dur 1158.9966555183946 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1158.9966555183946) completeness: 0.3048042070663208
+got ts 1664900340768988, data age: 12.7428
+got ts 1664900350740239, data age: 3.789942
+got ts 1664900351803424, data age: 3.739429
+got ts 1664900351810166, data age: 4.7528880000000004
+got ts 1664900352813715, data age: 4.821885
+bytes per sec: 24000801.2, flushed count: 94005765, indexed count: 93647459, fraction indexed: 0.9961884678030118, flushes (init: 608, completed: 606, pending: 2, retries: 0, avg dur 1159.854785478548 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1156.0394736842106) completeness: 0.30553333686173534
+got ts 1664900354796322, data age: 3.876274
+got ts 1664900354796322, data age: 4.915393
+got ts 1664900354796322, data age: 5.968398
+got ts 1664900357813228, data age: 3.9909090000000003
+bytes per sec: 27000043, flushed count: 95488793, indexed count: 95162583, fraction indexed: 0.9965837875864658, flushes (init: 617, completed: 615, pending: 2, retries: 0, avg dur 1160.7414634146342 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1156.9789303079417) completeness: 0.3062306059493997
+got ts 1664900359772986, data age: 3.070164
+got ts 1664900359779206, data age: 4.097708
+got ts 1664900362748746, data age: 2.165507
+got ts 1664900362756638, data age: 3.178423
+got ts 1664900365743611, data age: 1.234274
+bytes per sec: 30000091.8, flushed count: 97382430, indexed count: 97259473, fraction indexed: 0.9987373800386784, flushes (init: 628, completed: 625, pending: 3, retries: 0, avg dur 1164.0912 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1158.53025477707) completeness: 0.3073884847606413
+got ts 1664900365754826, data age: 2.2573090000000002
+got ts 1664900366807545, data age: 2.434318
+got ts 1664900367767779, data age: 2.5733639999999998
+got ts 1664900367767779, data age: 3.607353
+got ts 1664900368795754, data age: 3.591637
+bytes per sec: 27000102, flushed count: 99093691, indexed count: 99097946, fraction indexed: 1.0000429391614851, flushes (init: 637, completed: 634, pending: 3, retries: 0, avg dur 1166.750788643533 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1161.2558869701727) completeness: 0.3084993927474072
+got ts 1664900368812522, data age: 4.7035029999999995
+got ts 1664900370769053, data age: 3.850837
+got ts 1664900373760833, data age: 1.879462
+got ts 1664900373760833, data age: 2.905338
+got ts 1664900374786269, data age: 2.935064
+bytes per sec: 30000068.8, flushed count: 101056667, indexed count: 101010726, fraction indexed: 0.999545393675016, flushes (init: 646, completed: 644, pending: 2, retries: 0, avg dur 1170.5186335403728 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1166.8947368421052) completeness: 0.30952139932719525
+got ts 1664900375754589, data age: 3.023542
+got ts 1664900376804988, data age: 3.168484
+got ts 1664900376804988, data age: 4.244212
+got ts 1664900378779587, data age: 3.521064
+bytes per sec: 21000052, flushed count: 102384755, indexed count: 102346365, fraction indexed: 0.9996250418336207, flushes (init: 651, completed: 651, pending: 0, retries: 0, avg dur 1171.8878648233488 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1171.8878648233488) completeness: 0.31012678475919697
+got ts 1664900378779587, data age: 4.535866
+got ts 1664900380808100, data age: 3.608085
+got ts 1664900381740588, data age: 3.68848
+got ts 1664900382751491, data age: 3.787777
+got ts 1664900383754453, data age: 3.84078
+bytes per sec: 21000079, flushed count: 103719380, indexed count: 103378342, fraction indexed: 0.9967119163265341, flushes (init: 660, completed: 658, pending: 2, retries: 0, avg dur 1173.9118541033436 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1170.3545454545454) completeness: 0.310662342193516
+got ts 1664900384736042, data age: 3.944679
+got ts 1664900386756693, data age: 2.987683
+got ts 1664900386764856, data age: 4.363191
+got ts 1664900386784496, data age: 5.356459
+bytes per sec: 33000893.8, flushed count: 105615204, indexed count: 105446187, fraction indexed: 0.9983996906354505, flushes (init: 670, completed: 669, pending: 1, retries: 0, avg dur 1175.0971599402092 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1173.3432835820895) completeness: 0.30985919860292255
+got ts 1664900386784496, data age: 6.3863
+got ts 1664900386784496, data age: 7.398084
+got ts 1664900386799420, data age: 8.397523
+got ts 1664900386816465, data age: 9.39847
+got ts 1664900386816465, data age: 10.416428
+bytes per sec: 27002245.2, flushed count: 106297680, indexed count: 106179102, fraction indexed: 0.9988844723610149, flushes (init: 680, completed: 678, pending: 2, retries: 0, avg dur 1170.1106194690265 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1166.6691176470588) completeness: 0.30732502575964626
+got ts 1664900393812304, data age: 4.438715
+got ts 1664900396740527, data age: 2.635263
+got ts 1664900396781513, data age: 3.605984
+got ts 1664900396781513, data age: 4.693331
+got ts 1664900396805478, data age: 5.6988579999999995
+bytes per sec: 18000402.6, flushed count: 107175114, indexed count: 107157715, fraction indexed: 0.9998376582086024, flushes (init: 687, completed: 684, pending: 3, retries: 0, avg dur 1169.8874269005848 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1164.7787481804949) completeness: 0.30759939811759945
+got ts 1664900399775502, data age: 3.742371
+got ts 1664900400751519, data age: 3.91037
+got ts 1664900401806553, data age: 3.899607
+got ts 1664900403735275, data age: 2.983995
+got ts 1664900403735276, data age: 3.995547
+bytes per sec: 27000070, flushed count: 108557196, indexed count: 108516965, fraction indexed: 0.9996294027343889, flushes (init: 694, completed: 693, pending: 1, retries: 0, avg dur 1171.4487734487734 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1169.7608069164264) completeness: 0.30791231848755013
+got ts 1664900405773264, data age: 3.026249
+got ts 1664900406762972, data age: 3.050675
+got ts 1664900407789675, data age: 3.035667
+got ts 1664900408749112, data age: 3.182266
+bytes per sec: 21000063.4, flushed count: 109801323, indexed count: 109801323, fraction indexed: 1, flushes (init: 703, completed: 700, pending: 3, retries: 0, avg dur 1172.6514285714286 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1167.6472261735419) completeness: 0.3085309675869442
+got ts 1664900409776203, data age: 3.171632
+got ts 1664900409792862, data age: 4.167845
+got ts 1664900409792862, data age: 5.207729
+got ts 1664900410773972, data age: 5.246539
+got ts 1664900412740239, data age: 4.295076
+bytes per sec: 18000052.6, flushed count: 110773362, indexed count: 110773362, fraction indexed: 1, flushes (init: 706, completed: 706, pending: 0, retries: 0, avg dur 1172.6827195467422 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1172.6827195467422) completeness: 0.30866023166729584
+got ts 1664900412740239, data age: 5.30928
+got ts 1664900412740239, data age: 6.32415
+got ts 1664900412740239, data age: 7.338119
+got ts 1664900412740239, data age: 8.352263
+got ts 1664900412740239, data age: 9.367627
+bytes per sec: 0, flushed count: 110773362, indexed count: 110773362, fraction indexed: 1, flushes (init: 706, completed: 706, pending: 0, retries: 0, avg dur 1172.6827195467422 ms), per batch stats (decomp ms: 0, serialize: 0, flush: 1172.6827195467422) completeness: 0.30866023166729584
+got ts 1664900412740239, data age: 10.381573
+got ts 1664900417747833, data age: 6.424389
+got ts 1664900417751742, data age: 7.471472
+got ts 1664900417774308, data age: 8.459465
+got ts 1664900417774308, data age: 9.474302
+bytes per sec: 18001372.6, flushed count: 110989783, indexed count: 110940043, fraction indexed: 0.9995518506419641, flushes (init: 712, completed: 712, pending: 0, retries: 0, avg dur 1167.5814606741574 ms), per batch stats (decomp ms: 1407.8581460674156, serialize: 0, flush: 1167.5814606741574) completeness: 0.30638847873588804
+got ts 1664900417774308, data age: 10.516312
+got ts 1664900417774308, data age: 11.532091
+got ts 1664900426781801, data age: 3.556102
+got ts 1664900428768222, data age: 2.583877
+got ts 1664900429741131, data age: 2.686893
+bytes per sec: 15000061.6, flushed count: 111808587, indexed count: 111473907, fraction indexed: 0.9970066699796502, flushes (init: 720, completed: 717, pending: 3, retries: 0, avg dur 1167.397489539749 ms), per batch stats (decomp ms: 2781.7875, serialize: 0, flush: 1162.5333333333333) completeness: 0.3071280487881176
+got ts 1664900429787051, data age: 3.655815
+got ts 1664900431736415, data age: 2.74113
+got ts 1664900431736415, data age: 3.874953
+got ts 1664900432820584, data age: 3.866385
+got ts 1664900434761378, data age: 3.010151
+bytes per sec: 27000064, flushed count: 113312182, indexed count: 113132687, fraction indexed: 0.9984159249532412, flushes (init: 729, completed: 726, pending: 3, retries: 0, avg dur 1167.6528925619834 ms), per batch stats (decomp ms: 2747.4444444444443, serialize: 0, flush: 1162.8477366255145) completeness: 0.307934859907238
+got ts 1664900435741304, data age: 3.098674
+got ts 1664900435825736, data age: 4.025964
+got ts 1664900437785339, data age: 3.494801
+got ts 1664900439767647, data age: 2.527662
+bytes per sec: 30000071.2, flushed count: 115168577, indexed count: 115058370, fraction indexed: 0.9990430809959561, flushes (init: 738, completed: 736, pending: 2, retries: 0, avg dur 1169.5353260869565 ms), per batch stats (decomp ms: 2713.939024390244, serialize: 0, flush: 1166.3658536585365) completeness: 0.30840914604923986
+got ts 1664900439767647, data age: 3.572996
+got ts 1664900441773160, data age: 2.580782
+got ts 1664900442797407, data age: 2.583705
+got ts 1664900443790940, data age: 2.607374
+got ts 1664900443790940, data age: 3.630651
+bytes per sec: 27000066, flushed count: 116796666, indexed count: 116786655, fraction indexed: 0.9999142869369233, flushes (init: 747, completed: 745, pending: 2, retries: 0, avg dur 1171.0147651006712 ms), per batch stats (decomp ms: 2681.240963855422, serialize: 0, flush: 1167.879518072289) completeness: 0.3092771115325544
+got ts 1664900444753186, data age: 3.705154
+got ts 1664900445763093, data age: 3.708535
+got ts 1664900447742618, data age: 2.786955
+got ts 1664900448754782, data age: 2.871021
+got ts 1664900449775633, data age: 2.862168
+bytes per sec: 30000042, flushed count: 118760698, indexed count: 118703807, fraction indexed: 0.9995209610505994, flushes (init: 758, completed: 755, pending: 3, retries: 0, avg dur 1174.1682119205298 ms), per batch stats (decomp ms: 2642.331134564644, serialize: 0, flush: 1169.5211081794196) completeness: 0.31010998530754513
+got ts 1664900449775633, data age: 3.9110009999999997
+got ts 1664900450732042, data age: 3.971059
+got ts 1664900451801819, data age: 3.926779
+got ts 1664900452784011, data age: 3.958356
+got ts 1664900453790595, data age: 3.964405
+bytes per sec: 27000077.8, flushed count: 120418810, indexed count: 120418810, fraction indexed: 1, flushes (init: 764, completed: 764, pending: 0, retries: 0, avg dur 1176.0602094240837 ms), per batch stats (decomp ms: 6552.413612565445, serialize: 0, flush: 1176.0602094240837) completeness: 0.31078632964378433
+got ts 1664900456753129, data age: 2.042577
+got ts 1664900457792488, data age: 2.022015
+got ts 1664900457834341, data age: 3.277664
+got ts 1664900459758720, data age: 2.374556
+bytes per sec: 24000048.2, flushed count: 121915915, indexed count: 121613430, fraction indexed: 0.9975189047303628, flushes (init: 775, completed: 772, pending: 3, retries: 0, avg dur 1177.8069948186528 ms), per batch stats (decomp ms: 6459.411612903225, serialize: 0, flush: 1173.2477419354839) completeness: 0.3117573168099742
+got ts 1664900459790827, data age: 3.384666
+got ts 1664900460772390, data age: 3.617557
+got ts 1664900460806884, data age: 4.593839
+got ts 1664900460813130, data age: 5.670797
+got ts 1664900460813130, data age: 6.767199
+bytes per sec: 33001559.6, flushed count: 123564981, indexed count: 123257812, fraction indexed: 0.9975141096003568, flushes (init: 785, completed: 783, pending: 2, retries: 0, avg dur 1176.992337164751 ms), per batch stats (decomp ms: 6377.126114649682, serialize: 0, flush: 1173.9936305732483) completeness: 0.31050614279030636
+got ts 1664900460813130, data age: 7.811993
+got ts 1664900461761927, data age: 7.889769
+got ts 1664900461761928, data age: 8.901946
+got ts 1664900465814482, data age: 5.86147
+got ts 1664900468735540, data age: 3.95471
+bytes per sec: 27003358, flushed count: 124317229, indexed count: 124053258, fraction indexed: 0.997876633817184, flushes (init: 793, completed: 792, pending: 1, retries: 0, avg dur 1172.6426767676767 ms), per batch stats (decomp ms: 6312.791929382093, serialize: 0, flush: 1171.1639344262296) completeness: 0.3085394563405725
+got ts 1664900468735542, data age: 4.96562
+got ts 1664900470773553, data age: 4.13466
+got ts 1664900471811698, data age: 4.109993
+got ts 1664900472804754, data age: 4.130257
+bytes per sec: 24001092.2, flushed count: 125316459, indexed count: 125093725, fraction indexed: 0.9982226277236257, flushes (init: 802, completed: 800, pending: 2, retries: 0, avg dur 1170.7575 ms), per batch stats (decomp ms: 7489.918952618454, serialize: 0, flush: 1167.8379052369078) completeness: 0.3085550924520814
+got ts 1664900475758413, data age: 2.190071
+got ts 1664900475758413, data age: 3.217639
+got ts 1664900475785824, data age: 4.204854
+got ts 1664900475785824, data age: 5.217658
+got ts 1664900479741492, data age: 2.280314
+bytes per sec: 24000044, flushed count: 126564932, indexed count: 126507944, fraction indexed: 0.9995497330966843, flushes (init: 810, completed: 808, pending: 2, retries: 0, avg dur 1171.4084158415842 ms), per batch stats (decomp ms: 7415.944444444444, serialize: 0, flush: 1168.5160493827161) completeness: 0.308962682786532
+got ts 1664900480740410, data age: 2.320988
+got ts 1664900480820262, data age: 3.252745
+got ts 1664900481781034, data age: 3.312889
+got ts 1664900482751998, data age: 3.358225
+got ts 1664900483763874, data age: 3.358467
+bytes per sec: 27000079.2, flushed count: 128161449, indexed count: 128096381, fraction indexed: 0.9994922966265776, flushes (init: 819, completed: 817, pending: 2, retries: 0, avg dur 1172.6022031823745 ms), per batch stats (decomp ms: 8556.833943833944, serialize: 0, flush: 1169.7387057387057) completeness: 0.3094138159825922
+got ts 1664900485739992, data age: 2.444755
+got ts 1664900486778312, data age: 2.42014
+got ts 1664900486778312, data age: 3.436329
+got ts 1664900488745521, data age: 2.484318
+got ts 1664900488809429, data age: 3.510084
+bytes per sec: 27000068.4, flushed count: 129757323, indexed count: 129715011, fraction indexed: 0.9996739143578047, flushes (init: 828, completed: 826, pending: 2, retries: 0, avg dur 1173.5072639225182 ms), per batch stats (decomp ms: 8463.824879227053, serialize: 0, flush: 1170.6727053140096) completeness: 0.31011059437239435
+got ts 1664900490740260, data age: 2.591621
+got ts 1664900490740260, data age: 3.6041410000000003
+got ts 1664900490740260, data age: 4.616745
+got ts 1664900490740260, data age: 5.629592
+got ts 1664900490740260, data age: 6.66905
+bytes per sec: 6000003.6, flushed count: 130135930, indexed count: 130135930, fraction indexed: 1, flushes (init: 828, completed: 828, pending: 0, retries: 0, avg dur 1173.9492753623188 ms), per batch stats (decomp ms: 8463.824879227053, serialize: 0, flush: 1173.9492753623188) completeness: 0.31011059437239435
+got ts 1664900490740260, data age: 7.6815809999999995
+got ts 1664900490740260, data age: 8.694886
+got ts 1664900494748717, data age: 5.701087
+got ts 1664900494751603, data age: 6.713253
+got ts 1664900494762189, data age: 7.717398
+bytes per sec: 18001800, flushed count: 130353350, indexed count: 130276412, fraction indexed: 0.9994097735117663, flushes (init: 835, completed: 834, pending: 1, retries: 0, avg dur 1169.9832134292567 ms), per batch stats (decomp ms: 8392.870658682636, serialize: 0, flush: 1168.5820359281438) completeness: 0.30813756935755177
+got ts 1664900494774529, data age: 8.75958
+got ts 1664900494774529, data age: 9.77807
+got ts 1664900494774529, data age: 10.795512
+got ts 1664900499819337, data age: 6.879354
+got ts 1664900502819387, data age: 4.944477
+bytes per sec: 9000285.2, flushed count: 130633626, indexed count: 130633626, fraction indexed: 1, flushes (init: 840, completed: 837, pending: 3, retries: 0, avg dur 1168.888888888889 ms), per batch stats (decomp ms: 8342.913095238095, serialize: 0, flush: 1164.7142857142858) completeness: 0.30793925051014726
+got ts 1664900504823134, data age: 4.214132
+got ts 1664900506775232, data age: 3.350451
+got ts 1664900507758644, data age: 3.425306
+got ts 1664900508807624, data age: 3.388234
+bytes per sec: 30001124.2, flushed count: 132411610, indexed count: 132440081, fraction indexed: 1.0002150189095955, flushes (init: 850, completed: 847, pending: 3, retries: 0, avg dur 1170.0389610389611 ms), per batch stats (decomp ms: 8244.761176470589, serialize: 0, flush: 1165.909411764706) completeness: 0.3086773805361418
+got ts 1664900510814742, data age: 2.393252
+got ts 1664900511796281, data age: 2.479183
+got ts 1664900511796281, data age: 3.497414
+got ts 1664900513774848, data age: 2.563958
+got ts 1664900513791797, data age: 3.603735
+bytes per sec: 33000075.6, flushed count: 134550206, indexed count: 134282341, fraction indexed: 0.9980091817919625, flushes (init: 860, completed: 858, pending: 2, retries: 0, avg dur 1173.3729603729603 ms), per batch stats (decomp ms: 8148.891860465116, serialize: 0, flush: 1170.6441860465115) completeness: 0.30960234804577486
+got ts 1664900515776496, data age: 2.653655
+got ts 1664900515813806, data age: 3.639218
+got ts 1664900517801824, data age: 2.693321
+got ts 1664900517803088, data age: 3.82144
+got ts 1664900519733743, data age: 2.905176
+bytes per sec: 30000081.8, flushed count: 136316519, indexed count: 136210756, fraction indexed: 0.9992241365846497, flushes (init: 870, completed: 868, pending: 2, retries: 0, avg dur 1175.23732718894 ms), per batch stats (decomp ms: 8055.226436781609, serialize: 0, flush: 1172.535632183908) completeness: 0.31021431782744113
+got ts 1664900519799734, data age: 3.852927
+got ts 1664900521765915, data age: 2.900075
+got ts 1664900522793324, data age: 2.901859
+got ts 1664900523762130, data age: 3.063162
+bytes per sec: 27000065.8, flushed count: 138004112, indexed count: 137932917, fraction indexed: 0.9994841095749378, flushes (init: 880, completed: 877, pending: 3, retries: 0, avg dur 1177.4754846066135 ms), per batch stats (decomp ms: 7963.689772727273, serialize: 0, flush: 1173.4613636363636) completeness: 0.31106415931085885
+got ts 1664900524769767, data age: 3.071813
+got ts 1664900524769767, data age: 4.182496
+got ts 1664900526759120, data age: 3.245679
+got ts 1664900527799517, data age: 3.222837
+got ts 1664900528817057, data age: 3.22026
+bytes per sec: 30000068.6, flushed count: 139959198, indexed count: 139869818, fraction indexed: 0.9993613853088812, flushes (init: 888, completed: 887, pending: 1, retries: 0, avg dur 1181.5670800450957 ms), per batch stats (decomp ms: 7891.94481981982, serialize: 0, flush: 1180.2364864864865) completeness: 0.311744802380596
+got ts 1664900528817057, data age: 4.233181
+got ts 1664900530783612, data age: 3.348161
+got ts 1664900531823745, data age: 3.387968
+got ts 1664900532780719, data age: 3.457215
+got ts 1664900533760807, data age: 3.495143
+bytes per sec: 24000051, flushed count: 141492559, indexed count: 141125538, fraction indexed: 0.9974060756085413, flushes (init: 898, completed: 895, pending: 3, retries: 0, avg dur 1184.1050279329609 ms), per batch stats (decomp ms: 7804.061247216036, serialize: 0, flush: 1180.1492204899778) completeness: 0.3125321308310971
+got ts 1664900534779620, data age: 3.753496
+got ts 1664900535763263, data age: 3.818072
+got ts 1664900535769179, data age: 4.906979
+got ts 1664900535779272, data age: 5.929902
+got ts 1664900535779272, data age: 6.942607
+bytes per sec: 36003711.8, flushed count: 143141590, indexed count: 142878559, fraction indexed: 0.9981624418172245, flushes (init: 908, completed: 907, pending: 1, retries: 0, avg dur 1183.4950385887541 ms), per batch stats (decomp ms: 7718.113436123348, serialize: 0, flush: 1182.191629955947) completeness: 0.31122081310615274
+got ts 1664900535818685, data age: 7.915799
+got ts 1664900535818685, data age: 8.927013
+got ts 1664900540793114, data age: 4.9689879999999995
+got ts 1664900541733380, data age: 5.051408
+got ts 1664900543769251, data age: 4.028011
+bytes per sec: 21002939.8, flushed count: 143815328, indexed count: 143586464, fraction indexed: 0.9984086258176875, flushes (init: 915, completed: 914, pending: 1, retries: 0, avg dur 1181.7166301969366 ms), per batch stats (decomp ms: 7659.067759562841, serialize: 0, flush: 1180.4251366120218) completeness: 0.3101842947401431
+got ts 1664900543769251, data age: 5.048837
+got ts 1664900546814785, data age: 3.0172
+got ts 1664900546814785, data age: 4.031122
+got ts 1664900548827436, data age: 3.082283
+bytes per sec: 24000082.4, flushed count: 144925278, indexed count: 144832641, fraction indexed: 0.9993607947400315, flushes (init: 925, completed: 922, pending: 3, retries: 0, avg dur 1181.4869848156181 ms), per batch stats (decomp ms: 7576.267027027027, serialize: 0, flush: 1177.6551351351352) completeness: 0.3101426091262404
+got ts 1664900548827437, data age: 4.09615
+got ts 1664900549805044, data age: 4.134196
+got ts 1664900552742776, data age: 2.209523
+got ts 1664900552774177, data age: 3.193438
+got ts 1664900555761832, data age: 1.217694
+bytes per sec: 24000059.8, flushed count: 146156835, indexed count: 145953938, fraction indexed: 0.9986117857574023, flushes (init: 932, completed: 930, pending: 2, retries: 0, avg dur 1181.5709677419354 ms), per batch stats (decomp ms: 7519.3637339055795, serialize: 0, flush: 1179.0354077253219) completeness: 0.31066100051088347
+got ts 1664900555763499, data age: 2.5532
+got ts 1664900555799242, data age: 3.530496
+got ts 1664900556759840, data age: 3.726666
+got ts 1664900558733085, data age: 2.842391
+got ts 1664900558800509, data age: 3.788128
+bytes per sec: 27000067.2, flushed count: 147827197, indexed count: 147728052, fraction indexed: 0.9993293182715222, flushes (init: 941, completed: 939, pending: 2, retries: 0, avg dur 1184.0340788072417 ms), per batch stats (decomp ms: 7447.446333687566, serialize: 0, flush: 1181.5175345377259) completeness: 0.3110111032025104
+got ts 1664900560770347, data age: 2.830728
+got ts 1664900561813469, data age: 2.873738
+got ts 1664900561813469, data age: 3.886272
+got ts 1664900563741672, data age: 2.973532
+got ts 1664900564758548, data age: 3.0394
+bytes per sec: 30000105.6, flushed count: 149531184, indexed count: 149474396, fraction indexed: 0.9996202263736506, flushes (init: 951, completed: 949, pending: 2, retries: 0, avg dur 1185.7945205479452 ms), per batch stats (decomp ms: 7369.134595162986, serialize: 0, flush: 1183.3007360672975) completeness: 0.31175250894064505
+got ts 1664900565801507, data age: 3.009636
+got ts 1664900565801507, data age: 4.023854
+got ts 1664900567794941, data age: 3.042946
+got ts 1664900567794941, data age: 4.05478
+bytes per sec: 18000049.2, flushed count: 150671916, indexed count: 150671916, fraction indexed: 1, flushes (init: 955, completed: 955, pending: 0, retries: 0, avg dur 1186.8732984293194 ms), per batch stats (decomp ms: 7338.269109947644, serialize: 0, flush: 1186.8732984293194) completeness: 0.3118561102988404
+got ts 1664900567794941, data age: 5.067619
+got ts 1664900567794941, data age: 6.07876
+got ts 1664900567794941, data age: 7.090174
+got ts 1664900567794941, data age: 8.1019
+got ts 1664900567794941, data age: 9.113319
+bytes per sec: 6000261.4, flushed count: 150743965, indexed count: 150693481, fraction indexed: 0.9996651010207938, flushes (init: 958, completed: 957, pending: 1, retries: 0, avg dur 1185.6280041797284 ms), per batch stats (decomp ms: 7315.289144050104, serialize: 0, flush: 1184.3903966597077) completeness: 0.3112587727697494
+got ts 1664900571769989, data age: 6.155945
+got ts 1664900571769989, data age: 7.170825
+got ts 1664900571769989, data age: 8.183541
+got ts 1664900571769989, data age: 9.195196
+got ts 1664900571769989, data age: 10.258229
+bytes per sec: 12000979, flushed count: 150907147, indexed count: 150934243, fraction indexed: 1.000179554120124, flushes (init: 964, completed: 961, pending: 3, retries: 0, avg dur 1183.7044745057233 ms), per batch stats (decomp ms: 7269.758298755187, serialize: 0, flush: 1180.0207468879669) completeness: 0.310224185105591
+got ts 1664900579841191, data age: 3.2001910000000002
+got ts 1664900581743357, data age: 2.687266
+got ts 1664900581771585, data age: 3.73659
+got ts 1664900582765724, data age: 3.817731
+got ts 1664900583747606, data age: 3.8897589999999997
+bytes per sec: 30000086.6, flushed count: 152560379, indexed count: 152242953, fraction indexed: 0.9979193418233446, flushes (init: 974, completed: 971, pending: 3, retries: 0, avg dur 1185.015447991761 ms), per batch stats (decomp ms: 8223.109856262834, serialize: 0, flush: 1181.3655030800821) completeness: 0.31078361505715735
+got ts 1664900585748482, data age: 2.944919
+got ts 1664900586825155, data age: 2.888969
+got ts 1664900587831323, data age: 2.911463
+got ts 1664900588738313, data age: 3.021221
+bytes per sec: 33000118.6, flushed count: 154659748, indexed count: 154460715, fraction indexed: 0.9987130911399131, flushes (init: 984, completed: 982, pending: 2, retries: 0, avg dur 1187.6507128309572 ms), per batch stats (decomp ms: 8139.541666666667, serialize: 0, flush: 1185.236788617886) completeness: 0.3116310451348982
+got ts 1664900589748240, data age: 3.098327
+got ts 1664900590806279, data age: 3.057959
+got ts 1664900591816049, data age: 3.06105
+got ts 1664900594741193, data age: 1.166296
+got ts 1664900594741193, data age: 2.22017
+bytes per sec: 30000069.4, flushed count: 156492718, indexed count: 156491925, fraction indexed: 0.9999949326715637, flushes (init: 995, completed: 992, pending: 3, retries: 0, avg dur 1189.2842741935483 ms), per batch stats (decomp ms: 8049.556783919598, serialize: 0, flush: 1185.6984924623116) completeness: 0.312187725796196
+got ts 1664900594747891, data age: 3.499441
+got ts 1664900595801125, data age: 3.734133
+got ts 1664900596760911, data age: 3.789391
+got ts 1664900598785890, data age: 2.777148
+got ts 1664900598785890, data age: 3.8152369999999998
+bytes per sec: 24000067.8, flushed count: 158037114, indexed count: 158150199, fraction indexed: 1.0007155597640185, flushes (init: 1002, completed: 1000, pending: 2, retries: 0, avg dur 1190.947 ms), per batch stats (decomp ms: 7993.3223552894215, serialize: 0, flush: 1188.5698602794412) completeness: 0.3128460730419287
+got ts 1664900599817748, data age: 3.864546
+got ts 1664900600823689, data age: 3.8772830000000003
+got ts 1664900601829858, data age: 3.979589
+got ts 1664900603771138, data age: 3.143078
+bytes per sec: 27000058.2, flushed count: 159756553, indexed count: 159385847, fraction indexed: 0.997679556844219, flushes (init: 1010, completed: 1009, pending: 1, retries: 0, avg dur 1192.8354806739346 ms), per batch stats (decomp ms: 7930.008910891089, serialize: 0, flush: 1191.6544554455445) completeness: 0.31333156893025227
+got ts 1664900603775214, data age: 4.204985
+got ts 1664900605772097, data age: 3.229807
+got ts 1664900607830920, data age: 2.18208
+got ts 1664900607830920, data age: 3.392292
+got ts 1664900607832015, data age: 4.410645
+bytes per sec: 24000053.8, flushed count: 161295576, indexed count: 160976799, fraction indexed: 0.9980236469721897, flushes (init: 1019, completed: 1017, pending: 2, retries: 0, avg dur 1195.070796460177 ms), per batch stats (decomp ms: 7859.969578017664, serialize: 0, flush: 1192.7252208047105) completeness: 0.3138983713117716
+got ts 1664900609786787, data age: 3.469396
+got ts 1664900610751080, data age: 3.518963
+got ts 1664900610751315, data age: 4.591075
+got ts 1664900610751324, data age: 5.608878
+got ts 1664900610751324, data age: 6.623935
+bytes per sec: 36002582.4, flushed count: 162801928, indexed count: 162646371, fraction indexed: 0.999044501487722, flushes (init: 1030, completed: 1029, pending: 1, retries: 0, avg dur 1193.6511175898931 ms), per batch stats (decomp ms: 7776.028155339805, serialize: 0, flush: 1192.4922330097088) completeness: 0.3124321591189155
+got ts 1664900610781401, data age: 7.607401
+got ts 1664900614810652, data age: 4.599357
+got ts 1664900616782456, data age: 3.827305
+got ts 1664900618747933, data age: 2.874768
+got ts 1664900618767436, data age: 3.944928
+bytes per sec: 24002112.6, flushed count: 163869036, indexed count: 163769645, fraction indexed: 0.999393472968255, flushes (init: 1038, completed: 1037, pending: 1, retries: 0, avg dur 1192.4744455159114 ms), per batch stats (decomp ms: 7716.097302504817, serialize: 0, flush: 1191.325626204239) completeness: 0.31222635113628483
+got ts 1664900620834578, data age: 2.940949
+got ts 1664900620834578, data age: 3.954964
+got ts 1664900621806555, data age: 3.996588
+got ts 1664900622839188, data age: 3.990525
+bytes per sec: 27000066.8, flushed count: 165311001, indexed count: 165212635, fraction indexed: 0.9994049639805883, flushes (init: 1047, completed: 1046, pending: 1, retries: 0, avg dur 1193.0946462715106 ms), per batch stats (decomp ms: 7649.769818529131, serialize: 0, flush: 1191.9551098376314) completeness: 0.31249071776273424
+got ts 1664900624742518, data age: 3.326003
+got ts 1664900626809704, data age: 2.320982
+got ts 1664900627811042, data age: 2.740547
+got ts 1664900628739181, data age: 2.845299
+got ts 1664900629801396, data age: 2.84717
+bytes per sec: 27000073, flushed count: 166939665, indexed count: 166968658, fraction indexed: 1.0001736735245037, flushes (init: 1058, completed: 1055, pending: 3, retries: 0, avg dur 1194.7488151658767 ms), per batch stats (decomp ms: 7570.235349716446, serialize: 0, flush: 1191.3610586011341) completeness: 0.313023260325264
+got ts 1664900629813452, data age: 3.848053
+got ts 1664900631738901, data age: 2.968811
+got ts 1664900631831959, data age: 3.890721
+got ts 1664900633761055, data age: 2.981198
+got ts 1664900634810771, data age: 2.94863
+bytes per sec: 30000096.6, flushed count: 168771511, indexed count: 168469450, fraction indexed: 0.9982102370346142, flushes (init: 1068, completed: 1065, pending: 3, retries: 0, avg dur 1196.8835680751174 ms), per batch stats (decomp ms: 7499.352996254682, serialize: 0, flush: 1193.5215355805244) completeness: 0.31352600465467156
+got ts 1664900635746741, data age: 3.023967
+got ts 1664900636735010, data age: 3.13074
+got ts 1664900637747764, data age: 3.179636
+got ts 1664900638805917, data age: 3.141074
+bytes per sec: 30000082.4, flushed count: 170564837, indexed count: 170271907, fraction indexed: 0.9982825885736343, flushes (init: 1077, completed: 1075, pending: 2, retries: 0, avg dur 1199.0837209302326 ms), per batch stats (decomp ms: 7436.684308263695, serialize: 0, flush: 1196.8570102135561) completeness: 0.3138938861969939
+got ts 1664900639757992, data age: 3.2024179999999998
+got ts 1664900640832411, data age: 3.16253
+got ts 1664900641746214, data age: 3.2638249999999998
+got ts 1664900643766039, data age: 2.725051
+got ts 1664900644748287, data age: 2.756456
+bytes per sec: 27000075.6, flushed count: 172233616, indexed count: 171952822, fraction indexed: 0.9983696910828371, flushes (init: 1084, completed: 1084, pending: 0, retries: 0, avg dur 1200.9474169741698 ms), per batch stats (decomp ms: 7388.661439114391, serialize: 0, flush: 1200.9474169741698) completeness: 0.31436134265117327
+got ts 1664900644748287, data age: 3.774486
+got ts 1664900644748287, data age: 4.796341
+got ts 1664900644748287, data age: 5.816835
+got ts 1664900644748287, data age: 6.837959
+got ts 1664900644748287, data age: 7.858447
+bytes per sec: 0, flushed count: 172233616, indexed count: 172233616, fraction indexed: 1, flushes (init: 1084, completed: 1084, pending: 0, retries: 0, avg dur 1200.9474169741698 ms), per batch stats (decomp ms: 7388.661439114391, serialize: 0, flush: 1200.9474169741698) completeness: 0.31436134265117327
+got ts 1664900644748287, data age: 8.878409
+got ts 1664900648750440, data age: 5.897255
+got ts 1664900648777075, data age: 6.892152
+got ts 1664900648777080, data age: 7.906175
+got ts 1664900648777080, data age: 8.919796999999999
+bytes per sec: 15001591, flushed count: 172448860, indexed count: 172448641, fraction indexed: 0.9999987300582909, flushes (init: 1089, completed: 1089, pending: 0, retries: 0, avg dur 1198.606978879706 ms), per batch stats (decomp ms: 7354.737373737374, serialize: 0, flush: 1198.606978879706) completeness: 0.3130863344426797
+got ts 1664900648777080, data age: 9.934452
+got ts 1664900648777080, data age: 10.94782
+got ts 1664900656781798, data age: 3.9557320000000002
+got ts 1664900658732153, data age: 3.056805
+got ts 1664900659819948, data age: 3.008559
+bytes per sec: 21000487.2, flushed count: 173646119, indexed count: 173376393, fraction indexed: 0.9984466914575845, flushes (init: 1098, completed: 1096, pending: 2, retries: 0, avg dur 1199.0027372262773 ms), per batch stats (decomp ms: 7294.452641165756, serialize: 0, flush: 1196.8187613843352) completeness: 0.31358367911975604
+got ts 1664900659819948, data age: 4.159966
+got ts 1664900662769595, data age: 2.2741
+got ts 1664900662829510, data age: 3.536499
+got ts 1664900664799693, data age: 2.599916
+bytes per sec: 30000083.2, flushed count: 175462014, indexed count: 175362090, fraction indexed: 0.999430509215516, flushes (init: 1109, completed: 1106, pending: 3, retries: 0, avg dur 1200.4710669077758 ms), per batch stats (decomp ms: 8125.129846708746, serialize: 0, flush: 1197.223624887286) completeness: 0.31432849418098724
+got ts 1664900665767833, data age: 2.70668
+got ts 1664900666750712, data age: 2.75526
+got ts 1664900667761125, data age: 2.776648
+got ts 1664900668781714, data age: 2.771052
+got ts 1664900669770751, data age: 2.878336
+bytes per sec: 33000080.4, flushed count: 177543611, indexed count: 177208192, fraction indexed: 0.998110779666411, flushes (init: 1120, completed: 1117, pending: 3, retries: 0, avg dur 1202.1280214861235 ms), per batch stats (decomp ms: 8045.3294642857145, serialize: 0, flush: 1198.9080357142857) completeness: 0.31485701310387154
+got ts 1664900669770751, data age: 3.937005
+got ts 1664900671772353, data age: 3.02507
+got ts 1664900672758550, data age: 3.073766
+got ts 1664900673784008, data age: 3.060426
+bytes per sec: 33000078.2, flushed count: 179608771, indexed count: 179393251, fraction indexed: 0.9988000586007016, flushes (init: 1131, completed: 1128, pending: 3, retries: 0, avg dur 1204.7030141843973 ms), per batch stats (decomp ms: 7967.081343943413, serialize: 0, flush: 1201.5075154730328) completeness: 0.3154935990237383
+got ts 1664900675781328, data age: 2.077302
+got ts 1664900675781328, data age: 3.163534
+got ts 1664900677735493, data age: 2.235469
+got ts 1664900677825117, data age: 3.161892
+got ts 1664900678787385, data age: 3.241651
+bytes per sec: 33000103.6, flushed count: 181676808, indexed count: 181303272, fraction indexed: 0.9979439533085588, flushes (init: 1139, completed: 1139, pending: 0, retries: 0, avg dur 1206.5733099209833 ms), per batch stats (decomp ms: 7911.122914837577, serialize: 0, flush: 1206.5733099209833) completeness: 0.3160329819966793
+got ts 1664900679736554, data age: 3.349179
+got ts 1664900680808752, data age: 3.293388
+got ts 1664900682750404, data age: 2.366485
+got ts 1664900682797191, data age: 3.557166
+got ts 1664900683752589, data age: 3.6365119999999997
+bytes per sec: 24000045.8, flushed count: 183203534, indexed count: 183003929, fraction indexed: 0.9989104740741519, flushes (init: 1149, completed: 1147, pending: 2, retries: 0, avg dur 1207.8090671316477 ms), per batch stats (decomp ms: 7842.270670147955, serialize: 0, flush: 1205.7067014795475) completeness: 0.31649727104246217
+got ts 1664900684789372, data age: 3.654416
+got ts 1664900685756613, data age: 3.703771
+got ts 1664900685756722, data age: 4.738885
+got ts 1664900685756726, data age: 5.759272
+got ts 1664900685786747, data age: 6.741275
+bytes per sec: 33003962.2, flushed count: 184504996, indexed count: 184399722, fraction indexed: 0.9994294246644682, flushes (init: 1159, completed: 1158, pending: 1, retries: 0, avg dur 1205.6813471502592 ms), per batch stats (decomp ms: 7774.606557377049, serialize: 0, flush: 1204.6410698878344) completeness: 0.3151672305887942
+got ts 1664900685789819, data age: 7.749852
+got ts 1664900689837965, data age: 4.779162
+got ts 1664900691805946, data age: 3.823156
+got ts 1664900691805946, data age: 4.835595
+got ts 1664900691805946, data age: 5.869647
+bytes per sec: 18002168.4, flushed count: 185149402, indexed count: 185142435, fraction indexed: 0.9999623709289647, flushes (init: 1166, completed: 1164, pending: 2, retries: 0, avg dur 1204.2096219931273 ms), per batch stats (decomp ms: 7727.932246998284, serialize: 0, flush: 1202.1440823327616) completeness: 0.31471747388811055
+got ts 1664900696758178, data age: 2.256327
+got ts 1664900697745113, data age: 2.315965
+got ts 1664900697770399, data age: 3.304348
+got ts 1664900698758346, data age: 3.381245
+bytes per sec: 27000062, flushed count: 186646888, indexed count: 186502477, fraction indexed: 0.9992262876625084, flushes (init: 1175, completed: 1173, pending: 2, retries: 0, avg dur 1204.682011935209 ms), per batch stats (decomp ms: 7668.739574468085, serialize: 0, flush: 1202.631489361702) completeness: 0.3149993671965315
+got ts 1664900699777813, data age: 3.39853
+got ts 1664900700779550, data age: 3.408104
+got ts 1664900702792950, data age: 2.705248
+got ts 1664900702792950, data age: 3.850518
+got ts 1664900703812658, data age: 3.949794
+bytes per sec: 30000097.2, flushed count: 188301164, indexed count: 188099938, fraction indexed: 0.9989313608279129, flushes (init: 1185, completed: 1183, pending: 2, retries: 0, avg dur 1205.6491969568892 ms), per batch stats (decomp ms: 7604.024472573839, serialize: 0, flush: 1203.614345991561) completeness: 0.31552272699821426
+got ts 1664900704818121, data age: 3.965553
+got ts 1664900705829520, data age: 4.001057
+got ts 1664900708829672, data age: 2.014191
+got ts 1664900709823784, data age: 2.080404
+bytes per sec: 36000075.4, flushed count: 190581014, indexed count: 190431475, fraction indexed: 0.9992153520602005, flushes (init: 1197, completed: 1195, pending: 2, retries: 0, avg dur 1207.8217573221757 ms), per batch stats (decomp ms: 7527.793650793651, serialize: 0, flush: 1205.8036758563073) completeness: 0.3161025216196399
+got ts 1664900709823784, data age: 3.414661
+got ts 1664900711805322, data age: 2.538563
+got ts 1664900711805322, data age: 3.792507
+got ts 1664900713775773, data age: 2.834902
+got ts 1664900713775773, data age: 3.9409140000000003
+bytes per sec: 30000103.2, flushed count: 192441799, indexed count: 192441799, fraction indexed: 1, flushes (init: 1208, completed: 1205, pending: 3, retries: 0, avg dur 1209.146887966805 ms), per batch stats (decomp ms: 8287.205298013245, serialize: 0, flush: 1206.1440397350993) completeness: 0.3165637857805522
+got ts 1664900714812204, data age: 3.918831
+got ts 1664900715815139, data age: 3.929483
+got ts 1664900717751115, data age: 3.034761
+got ts 1664900718806037, data age: 3.45979
+bytes per sec: 33000080.6, flushed count: 194544769, indexed count: 194211970, fraction indexed: 0.9982893449065187, flushes (init: 1218, completed: 1216, pending: 2, retries: 0, avg dur 1211.157072368421 ms), per batch stats (decomp ms: 8219.165845648604, serialize: 0, flush: 1209.1683087027914) completeness: 0.31713098096712755
+got ts 1664900719740714, data age: 3.537847
+got ts 1664900720835157, data age: 3.624428
+got ts 1664900720835157, data age: 4.667952
+got ts 1664900720835157, data age: 5.684791
+got ts 1664900720835157, data age: 6.701462
+bytes per sec: 9000028.2, flushed count: 195121234, indexed count: 195121234, fraction indexed: 1, flushes (init: 1219, completed: 1219, pending: 0, retries: 0, avg dur 1211.4454470877768 ms), per batch stats (decomp ms: 8212.42329778507, serialize: 0, flush: 1211.4454470877768) completeness: 0.3172065004760409
+got ts 1664900720835157, data age: 7.718506
+got ts 1664900720835157, data age: 8.73525
+got ts 1664900720835157, data age: 9.751097
+got ts 1664900725750510, data age: 5.852378
+got ts 1664900725774851, data age: 6.840257
+bytes per sec: 18001492, flushed count: 195354816, indexed count: 195235888, fraction indexed: 0.9993912205368922, flushes (init: 1225, completed: 1225, pending: 0, retries: 0, avg dur 1208.2848979591836 ms), per batch stats (decomp ms: 8172.19918367347, serialize: 0, flush: 1208.2848979591836) completeness: 0.31577433149087986
+got ts 1664900725774852, data age: 7.852485
+got ts 1664900725774852, data age: 8.911504
+got ts 1664900733746854, data age: 2.102859
+got ts 1664900733746854, data age: 3.116283
+bytes per sec: 12000071, flushed count: 195953955, indexed count: 195743698, fraction indexed: 0.9989270081331096, flushes (init: 1232, completed: 1229, pending: 3, retries: 0, avg dur 1207.880390561432 ms), per batch stats (decomp ms: 8125.766233766234, serialize: 0, flush: 1204.9391233766235) completeness: 0.31596128172842286
+got ts 1664900734751872, data age: 3.586214
+got ts 1664900736826923, data age: 2.675124
+got ts 1664900736826923, data age: 3.688575
+got ts 1664900738738410, data age: 2.789732
+got ts 1664900739789132, data age: 2.756353
+bytes per sec: 33000924.4, flushed count: 198044657, indexed count: 197860844, fraction indexed: 0.9990718608480309, flushes (init: 1243, completed: 1240, pending: 3, retries: 0, avg dur 1209.2032258064517 ms), per batch stats (decomp ms: 8053.856798069188, serialize: 0, flush: 1206.2847948511665) completeness: 0.31645327112086535
+got ts 1664900739789132, data age: 3.842489
+got ts 1664900741799556, data age: 2.867647
+got ts 1664900742751484, data age: 3.024455
+got ts 1664900743748665, data age: 3.039213
+got ts 1664900744770363, data age: 3.031506
+bytes per sec: 33000084.2, flushed count: 200038490, indexed count: 199858945, fraction indexed: 0.9991024477339336, flushes (init: 1255, completed: 1251, pending: 4, retries: 0, avg dur 1209.9368505195844 ms), per batch stats (decomp ms: 7976.84780876494, serialize: 0, flush: 1206.0804780876495) completeness: 0.31703532119935196
+got ts 1664900745835524, data age: 2.981408
+got ts 1664900746785896, data age: 3.046244
+got ts 1664900747760134, data age: 3.093687
+got ts 1664900749749234, data age: 2.196248
+bytes per sec: 36000112.2, flushed count: 202301241, indexed count: 202175370, fraction indexed: 0.9993778041134211, flushes (init: 1265, completed: 1263, pending: 2, retries: 0, avg dur 1211.9841646872526 ms), per batch stats (decomp ms: 7913.789723320158, serialize: 0, flush: 1210.0679841897233) completeness: 0.31758273869889125
+got ts 1664900749776138, data age: 3.186489
+got ts 1664900750809560, data age: 3.440914
+got ts 1664900752735189, data age: 2.529239
+got ts 1664900753749945, data age: 2.5936719999999998
+got ts 1664900754737604, data age: 2.618097
+bytes per sec: 27000092.4, flushed count: 204014454, indexed count: 203845909, fraction indexed: 0.9991738575542299, flushes (init: 1274, completed: 1272, pending: 2, retries: 0, avg dur 1213.001572327044 ms), per batch stats (decomp ms: 7857.883830455259, serialize: 0, flush: 1211.0973312401884) completeness: 0.31803552803991125
+got ts 1664900754797409, data age: 3.5735390000000002
+got ts 1664900756738906, data age: 2.680644
+got ts 1664900757809794, data age: 2.637569
+got ts 1664900757809794, data age: 3.670999
+got ts 1664900758820043, data age: 3.693939
+bytes per sec: 30000067, flushed count: 205847470, indexed count: 205539882, fraction indexed: 0.998505747969601, flushes (init: 1284, completed: 1282, pending: 2, retries: 0, avg dur 1214.5702028081123 ms), per batch stats (decomp ms: 8576.104361370717, serialize: 0, flush: 1212.6783489096574) completeness: 0.31838078258135394
+got ts 1664900759815567, data age: 3.745044
+got ts 1664900760782632, data age: 3.989997
+got ts 1664900760783924, data age: 5.030859
+got ts 1664900760783924, data age: 6.091478
+bytes per sec: 36002182.8, flushed count: 207210979, indexed count: 207033729, fraction indexed: 0.9991445916579546, flushes (init: 1295, completed: 1294, pending: 1, retries: 0, avg dur 1212.4126738794437 ms), per batch stats (decomp ms: 9275.97915057915, serialize: 0, flush: 1211.4764478764478) completeness: 0.3170495463536573
+got ts 1664900760795490, data age: 7.128244
+got ts 1664900760795490, data age: 8.174926
+got ts 1664900766770397, data age: 3.21221
+got ts 1664900767799076, data age: 3.217696
+got ts 1664900768735965, data age: 3.29276
+bytes per sec: 18001687.6, flushed count: 207949651, indexed count: 207853792, fraction indexed: 0.9995390278390032, flushes (init: 1303, completed: 1300, pending: 3, retries: 0, avg dur 1211.3692307692309 ms), per batch stats (decomp ms: 9219.027628549502, serialize: 0, flush: 1208.580199539524) completeness: 0.31688384098503886
+got ts 1664900770738373, data age: 2.678522
+got ts 1664900770811640, data age: 3.617126
+got ts 1664900771813151, data age: 3.627515
+got ts 1664900773739374, data age: 2.712865
+got ts 1664900773739374, data age: 3.742478
+bytes per sec: 27000080.4, flushed count: 209425705, indexed count: 209425705, fraction indexed: 1, flushes (init: 1311, completed: 1309, pending: 2, retries: 0, avg dur 1211.353705118411 ms), per batch stats (decomp ms: 9162.771167048055, serialize: 0, flush: 1209.5057208237986) completeness: 0.3171273221769207
+got ts 1664900774838155, data age: 3.657327
+got ts 1664900774841106, data age: 4.677485
+got ts 1664900777737431, data age: 2.822495
+got ts 1664900777753870, data age: 3.897093
+got ts 1664900778830109, data age: 3.835509
+bytes per sec: 27000064.8, flushed count: 211013832, indexed count: 210890415, fraction indexed: 0.9994151236493349, flushes (init: 1321, completed: 1318, pending: 3, retries: 0, avg dur 1211.6274658573595 ms), per batch stats (decomp ms: 9851.63890991673, serialize: 0, flush: 1208.875851627555) completeness: 0.3174264871771964
+got ts 1664900780737865, data age: 2.989156
+got ts 1664900781769375, data age: 2.968821
+got ts 1664900782774995, data age: 3.031957
+got ts 1664900783822694, data age: 2.999015
+bytes per sec: 33000084.6, flushed count: 212984382, indexed count: 212995071, fraction indexed: 1.0000501867784841, flushes (init: 1332, completed: 1329, pending: 3, retries: 0, avg dur 1212.8359668924004 ms), per batch stats (decomp ms: 9770.281531531531, serialize: 0, flush: 1210.1043543543544) completeness: 0.31794886882969126
+got ts 1664900783822694, data age: 4.033049
+got ts 1664900785755927, data age: 3.245017
+got ts 1664900787765562, data age: 2.263664
+got ts 1664900788790713, data age: 2.2981
+got ts 1664900788823991, data age: 3.31715
+bytes per sec: 33000087.4, flushed count: 215104595, indexed count: 215111101, fraction indexed: 1.0000302457509103, flushes (init: 1343, completed: 1340, pending: 3, retries: 0, avg dur 1214.5626865671643 ms), per batch stats (decomp ms: 9690.256887565152, serialize: 0, flush: 1211.849590469099) completeness: 0.31848437845153243
+got ts 1664900789847664, data age: 3.388705
+got ts 1664900790831732, data age: 3.420448
+got ts 1664900792741955, data age: 2.522559
+got ts 1664900792781334, data age: 3.496806
+got ts 1664900794790456, data age: 2.727337
+bytes per sec: 30000085.8, flushed count: 216957898, indexed count: 216577287, fraction indexed: 0.9982456918899537, flushes (init: 1353, completed: 1350, pending: 3, retries: 0, avg dur 1215.297037037037 ms), per batch stats (decomp ms: 9618.636363636364, serialize: 0, flush: 1212.6023651145601) completeness: 0.31889198546136094
+got ts 1664900794825869, data age: 3.772654
+got ts 1664900795809561, data age: 3.864603
+got ts 1664900795809562, data age: 4.876762
+got ts 1664900795809562, data age: 5.890619
+got ts 1664900795809562, data age: 6.904339
+bytes per sec: 24001070, flushed count: 218226051, indexed count: 218226051, fraction indexed: 1, flushes (init: 1358, completed: 1358, pending: 0, retries: 0, avg dur 1215.0964653902797 ms), per batch stats (decomp ms: 9583.221649484536, serialize: 0, flush: 1215.0964653902797) completeness: 0.31853405294846976
+got ts 1664900795809562, data age: 7.918328
+got ts 1664900795809562, data age: 8.932525
+got ts 1664900795809562, data age: 9.946624
+got ts 1664900795809562, data age: 10.960591
+got ts 1664900802750702, data age: 5.033774
+bytes per sec: 6000881.4, flushed count: 218277308, indexed count: 218226078, fraction indexed: 0.9997652985531598, flushes (init: 1361, completed: 1360, pending: 1, retries: 0, avg dur 1214.0742647058823 ms), per batch stats (decomp ms: 9562.097722263043, serialize: 0.7347538574577517, flush: 1213.1822189566494) completeness: 0.31809870858872413
+got ts 1664900802761307, data age: 6.038159
+got ts 1664900802761319, data age: 7.0536200000000004
+got ts 1664900802761319, data age: 8.067977
+got ts 1664900802761319, data age: 9.082311
+bytes per sec: 15001643.6, flushed count: 218556962, indexed count: 218436411, fraction indexed: 0.999448422969935, flushes (init: 1367, completed: 1365, pending: 2, retries: 0, avg dur 1211.9179487179488 ms), per batch stats (decomp ms: 9520.128017556694, serialize: 0.731528895391368, flush: 1210.1448427212874) completeness: 0.31730071919689007
+got ts 1664900809801315, data age: 3.053813
+got ts 1664900810841225, data age: 3.10616
+got ts 1664900810852295, data age: 4.201649
+got ts 1664900812753658, data age: 3.343528
+got ts 1664900813735973, data age: 3.501281
+bytes per sec: 30000177.8, flushed count: 220137810, indexed count: 220107588, fraction indexed: 0.9998627132703828, flushes (init: 1377, completed: 1375, pending: 2, retries: 0, avg dur 1212.1156363636364 ms), per batch stats (decomp ms: 9450.99128540305, serialize: 0.7262164124909223, flush: 1210.355119825708) completeness: 0.3176035241252513
+got ts 1664900815816860, data age: 2.519746
+got ts 1664900815834922, data age: 3.51437
+got ts 1664900816820563, data age: 3.541979
+got ts 1664900817833090, data age: 3.548051
+got ts 1664900819784107, data age: 2.612997
+bytes per sec: 30000096.4, flushed count: 221933052, indexed count: 221581536, fraction indexed: 0.998416116946835, flushes (init: 1388, completed: 1385, pending: 3, retries: 0, avg dur 1213.1292418772564 ms), per batch stats (decomp ms: 9376.091498559077, serialize: 0.7204610951008645, flush: 1210.507204610951) completeness: 0.3180200028023883
+got ts 1664900820798122, data age: 2.62152
+got ts 1664900821801002, data age: 2.665569
+got ts 1664900822795955, data age: 2.849584
+got ts 1664900823789208, data age: 2.926868
+got ts 1664900823840737, data age: 3.893417
+bytes per sec: 36000096.8, flushed count: 224185607, indexed count: 224052451, fraction indexed: 0.999406045723533, flushes (init: 1400, completed: 1397, pending: 3, retries: 0, avg dur 1214.597709377237 ms), per batch stats (decomp ms: 9295.725, serialize: 0.7142857142857143, flush: 1211.995) completeness: 0.3185882423304541
+got ts 1664900825805038, data age: 2.941534
+got ts 1664900826841179, data age: 2.926733
+got ts 1664900826841180, data age: 3.940849
+got ts 1664900827842139, data age: 4.012599
+bytes per sec: 30000087.8, flushed count: 226065350, indexed count: 225801660, fraction indexed: 0.9988335673733281, flushes (init: 1409, completed: 1407, pending: 2, retries: 0, avg dur 1215.6332622601278 ms), per batch stats (decomp ms: 9236.348474095103, serialize: 0.7097232079489, flush: 1213.9077359829666) completeness: 0.3189276727645264
+got ts 1664900829822679, data age: 3.052142
+got ts 1664900830758140, data age: 3.1301579999999998
+got ts 1664900831842428, data age: 3.064715
+got ts 1664900832844961, data age: 3.099693
+got ts 1664900833823259, data age: 3.305539
+bytes per sec: 24000057.6, flushed count: 227577711, indexed count: 227460030, fraction indexed: 0.999482897514511, flushes (init: 1418, completed: 1415, pending: 3, retries: 0, avg dur 1216.2763250883393 ms), per batch stats (decomp ms: 9177.725669957686, serialize: 0.7052186177715092, flush: 1213.7031029619181) completeness: 0.31924136734688235
+got ts 1664900834799721, data age: 3.415295
+got ts 1664900835771085, data age: 3.716622
+got ts 1664900835833284, data age: 4.6756969999999995
+got ts 1664900835846045, data age: 5.680429
+got ts 1664900835846045, data age: 6.71755
+bytes per sec: 36002412, flushed count: 229143584, indexed count: 229019649, fraction indexed: 0.9994591382493171, flushes (init: 1428, completed: 1427, pending: 1, retries: 0, avg dur 1214.5781359495445 ms), per batch stats (decomp ms: 9113.45588235294, serialize: 0.7002801120448179, flush: 1213.7275910364147) completeness: 0.31827855296608015
+got ts 1664900836742823, data age: 6.843262
+got ts 1664900840751939, data age: 4.053883
+got ts 1664900842747396, data age: 3.07146
+got ts 1664900843849675, data age: 2.9823589999999998
+bytes per sec: 21001223.4, flushed count: 229995232, indexed count: 229833955, fraction indexed: 0.9992987811156016, flushes (init: 1436, completed: 1434, pending: 2, retries: 0, avg dur 1213.3800557880056 ms), per batch stats (decomp ms: 9760.222144846797, serialize: 0.6963788300835655, flush: 1211.6901114206128) completeness: 0.31803430583143527
+got ts 1664900843849676, data age: 4.337873
+got ts 1664900846777705, data age: 2.426141
+got ts 1664900846854318, data age: 3.441288
+got ts 1664900848764162, data age: 2.570013
+got ts 1664900849811304, data age: 2.5350099999999998
+bytes per sec: 24000074.8, flushed count: 231426913, indexed count: 231413659, fraction indexed: 0.9999427292192243, flushes (init: 1445, completed: 1442, pending: 3, retries: 0, avg dur 1213.867545076283 ms), per batch stats (decomp ms: 9699.431833910035, serialize: 0.6920415224913494, flush: 1211.3474048442906) completeness: 0.3183166791655409
+got ts 1664900849851498, data age: 3.533263
+got ts 1664900851820058, data age: 2.956213
+got ts 1664900851823060, data age: 3.977186
+got ts 1664900854805943, data age: 2.006568
+got ts 1664900855778123, data age: 2.053241
+bytes per sec: 36000136.4, flushed count: 233435845, indexed count: 233301666, fraction indexed: 0.9994251996731693, flushes (init: 1456, completed: 1454, pending: 2, retries: 0, avg dur 1214.8060522696012 ms), per batch stats (decomp ms: 10314.177197802197, serialize: 0.6868131868131868, flush: 1213.1373626373627) completeness: 0.318609954509208
+got ts 1664900856793160, data age: 2.081166
+got ts 1664900857845832, data age: 2.088271
+got ts 1664900858805140, data age: 2.381892
+got ts 1664900858805140, data age: 3.463639
+bytes per sec: 27000077, flushed count: 235034581, indexed count: 234732132, fraction indexed: 0.9987131723395205, flushes (init: 1466, completed: 1463, pending: 3, retries: 0, avg dur 1215.125085440875 ms), per batch stats (decomp ms: 10926.643246930424, serialize: 0.6821282401091405, flush: 1212.6384720327421) completeness: 0.31902475017903187
+got ts 1664900859836097, data age: 3.453685
+got ts 1664900860826274, data age: 3.550694
+got ts 1664900863737333, data age: 1.653292
+got ts 1664900863759706, data age: 2.643462
+got ts 1664900864805302, data age: 2.6163790000000002
+bytes per sec: 33000116.4, flushed count: 237142949, indexed count: 236814361, fraction indexed: 0.998614388488523, flushes (init: 1476, completed: 1474, pending: 2, retries: 0, avg dur 1216.8120759837177 ms), per batch stats (decomp ms: 10852.614498644987, serialize: 0.6775067750677507, flush: 1215.1632791327913) completeness: 0.3194725514827165
+got ts 1664900865753499, data age: 2.739401
+got ts 1664900866734224, data age: 2.894456
+got ts 1664900866833201, data age: 3.844262
+got ts 1664900868767261, data age: 3.007048
+bytes per sec: 30000127.6, flushed count: 238979466, indexed count: 238774590, fraction indexed: 0.9991427045870125, flushes (init: 1486, completed: 1484, pending: 2, retries: 0, avg dur 1217.7432614555255 ms), per batch stats (decomp ms: 11453.038358008076, serialize: 0.6729475100942126, flush: 1216.1043068640647) completeness: 0.31970640388523464
+got ts 1664900869774230, data age: 3.12618
+got ts 1664900869787047, data age: 4.12644
+got ts 1664900869788148, data age: 5.144739
+got ts 1664900869813079, data age: 6.179429
+got ts 1664900873814176, data age: 3.328476
+bytes per sec: 30003449, flushed count: 240166292, indexed count: 240060190, fraction indexed: 0.9995582144391854, flushes (init: 1496, completed: 1494, pending: 2, retries: 0, avg dur 1216.2402945113788 ms), per batch stats (decomp ms: 11376.480614973261, serialize: 0.6684491978609626, flush: 1214.6143048128342) completeness: 0.31878681935479347
+got ts 1664900874737762, data age: 3.418983
+got ts 1664900874737762, data age: 4.463935
+got ts 1664900874737762, data age: 5.498228
+got ts 1664900874737762, data age: 6.547753
+got ts 1664900874737762, data age: 7.568007
+bytes per sec: 6000382.2, flushed count: 240510396, indexed count: 240510396, fraction indexed: 1, flushes (init: 1496, completed: 1496, pending: 0, retries: 0, avg dur 1216.2673796791444 ms), per batch stats (decomp ms: 11376.480614973261, serialize: 0.6684491978609626, flush: 1216.2673796791444) completeness: 0.31878681935479347
+got ts 1664900874737762, data age: 8.587795
+got ts 1664900879749224, data age: 4.683019
+got ts 1664900879749264, data age: 5.70365
+got ts 1664900879774923, data age: 6.698348
+got ts 1664900879774923, data age: 7.716805
+bytes per sec: 18002423.8, flushed count: 240688740, indexed count: 240680303, fraction indexed: 0.9999649464283207, flushes (init: 1502, completed: 1502, pending: 0, retries: 0, avg dur 1213.868175765646 ms), per batch stats (decomp ms: 11331.035286284954, serialize: 0.6657789613848203, flush: 1213.868175765646) completeness: 0.31764988085526175
+got ts 1664900884779661, data age: 3.768252
+got ts 1664900886780452, data age: 2.780063
+got ts 1664900887764578, data age: 2.827114
+got ts 1664900887816046, data age: 3.788755
+got ts 1664900889849799, data age: 2.7685459999999997
+bytes per sec: 30000061.8, flushed count: 242342019, indexed count: 242084302, fraction indexed: 0.9989365566852029, flushes (init: 1515, completed: 1512, pending: 3, retries: 0, avg dur 1214.3320105820105 ms), per batch stats (decomp ms: 11894.71089108911, serialize: 0.6600660066006601, flush: 1211.927392739274) completeness: 0.31794244650124404
+got ts 1664900889849799, data age: 3.784422
+got ts 1664900891766295, data age: 2.9665150000000002
+got ts 1664900892807180, data age: 2.955616
+got ts 1664900894838757, data age: 2.247387
+bytes per sec: 36000081.4, flushed count: 244421865, indexed count: 244396245, fraction indexed: 0.9998951812269332, flushes (init: 1526, completed: 1524, pending: 2, retries: 0, avg dur 1215.02624671916 ms), per batch stats (decomp ms: 12465.37876802097, serialize: 0.6553079947575361, flush: 1213.4338138925295) completeness: 0.3182635046181536
+got ts 1664900895765765, data age: 2.337625
+got ts 1664900897771691, data age: 1.34382
+got ts 1664900897822480, data age: 2.307409
+got ts 1664900898754877, data age: 2.387849
+got ts 1664900899818233, data age: 2.636951
+bytes per sec: 36000080, flushed count: 246528204, indexed count: 245885732, fraction indexed: 0.99739392090002, flushes (init: 1538, completed: 1536, pending: 2, retries: 0, avg dur 1215.7174479166667 ms), per batch stats (decomp ms: 12368.119635890767, serialize: 0.6501950585175552, flush: 1214.1365409622888) completeness: 0.3186336090889599
+got ts 1664900900732858, data age: 2.811703
+got ts 1664900901801880, data age: 2.8375529999999998
+got ts 1664900902781763, data age: 2.943399
+got ts 1664900903755173, data age: 2.9863020000000002
+got ts 1664900904815311, data age: 2.939043
+bytes per sec: 33000111, flushed count: 248567641, indexed count: 248201756, fraction indexed: 0.9985280264215888, flushes (init: 1550, completed: 1547, pending: 3, retries: 0, avg dur 1216.4886877828055 ms), per batch stats (decomp ms: 13563.978064516128, serialize: 0.6451612903225806, flush: 1214.1341935483872) completeness: 0.31915708723326897
+got ts 1664900905779722, data age: 3.017418
+got ts 1664900907752748, data age: 2.063089
+got ts 1664900907756444, data age: 3.096301
+got ts 1664900908804114, data age: 3.1254210000000002
+bytes per sec: 33000093.4, flushed count: 250687359, indexed count: 250436881, fraction indexed: 0.9990008351398365, flushes (init: 1561, completed: 1558, pending: 3, retries: 0, avg dur 1217.900513478819 ms), per batch stats (decomp ms: 13468.39590006406, serialize: 0.6406149903907752, flush: 1215.5598975016014) completeness: 0.31954116903534874
+got ts 1664900909825372, data age: 3.126265
+got ts 1664900910772873, data age: 3.224506
+got ts 1664900911780977, data age: 3.228885
+got ts 1664900911785845, data age: 4.337045
+got ts 1664900911785845, data age: 5.359657
+bytes per sec: 36002984.6, flushed count: 252286895, indexed count: 252031065, fraction indexed: 0.9989859560481729, flushes (init: 1571, completed: 1570, pending: 1, retries: 0, avg dur 1216.5471337579618 ms), per batch stats (decomp ms: 13382.664544875875, serialize: 0.6365372374283895, flush: 1215.772756206238) completeness: 0.3187312479551222
+got ts 1664900911811549, data age: 6.349756
+got ts 1664900915738762, data age: 3.4341340000000002
+got ts 1664900916762691, data age: 3.5397119999999997
+got ts 1664900917809243, data age: 3.5302540000000002
+got ts 1664900918768103, data age: 3.637616
+bytes per sec: 24000714.2, flushed count: 253251020, indexed count: 253215381, fraction indexed: 0.9998592740120059, flushes (init: 1581, completed: 1578, pending: 3, retries: 0, avg dur 1215.628010139417 ms), per batch stats (decomp ms: 13298.01771030993, serialize: 0.6325110689437066, flush: 1213.3213156230233) completeness: 0.3182417927672706
+got ts 1664900919772200, data age: 3.717886
+got ts 1664900920769628, data age: 3.752049
+got ts 1664900922809874, data age: 2.728611
+got ts 1664900922809874, data age: 3.888135
+got ts 1664900924795746, data age: 2.9165200000000002
+bytes per sec: 30000064.6, flushed count: 254968910, indexed count: 254932903, fraction indexed: 0.9998587788605285, flushes (init: 1591, completed: 1588, pending: 3, retries: 0, avg dur 1215.97040302267 ms), per batch stats (decomp ms: 13214.434946574482, serialize: 0.6285355122564424, flush: 1213.6775612822125) completeness: 0.3184491412812463
+got ts 1664900924795746, data age: 3.930612
+got ts 1664900927782417, data age: 1.9585029999999999
+got ts 1664900927841554, data age: 2.965534
+got ts 1664900929763574, data age: 2.056009
+got ts 1664900929763575, data age: 3.069126
+bytes per sec: 33000126, flushed count: 256853838, indexed count: 256838218, fraction indexed: 0.9999391872042028, flushes (init: 1603, completed: 1599, pending: 4, retries: 0, avg dur 1216.7642276422764 ms), per batch stats (decomp ms: 13115.512164691205, serialize: 0.6238303181534622, flush: 1213.7280099812851) completeness: 0.3188356680488007
+got ts 1664900929839108, data age: 4.463001
+got ts 1664900932778942, data age: 2.544765
+got ts 1664900932813664, data age: 3.622865
+got ts 1664900933805374, data age: 3.6893789999999997
+bytes per sec: 39000122, flushed count: 259211645, indexed count: 258848085, fraction indexed: 0.9985974395556187, flushes (init: 1614, completed: 1612, pending: 2, retries: 0, avg dur 1218.0477667493797 ms), per batch stats (decomp ms: 13026.125154894671, serialize: 0.6195786864931846, flush: 1216.5384138785626) completeness: 0.31915555201744067
+got ts 1664900935843915, data age: 2.746334
+got ts 1664900935843915, data age: 3.762745
+got ts 1664900937783483, data age: 2.921608
+got ts 1664900938787896, data age: 2.99311
+got ts 1664900939751597, data age: 3.044342
+bytes per sec: 30000073.8, flushed count: 261138476, indexed count: 260969031, fraction indexed: 0.9993511297048391, flushes (init: 1624, completed: 1622, pending: 2, retries: 0, avg dur 1219.1837237977804 ms), per batch stats (decomp ms: 12945.915024630542, serialize: 0.6157635467980296, flush: 1217.6822660098521) completeness: 0.31957298924074723
+got ts 1664900940765704, data age: 3.042766
+got ts 1664900941779340, data age: 3.109484
+got ts 1664900942831921, data age: 3.08621
+got ts 1664900943786401, data age: 3.221894
+bytes per sec: 30000110.2, flushed count: 262871033, indexed count: 262365524, fraction indexed: 0.9980769695533551, flushes (init: 1635, completed: 1632, pending: 3, retries: 0, avg dur 1219.5569852941176 ms), per batch stats (decomp ms: 12858.817125382264, serialize: 0.6116207951070336, flush: 1217.3192660550458) completeness: 0.3196504491020304
+got ts 1664900943801205, data age: 4.512778
+got ts 1664900943801212, data age: 5.52455
+got ts 1664900943830434, data age: 6.577788
+got ts 1664900947830830, data age: 3.598019
+got ts 1664900947830831, data age: 4.612389
+bytes per sec: 33003893.4, flushed count: 264020213, indexed count: 263794146, fraction indexed: 0.9991437511642338, flushes (init: 1644, completed: 1643, pending: 1, retries: 0, avg dur 1217.6889835666464 ms), per batch stats (decomp ms: 12788.422141119221, serialize: 0.6082725060827251, flush: 1216.948296836983) completeness: 0.31866121511457357
+got ts 1664900947830831, data age: 5.656762
+got ts 1664900950741715, data age: 3.78308
+got ts 1664900952738843, data age: 2.797285
+got ts 1664900952738843, data age: 3.8123050000000003
+got ts 1664900952738843, data age: 4.828771
+bytes per sec: 12000029.8, flushed count: 264570663, indexed count: 264570663, fraction indexed: 1, flushes (init: 1647, completed: 1647, pending: 0, retries: 0, avg dur 1217.1396478445658 ms), per batch stats (decomp ms: 13372.945962355798, serialize: 0.607164541590771, flush: 1217.1396478445658) completeness: 0.31867899485362644
+got ts 1664900952738843, data age: 5.8447700000000005
+got ts 1664900952738843, data age: 6.860656
+got ts 1664900952738843, data age: 7.877417
+got ts 1664900956754727, data age: 4.935678
+got ts 1664900956770071, data age: 5.964049
+bytes per sec: 12000559.4, flushed count: 264704361, indexed count: 264604333, fraction indexed: 0.9996221142726092, flushes (init: 1652, completed: 1651, pending: 1, retries: 0, avg dur 1215.5202907328892 ms), per batch stats (decomp ms: 13938.412227602905, serialize: 1.2106537530266344, flush: 1214.7845036319613) completeness: 0.3180043916160464
+got ts 1664900956770071, data age: 6.974578
+got ts 1664900956770071, data age: 7.997662
+got ts 1664900962805446, data age: 2.997675
+got ts 1664900963736217, data age: 3.07783
+bytes per sec: 15000293.6, flushed count: 265339643, indexed count: 265253951, fraction indexed: 0.9996770478808551, flushes (init: 1660, completed: 1656, pending: 4, retries: 0, avg dur 1214.8466183574878 ms), per batch stats (decomp ms: 13871.239156626507, serialize: 1.2048192771084338, flush: 1211.9192771084338) completeness: 0.31792149749684306
+got ts 1664900964764280, data age: 3.258142
+got ts 1664900965808254, data age: 3.29101
+got ts 1664900965841048, data age: 4.27109
+got ts 1664900968834366, data age: 2.307562
+got ts 1664900968859948, data age: 3.454259
+bytes per sec: 36000064.6, flushed count: 267227396, indexed count: 267191139, fraction indexed: 0.9998643215458343, flushes (init: 1671, completed: 1668, pending: 3, retries: 0, avg dur 1214.5833333333333 ms), per batch stats (decomp ms: 13779.926391382405, serialize: 1.196888090963495, flush: 1212.4027528426093) completeness: 0.31807768014364995
+got ts 1664900970780984, data age: 2.560102
+got ts 1664900971859017, data age: 2.5294790000000003
+got ts 1664900972838908, data age: 2.563365
+got ts 1664900973777249, data age: 2.638645
+got ts 1664900973827424, data age: 3.601749
+bytes per sec: 39000078.6, flushed count: 269656646, indexed count: 269680994, fraction indexed: 1.0000902926012067, flushes (init: 1684, completed: 1681, pending: 3, retries: 0, avg dur 1215.9589530041642 ms), per batch stats (decomp ms: 13673.549287410926, serialize: 1.187648456057007, flush: 1213.792755344418) completeness: 0.3185792716746341
+got ts 1664900974835682, data age: 3.630535
+got ts 1664900976780905, data age: 2.704757
+got ts 1664900977785244, data age: 2.712409
+got ts 1664900978797999, data age: 2.830348
+got ts 1664900979773955, data age: 2.985181
+bytes per sec: 36000140, flushed count: 271818418, indexed count: 271899376, fraction indexed: 1.000297838537196, flushes (init: 1696, completed: 1693, pending: 3, retries: 0, avg dur 1216.6131128174839 ms), per batch stats (decomp ms: 13576.802476415094, serialize: 1.179245283018868, flush: 1214.4610849056603) completeness: 0.31899743488270327
+got ts 1664900980814100, data age: 2.982187
+got ts 1664900981846785, data age: 2.964916
+got ts 1664900983767098, data age: 2.723752
+got ts 1664900984803219, data age: 2.744729
+bytes per sec: 36000128.8, flushed count: 274118517, indexed count: 273891413, fraction indexed: 0.9991715116421704, flushes (init: 1709, completed: 1705, pending: 4, retries: 0, avg dur 1217.808797653959 ms), per batch stats (decomp ms: 13473.526623756583, serialize: 1.1702750146284377, flush: 1214.9584552369806) completeness: 0.3194687195593421
+got ts 1664900985809642, data age: 2.816864
+got ts 1664900986771964, data age: 2.956888
+got ts 1664900986826283, data age: 3.9873570000000003
+got ts 1664900987737525, data age: 4.088258
+got ts 1664900987737525, data age: 5.101635
+bytes per sec: 36001515, flushed count: 276063388, indexed count: 275900668, fraction indexed: 0.9994105701549965, flushes (init: 1719, completed: 1717, pending: 2, retries: 0, avg dur 1217.855562026791 ms), per batch stats (decomp ms: 13395.146596858638, serialize: 1.1634671320535195, flush: 1216.4386271087842) completeness: 0.319026263983248
+got ts 1664900987770527, data age: 6.08173
+got ts 1664900990863548, data age: 4.052751
+got ts 1664900992852311, data age: 3.354416
+got ts 1664900993812202, data age: 3.408207
+bytes per sec: 27002946.8, flushed count: 277042755, indexed count: 277007891, fraction indexed: 0.9998741566080658, flushes (init: 1727, completed: 1726, pending: 1, retries: 0, avg dur 1216.1448435689456 ms), per batch stats (decomp ms: 13333.09612044007, serialize: 1.1580775911986103, flush: 1215.440648523451) completeness: 0.31858937741860677
+got ts 1664900993849280, data age: 4.388133
+got ts 1664900996798143, data age: 2.521416
+got ts 1664900997741253, data age: 2.589681
+got ts 1664900997846500, data age: 3.512594
+got ts 1664900999770100, data age: 2.95386
+bytes per sec: 24000064, flushed count: 278287775, indexed count: 278249127, fraction indexed: 0.9998611221782919, flushes (init: 1737, completed: 1734, pending: 3, retries: 0, avg dur 1216.3327566320645 ms), per batch stats (decomp ms: 13256.336787564767, serialize: 1.1514104778353482, flush: 1214.2320092112839) completeness: 0.31878383667629434
+got ts 1664900999859088, data age: 4.038458
+got ts 1664901001844553, data age: 3.066961
+got ts 1664901002851079, data age: 3.074002
+got ts 1664901004825422, data age: 2.113172
+bytes per sec: 33000065, flushed count: 280254774, indexed count: 280252536, fraction indexed: 0.9999920144090034, flushes (init: 1748, completed: 1745, pending: 3, retries: 0, avg dur 1217.6945558739255 ms), per batch stats (decomp ms: 13172.91590389016, serialize: 1.1441647597254005, flush: 1215.604691075515) completeness: 0.31912609419380633
+got ts 1664901004825422, data age: 3.124578
+got ts 1664901005846575, data age: 3.149311
+got ts 1664901006776737, data age: 3.239889
+got ts 1664901007862988, data age: 3.308772
+got ts 1664901009774764, data age: 2.4784610000000002
+bytes per sec: 36000083.8, flushed count: 282510300, indexed count: 282164256, fraction indexed: 0.9987751101464265, flushes (init: 1760, completed: 1757, pending: 3, retries: 0, avg dur 1219.410358565737 ms), per batch stats (decomp ms: 13083.100568181819, serialize: 1.1363636363636365, flush: 1217.331818181818) completeness: 0.31946356364210843
+got ts 1664901009816624, data age: 3.5930020000000003
+got ts 1664901011766003, data age: 2.681286
+got ts 1664901012764402, data age: 2.732341
+got ts 1664901013812892, data age: 2.6977830000000003
+got ts 1664901013848648, data age: 3.67674
+bytes per sec: 33000077, flushed count: 284542122, indexed count: 284334180, fraction indexed: 0.9992692048595884, flushes (init: 1772, completed: 1768, pending: 4, retries: 0, avg dur 1220.302036199095 ms), per batch stats (decomp ms: 12994.501693002258, serialize: 1.1286681715575622, flush: 1217.5474040632055) completeness: 0.3198435964614309
+got ts 1664901015808252, data age: 2.731212
+got ts 1664901016853467, data age: 2.915743
+got ts 1664901017802600, data age: 2.982343
+got ts 1664901017843509, data age: 3.959145
+bytes per sec: 36000541.4, flushed count: 286763021, indexed count: 286671604, fraction indexed: 0.9996812106397777, flushes (init: 1782, completed: 1780, pending: 2, retries: 0, avg dur 1222.1078651685393 ms), per batch stats (decomp ms: 13483.000561167228, serialize: 1.122334455667789, flush: 1220.736251402918) completeness: 0.319782568395781
+got ts 1664901017846236, data age: 5.056625
+got ts 1664901018741139, data age: 5.175659
+got ts 1664901021842136, data age: 3.144941
+got ts 1664901021842136, data age: 4.527636
+got ts 1664901022838679, data age: 4.635561
+bytes per sec: 27002484, flushed count: 287750379, indexed count: 287756908, fraction indexed: 1.000022689805041, flushes (init: 1792, completed: 1789, pending: 3, retries: 0, avg dur 1220.567915036333 ms), per batch stats (decomp ms: 13966.27622767857, serialize: 1.1160714285714286, flush: 1218.5245535714287) completeness: 0.3192663274796977
+got ts 1664901023829477, data age: 4.75688
+got ts 1664901025793017, data age: 3.807278
+got ts 1664901026864139, data age: 3.747471
+got ts 1664901028758119, data age: 2.878874
+got ts 1664901028773885, data age: 3.874985
+bytes per sec: 27000066.8, flushed count: 289170801, indexed count: 289155352, fraction indexed: 0.999946574827242, flushes (init: 1798, completed: 1798, pending: 0, retries: 0, avg dur 1220.400444938821 ms), per batch stats (decomp ms: 13919.670189098999, serialize: 1.1123470522803114, flush: 1220.400444938821) completeness: 0.31931271896905983
+got ts 1664901028773885, data age: 4.889396
+got ts 1664901028773885, data age: 5.909839
+got ts 1664901028773885, data age: 6.927672
+got ts 1664901028773885, data age: 7.976328
+got ts 1664901028773885, data age: 8.99419
+bytes per sec: 0, flushed count: 289170801, indexed count: 289170801, fraction indexed: 1, flushes (init: 1799, completed: 1798, pending: 1, retries: 0, avg dur 1220.400444938821 ms), per batch stats (decomp ms: 13911.93274041134, serialize: 1.1117287381878822, flush: 1219.722067815453) completeness: 0.3193045790509851
+got ts 1664901033756438, data age: 5.030432
+got ts 1664901033756438, data age: 6.048731
+got ts 1664901033781139, data age: 7.03674
+got ts 1664901033781139, data age: 8.049886
+bytes per sec: 15001157, flushed count: 289403843, indexed count: 289376604, fraction indexed: 0.9999058789278068, flushes (init: 1805, completed: 1803, pending: 2, retries: 0, avg dur 1218.7642817526346 ms), per batch stats (decomp ms: 13865.688088642659, serialize: 1.10803324099723, flush: 1217.4138504155126) completeness: 0.3187006158967675
+got ts 1664901040745085, data age: 2.154224
+got ts 1664901040833458, data age: 3.208634
+got ts 1664901042792339, data age: 2.546655
+got ts 1664901042859102, data age: 3.5107
+got ts 1664901044865237, data age: 2.632205
+bytes per sec: 39000078.2, flushed count: 291619557, indexed count: 290975935, fraction indexed: 0.9977929395181133, flushes (init: 1819, completed: 1816, pending: 3, retries: 0, avg dur 1219.6712555066078 ms), per batch stats (decomp ms: 13758.970313358988, serialize: 1.0995052226498077, flush: 1217.6597031335898) completeness: 0.3190924803602342
+got ts 1664901045850779, data age: 2.740491
+got ts 1664901045865449, data age: 3.859702
+got ts 1664901046826539, data age: 3.970176
+got ts 1664901049790521, data age: 2.26938
+bytes per sec: 33000086.4, flushed count: 293628388, indexed count: 293472006, fraction indexed: 0.9994674152555032, flushes (init: 1830, completed: 1827, pending: 3, retries: 0, avg dur 1220.4088669950738 ms), per batch stats (decomp ms: 13676.266120218579, serialize: 1.092896174863388, flush: 1218.4081967213115) completeness: 0.3194054854231666
+got ts 1664901049865247, data age: 3.344964
+got ts 1664901051855858, data age: 2.44182
+got ts 1664901052787868, data age: 2.674267
+got ts 1664901054771573, data age: 1.729791
+got ts 1664901054870427, data age: 2.665666
+bytes per sec: 39000109.2, flushed count: 296102734, indexed count: 295815869, fraction indexed: 0.9990311977328787, flushes (init: 1844, completed: 1840, pending: 4, retries: 0, avg dur 1221.9157608695652 ms), per batch stats (decomp ms: 13572.433297180043, serialize: 1.0845986984815619, flush: 1219.2651843817787) completeness: 0.3198344682667828
+got ts 1664901055790636, data age: 2.891437
+got ts 1664901056864704, data age: 2.884429
+got ts 1664901057858386, data age: 3.287248
+got ts 1664901059856483, data age: 2.304323
+bytes per sec: 33000096.6, flushed count: 298198044, indexed count: 298396949, fraction indexed: 1.0006670231545851, flushes (init: 1855, completed: 1851, pending: 4, retries: 0, avg dur 1223.1307401404647 ms), per batch stats (decomp ms: 13491.949865229111, serialize: 1.0781671159029649, flush: 1220.4932614555255) completeness: 0.32020471544271945
+got ts 1664901060835789, data age: 2.417099
+got ts 1664901061868652, data age: 2.420011
+got ts 1664901061870582, data age: 3.681634
+got ts 1664901062824209, data age: 3.750449
+got ts 1664901062846162, data age: 4.789832
+bytes per sec: 39001024.6, flushed count: 300394969, indexed count: 300094666, fraction indexed: 0.9990003061602539, flushes (init: 1866, completed: 1864, pending: 2, retries: 0, avg dur 1224.2687768240344 ms), per batch stats (decomp ms: 13949.082529474812, serialize: 1.0718113612004287, flush: 1222.9565916398715) completeness: 0.3200195516660166
+got ts 1664901062846162, data age: 5.802008
+got ts 1664901065763514, data age: 3.895597
+got ts 1664901066814754, data age: 3.910551
+got ts 1664901068819226, data age: 2.9440530000000003
+got ts 1664901068819226, data age: 3.956877
+bytes per sec: 27002249.4, flushed count: 301386976, indexed count: 301192525, fraction indexed: 0.9993548128635791, flushes (init: 1875, completed: 1873, pending: 2, retries: 0, avg dur 1222.6534970635344 ms), per batch stats (decomp ms: 13882.126933333333, serialize: 1.0666666666666667, flush: 1221.3493333333333) completeness: 0.31946060892854966
+got ts 1664901070817614, data age: 3.464922
+got ts 1664901072760343, data age: 2.562437
+got ts 1664901073850816, data age: 2.54177
+got ts 1664901073850816, data age: 3.622878
+bytes per sec: 27000049, flushed count: 302888069, indexed count: 302765566, fraction indexed: 0.9995955502624965, flushes (init: 1884, completed: 1882, pending: 2, retries: 0, avg dur 1222.7449521785334 ms), per batch stats (decomp ms: 13815.811040339702, serialize: 1.0615711252653928, flush: 1221.4469214437368) completeness: 0.3196728218723592
+got ts 1664901074832765, data age: 3.728739
+got ts 1664901076808039, data age: 2.82543
+got ts 1664901078762951, data age: 1.905619
+got ts 1664901078794854, data age: 2.890445
+got ts 1664901079838546, data age: 2.928309
+bytes per sec: 33000092.2, flushed count: 304741886, indexed count: 304747553, fraction indexed: 1.0000185960652617, flushes (init: 1896, completed: 1893, pending: 3, retries: 0, avg dur 1223.7744321183307 ms), per batch stats (decomp ms: 13728.369198312237, serialize: 1.0548523206751055, flush: 1221.8380801687763) completeness: 0.31995046760005597
+got ts 1664901080851126, data age: 2.931153
+got ts 1664901081793374, data age: 3.003766
+got ts 1664901082820020, data age: 3.271814
+got ts 1664901084862497, data age: 2.309986
+bytes per sec: 39000107.6, flushed count: 307168945, indexed count: 306593908, fraction indexed: 0.9981279455187112, flushes (init: 1909, completed: 1906, pending: 3, retries: 0, avg dur 1225.1211962224554 ms), per batch stats (decomp ms: 13634.881089575694, serialize: 1.0476689366160294, flush: 1223.1959140911472) completeness: 0.32033717439069787
+got ts 1664901084862498, data age: 3.429008
+got ts 1664901086813611, data age: 2.518158
+got ts 1664901087825196, data age: 2.518904
+got ts 1664901088816677, data age: 2.669288
+got ts 1664901089812681, data age: 2.696237
+bytes per sec: 36000094.6, flushed count: 309416622, indexed count: 309130970, fraction indexed: 0.999076804606832, flushes (init: 1920, completed: 1918, pending: 2, retries: 0, avg dur 1226.6491136600625 ms), per batch stats (decomp ms: 13556.764583333334, serialize: 1.0416666666666667, flush: 1225.3713541666666) completeness: 0.3206496344804599
+got ts 1664901089823727, data age: 3.710934
+got ts 1664901090865324, data age: 3.806645
+got ts 1664901092759685, data age: 2.957699
+got ts 1664901092775416, data age: 4.146591
+bytes per sec: 33001983.2, flushed count: 311191875, indexed count: 311009248, fraction indexed: 0.9994131369914462, flushes (init: 1931, completed: 1929, pending: 2, retries: 0, avg dur 1226.737169517885 ms), per batch stats (decomp ms: 13997.789228379079, serialize: 1.0357327809425168, flush: 1225.4665976178146) completeness: 0.3203768580463098
+got ts 1664901092778480, data age: 5.154948
+got ts 1664901096766828, data age: 2.204333
+got ts 1664901096824250, data age: 3.238935
+got ts 1664901096824251, data age: 4.266591
+got ts 1664901098835633, data age: 3.319795
+bytes per sec: 30002919.2, flushed count: 312538363, indexed count: 312338044, fraction indexed: 0.9993590578830798, flushes (init: 1942, completed: 1939, pending: 3, retries: 0, avg dur 1226.0237235688498 ms), per batch stats (decomp ms: 13918.502059732235, serialize: 1.0298661174047374, flush: 1224.129763130793) completeness: 0.32021968121460276
+got ts 1664901100840351, data age: 2.326934
+got ts 1664901100872332, data age: 3.308924
+got ts 1664901101847360, data age: 3.353697
+got ts 1664901102803783, data age: 3.408932
+got ts 1664901103866029, data age: 3.360435
+bytes per sec: 33000079.8, flushed count: 314301639, indexed count: 314119514, fraction indexed: 0.9994205407245744, flushes (init: 1953, completed: 1950, pending: 3, retries: 0, avg dur 1226.0810256410257 ms), per batch stats (decomp ms: 13840.10803891449, serialize: 1.5360983102918586, flush: 1224.1976446492577) completeness: 0.3203585760859637
+got ts 1664901105788248, data age: 2.452275
+got ts 1664901106819470, data age: 2.433584
+got ts 1664901106819470, data age: 3.44867
+got ts 1664901106819470, data age: 4.464458
+got ts 1664901106819470, data age: 5.48031
+bytes per sec: 15000061.8, flushed count: 315184918, indexed count: 315184918, fraction indexed: 1, flushes (init: 1955, completed: 1955, pending: 0, retries: 0, avg dur 1227.3657289002558 ms), per batch stats (decomp ms: 13825.949360613811, serialize: 1.5345268542199488, flush: 1227.3657289002558) completeness: 0.3203863483153491
+got ts 1664901106819470, data age: 6.536868
+got ts 1664901110746830, data age: 3.635349
+got ts 1664901110758219, data age: 4.683385
+got ts 1664901110771344, data age: 5.719645
+got ts 1664901110771344, data age: 6.731094
+bytes per sec: 15001106, flushed count: 315368386, indexed count: 315368030, fraction indexed: 0.9999988711614233, flushes (init: 1960, completed: 1960, pending: 0, retries: 0, avg dur 1225.8163265306123 ms), per batch stats (decomp ms: 13790.679081632654, serialize: 1.530612244897959, flush: 1225.8163265306123) completeness: 0.3196644550363426
+got ts 1664901113868310, data age: 4.705698
+got ts 1664901116821738, data age: 2.779753
+got ts 1664901117756225, data age: 2.927036
+got ts 1664901118806559, data age: 2.892109
+got ts 1664901119786959, data age: 2.924302
+bytes per sec: 27000480.4, flushed count: 316786123, indexed count: 316771543, fraction indexed: 0.999953975256675, flushes (init: 1971, completed: 1969, pending: 2, retries: 0, avg dur 1226.2265109192483 ms), per batch stats (decomp ms: 13713.71435819381, serialize: 1.5220700152207, flush: 1224.9822425164891) completeness: 0.31982407893190484
+got ts 1664901120810749, data age: 2.959502
+got ts 1664901121879238, data age: 2.98028
+got ts 1664901122769186, data age: 3.262729
+got ts 1664901124808354, data age: 2.258322
+bytes per sec: 36000118.2, flushed count: 318918887, indexed count: 318603632, fraction indexed: 0.9990114884603871, flushes (init: 1984, completed: 1981, pending: 3, retries: 0, avg dur 1227.3457849570923 ms), per batch stats (decomp ms: 13623.85635080645, serialize: 1.5120967741935485, flush: 1225.4899193548388) completeness: 0.32012472729755065
+got ts 1664901126762067, data age: 1.319246
+got ts 1664901127801298, data age: 1.329902
+got ts 1664901127801298, data age: 2.39791
+got ts 1664901128799862, data age: 2.692352
+got ts 1664901130741406, data age: 1.858296
+bytes per sec: 36000111.4, flushed count: 321211483, indexed count: 320864412, fraction indexed: 0.9989194937965528, flushes (init: 1996, completed: 1993, pending: 3, retries: 0, avg dur 1228.5770195684897 ms), per batch stats (decomp ms: 13541.949398797595, serialize: 1.503006012024048, flush: 1226.7304609218436) completeness: 0.32050509550107886
+got ts 1664901130861603, data age: 2.827941
+got ts 1664901131826319, data age: 2.879587
+got ts 1664901133819974, data age: 2.0107
+got ts 1664901134756200, data age: 2.50026
+bytes per sec: 36000124.6, flushed count: 323480107, indexed count: 323294532, fraction indexed: 0.9994263171181652, flushes (init: 2007, completed: 2005, pending: 2, retries: 0, avg dur 1229.8703241895262 ms), per batch stats (decomp ms: 13467.728450423518, serialize: 1.4947683109118086, flush: 1228.6447433981066) completeness: 0.32081345041536
+got ts 1664901136782781, data age: 1.488661
+got ts 1664901136782782, data age: 2.504714
+got ts 1664901138749390, data age: 1.6310099999999998
+got ts 1664901138756133, data age: 2.708163
+got ts 1664901138827120, data age: 3.692522
+bytes per sec: 36000837.6, flushed count: 325568444, indexed count: 325375168, fraction indexed: 0.9994063429562602, flushes (init: 2019, completed: 2017, pending: 2, retries: 0, avg dur 1230.2930094199305 ms), per batch stats (decomp ms: 13387.682516097078, serialize: 1.485884101040119, flush: 1229.074294205052) completeness: 0.3207241995445613
+got ts 1664901138835334, data age: 4.701747
+got ts 1664901138835337, data age: 5.717867
+got ts 1664901138858784, data age: 6.7154810000000005
+got ts 1664901142778010, data age: 3.815781
+got ts 1664901142778010, data age: 4.835943
+bytes per sec: 27002307.6, flushed count: 326353706, indexed count: 326353706, fraction indexed: 1, flushes (init: 2027, completed: 2026, pending: 1, retries: 0, avg dur 1228.6140177690029 ms), per batch stats (decomp ms: 13334.845091267884, serialize: 1.480019733596448, flush: 1228.0078934385792) completeness: 0.3199086950168895
+got ts 1664901142804050, data age: 5.855215
+got ts 1664901147795111, data age: 1.913171
+got ts 1664901147795111, data age: 2.926278
+got ts 1664901147833238, data age: 3.90054
+got ts 1664901149860217, data age: 2.9241580000000003
+bytes per sec: 24000936.8, flushed count: 327549258, indexed count: 327506374, fraction indexed: 0.9998690761802916, flushes (init: 2036, completed: 2034, pending: 2, retries: 0, avg dur 1228.1882989183873 ms), per batch stats (decomp ms: 13275.89931237721, serialize: 1.4734774066797642, flush: 1226.9818271119843) completeness: 0.3200563684641631
+got ts 1664901150826149, data age: 3.048885
+got ts 1664901151834860, data age: 3.055464
+got ts 1664901152876422, data age: 3.04753
+got ts 1664901154737374, data age: 2.199839
+bytes per sec: 36000075, flushed count: 329587791, indexed count: 329628723, fraction indexed: 1.0001241914934889, flushes (init: 2049, completed: 2046, pending: 3, retries: 0, avg dur 1228.7854349951124 ms), per batch stats (decomp ms: 13191.669594924353, serialize: 1.4641288433382138, flush: 1226.9863347974622) completeness: 0.3202941624192401
+got ts 1664901154804247, data age: 3.144485
+got ts 1664901156805413, data age: 2.220865
+got ts 1664901156847942, data age: 3.195422
+got ts 1664901157856373, data age: 3.34349
+got ts 1664901159866059, data age: 2.436435
+bytes per sec: 39000114.4, flushed count: 331878034, indexed count: 331487834, fraction indexed: 0.9988242668690752, flushes (init: 2062, completed: 2059, pending: 3, retries: 0, avg dur 1229.397280233123 ms), per batch stats (decomp ms: 13108.501939864209, serialize: 1.454898157129001, flush: 1227.6086323957322) completeness: 0.32057519704506504
+got ts 1664901160776020, data age: 2.5679600000000002
+got ts 1664901161858346, data age: 2.497714
+got ts 1664901162821511, data age: 2.71221
+got ts 1664901163823395, data age: 2.723086
+got ts 1664901164807807, data age: 2.754162
+bytes per sec: 36000089.4, flushed count: 334182883, indexed count: 334018734, fraction indexed: 0.9995088048839413, flushes (init: 2074, completed: 2071, pending: 3, retries: 0, avg dur 1230.3211009174313 ms), per batch stats (decomp ms: 13032.65718418515, serialize: 1.446480231436837, flush: 1228.5414657666345) completeness: 0.32089816864581205
+got ts 1664901164807808, data age: 3.8035
+got ts 1664901166769734, data age: 2.891361
+got ts 1664901166848246, data age: 3.831279
+got ts 1664901167749746, data age: 3.943391
+got ts 1664901167775676, data age: 4.930405
+bytes per sec: 36002060.4, flushed count: 335932020, indexed count: 335827704, fraction indexed: 0.9996894728879968, flushes (init: 2084, completed: 2083, pending: 1, retries: 0, avg dur 1229.7138742198752 ms), per batch stats (decomp ms: 12970.120441458734, serialize: 1.4395393474088292, flush: 1229.123800383877) completeness: 0.3205145210786462
+got ts 1664901170781789, data age: 2.939428
+got ts 1664901170845638, data age: 4.021034
+got ts 1664901172772595, data age: 3.108548
+got ts 1664901173746659, data age: 3.642469
+bytes per sec: 27001850.8, flushed count: 336922062, indexed count: 336787762, fraction indexed: 0.999601391493324, flushes (init: 2095, completed: 2092, pending: 3, retries: 0, avg dur 1228.612810707457 ms), per batch stats (decomp ms: 12902.019570405728, serialize: 1.431980906921241, flush: 1226.853460620525) completeness: 0.32013607456245685
+got ts 1664901175839618, data age: 2.642939
+got ts 1664901175839618, data age: 3.720549
+got ts 1664901177763174, data age: 2.866279
+got ts 1664901178762915, data age: 2.889377
+got ts 1664901179781966, data age: 2.963679
+bytes per sec: 33000076, flushed count: 338792420, indexed count: 338736054, fraction indexed: 0.9998336267381661, flushes (init: 2107, completed: 2103, pending: 4, retries: 0, avg dur 1229.5297194484071 ms), per batch stats (decomp ms: 12828.538680588514, serialize: 1.4238253440911248, flush: 1227.1955386805885) completeness: 0.3204448843154289
+got ts 1664901180810009, data age: 3.013223
+got ts 1664901182798396, data age: 2.036144
+got ts 1664901182856604, data age: 3.100902
+got ts 1664901183799560, data age: 3.193033
+bytes per sec: 27000061.6, flushed count: 340416502, indexed count: 340416502, fraction indexed: 1, flushes (init: 2112, completed: 2112, pending: 0, retries: 0, avg dur 1230.340909090909 ms), per batch stats (decomp ms: 12798.168087121212, serialize: 1.4204545454545454, flush: 1230.340909090909) completeness: 0.32051166482187576
+got ts 1664901183799560, data age: 4.214482
+got ts 1664901183799560, data age: 5.2349499999999995
+got ts 1664901183799560, data age: 6.2561350000000004
+got ts 1664901183799560, data age: 7.276889
+got ts 1664901187760800, data age: 4.336907
+bytes per sec: 12001273.8, flushed count: 340618382, indexed count: 340531979, fraction indexed: 0.9997463348880566, flushes (init: 2117, completed: 2116, pending: 1, retries: 0, avg dur 1229.1866729678638 ms), per batch stats (decomp ms: 12767.940954180443, serialize: 1.4170996693434106, flush: 1228.6060462919224) completeness: 0.3199791923341133
+got ts 1664901187770715, data age: 5.388907
+got ts 1664901187770717, data age: 6.400327
+got ts 1664901187770717, data age: 7.421559
+got ts 1664901193796443, data age: 2.407883
+got ts 1664901195762007, data age: 1.455525
+bytes per sec: 21000697, flushed count: 341534323, indexed count: 341077396, fraction indexed: 0.998662134464301, flushes (init: 2126, completed: 2123, pending: 3, retries: 0, avg dur 1228.6057465850213 ms), per batch stats (decomp ms: 12713.890404515521, serialize: 1.4111006585136407, flush: 1226.8720602069614) completeness: 0.31993257667203195
+got ts 1664901195777899, data age: 2.622548
+got ts 1664901196749850, data age: 2.692465
+got ts 1664901197892945, data age: 2.563941
+got ts 1664901198793543, data age: 2.849544
+got ts 1664901199868713, data age: 2.871795
+bytes per sec: 39000113, flushed count: 343882046, indexed count: 343823717, fraction indexed: 0.9998303807928374, flushes (init: 2139, completed: 2136, pending: 3, retries: 0, avg dur 1229.2673220973784 ms), per batch stats (decomp ms: 12636.620383356709, serialize: 1.402524544179523, flush: 1227.5432445067788) completeness: 0.3202516893377531
+got ts 1664901200866433, data age: 2.945368
+got ts 1664901201817043, data age: 3.04735
+got ts 1664901203755191, data age: 2.185586
+got ts 1664901204808394, data age: 2.578147
+bytes per sec: 39000114.4, flushed count: 346277292, indexed count: 345848957, fraction indexed: 0.9987630289080579, flushes (init: 2153, completed: 2149, pending: 4, retries: 0, avg dur 1230.6649604467193 ms), per batch stats (decomp ms: 12554.450069670227, serialize: 1.3934045517882026, flush: 1228.3785415699024) completeness: 0.320589746127896
+got ts 1664901205867114, data age: 2.6676729999999997
+got ts 1664901206823727, data age: 2.843042
+got ts 1664901207740884, data age: 3.03332
+got ts 1664901208855757, data age: 2.93531
+bytes per sec: 36000104.6, flushed count: 348517707, indexed count: 348335262, fraction indexed: 0.9994765115334585, flushes (init: 2164, completed: 2161, pending: 3, retries: 0, avg dur 1231.8699676075892 ms), per batch stats (decomp ms: 12490.633548983364, serialize: 1.3863216266173752, flush: 1230.1621996303143) completeness: 0.32096203055723155
+got ts 1664901209789205, data age: 3.060961
+got ts 1664901210743533, data age: 3.163797
+got ts 1664901212756718, data age: 2.194227
+got ts 1664901213877942, data age: 2.116524
+got ts 1664901213877942, data age: 3.130277
+bytes per sec: 36000105.8, flushed count: 350808853, indexed count: 350821237, fraction indexed: 1.0000353012755925, flushes (init: 2177, completed: 2173, pending: 4, retries: 0, avg dur 1233.3930050621261 ms), per batch stats (decomp ms: 12875.462103812586, serialize: 1.3780431786862655, flush: 1231.1267799724392) completeness: 0.32110981867974725
+got ts 1664901214823495, data age: 3.386898
+got ts 1664901214843884, data age: 4.446178
+got ts 1664901214843884, data age: 5.479567
+got ts 1664901214875530, data age: 6.460011
+got ts 1664901219755187, data age: 2.626804
+bytes per sec: 33004505.2, flushed count: 352111747, indexed count: 351978220, fraction indexed: 0.9996207823194265, flushes (init: 2186, completed: 2184, pending: 2, retries: 0, avg dur 1232.4326923076924 ms), per batch stats (decomp ms: 12822.45242451967, serialize: 1.829826166514181, flush: 1231.3051235132662) completeness: 0.32045161024194796
+got ts 1664901219832370, data age: 3.6041879999999997
+got ts 1664901221793401, data age: 2.685337
+got ts 1664901222805411, data age: 2.732503
+got ts 1664901223759822, data age: 2.902181
+got ts 1664901223880475, data age: 3.792716
+bytes per sec: 36002352.4, flushed count: 353950934, indexed count: 353891998, fraction indexed: 0.9998334910454001, flushes (init: 2198, completed: 2196, pending: 2, retries: 0, avg dur 1232.422586520947 ms), per batch stats (decomp ms: 12752.44813466788, serialize: 1.8198362147406733, flush: 1231.3011828935396) completeness: 0.3204937194366559
+got ts 1664901225800104, data age: 2.888796
+got ts 1664901226784868, data age: 2.928553
+got ts 1664901226861187, data age: 3.873847
+got ts 1664901228791868, data age: 2.972292
+got ts 1664901229824604, data age: 2.954828
+bytes per sec: 36000084.4, flushed count: 355971535, indexed count: 355835167, fraction indexed: 0.9996169131894211, flushes (init: 2212, completed: 2208, pending: 4, retries: 0, avg dur 1233.1653079710145 ms), per batch stats (decomp ms: 13577.212025316456, serialize: 1.8083182640144666, flush: 1230.9353526220614) completeness: 0.32068071150915034
+got ts 1664901230840782, data age: 2.954437
+got ts 1664901232846339, data age: 2.125973
+got ts 1664901233774818, data age: 2.3763870000000002
+got ts 1664901235771796, data age: 1.444607
+bytes per sec: 42000149.4, flushed count: 358502249, indexed count: 357948832, fraction indexed: 0.9984563081499664, flushes (init: 2225, completed: 2222, pending: 3, retries: 0, avg dur 1234.7412241224122 ms), per batch stats (decomp ms: 13497.884494382022, serialize: 1.797752808988764, flush: 1233.0764044943821) completeness: 0.3210670725378862
+got ts 1664901235807789, data age: 2.465527
+got ts 1664901236879209, data age: 2.502716
+got ts 1664901237835561, data age: 2.5596449999999997
+got ts 1664901238876998, data age: 2.56745
+got ts 1664901239808457, data age: 2.693901
+bytes per sec: 39000102, flushed count: 360999427, indexed count: 360475851, fraction indexed: 0.9985496486674479, flushes (init: 2238, completed: 2235, pending: 3, retries: 0, avg dur 1236.4836689038032 ms), per batch stats (decomp ms: 13419.47855227882, serialize: 1.7873100983020553, flush: 1234.8261840929401) completeness: 0.32140860985850667
+got ts 1664901241786184, data age: 1.846957
+got ts 1664901241786184, data age: 2.958665
+got ts 1664901241881275, data age: 3.884222
+got ts 1664901241881281, data age: 4.899116
+got ts 1664901242763326, data age: 5.062224
+bytes per sec: 36002022, flushed count: 362761058, indexed count: 362497682, fraction indexed: 0.9992739683761755, flushes (init: 2248, completed: 2247, pending: 1, retries: 0, avg dur 1235.921673342234 ms), per batch stats (decomp ms: 13359.783362989323, serialize: 1.7793594306049823, flush: 1235.3718861209964) completeness: 0.32099984269387344
+got ts 1664901245803233, data age: 3.034596
+got ts 1664901246772600, data age: 3.111293
+got ts 1664901247781690, data age: 3.327017
+got ts 1664901248833924, data age: 3.28909
+bytes per sec: 21002238, flushed count: 363710851, indexed count: 363518704, fraction indexed: 0.9994717039662916, flushes (init: 2257, completed: 2254, pending: 3, retries: 0, avg dur 1235.237799467613 ms), per batch stats (decomp ms: 13306.50996898538, serialize: 1.7722640673460346, flush: 1233.5959237926452) completeness: 0.32094749716636617
+got ts 1664901250794157, data age: 2.340985
+got ts 1664901250794159, data age: 3.380625
+got ts 1664901251800789, data age: 3.397773
+got ts 1664901253870661, data age: 2.524536
+got ts 1664901254756193, data age: 2.694606
+bytes per sec: 33000066.2, flushed count: 365599433, indexed count: 365375889, fraction indexed: 0.9993885548504119, flushes (init: 2268, completed: 2265, pending: 3, retries: 0, avg dur 1235.791169977925 ms), per batch stats (decomp ms: 13682.958553791887, serialize: 1.763668430335097, flush: 1234.1565255731923) completeness: 0.32115399816204987
+got ts 1664901255760727, data age: 2.77784
+got ts 1664901255793075, data age: 3.803121
+got ts 1664901257803032, data age: 2.807697
+got ts 1664901258818329, data age: 2.913042
+got ts 1664901259778472, data age: 3.025599
+bytes per sec: 30000129.6, flushed count: 367400432, indexed count: 367287814, fraction indexed: 0.9996934734143155, flushes (init: 2277, completed: 2275, pending: 2, retries: 0, avg dur 1236.453186813187 ms), per batch stats (decomp ms: 13628.875713658323, serialize: 1.7566974088713219, flush: 1235.3671497584542) completeness: 0.32134632776340727
+got ts 1664901259886878, data age: 3.929454
+got ts 1664901259886878, data age: 4.947013
+got ts 1664901259886878, data age: 5.964431
+got ts 1664901259886878, data age: 7.005788
+bytes per sec: 6000027.4, flushed count: 367759705, indexed count: 367759705, fraction indexed: 1, flushes (init: 2277, completed: 2277, pending: 0, retries: 0, avg dur 1236.4971453667106 ms), per batch stats (decomp ms: 13628.875713658323, serialize: 1.7566974088713219, flush: 1236.4971453667106) completeness: 0.32135921639021564
+got ts 1664901259886878, data age: 8.050476
+got ts 1664901264761428, data age: 4.228835
+got ts 1664901264778196, data age: 5.281213
+got ts 1664901264778196, data age: 6.295327
+got ts 1664901264778196, data age: 7.308315
+bytes per sec: 15001407, flushed count: 368021443, indexed count: 368052490, fraction indexed: 1.000084361932139, flushes (init: 2286, completed: 2282, pending: 4, retries: 0, avg dur 1235.2931638913235 ms), per batch stats (decomp ms: 13575.218722659667, serialize: 1.7497812773403325, flush: 1233.13167104112) completeness: 0.3207444850390701
+got ts 1664901270749086, data age: 2.396975
+got ts 1664901271883285, data age: 2.549851
+got ts 1664901272839437, data age: 2.679874
+got ts 1664901274760015, data age: 1.77841
+got ts 1664901274897708, data age: 2.830696
+bytes per sec: 42000597, flushed count: 370439398, indexed count: 370071270, fraction indexed: 0.9990062396116949, flushes (init: 2300, completed: 2296, pending: 4, retries: 0, avg dur 1235.9682055749129 ms), per batch stats (decomp ms: 13492.58695652174, serialize: 1.7391304347826086, flush: 1233.8186956521738) completeness: 0.32104171340412785
+got ts 1664901275755516, data age: 3.099978
+got ts 1664901276776707, data age: 3.142311
+got ts 1664901278782623, data age: 2.182452
+got ts 1664901279796466, data age: 2.313762
+bytes per sec: 36000103.2, flushed count: 372658420, indexed count: 372496180, fraction indexed: 0.9995646415288295, flushes (init: 2312, completed: 2308, pending: 4, retries: 0, avg dur 1237.067157712305 ms), per batch stats (decomp ms: 13422.556228373702, serialize: 1.7301038062283738, flush: 1234.9269031141869) completeness: 0.3213628131934078
+got ts 1664901281756208, data age: 1.4259979999999999
+got ts 1664901281828835, data age: 2.36613
+got ts 1664901282826034, data age: 2.486929
+got ts 1664901283760390, data age: 2.566248
+got ts 1664901284744569, data age: 2.594362
+bytes per sec: 33000108.6, flushed count: 374733511, indexed count: 374529587, fraction indexed: 0.9994558159491639, flushes (init: 2322, completed: 2319, pending: 3, retries: 0, avg dur 1237.7787839586028 ms), per batch stats (decomp ms: 13364.75021533161, serialize: 1.7226528854435832, flush: 1236.1795865633076) completeness: 0.32164572431723937
+got ts 1664901285766622, data age: 2.679045
+got ts 1664901286819429, data age: 2.656158
+got ts 1664901287874859, data age: 2.615124
+got ts 1664901288819973, data age: 2.685258
+got ts 1664901290754272, data age: 1.7646929999999998
+bytes per sec: 33000091.2, flushed count: 376843713, indexed count: 376581814, fraction indexed: 0.9993050195851351, flushes (init: 2332, completed: 2330, pending: 2, retries: 0, avg dur 1238.8030042918456 ms), per batch stats (decomp ms: 13307.439965694683, serialize: 1.7152658662092624, flush: 1237.7405660377358) completeness: 0.3218973996270189
+got ts 1664901290772716, data age: 2.855324
+got ts 1664901290842788, data age: 3.8064489999999997
+got ts 1664901290843016, data age: 4.820891
+got ts 1664901290843016, data age: 5.83244
+got ts 1664901292843842, data age: 4.891909
+bytes per sec: 30001916.2, flushed count: 378060126, indexed count: 378046794, fraction indexed: 0.9999647357679821, flushes (init: 2342, completed: 2340, pending: 2, retries: 0, avg dur 1237.9495726495727 ms), per batch stats (decomp ms: 14105.456874466268, serialize: 2.5619128949615715, flush: 1236.8923996584117) completeness: 0.32129255624408815
+got ts 1664901295867767, data age: 3.234296
+got ts 1664901296822711, data age: 3.313457
+got ts 1664901298874890, data age: 2.49615
+got ts 1664901299790987, data age: 2.674516
+bytes per sec: 27001534.6, flushed count: 379392786, indexed count: 379288546, fraction indexed: 0.9997252451711087, flushes (init: 2353, completed: 2349, pending: 4, retries: 0, avg dur 1238.0749255002129 ms), per batch stats (decomp ms: 14039.515512112197, serialize: 2.9749256268593287, flush: 1235.9702507437314) completeness: 0.32129910972246417
+got ts 1664901299869237, data age: 3.611795
+got ts 1664901301825043, data age: 2.671323
+got ts 1664901303790131, data age: 1.794486
+got ts 1664901303790132, data age: 2.810347
+got ts 1664901304792834, data age: 2.826381
+bytes per sec: 42000180.8, flushed count: 381753592, indexed count: 381571015, fraction indexed: 0.9995217412387831, flushes (init: 2366, completed: 2363, pending: 3, retries: 0, avg dur 1240.4384257300042 ms), per batch stats (decomp ms: 14385.759932375317, serialize: 2.9585798816568047, flush: 1238.8655959425191) completeness: 0.32150169068200135
+got ts 1664901305778250, data age: 2.8582229999999997
+got ts 1664901307770186, data age: 1.969597
+got ts 1664901308760455, data age: 2.049755
+got ts 1664901308889333, data age: 3.097216
+bytes per sec: 36000109.8, flushed count: 383992613, indexed count: 383750141, fraction indexed: 0.9993685503528162, flushes (init: 2378, completed: 2375, pending: 3, retries: 0, avg dur 1241.397894736842 ms), per batch stats (decomp ms: 14313.165685449958, serialize: 2.943650126156434, flush: 1239.8317914213626) completeness: 0.32177950913856
+got ts 1664901310857535, data age: 2.201978
+got ts 1664901312745081, data age: 1.360555
+got ts 1664901312745081, data age: 2.978463
+got ts 1664901314817013, data age: 2.010127
+bytes per sec: 39000115.4, flushed count: 386426440, indexed count: 386351887, fraction indexed: 0.9998070706548962, flushes (init: 2392, completed: 2388, pending: 4, retries: 0, avg dur 1242.7286432160804 ms), per batch stats (decomp ms: 14229.39297658863, serialize: 2.9264214046822743, flush: 1240.6505016722408) completeness: 0.32209841007270557
+got ts 1664901314822537, data age: 3.240602
+got ts 1664901316798925, data age: 2.320803
+got ts 1664901316889352, data age: 3.244097
+got ts 1664901317745501, data age: 3.465394
+got ts 1664901317766258, data age: 4.476312
+bytes per sec: 36002084.6, flushed count: 388221431, indexed count: 388167106, fraction indexed: 0.9998600669729641, flushes (init: 2402, completed: 2400, pending: 2, retries: 0, avg dur 1242.7316666666666 ms), per batch stats (decomp ms: 14587.20732722731, serialize: 2.9142381348875936, flush: 1241.6969192339716) completeness: 0.32168625399197287
+got ts 1664901317770722, data age: 5.498319
+got ts 1664901321821303, data age: 2.476066
+got ts 1664901321821303, data age: 3.56849
+got ts 1664901322851976, data age: 3.574206
+got ts 1664901324750554, data age: 2.743354
+bytes per sec: 30002120.2, flushed count: 389531433, indexed count: 389506885, fraction indexed: 0.9999369806954707, flushes (init: 2412, completed: 2410, pending: 2, retries: 0, avg dur 1242.1738589211618 ms), per batch stats (decomp ms: 14526.729684908789, serialize: 2.902155887230514, flush: 1241.143864013267) completeness: 0.32165603504447393
+got ts 1664901325747010, data age: 2.777488
+got ts 1664901326758817, data age: 2.821856
+got ts 1664901327779650, data age: 2.891009
+got ts 1664901329849312, data age: 1.9695230000000001
+got ts 1664901329861424, data age: 2.971034
+bytes per sec: 39000175.8, flushed count: 391845795, indexed count: 391697051, fraction indexed: 0.9996204016939878, flushes (init: 2424, completed: 2423, pending: 1, retries: 0, avg dur 1243.0965744944283 ms), per batch stats (decomp ms: 14867.662541254125, serialize: 2.887788778877888, flush: 1242.5837458745875) completeness: 0.3218668468125948
+got ts 1664901331845383, data age: 2.265551
+got ts 1664901331870594, data age: 3.294876
+got ts 1664901333845567, data age: 2.403052
+got ts 1664901335817131, data age: 1.4438
+bytes per sec: 33000096.8, flushed count: 393938683, indexed count: 393388739, fraction indexed: 0.9986039857883162, flushes (init: 2437, completed: 2434, pending: 3, retries: 0, avg dur 1243.8344289235827 ms), per batch stats (decomp ms: 14788.352072219943, serialize: 2.872384078785392, flush: 1242.3032416906033) completeness: 0.3221962461013384
+got ts 1664901336784219, data age: 1.489657
+got ts 1664901336838059, data age: 2.448812
+got ts 1664901337781133, data age: 2.575923
+got ts 1664901337781133, data age: 3.588117
+got ts 1664901337781133, data age: 4.602237
+bytes per sec: 24000045.4, flushed count: 395461300, indexed count: 395461300, fraction indexed: 1, flushes (init: 2442, completed: 2442, pending: 0, retries: 0, avg dur 1244.4529074529075 ms), per batch stats (decomp ms: 14758.07289107289, serialize: 2.8665028665028665, flush: 1244.4529074529075) completeness: 0.3222622796117725
+got ts 1664901337781133, data age: 5.616129
+got ts 1664901337781133, data age: 6.629348
+got ts 1664901341751850, data age: 3.699872
+got ts 1664901341764794, data age: 4.715994
+got ts 1664901341786866, data age: 5.706544
+bytes per sec: 15001867.8, flushed count: 395661785, indexed count: 395584451, fraction indexed: 0.9998045451875015, flushes (init: 2447, completed: 2447, pending: 0, retries: 0, avg dur 1243.2975071516141 ms), per batch stats (decomp ms: 14727.9174499387, serialize: 2.8606456885982836, flush: 1243.2975071516141) completeness: 0.32165773769929407
+got ts 1664901341786866, data age: 6.734654
+got ts 1664901346837235, data age: 2.794657
+got ts 1664901347867833, data age: 2.778218
+got ts 1664901348859104, data age: 2.9027570000000003
+got ts 1664901349862730, data age: 2.954112
+bytes per sec: 30000731, flushed count: 397302179, indexed count: 396945399, fraction indexed: 0.9991019933469834, flushes (init: 2459, completed: 2457, pending: 2, retries: 0, avg dur 1243.4953194953196 ms), per batch stats (decomp ms: 14656.044733631557, serialize: 2.8466856445709636, flush: 1242.4839365595772) completeness: 0.3218430664393518
+got ts 1664901350907147, data age: 2.931668
+got ts 1664901352750809, data age: 2.103365
+got ts 1664901353787666, data age: 2.511909
+got ts 1664901354803756, data age: 2.595673
+bytes per sec: 36000078.8, flushed count: 399528259, indexed count: 399548199, fraction indexed: 1.000049908860139, flushes (init: 2473, completed: 2469, pending: 4, retries: 0, avg dur 1245.2341028756582 ms), per batch stats (decomp ms: 14573.074807925597, serialize: 2.8305701577031943, flush: 1243.2199757379701) completeness: 0.3221444801768261
+got ts 1664901355816806, data age: 2.649474
+got ts 1664901356795402, data age: 2.684076
+got ts 1664901357804205, data age: 3.083176
+got ts 1664901358860924, data age: 3.135219
+bytes per sec: 39000129, flushed count: 401963796, indexed count: 401606434, fraction indexed: 0.9991109597342941, flushes (init: 2486, completed: 2482, pending: 4, retries: 0, avg dur 1247.1764705882354 ms), per batch stats (decomp ms: 14496.868061142397, serialize: 2.815768302493966, flush: 1245.1697506033788) completeness: 0.3223997181840665
+got ts 1664901360839795, data age: 2.412327
+got ts 1664901360887890, data age: 3.428724
+got ts 1664901362807096, data age: 2.548809
+got ts 1664901363896613, data age: 2.475525
+got ts 1664901365753077, data age: 1.692501
+bytes per sec: 36000080.6, flushed count: 404221426, indexed count: 403838560, fraction indexed: 0.9990528310095071, flushes (init: 2497, completed: 2494, pending: 3, retries: 0, avg dur 1247.8732959101844 ms), per batch stats (decomp ms: 14433.005206247497, serialize: 2.803364036844213, flush: 1246.3740488586304) completeness: 0.3226731765363066
+got ts 1664901365904425, data age: 2.635291
+got ts 1664901366779745, data age: 2.844838
+got ts 1664901366850601, data age: 3.83904
+got ts 1664901366861266, data age: 4.841733
+got ts 1664901366861267, data age: 5.856251
+bytes per sec: 36001724.2, flushed count: 405917699, indexed count: 405856067, fraction indexed: 0.9998481662658419, flushes (init: 2508, completed: 2506, pending: 2, retries: 0, avg dur 1247.7609736632082 ms), per batch stats (decomp ms: 14369.70255183413, serialize: 2.7910685805422646, flush: 1246.7659489633174) completeness: 0.3222661419524574
+got ts 1664901369894144, data age: 4.114643
+got ts 1664901371839047, data age: 3.182232
+got ts 1664901371839047, data age: 4.19605
+got ts 1664901374824489, data age: 2.58393
+bytes per sec: 27001991.4, flushed count: 407216516, indexed count: 406995918, fraction indexed: 0.999458278357256, flushes (init: 2518, completed: 2515, pending: 3, retries: 0, avg dur 1247.244930417495 ms), per batch stats (decomp ms: 14312.634630659253, serialize: 2.7799841143764894, flush: 1245.7589356632247) completeness: 0.3222270084056732
+got ts 1664901375802266, data age: 2.6641719999999998
+got ts 1664901375849059, data age: 3.632243
+got ts 1664901377787679, data age: 2.708648
+got ts 1664901379746462, data age: 1.812473
+got ts 1664901379779888, data age: 2.82655
+bytes per sec: 33000095, flushed count: 409078041, indexed count: 408990824, fraction indexed: 0.9997867961824918, flushes (init: 2530, completed: 2526, pending: 4, retries: 0, avg dur 1247.4778305621537 ms), per batch stats (decomp ms: 14244.748616600791, serialize: 2.766798418972332, flush: 1245.505533596838) completeness: 0.322443171519465
+got ts 1664901380893920, data age: 2.729177
+got ts 1664901381833532, data age: 2.804779
+got ts 1664901382844561, data age: 2.808521
+got ts 1664901383857474, data age: 2.858545
+got ts 1664901385745253, data age: 2.032943
+bytes per sec: 42000110.8, flushed count: 411710160, indexed count: 411489109, fraction indexed: 0.9994630907335393, flushes (init: 2543, completed: 2540, pending: 3, retries: 0, avg dur 1248.9133858267717 ms), per batch stats (decomp ms: 14171.928430987024, serialize: 2.752654345261502, flush: 1247.4400314589068) completeness: 0.32269616416779723
+got ts 1664901385811050, data age: 3.024025
+got ts 1664901387752302, data age: 2.096823
+got ts 1664901387868296, data age: 3.022458
+got ts 1664901389778338, data age: 2.136661
+bytes per sec: 39000085.2, flushed count: 414145253, indexed count: 413573261, fraction indexed: 0.998618861387746, flushes (init: 2556, completed: 2553, pending: 3, retries: 0, avg dur 1249.9588719153937 ms), per batch stats (decomp ms: 14099.848982785603, serialize: 2.7386541471048513, flush: 1248.4917840375588) completeness: 0.3229367906598551
+got ts 1664901389778338, data age: 3.149131
+got ts 1664901390766729, data age: 3.174054
+got ts 1664901391786489, data age: 3.174177
+got ts 1664901392769838, data age: 3.203907
+got ts 1664901392788289, data age: 4.258599
+bytes per sec: 36003221.6, flushed count: 415880876, indexed count: 415746672, fraction indexed: 0.9996773018242849, flushes (init: 2566, completed: 2565, pending: 1, retries: 0, avg dur 1249.6382066276803 ms), per batch stats (decomp ms: 14044.900233826967, serialize: 2.7279812938425567, flush: 1249.1512081060016) completeness: 0.32262096911194144
+got ts 1664901392796178, data age: 5.265511
+got ts 1664901396801245, data age: 2.278396
+got ts 1664901397771400, data age: 2.602312
+got ts 1664901397824137, data age: 3.62237
+got ts 1664901399887418, data age: 2.670296
+bytes per sec: 30001714.2, flushed count: 417406833, indexed count: 417103819, fraction indexed: 0.9992740559664005, flushes (init: 2577, completed: 2575, pending: 2, retries: 0, avg dur 1249.4011650485436 ms), per batch stats (decomp ms: 13984.949165696546, serialize: 2.716336825766395, flush: 1248.4315095071788) completeness: 0.32266197957333703
+got ts 1664901400758456, data age: 2.8498200000000002
+got ts 1664901401748336, data age: 2.905554
+got ts 1664901402803519, data age: 2.983123
+got ts 1664901404765058, data age: 2.054924
+got ts 1664901404888500, data age: 2.943563
+bytes per sec: 36000112.6, flushed count: 419552408, indexed count: 419460198, fraction indexed: 0.9997802181604926, flushes (init: 2588, completed: 2587, pending: 1, retries: 0, avg dur 1250.1828372632392 ms), per batch stats (decomp ms: 13925.507727975271, serialize: 2.704791344667697, flush: 1249.699768160742) completeness: 0.3229110152318266
+got ts 1664901406769864, data age: 2.309292
+got ts 1664901406899739, data age: 3.216336
+got ts 1664901409803121, data age: 1.715353
+got ts 1664901409803121, data age: 2.823003
+bytes per sec: 30000109.6, flushed count: 421391389, indexed count: 421389923, fraction indexed: 0.9999965210489862, flushes (init: 2601, completed: 2597, pending: 4, retries: 0, avg dur 1250.7119753561801 ms), per batch stats (decomp ms: 14240.742406766629, serialize: 2.6912725874663592, flush: 1248.7885428681277) completeness: 0.3231154343226446
+got ts 1664901410917459, data age: 2.832214
+got ts 1664901410923977, data age: 3.888351
+got ts 1664901412880571, data age: 3.000117
+got ts 1664901414771550, data age: 2.20104
+bytes per sec: 36000086.4, flushed count: 423640014, indexed count: 423604434, fraction indexed: 0.9999160135992253, flushes (init: 2610, completed: 2609, pending: 1, retries: 0, avg dur 1251.9114603296282 ms), per batch stats (decomp ms: 14191.636398467434, serialize: 2.681992337164751, flush: 1251.4318007662835) completeness: 0.32328508527678296
+got ts 1664901414883970, data age: 3.113065
+got ts 1664901414883970, data age: 4.142689
+got ts 1664901414883970, data age: 5.172522
+got ts 1664901414883970, data age: 6.195688
+got ts 1664901414883970, data age: 7.286689
+bytes per sec: 9000746.4, flushed count: 423903563, indexed count: 423840504, fraction indexed: 0.9998512421090454, flushes (init: 2613, completed: 2612, pending: 1, retries: 0, avg dur 1251.8395865237367 ms), per batch stats (decomp ms: 14175.342900880214, serialize: 2.678913126674321, flush: 1251.3605051664754) completeness: 0.3230649983139802
+got ts 1664901418764648, data age: 4.468461
+got ts 1664901418786959, data age: 5.466297
+got ts 1664901418786959, data age: 6.482063
+got ts 1664901423819722, data age: 2.475464
+got ts 1664901424918845, data age: 2.534335
+bytes per sec: 21001858.4, flushed count: 424816868, indexed count: 424384049, fraction indexed: 0.9989811633374219, flushes (init: 2623, completed: 2619, pending: 4, retries: 0, avg dur 1251.4765177548684 ms), per batch stats (decomp ms: 14121.300419367137, serialize: 2.668699961875715, flush: 1249.5680518490278) completeness: 0.3229796022141461
+got ts 1664901425828198, data age: 2.834172
+got ts 1664901425900142, data age: 3.871778
+got ts 1664901428774694, data age: 2.025353
+got ts 1664901429809548, data age: 2.061369
+bytes per sec: 42000108, flushed count: 427406729, indexed count: 427218783, fraction indexed: 0.9995602642933589, flushes (init: 2636, completed: 2633, pending: 3, retries: 0, avg dur 1252.6783137105963 ms), per batch stats (decomp ms: 14051.658194233687, serialize: 2.655538694992413, flush: 1251.252655538695) completeness: 0.32310620634533904
+got ts 1664901430848871, data age: 2.084383
+got ts 1664901430848871, data age: 3.160622
+got ts 1664901432816052, data age: 2.209236
+got ts 1664901433884128, data age: 2.462664
+got ts 1664901434895055, data age: 2.534385
+bytes per sec: 36000108.4, flushed count: 429671932, indexed count: 429051639, fraction indexed: 0.9985563567135681, flushes (init: 2648, completed: 2645, pending: 3, retries: 0, avg dur 1254.093383742911 ms), per batch stats (decomp ms: 14365.662386706948, serialize: 2.6435045317220545, flush: 1252.672583081571) completeness: 0.3233525396469108
+got ts 1664901435840645, data age: 2.673368
+got ts 1664901436852321, data age: 2.852097
+got ts 1664901438780999, data age: 1.941854
+got ts 1664901438842896, data age: 2.897014
+got ts 1664901439877044, data age: 2.96666
+bytes per sec: 36000088.2, flushed count: 431950269, indexed count: 431627772, fraction indexed: 0.9992533932187457, flushes (init: 2661, completed: 2657, pending: 4, retries: 0, avg dur 1254.7595031990968 ms), per batch stats (decomp ms: 14295.480646373544, serialize: 2.6305900037579857, flush: 1252.8733558812476) completeness: 0.3236527212377874
+got ts 1664901440917007, data age: 2.978582
+got ts 1664901442772780, data age: 2.2381
+got ts 1664901442880241, data age: 3.144156
+got ts 1664901442890759, data age: 4.146901
+bytes per sec: 39001402.8, flushed count: 434046742, indexed count: 433942952, fraction indexed: 0.9997608782880808, flushes (init: 2672, completed: 2670, pending: 2, retries: 0, avg dur 1254.9662921348315 ms), per batch stats (decomp ms: 14236.629491017964, serialize: 2.9940119760479043, flush: 1254.0269461077844) completeness: 0.32338302679636904
+got ts 1664901442890760, data age: 5.161387
+got ts 1664901446745972, data age: 2.352059
+got ts 1664901447830123, data age: 2.30112
+got ts 1664901447830124, data age: 3.376111
+got ts 1664901448795316, data age: 3.476994
+bytes per sec: 24001887.6, flushed count: 435045017, indexed count: 435020136, fraction indexed: 0.9999428082174769, flushes (init: 2682, completed: 2678, pending: 4, retries: 0, avg dur 1254.3091859596714 ms), per batch stats (decomp ms: 14183.54735272185, serialize: 2.982848620432513, flush: 1252.4384787472036) completeness: 0.32327221134287554
+got ts 1664901451763587, data age: 1.604323
+got ts 1664901452766031, data age: 1.687509
+got ts 1664901452904876, data age: 2.6676
+got ts 1664901453770007, data age: 2.916433
+got ts 1664901454886946, data age: 2.816441
+bytes per sec: 36000109.6, flushed count: 437123263, indexed count: 437126229, fraction indexed: 1.0000067852714578, flushes (init: 2693, completed: 2690, pending: 3, retries: 0, avg dur 1254.6223048327138 ms), per batch stats (decomp ms: 14125.612328258449, serialize: 2.9706646862235426, flush: 1253.2246565168957) completeness: 0.32340251450800644
+got ts 1664901455751414, data age: 2.99166
+got ts 1664901456910010, data age: 2.919309
+got ts 1664901458797286, data age: 2.150586
+got ts 1664901459849615, data age: 2.113099
+bytes per sec: 42000131.6, flushed count: 439650967, indexed count: 439278010, fraction indexed: 0.9991516975328295, flushes (init: 2708, completed: 2704, pending: 4, retries: 0, avg dur 1255.4448964497042 ms), per batch stats (decomp ms: 14786.778064992615, serialize: 2.9542097488921715, flush: 1253.5904726735598) completeness: 0.32367580944004043
+got ts 1664901460876464, data age: 2.100708
+got ts 1664901461754514, data age: 2.236074
+got ts 1664901462899127, data age: 2.124182
+got ts 1664901463775461, data age: 2.338935
+got ts 1664901464833162, data age: 2.346016
+bytes per sec: 42000080.8, flushed count: 442230259, indexed count: 442206178, fraction indexed: 0.9999455464670046, flushes (init: 2721, completed: 2718, pending: 3, retries: 0, avg dur 1256.7597498160412 ms), per batch stats (decomp ms: 15083.65894891584, serialize: 2.940095553105476, flush: 1255.3741271591327) completeness: 0.3239433094740713
+got ts 1664901465825132, data age: 2.375401
+got ts 1664901466854071, data age: 2.401773
+got ts 1664901467798236, data age: 2.560232
+got ts 1664901467822908, data age: 3.564524
+got ts 1664901467822909, data age: 4.630215
+bytes per sec: 39001882.2, flushed count: 444217239, indexed count: 443983375, fraction indexed: 0.9994735368655965, flushes (init: 2731, completed: 2731, pending: 0, retries: 0, avg dur 1256.6898571951665 ms), per batch stats (decomp ms: 15028.427682167705, serialize: 2.9293299157817647, flush: 1256.6898571951665) completeness: 0.32367533860283215
+got ts 1664901467847664, data age: 5.620641
+got ts 1664901471814756, data age: 2.669288
+got ts 1664901471814756, data age: 3.691466
+got ts 1664901472903682, data age: 3.623907
+got ts 1664901474745441, data age: 2.945748
+bytes per sec: 27001723.4, flushed count: 445467470, indexed count: 445177940, fraction indexed: 0.9993500535516096, flushes (init: 2742, completed: 2740, pending: 2, retries: 0, avg dur 1256.2160583941607 ms), per batch stats (decomp ms: 14968.138584974471, serialize: 2.917578409919767, flush: 1255.2997811816192) completeness: 0.3236073657206187
+got ts 1664901474888800, data age: 3.817117
+got ts 1664901476865144, data age: 2.9203989999999997
+got ts 1664901477812822, data age: 3.053775
+got ts 1664901479755257, data age: 2.260906
+bytes per sec: 33000078.4, flushed count: 447353719, indexed count: 447436266, fraction indexed: 1.000184522887581, flushes (init: 2754, completed: 2751, pending: 3, retries: 0, avg dur 1256.6295892402763 ms), per batch stats (decomp ms: 14902.917937545388, serialize: 2.904865649963689, flush: 1255.2607116920842) completeness: 0.3237108690734763
+got ts 1664901479835941, data age: 3.24749
+got ts 1664901480895985, data age: 3.272742
+got ts 1664901482846072, data age: 2.714044
+got ts 1664901484749881, data age: 1.9158789999999999
+got ts 1664901485752046, data age: 2.008636
+bytes per sec: 39000077.8, flushed count: 449794455, indexed count: 449557839, fraction indexed: 0.9994739463829095, flushes (init: 2768, completed: 2764, pending: 4, retries: 0, avg dur 1257.7272069464543 ms), per batch stats (decomp ms: 14827.541907514451, serialize: 2.8901734104046244, flush: 1255.9096820809248) completeness: 0.324053488331929
+got ts 1664901485902568, data age: 2.872918
+got ts 1664901487785860, data age: 2.005434
+got ts 1664901487884285, data age: 2.987683
+got ts 1664901489825886, data age: 2.317079
+bytes per sec: 42000108.6, flushed count: 452489447, indexed count: 451932272, fraction indexed: 0.9987686453160531, flushes (init: 2781, completed: 2778, pending: 3, retries: 0, avg dur 1258.9877609791217 ms), per batch stats (decomp ms: 15118.207838906868, serialize: 2.8766630708378282, flush: 1257.6296296296296) completeness: 0.3242684566573736
+got ts 1664901490749916, data age: 2.405523
+got ts 1664901491865972, data age: 2.30323
+got ts 1664901491865973, data age: 3.317625
+got ts 1664901491865973, data age: 4.335752
+got ts 1664901491865973, data age: 5.355367
+bytes per sec: 15000050.4, flushed count: 453460552, indexed count: 453460552, fraction indexed: 1, flushes (init: 2783, completed: 2783, pending: 0, retries: 0, avg dur 1259.2087675170678 ms), per batch stats (decomp ms: 15107.343154868846, serialize: 2.874595759971254, flush: 1259.2087675170678) completeness: 0.32430444034360756
+got ts 1664901491865973, data age: 6.375728
+got ts 1664901491865973, data age: 7.394144
+got ts 1664901491865973, data age: 8.41305
+got ts 1664901491865973, data age: 9.431535
+got ts 1664901491865973, data age: 10.492632
+bytes per sec: 0, flushed count: 453460552, indexed count: 453460552, fraction indexed: 1, flushes (init: 2783, completed: 2783, pending: 0, retries: 0, avg dur 1259.2087675170678 ms), per batch stats (decomp ms: 15107.343154868846, serialize: 2.874595759971254, flush: 1259.2087675170678) completeness: 0.32430444034360756
+got ts 1664901491865973, data age: 11.511966
+got ts 1664901491865973, data age: 12.53039
+got ts 1664901491865973, data age: 13.549213
+got ts 1664901491865973, data age: 14.570382
