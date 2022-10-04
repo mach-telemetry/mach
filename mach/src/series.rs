@@ -1,4 +1,5 @@
 use crate::{
+    constants::*,
     compression::Compression,
     id::SeriesId,
     //durable_queue::QueueConfig,
@@ -10,7 +11,7 @@ use crate::{
     snapshot::Snapshot,
 };
 use serde::*;
-use std::sync::Arc;
+use std::sync::{atomic::Ordering::SeqCst, Arc};
 
 #[derive(Debug)]
 pub enum Error {
@@ -83,8 +84,11 @@ impl Series {
         source_block_list: Arc<SourceBlockList>,
     ) -> Self {
         assert_eq!(config.nvars, config.compression.len());
+
+        let segment = segment::Segment::new(config.seg_count, config.types.as_slice());
+
         Self {
-            segment: segment::Segment::new(config.seg_count, config.types.as_slice()),
+            segment,
             config,
             block_list,
             source_block_list,

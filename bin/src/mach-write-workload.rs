@@ -13,14 +13,15 @@ use mach::{
     id::{SeriesId, SeriesRef},
     sample::SampleType,
     series::{FieldType, SeriesConfig},
-    tsdb::Mach,
+    tsdb::{self, Mach},
     writer::Writer,
     writer::WriterConfig,
+    constants::*,
 };
 use num::NumCast;
 use std::collections::HashMap;
 use std::mem;
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::{Arc, Barrier, Mutex, atomic::Ordering::SeqCst};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -47,7 +48,7 @@ lazy_static! {
                 let (tx, rx) = if PARAMETERS.unbounded_queue {
                     unbounded()
                 } else {
-                    bounded(1)
+                    bounded(2)
                 };
                 thread::spawn(move || {
                     mach_writer(rx, i);
@@ -104,7 +105,6 @@ fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
             SampleType::U64(_) => (FieldType::U64, CompressFn::LZ4),
             SampleType::F64(_) => (FieldType::F64, CompressFn::Decimal(3)),
             SampleType::Bytes(_) => (FieldType::Bytes, CompressFn::BytesLZ4),
-            //SampleType::BorrowedBytes(_) => (FieldType::Bytes, CompressFn::NOOP),
             _ => unimplemented!(),
         };
         types.push(t);
@@ -116,7 +116,7 @@ fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
         id,
         types,
         compression,
-        seg_count: 3,
+        seg_count: 1,
         nvars,
     };
     conf
@@ -179,11 +179,13 @@ fn mach_writer(batches: Receiver<Batch>, writer_idx: usize) {
     let mut writer = MACH_WRITERS[writer_idx].lock().unwrap();
     loop {
         if let Ok(batch) = batches.try_recv() {
+            let now = Instant::now();
             let batch_len = batch.len();
+            //COUNTERS.add_samples_written(batch_len);
             for item in batch {
                 while writer.push(item.series_ref, item.timestamp, item.data).is_err() {}
             }
-            COUNTERS.add_samples_written(batch_len);
+            println!("{:?}", <f64 as NumCast>::from(batch_len).unwrap() / now.elapsed().as_secs_f64());
         }
     }
 }
@@ -221,10 +223,14 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
             let batch_len = closed_batch.batch.len();
             let batch_bytes = closed_batch.batch_bytes as usize;
             //println!("queue len {}", writers[writer_idx].len());
-            COUNTERS.add_samples_generated(batch_len);
             match MACH_WRITER_SENDER[writer_idx].try_send(closed_batch.batch) {
-                Ok(_) => {}
-                Err(_) => {} // drop batch
+                Ok(_) => {
+                    COUNTERS.add_samples_generated(batch_len);
+                },
+                Err(_) => {
+                    COUNTERS.add_samples_generated(batch_len);
+                    COUNTERS.add_samples_dropped(batch_len);
+                } // drop batch
             }
         }
 
@@ -258,6 +264,7 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
         workload_total_samples / workload_duration.as_secs_f64(),
         workload_total_size / 1_000_000. / workload_duration.as_secs_f64(),
     );
+    println!("{} {}", COUNTERS.samples_generated(), COUNTERS.samples_dropped());
 }
 
 fn workload_runner(workloads: Vec<Workload>, data: Vec<DataSample>) {

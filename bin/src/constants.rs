@@ -36,16 +36,16 @@ lazy_static! {
             //Workload::new(1_800_000, Duration::from_secs(75)),
             //Workload::new(1_900_000, Duration::from_secs(75)),
             //Workload::new(2_000_000, Duration::from_secs(75)),
-            Workload::new(2_100_000, Duration::from_secs(75)),
-            Workload::new(2_200_000, Duration::from_secs(75)),
-            Workload::new(2_300_000, Duration::from_secs(75)),
-            Workload::new(2_400_000, Duration::from_secs(75)),
-            Workload::new(2_500_000, Duration::from_secs(75)),
-            Workload::new(2_600_000, Duration::from_secs(75)),
-            Workload::new(2_700_000, Duration::from_secs(75)),
-            Workload::new(2_800_000, Duration::from_secs(75)),
-            Workload::new(2_900_000, Duration::from_secs(75)),
-            Workload::new(3_000_000, Duration::from_secs(75)),
+            //Workload::new(2_100_000, Duration::from_secs(75)),
+            //Workload::new(2_200_000, Duration::from_secs(75)),
+            //Workload::new(2_300_000, Duration::from_secs(75)),
+            //Workload::new(2_400_000, Duration::from_secs(75)),
+            //Workload::new(2_500_000, Duration::from_secs(75)),
+            //Workload::new(2_600_000, Duration::from_secs(75)),
+            //Workload::new(2_700_000, Duration::from_secs(75)),
+            //Workload::new(2_800_000, Duration::from_secs(75)),
+            //Workload::new(2_900_000, Duration::from_secs(75)),
+            //Workload::new(3_000_000, Duration::from_secs(75)),
 
 
             //Workload::new(1_000_000, Duration::from_secs(75)),
@@ -54,7 +54,7 @@ lazy_static! {
             //Workload::new(4_000_000, Duration::from_secs(75)),
             //Workload::new(5_000_000, Duration::from_secs(75)),
             //Workload::new(6_000_000, Duration::from_secs(75)),
-            //Workload::new(7_000_000, Duration::from_secs(75)),
+            Workload::new(7_000_000, Duration::from_secs(300)),
             //Workload::new(8_000_000, Duration::from_secs(75)),
             //Workload::new(9_000_000, Duration::from_secs(75)),
             //Workload::new(10_000_000, Duration::from_secs(75)),
@@ -183,7 +183,7 @@ pub struct Args {
 
 pub struct Counters {
     samples_generated: AtomicUsize,
-    samples_written: AtomicUsize,
+    samples_dropped: AtomicUsize,
     bytes_generated: AtomicUsize,
     bytes_written: AtomicUsize,
     bytes_written_to_kafka: AtomicUsize,
@@ -195,7 +195,7 @@ impl Counters {
     fn new() -> Self {
         Counters {
             samples_generated: AtomicUsize::new(0),
-            samples_written: AtomicUsize::new(0),
+            samples_dropped: AtomicUsize::new(0),
             bytes_generated: AtomicUsize::new(0),
             bytes_written: AtomicUsize::new(0),
             messages_written_to_kafka: AtomicUsize::new(0),
@@ -220,12 +220,12 @@ impl Counters {
         self.samples_generated.load(SeqCst)
     }
 
-    pub fn add_samples_written(&self, n: usize) {
-        self.samples_written.fetch_add(n, SeqCst);
+    pub fn add_samples_dropped(&self, n: usize) {
+        self.samples_dropped.fetch_add(n, SeqCst);
     }
 
-    pub fn samples_written(&self) -> usize {
-        self.samples_written.load(SeqCst)
+    pub fn samples_dropped(&self) -> usize {
+        self.samples_dropped.load(SeqCst)
     }
 
     pub fn add_bytes_generated(&self, n: usize) {

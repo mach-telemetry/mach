@@ -19,7 +19,7 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
     let len = interval * 2;
 
     let mut samples_generated = vec![0; len];
-    let mut samples_written = vec![0; len];
+    let mut samples_dropped = vec![0; len];
     let mut bytes_generated = vec![0; len];
     let mut bytes_written = vec![0; len];
     let mut bytes_to_kafka = vec![0; len];
@@ -39,7 +39,7 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
         let current_workload_rate = COUNTERS.current_workload_rate();
 
         samples_generated[idx] = COUNTERS.samples_generated();
-        samples_written[idx] = COUNTERS.samples_written();
+        samples_dropped[idx] = COUNTERS.samples_dropped();
 
         bytes_generated[idx] = COUNTERS.bytes_generated();
         bytes_written[idx] = COUNTERS.bytes_written();
@@ -65,8 +65,8 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
             };
 
             let samples_generated_delta = max_min_delta(&samples_generated);
-            let samples_written_delta = max_min_delta(&samples_written);
-            let samples_completeness = div(samples_written_delta, samples_generated_delta);
+            let samples_dropped_delta = max_min_delta(&samples_dropped);
+            let samples_completeness = 1.-div(samples_dropped_delta, samples_generated_delta);
 
             let bytes_generated_delta = max_min_delta(&bytes_generated);
             let bytes_written_delta = max_min_delta(&bytes_written);
@@ -88,7 +88,7 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
             //print!("Sample completeness: {:.2}, ", samples_completeness);
             print!("Current workload rate: {}, ", current_workload_rate);
             print!("Samples generated: {}, ", samples_generated_delta);
-            print!("Samples written: {}, ", samples_written_delta);
+            print!("Samples dropped: {}, ", samples_dropped_delta);
             print!("Samples completeness: {:.2}, ", samples_completeness);
             //print!("mbps to kafka: {:.2}, ", mbps);
             //print!("average bytes per msg: {:.2}, ", bytes_per_msg);

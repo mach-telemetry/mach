@@ -17,6 +17,7 @@ use std::mem;
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
+use num::NumCast;
 
 lazy_static! {
     static ref PARTITION_WRITERS: Vec<Sender<(Box<[u8]>, u64)>> = {
@@ -68,23 +69,27 @@ fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
 fn kafka_batcher(i: u64, receiver: Receiver<(i32, Batch, u64)>) {
     let mut batchers: Vec<batching::WriteBatch> = (0..PARAMETERS.kafka_partitions).map(|_| batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes)).collect();
     let mut last_data_generator = u64::MAX;
-    while let Ok((partition, batch, data_generator)) = receiver.recv() {
-        if last_data_generator == u64::MAX {
-            last_data_generator = data_generator;
-        } else {
-            assert_eq!(last_data_generator, data_generator);
-        }
-        let partition = partition as usize;
-        let batcher = &mut batchers[partition];
-        let batch_len = batch.len();
-        for item in batch {
-            if batcher.insert(*item.0, item.1, item.2).is_err() {
-                let old_batch = mem::replace(batcher, batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes));
-                let bytes = old_batch.close();
-                PARTITION_WRITERS[partition].send((bytes, i)).unwrap();
+    loop {
+        if let Ok((partition, batch, data_generator)) = receiver.try_recv() {
+            let now = Instant::now();
+            if last_data_generator == u64::MAX {
+                last_data_generator = data_generator;
+            } else {
+                assert_eq!(last_data_generator, data_generator);
             }
+            let partition = partition as usize;
+            let batcher = &mut batchers[partition];
+            let batch_len = batch.len();
+            for item in batch {
+                if batcher.insert(*item.0, item.1, item.2).is_err() {
+                    let old_batch = mem::replace(batcher, batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes));
+                    let bytes = old_batch.close();
+                    PARTITION_WRITERS[partition].send((bytes, i)).unwrap();
+                }
+            }
+            COUNTERS.add_samples_written(batch_len);
+            println!("{:?}", <f64 as NumCast>::from(batch_len).unwrap() / now.elapsed().as_secs_f64());
         }
-        COUNTERS.add_samples_written(batch_len);
     }
 }
 

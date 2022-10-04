@@ -41,6 +41,7 @@ impl InnerBuffer {
         let mut heap = Vec::new();
         for in_heap in heap_pointers {
             if *in_heap == FieldType::Bytes {
+                COUNTER4.fetch_add(1, SeqCst);
                 heap.push(Some(Vec::with_capacity(HEAP_SZ)));
             } else {
                 heap.push(None);
