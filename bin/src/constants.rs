@@ -21,10 +21,16 @@ lazy_static! {
             Workload::new(800_000, Duration::from_secs(60 * 2)),
             Workload::new(900_000, Duration::from_secs(60 * 2)),
             Workload::new(1_000_000, Duration::from_secs(60 * 2)),
+            Workload::new(1_100_000, Duration::from_secs(60 * 2)),
+            Workload::new(1_200_000, Duration::from_secs(60 * 2)),
+            Workload::new(1_300_000, Duration::from_secs(60 * 2)),
+            Workload::new(1_400_000, Duration::from_secs(60 * 2)),
+            Workload::new(1_500_000, Duration::from_secs(60 * 2)),
+            Workload::new(1_600_000, Duration::from_secs(60 * 2)),
+            Workload::new(1_700_000, Duration::from_secs(60 * 2)),
+            Workload::new(1_800_000, Duration::from_secs(60 * 2)),
+            Workload::new(1_900_000, Duration::from_secs(60 * 2)),
             Workload::new(2_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(3_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(4_000_000, Duration::from_secs(60 * 2)),
-            Workload::new(5_000_000, Duration::from_secs(60 * 2)),
         ];
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
