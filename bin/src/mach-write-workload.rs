@@ -21,7 +21,7 @@ use mach::{
 use num::NumCast;
 use std::collections::HashMap;
 use std::mem;
-use std::sync::{Arc, Barrier, Mutex, atomic::Ordering::SeqCst};
+use std::sync::{Arc, Barrier, Mutex, atomic::{AtomicUsize, Ordering::SeqCst}};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -48,7 +48,7 @@ lazy_static! {
                 let (tx, rx) = if PARAMETERS.unbounded_queue {
                     unbounded()
                 } else {
-                    bounded(2)
+                    bounded(1)
                 };
                 thread::spawn(move || {
                     mach_writer(rx, i);
@@ -175,24 +175,28 @@ impl Batcher {
     }
 }
 
+static TOTAL_TIME: AtomicUsize = AtomicUsize::new(0);
+static TOTAL_SAMPLES: AtomicUsize = AtomicUsize::new(0);
+
 fn mach_writer(batches: Receiver<Batch>, writer_idx: usize) {
     let mut writer = MACH_WRITERS[writer_idx].lock().unwrap();
     loop {
         if let Ok(batch) = batches.try_recv() {
-            let now = Instant::now();
             let batch_len = batch.len();
-            //COUNTERS.add_samples_written(batch_len);
+            //TOTAL_SAMPLES.fetch_add(batch_len, SeqCst);
+            let now = Instant::now();
             for item in batch {
                 while writer.push(item.series_ref, item.timestamp, item.data).is_err() {}
             }
-            println!("{:?}", <f64 as NumCast>::from(batch_len).unwrap() / now.elapsed().as_secs_f64());
+            let elapsed = now.elapsed();
+            //TOTAL_TIME.fetch_add(elapsed.as_millis() as usize, SeqCst);
+            println!("{:?}", <f64 as NumCast>::from(batch_len).unwrap() / elapsed.as_secs_f64());
         }
     }
 }
 
 fn run_workload(workload: Workload, samples: &[DataSample]) {
     let mut batches: Vec<Batcher> = (0..MACH_WRITERS.len()).map(|_| Batcher::new()).collect();
-    let workload_start = Instant::now(); // used to verify the MBPs rate of the workload
     let mut data_idx = 0;
 
     // Tracking workload totals
@@ -207,8 +211,24 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
     COUNTERS.set_current_workload_rate(workload.samples_per_second as usize);
 
     // Execute workload
-    let mut writer = MACH_WRITERS[0].lock().unwrap();
+    //let mut writer = MACH_WRITERS[0].lock().unwrap();
+    //let samples = SAMPLES.clone();
+
+    let workload_start = Instant::now(); // used to verify the MBPs rate of the workload
     'outer: loop {
+        //{
+        //    let now = Instant::now();
+        //    for sample in samples.iter() {
+        //        let timestamp = utils::timestamp_now_micros().try_into().unwrap();
+        //        while writer.push(sample.series_ref,timestamp, sample.data).is_err() {}
+        //        workload_total_samples += 1.;
+        //    }
+        //    println!("{:?}", <f64 as NumCast>::from(samples.len()).unwrap() / now.elapsed().as_secs_f64());
+        //}
+        //if workload_start.elapsed() > workload.duration {
+        //    break 'outer;
+        //}
+
         let src = &samples[data_idx];
         let sample_size: usize = src.size as usize;
         let writer_idx = src.writer_idx;
@@ -220,24 +240,23 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
             size: src.size,
         };
 
-            while writer.push(sample.series_ref, sample.timestamp, sample.data).is_err() {}
 
-        //if let Some(closed_batch) = batches[writer_idx].push(sample) {
-        //    let batch_len = closed_batch.batch.len();
-        //    let batch_bytes = closed_batch.batch_bytes as usize;
-        //    //println!("queue len {}", writers[writer_idx].len());
-        //    match MACH_WRITER_SENDER[writer_idx].try_send(closed_batch.batch) {
-        //        Ok(_) => {
-        //            COUNTERS.add_samples_generated(batch_len);
-        //        },
-        //        Err(_) => {
-        //            COUNTERS.add_samples_generated(batch_len);
-        //            COUNTERS.add_samples_dropped(batch_len);
-        //        } // drop batch
-        //    }
-        //}
+        if let Some(closed_batch) = batches[writer_idx].push(sample) {
+            let batch_len = closed_batch.batch.len();
+            let batch_bytes = closed_batch.batch_bytes as usize;
+            //println!("queue len {}", MACH_WRITER_SENDER[writer_idx].len());
+            match MACH_WRITER_SENDER[writer_idx].try_send(closed_batch.batch) {
+                Ok(_) => {
+                    COUNTERS.add_samples_generated(batch_len);
+                },
+                Err(_) => {
+                    COUNTERS.add_samples_generated(batch_len);
+                    COUNTERS.add_samples_dropped(batch_len);
+                } // drop batch
+            }
+        }
 
-        // increment data_idx to next one
+        //increment data_idx to next one
         data_idx += 1;
         if data_idx == samples.len() {
             data_idx = 0;
@@ -267,13 +286,13 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
         workload_total_samples / workload_duration.as_secs_f64(),
         workload_total_size / 1_000_000. / workload_duration.as_secs_f64(),
     );
-    println!("{} {}", COUNTERS.samples_generated(), COUNTERS.samples_dropped());
+    println!("{} {}", TOTAL_SAMPLES.load(SeqCst), TOTAL_TIME.load(SeqCst));
 }
 
 fn workload_runner(workloads: Vec<Workload>, data: Vec<DataSample>) {
     println!("Workloads: {:?}", workloads);
     for workload in workloads {
-        run_workload(workload, data.as_slice());
+        run_workload(workload, &data);
     }
 }
 
@@ -282,42 +301,57 @@ fn validate_parameters() {
 }
 
 fn main() {
-    validate_parameters();
-
-    let stats_barrier = utils::stats_printer();
-    let data_generator_count = PARAMETERS.data_generator_count;
-    let _samples = SAMPLES.clone();
-
-    // Prep data for each data generator
-    let mut data: Vec<Vec<DataSample>> = (0..data_generator_count).map(|_| Vec::new()).collect();
+    let samples = SAMPLES.clone();
+    assert_eq!(MACH_WRITERS.len(), 1);
+    let mut writer = MACH_WRITERS[0].lock().unwrap();
+    let mut ts = 0;
+    let now = Instant::now();
     for sample in SAMPLES.iter() {
-        let generator_idx = sample.writer_idx % data_generator_count as usize;
-        data[generator_idx].push(*sample);
+        //let ts = utils::timestamp_now_micros().try_into().unwrap();
+        while writer.push(sample.series_ref, ts, sample.data).is_err() {}
+        ts += 1;
     }
-
-    // Prep workloads for each data generator
-    let mut workloads: Vec<Vec<Workload>> = (0..data_generator_count).map(|_| Vec::new()).collect();
-    for workload in constants::WORKLOAD.iter() {
-        let workload = workload.split_rate(data_generator_count);
-        workload.into_iter().zip(workloads.iter_mut()).for_each(|(w, v)| v.push(w));
-    }
-
-    let start_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
-    let done_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
-
-    for i in 0..data_generator_count as usize {
-        let start_barrier = start_barrier.clone();
-        let done_barrier = done_barrier.clone();
-        let data = data[i].clone();
-        let workloads = workloads[i].clone();
-        std::thread::spawn( move || {
-            start_barrier.wait();
-            workload_runner(workloads, data);
-            done_barrier.wait();
-        });
-    }
-
-    start_barrier.wait();
-    stats_barrier.wait();
-    done_barrier.wait();
+    let elapsed = now.elapsed();
+    println!("{}", <f64 as NumCast>::from(SAMPLES.len()).unwrap() / elapsed.as_secs_f64());
 }
+
+//fn main() {
+//    validate_parameters();
+//
+//    let stats_barrier = utils::stats_printer();
+//    let data_generator_count = PARAMETERS.data_generator_count;
+//    let _samples = SAMPLES.clone();
+//
+//    // Prep data for each data generator
+//    let mut data: Vec<Vec<DataSample>> = (0..data_generator_count).map(|_| Vec::new()).collect();
+//    for sample in SAMPLES.iter() {
+//        let generator_idx = sample.writer_idx % data_generator_count as usize;
+//        data[generator_idx].push(*sample);
+//    }
+//
+//    // Prep workloads for each data generator
+//    let mut workloads: Vec<Vec<Workload>> = (0..data_generator_count).map(|_| Vec::new()).collect();
+//    for workload in constants::WORKLOAD.iter() {
+//        let workload = workload.split_rate(data_generator_count);
+//        workload.into_iter().zip(workloads.iter_mut()).for_each(|(w, v)| v.push(w));
+//    }
+//
+//    let start_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
+//    let done_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
+//
+//    for i in 0..data_generator_count as usize {
+//        let start_barrier = start_barrier.clone();
+//        let done_barrier = done_barrier.clone();
+//        let data = data[i].clone();
+//        let workloads = workloads[i].clone();
+//        std::thread::spawn( move || {
+//            start_barrier.wait();
+//            workload_runner(workloads, data);
+//            done_barrier.wait();
+//        });
+//    }
+//
+//    start_barrier.wait();
+//    stats_barrier.wait();
+//    done_barrier.wait();
+//}

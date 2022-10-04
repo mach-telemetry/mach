@@ -87,7 +87,7 @@ fn kafka_batcher(i: u64, receiver: Receiver<(i32, Batch, u64)>) {
                     PARTITION_WRITERS[partition].send((bytes, i)).unwrap();
                 }
             }
-            COUNTERS.add_samples_written(batch_len);
+            //COUNTERS.add_samples_written(batch_len);
             println!("{:?}", <f64 as NumCast>::from(batch_len).unwrap() / now.elapsed().as_secs_f64());
         }
     }
@@ -205,60 +205,80 @@ fn validate_parameters() {
 }
 
 fn main() {
-
-    validate_parameters();
-    let stats_barrier = utils::stats_printer();
-
     init_kafka();
-    let _samples = SAMPLES.clone();
-
-    let data_generator_count = PARAMETERS.data_generator_count;
-
-    // Prep data for data generator
-    let mut data: Vec<Vec<(SeriesId, &'static [SampleType], f64)>> = (0..data_generator_count).map(|_| Vec::new()).collect();
-    for sample in SAMPLES.iter() {
-        let generator = *sample.0 % PARAMETERS.kafka_partitions as u64 % data_generator_count;
-        data[generator as usize].push(*sample)
+    let samples = SAMPLES.clone();
+    let mut batcher: batching::WriteBatch = batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes);
+    let mut len_bytes = 0;
+    let mut ts = 0;
+    let now = Instant::now();
+    for item in samples {
+        if batcher.insert(*item.0, ts, item.1).is_err() {
+            let new_batch = batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes);
+            let old_batch = mem::replace(&mut batcher, new_batch);
+            let bytes = old_batch.close();
+            len_bytes += bytes.len();
+            batcher.insert(*item.0, ts, item.1).unwrap();
+        }
     }
-
-    // Prep Workloads
-    let mut workloads: Vec<Vec<Workload>> = (0..data_generator_count).map(|_| Vec::new()).collect();
-    for workload in constants::WORKLOAD.iter() {
-        let workload = workload.split_rate(data_generator_count);
-        workload.into_iter().zip(workloads.iter_mut()).for_each(|(w, v)| v.push(w));
-    }
-
-    let start_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
-    let done_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
-
-    for i in 0..data_generator_count as usize {
-        let start_barrier = start_barrier.clone();
-        let done_barrier = done_barrier.clone();
-        let data = data[i].clone();
-        let workloads = workloads[i].clone();
-        thread::spawn( move || {
-            start_barrier.wait();
-            workload_runner(workloads, data, i as u64);
-            done_barrier.wait();
-        });
-    }
-
-    start_barrier.wait();
-    stats_barrier.wait();
-    done_barrier.wait();
+    let elapsed = now.elapsed();
+    println!("{}", <f64 as NumCast>::from(SAMPLES.len()).unwrap() / elapsed.as_secs_f64());
 }
 
-#[allow(dead_code)]
-fn find_max_production_rate() {
-    let base_rate = 500_000;
-
-    for i in 1.. {
-        let rate = base_rate * i;
-
-        println!("Trying {} samples/sec", rate);
-
-        let w = Workload::new(rate, Duration::from_secs(60));
-        run_workload(w, &SAMPLES[..], 0u64);
-    }
-}
-
+//fn main() {
+//
+//    validate_parameters();
+//    let stats_barrier = utils::stats_printer();
+//
+//    init_kafka();
+//    let _samples = SAMPLES.clone();
+//
+//    let data_generator_count = PARAMETERS.data_generator_count;
+//
+//    // Prep data for data generator
+//    let mut data: Vec<Vec<(SeriesId, &'static [SampleType], f64)>> = (0..data_generator_count).map(|_| Vec::new()).collect();
+//    for sample in SAMPLES.iter() {
+//        let generator = *sample.0 % PARAMETERS.kafka_partitions as u64 % data_generator_count;
+//        data[generator as usize].push(*sample)
+//    }
+//
+//    // Prep Workloads
+//    let mut workloads: Vec<Vec<Workload>> = (0..data_generator_count).map(|_| Vec::new()).collect();
+//    for workload in constants::WORKLOAD.iter() {
+//        let workload = workload.split_rate(data_generator_count);
+//        workload.into_iter().zip(workloads.iter_mut()).for_each(|(w, v)| v.push(w));
+//    }
+//
+//    let start_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
+//    let done_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
+//
+//    for i in 0..data_generator_count as usize {
+//        let start_barrier = start_barrier.clone();
+//        let done_barrier = done_barrier.clone();
+//        let data = data[i].clone();
+//        let workloads = workloads[i].clone();
+//        thread::spawn( move || {
+//            start_barrier.wait();
+//            workload_runner(workloads, data, i as u64);
+//            done_barrier.wait();
+//        });
+//    }
+//
+//    start_barrier.wait();
+//    stats_barrier.wait();
+//    done_barrier.wait();
+//}
+//
+//#[allow(dead_code)]
+//fn find_max_production_rate() {
+//    let base_rate = 500_000;
+//
+//    for i in 1.. {
+//        let rate = base_rate * i;
+//
+//        println!("Trying {} samples/sec", rate);
+//
+//        let w = Workload::new(rate, Duration::from_secs(60));
+//        run_workload(w, &SAMPLES[..], 0u64);
+//    }
+//}
+//
