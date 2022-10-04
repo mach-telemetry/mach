@@ -207,6 +207,7 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
     COUNTERS.set_current_workload_rate(workload.samples_per_second as usize);
 
     // Execute workload
+    let mut writer = MACH_WRITERS[0].lock().unwrap();
     'outer: loop {
         let src = &samples[data_idx];
         let sample_size: usize = src.size as usize;
@@ -219,20 +220,22 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
             size: src.size,
         };
 
-        if let Some(closed_batch) = batches[writer_idx].push(sample) {
-            let batch_len = closed_batch.batch.len();
-            let batch_bytes = closed_batch.batch_bytes as usize;
-            //println!("queue len {}", writers[writer_idx].len());
-            match MACH_WRITER_SENDER[writer_idx].try_send(closed_batch.batch) {
-                Ok(_) => {
-                    COUNTERS.add_samples_generated(batch_len);
-                },
-                Err(_) => {
-                    COUNTERS.add_samples_generated(batch_len);
-                    COUNTERS.add_samples_dropped(batch_len);
-                } // drop batch
-            }
-        }
+            while writer.push(sample.series_ref, sample.timestamp, sample.data).is_err() {}
+
+        //if let Some(closed_batch) = batches[writer_idx].push(sample) {
+        //    let batch_len = closed_batch.batch.len();
+        //    let batch_bytes = closed_batch.batch_bytes as usize;
+        //    //println!("queue len {}", writers[writer_idx].len());
+        //    match MACH_WRITER_SENDER[writer_idx].try_send(closed_batch.batch) {
+        //        Ok(_) => {
+        //            COUNTERS.add_samples_generated(batch_len);
+        //        },
+        //        Err(_) => {
+        //            COUNTERS.add_samples_generated(batch_len);
+        //            COUNTERS.add_samples_dropped(batch_len);
+        //        } // drop batch
+        //    }
+        //}
 
         // increment data_idx to next one
         data_idx += 1;
@@ -242,7 +245,7 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
 
         // Increment counters
         workload_total_samples += 1.;
-        workload_total_size += <f64 as NumCast>::from(sample_size).unwrap();
+        //workload_total_size += <f64 as NumCast>::from(sample_size).unwrap();
 
         // Checking to see if workload should wait. These checks amortize the expensize
         // operations to every second

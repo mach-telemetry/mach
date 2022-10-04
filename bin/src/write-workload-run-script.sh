@@ -1,10 +1,10 @@
 #!/bin/bash
 
-#FILE_PATH=/home/fsolleza/data/intel-telemetry/processed-data.bin
+#FILE_PATH=/home/ubuntu/data/processed-data.bin
+FILE_PATH=/home/fsolleza/data/intel-telemetry/processed-data.bin
 
 OUTPUT=evaluation_output
 
-FILE_PATH=/home/ubuntu/data/processed-data.bin
 WRITER_BATCHES=5000000
 DATA_GENERATORS=1
 WRITER_COUNT=1

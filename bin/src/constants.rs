@@ -54,7 +54,7 @@ lazy_static! {
             //Workload::new(4_000_000, Duration::from_secs(75)),
             //Workload::new(5_000_000, Duration::from_secs(75)),
             //Workload::new(6_000_000, Duration::from_secs(75)),
-            Workload::new(7_000_000, Duration::from_secs(300)),
+            Workload::new(7_000_000, Duration::from_secs(75)),
             //Workload::new(8_000_000, Duration::from_secs(75)),
             //Workload::new(9_000_000, Duration::from_secs(75)),
             //Workload::new(10_000_000, Duration::from_secs(75)),
