@@ -9,61 +9,11 @@ use mach::{
     writer::Writer,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, io::prelude::*};
+use std::collections::HashMap;
 
 pub type TimeStamp = u64;
 pub type Sample = (SeriesId, TimeStamp, Vec<SampleType>);
 pub type RegisteredSample = (SeriesRef, TimeStamp, Vec<SampleType>);
-
-fn load_data(path: &str) -> Vec<otlp::OtlpData> {
-    println!("Loading data from: {}", path);
-    let mut data = Vec::new();
-    File::open(path).unwrap().read_to_end(&mut data).unwrap();
-    bincode::deserialize(data.as_slice()).unwrap()
-}
-
-fn otlp_data_to_samples(data: &[otlp::OtlpData]) -> HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> {
-    println!("Converting data to samples");
-    let data: Vec<mach_otlp::OtlpData> = data
-        .iter()
-        .map(|x| {
-            let mut x: mach_otlp::OtlpData = x.into();
-            match &mut x {
-                mach_otlp::OtlpData::Spans(x) => x.iter_mut().for_each(|x| x.set_source_id()),
-                _ => unimplemented!(),
-            }
-            x
-        })
-        .collect();
-
-    let mut samples = Vec::new();
-
-    for entry in data {
-        match entry {
-            mach_otlp::OtlpData::Spans(spans) => {
-                for span in spans {
-                    span.get_samples(&mut samples);
-                }
-            }
-            _ => unimplemented!(),
-        }
-    }
-
-    let mut sources = HashMap::new();
-    for sample in samples.drain(..) {
-        sources
-            .entry(sample.0)
-            .or_insert(Vec::new())
-            .push((sample.1, sample.2));
-    }
-    sources
-}
-
-pub fn load_samples(path: &str) -> HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> {
-    let data = load_data(path);
-    let data = otlp_data_to_samples(data.as_slice());
-    data
-}
 
 pub fn mach_register_samples(
     samples: &[(SeriesId, &'static [SampleType])],
