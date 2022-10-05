@@ -8,16 +8,16 @@ mod constants;
 #[allow(dead_code)]
 mod utils;
 
-use data_generator::SAMPLES;
 use constants::*;
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
+use data_generator::SAMPLES;
 use lazy_static::*;
 use mach::{id::SeriesId, sample::SampleType};
+use num::NumCast;
 use std::mem;
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
-use num::NumCast;
 
 lazy_static! {
     static ref PARTITION_WRITERS: Vec<Sender<(Box<[u8]>, u64)>> = {
@@ -67,7 +67,9 @@ fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
 }
 
 fn kafka_batcher(i: u64, receiver: Receiver<(i32, Batch, u64)>) {
-    let mut batchers: Vec<batching::WriteBatch> = (0..PARAMETERS.kafka_partitions).map(|_| batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes)).collect();
+    let mut batchers: Vec<batching::WriteBatch> = (0..PARAMETERS.kafka_partitions)
+        .map(|_| batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes))
+        .collect();
     let mut last_data_generator = u64::MAX;
     loop {
         if let Ok((partition, batch, data_generator)) = receiver.try_recv() {
@@ -82,13 +84,19 @@ fn kafka_batcher(i: u64, receiver: Receiver<(i32, Batch, u64)>) {
             let batch_len = batch.len();
             for item in batch {
                 if batcher.insert(*item.0, item.1, item.2).is_err() {
-                    let old_batch = mem::replace(batcher, batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes));
+                    let old_batch = mem::replace(
+                        batcher,
+                        batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes),
+                    );
                     let bytes = old_batch.close();
                     PARTITION_WRITERS[partition].send((bytes, i)).unwrap();
                 }
             }
             //COUNTERS.add_samples_written(batch_len);
-            println!("{:?}", <f64 as NumCast>::from(batch_len).unwrap() / now.elapsed().as_secs_f64());
+            println!(
+                "{:?}",
+                <f64 as NumCast>::from(batch_len).unwrap() / now.elapsed().as_secs_f64()
+            );
         }
     }
 }
@@ -126,9 +134,14 @@ impl Batcher {
     }
 }
 
-
-fn run_workload(workload: Workload, samples: &[(SeriesId, &'static [SampleType], f64)], data_generator: u64) {
-    let mut batches: Vec<Batcher> = (0..PARAMETERS.kafka_partitions).map(|_| Batcher::new()).collect();
+fn run_workload(
+    workload: Workload,
+    samples: &[(SeriesId, &'static [SampleType], f64)],
+    data_generator: u64,
+) {
+    let mut batches: Vec<Batcher> = (0..PARAMETERS.kafka_partitions)
+        .map(|_| Batcher::new())
+        .collect();
     let mut data_idx = 0;
     let duration = workload.duration.clone();
     let workload_start = Instant::now();
@@ -152,14 +165,17 @@ fn run_workload(workload: Workload, samples: &[(SeriesId, &'static [SampleType],
             //let batch_size = closed_batch.batch_size;
             let batch_count = closed_batch.batch.len();
             COUNTERS.add_samples_generated(batch_count);
-            match BATCHER_WRITERS[writer_id].try_send((partition_id as i32, closed_batch.batch, data_generator)) {
+            match BATCHER_WRITERS[writer_id].try_send((
+                partition_id as i32,
+                closed_batch.batch,
+                data_generator,
+            )) {
                 Ok(_) => {}
                 Err(_) => {} // drop batch
             }
         }
         workload_total_mb += sample_size_mb;
         workload_total_samples += 1;
-
 
         data_idx += 1;
         if data_idx == samples.len() {
@@ -178,10 +194,17 @@ fn run_workload(workload: Workload, samples: &[(SeriesId, &'static [SampleType],
     let actual_rate = workload_total_samples as f64 / workload_start.elapsed().as_secs_f64();
     let actual_mbps = workload_total_mb as f64 / workload_start.elapsed().as_secs_f64();
     thread::sleep(Duration::from_secs(2));
-    println!("Workload expected rate: {}, Actual rate: {}, Mbps: {}", expected_rate, actual_rate, actual_mbps);
+    println!(
+        "Workload expected rate: {}, Actual rate: {}, Mbps: {}",
+        expected_rate, actual_rate, actual_mbps
+    );
 }
 
-fn workload_runner(workloads: Vec<Workload>, data: Vec<(SeriesId, &'static[SampleType], f64)>, data_generator: u64) {
+fn workload_runner(
+    workloads: Vec<Workload>,
+    data: Vec<(SeriesId, &'static [SampleType], f64)>,
+    data_generator: u64,
+) {
     println!("Workloads: {:?}", workloads);
     for workload in workloads {
         run_workload(workload, data.as_slice(), data_generator);
@@ -221,7 +244,10 @@ fn main() {
         }
     }
     let elapsed = now.elapsed();
-    println!("{}", <f64 as NumCast>::from(SAMPLES.len()).unwrap() / elapsed.as_secs_f64());
+    println!(
+        "{}",
+        <f64 as NumCast>::from(SAMPLES.len()).unwrap() / elapsed.as_secs_f64()
+    );
 }
 
 //fn main() {
