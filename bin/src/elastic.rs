@@ -4,8 +4,8 @@ use std::marker::PhantomData;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{atomic::AtomicUsize, Arc};
-use std::time::{Duration, UNIX_EPOCH};
-use std::time::{Instant, SystemTime};
+use std::time::Duration;
+use std::time::Instant;
 
 use elasticsearch::{
     auth::Credentials,
@@ -286,33 +286,6 @@ where
     }
 }
 
-fn to_timestamp_micros(time: SystemTime) -> u64 {
-    time.duration_since(UNIX_EPOCH.into())
-        .unwrap()
-        .as_micros()
-        .try_into()
-        .unwrap()
-}
-
-pub struct Timerange {
-    start: SystemTime,
-    end: SystemTime,
-}
-
-impl Timerange {
-    pub fn new(start: SystemTime, end: SystemTime) -> Self {
-        assert!(start < end);
-        Self { start, end }
-    }
-
-    fn as_timestamp_micros(&self) -> (u64, u64) {
-        (
-            to_timestamp_micros(self.start),
-            to_timestamp_micros(self.end),
-        )
-    }
-}
-
 pub struct ESIndexQuerier {
     client: Elasticsearch,
 }
@@ -320,6 +293,41 @@ pub struct ESIndexQuerier {
 impl ESIndexQuerier {
     pub fn new(client: Elasticsearch) -> Self {
         Self { client }
+    }
+
+    pub async fn query_series_latest_timestamp(
+        &self,
+        index_name: &str,
+        series_id: u64,
+    ) -> Result<Option<u64>, elasticsearch::Error> {
+        let match_series = json!({
+            "query": {
+                "term": {
+                    "series_id": {
+                        "value": series_id
+                    }
+                }
+            }
+        });
+
+        let r = self
+            .client
+            .search(SearchParts::Index(&[index_name]))
+            .body(match_series)
+            .sort(&["timestamp:desc"])
+            .size(1)
+            .send()
+            .await?;
+
+        let r_body = r
+            .json::<serde_json::Value>()
+            .await
+            .expect("Failed to parse response as json");
+        match &r_body["hits"]["hits"][0]["sort"][0] {
+            serde_json::Value::Null => Ok(None),
+            serde_json::Value::Number(ts) => Ok(Some(ts.as_u64().unwrap())),
+            _ => unreachable!("unexpected timestamp type"),
+        }
     }
 
     pub async fn query_latest_timestamp(
@@ -354,10 +362,9 @@ impl ESIndexQuerier {
         &self,
         index_name: &str,
         series_id: u64,
-        time_range: Timerange,
+        start: u64,
+        end: u64,
     ) -> Result<Option<u64>, elasticsearch::Error> {
-        let (range_start, range_end) = time_range.as_timestamp_micros();
-
         let query = json!({
             "query": {
                 "bool": {
@@ -369,8 +376,8 @@ impl ESIndexQuerier {
                     "filter": {
                         "range": {
                             "timestamp": {
-                                "gte": range_start,
-                                "lte": range_end,
+                                "gte": start,
+                                "lte": end,
                             }
                         }
                     }

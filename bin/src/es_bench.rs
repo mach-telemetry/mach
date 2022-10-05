@@ -12,12 +12,9 @@ mod utils;
 use crate::prep_data::ESSample;
 use clap::*;
 use constants::PARAMETERS;
-use elastic::{
-    ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier, IngestStats, Timerange,
-};
+use elastic::{ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier, IngestStats};
 use lazy_static::lazy_static;
 use std::sync::atomic::Ordering::SeqCst;
-use std::time::SystemTime;
 use std::{
     collections::HashMap,
     sync::{atomic::AtomicUsize, Arc},
@@ -31,7 +28,6 @@ lazy_static! {
         .iter()
         .map(|sample| { ESSample::new(sample.0, timestamp_now_micros(), sample.1.to_vec()) })
         .collect();
-    static ref INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
     static ref INDEXED_COUNT: AtomicUsize = AtomicUsize::new(0);
     static ref BENCH_DUR_SECS: u64 = 600;
@@ -45,7 +41,7 @@ async fn bench(
 ) {
     let mut client = ESBatchedIndexClient::<ESSample>::new(
         es_builder.build().unwrap(),
-        INDEX_NAME.to_string(),
+        PARAMETERS.es_index_name.to_string(),
         batch_bytes,
         INGESTION_STATS.clone(),
     );
@@ -82,11 +78,7 @@ async fn bench(
 }
 
 #[allow(dead_code)]
-async fn _series_doc_count_querier(
-    barr: Arc<Barrier>,
-    es_builder: ESClientBuilder,
-    run_duration: Duration,
-) {
+async fn _series_querier(barr: Arc<Barrier>, es_builder: ESClientBuilder, run_duration: Duration) {
     let one_sec = Duration::from_secs(1);
     let client = ESIndexQuerier::new(es_builder.build().unwrap());
     barr.wait().await;
@@ -95,18 +87,14 @@ async fn _series_doc_count_querier(
     while start.elapsed() < run_duration {
         let picked_series = SAMPLES[idx].series_id.0;
         idx += 1;
-        let time_range = Timerange::new(
-            SystemTime::now() - Duration::from_secs(60),
-            SystemTime::now(),
-        );
         match client
-            .query_series_doc_count(INDEX_NAME.as_str(), picked_series, time_range)
+            .query_series_latest_timestamp(PARAMETERS.es_index_name.as_str(), picked_series)
             .await
         {
             Err(e) => println!("{:?}", e),
             Ok(doc_count) => {
                 if let Some(doc_count) = doc_count {
-                    println!("Series {picked_series} doc count in duration: {doc_count}");
+                    println!("Resp for series {picked_series}: {doc_count}");
                 }
             }
         }
@@ -121,7 +109,10 @@ async fn progress_watcher(barr: Arc<Barrier>, es_builder: ESClientBuilder, run_d
     barr.wait().await;
     let start = Instant::now();
     while start.elapsed() < run_duration {
-        match client.query_index_doc_count(INDEX_NAME.as_str()).await {
+        match client
+            .query_index_doc_count(PARAMETERS.es_index_name.as_str())
+            .await
+        {
             Err(e) => println!("{:?}", e),
             Ok(res) => {
                 if res.is_some() {
@@ -145,7 +136,7 @@ async fn main() {
 
     let client = ESBatchedIndexClient::<ESSample>::new(
         elastic_builder.clone().build().unwrap(),
-        INDEX_NAME.clone(),
+        PARAMETERS.es_index_name.clone(),
         PARAMETERS.es_batch_bytes,
         INGESTION_STATS.clone(),
     );
@@ -163,7 +154,7 @@ async fn main() {
         .unwrap();
     println!("Create index response: {:?}", r);
     assert!(r.status_code().is_success());
-    println!("index created; name: {}", INDEX_NAME.as_str());
+    println!("index created; name: {}", PARAMETERS.es_index_name.as_str());
 
     let num_writers: usize = PARAMETERS.kafka_partitions.try_into().unwrap();
 
@@ -181,7 +172,7 @@ async fn main() {
     let barr_clone = barr.clone();
     let es_builder = elastic_builder.clone();
     tokio::spawn(async move {
-        progress_watcher(barr_clone, es_builder, run_duration).await;
+        _series_querier(barr_clone, es_builder, run_duration).await;
     });
 
     barr.wait().await;
