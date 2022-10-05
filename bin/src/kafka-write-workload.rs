@@ -67,14 +67,9 @@ fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
 }
 
 fn kafka_batcher(i: u64, receiver: Receiver<(i32, Batch, u64)>) {
-<<<<<<< HEAD
-    let mut batchers: Vec<batching::WriteBatch> = (0..PARAMETERS.kafka_partitions).map(|_| batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes)).collect();
-=======
     let mut batchers: Vec<batching::WriteBatch> = (0..PARAMETERS.kafka_partitions)
         .map(|_| batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes))
         .collect();
-    let mut last_data_generator = u64::MAX;
->>>>>>> b35c639bb751c2bc82c3411748a537cfb917dbd5
     loop {
         if let Ok((partition, batch, data_generator)) = receiver.try_recv() {
             let now = Instant::now();
@@ -92,14 +87,7 @@ fn kafka_batcher(i: u64, receiver: Receiver<(i32, Batch, u64)>) {
                 }
             }
             //COUNTERS.add_samples_written(batch_len);
-<<<<<<< HEAD
             println!("Write rate (samples/second): {:?}", <f64 as NumCast>::from(batch_len).unwrap() / now.elapsed().as_secs_f64());
-=======
-            println!(
-                "{:?}",
-                <f64 as NumCast>::from(batch_len).unwrap() / now.elapsed().as_secs_f64()
-            );
->>>>>>> b35c639bb751c2bc82c3411748a537cfb917dbd5
         }
     }
 }

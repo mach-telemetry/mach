@@ -74,6 +74,7 @@ fn generate_samples() -> Vec<(SeriesId, &'static [SampleType], f64)> {
     println!("Max source length: {}", max_source_length);
     println!("Average source length: {}", average_source_length);
     println!("Min source length: {}", min_source_length);
+    println!("Total samples: {}", samples.len());
     samples
 }
 
