@@ -4,8 +4,8 @@ use std::marker::PhantomData;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::{atomic::AtomicUsize, Arc};
-use std::time::Duration;
-use tokio::time::Instant;
+use std::time::{Duration, UNIX_EPOCH};
+use std::time::{Instant, SystemTime};
 
 use elasticsearch::{
     auth::Credentials,
@@ -286,6 +286,33 @@ where
     }
 }
 
+fn to_timestamp_micros(time: SystemTime) -> u64 {
+    time.duration_since(UNIX_EPOCH.into())
+        .unwrap()
+        .as_micros()
+        .try_into()
+        .unwrap()
+}
+
+pub struct Timerange {
+    start: SystemTime,
+    end: SystemTime,
+}
+
+impl Timerange {
+    pub fn new(start: SystemTime, end: SystemTime) -> Self {
+        assert!(start < end);
+        Self { start, end }
+    }
+
+    fn as_timestamp_micros(&self) -> (u64, u64) {
+        (
+            to_timestamp_micros(self.start),
+            to_timestamp_micros(self.end),
+        )
+    }
+}
+
 pub struct ESIndexQuerier {
     client: Elasticsearch,
 }
@@ -320,6 +347,53 @@ impl ESIndexQuerier {
             serde_json::Value::Null => Ok(None),
             serde_json::Value::Number(ts) => Ok(Some(ts.as_u64().unwrap())),
             _ => unreachable!("unexpected timestamp type"),
+        }
+    }
+
+    pub async fn query_series_doc_count(
+        &self,
+        index_name: &str,
+        series_id: u64,
+        time_range: Timerange,
+    ) -> Result<Option<u64>, elasticsearch::Error> {
+        let (range_start, range_end) = time_range.as_timestamp_micros();
+
+        let query = json!({
+            "query": {
+                "bool": {
+                    "must": {
+                        "term": {
+                            "series_id": series_id,
+                        }
+                    },
+                    "filter": {
+                        "range": {
+                            "timestamp": {
+                                "gte": range_start,
+                                "lte": range_end,
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        let r = self
+            .client
+            .count(CountParts::Index(&[index_name]))
+            .body(query)
+            .send()
+            .await?;
+
+        let r_body = r
+            .json::<serde_json::Value>()
+            .await
+            .expect("Failed to parse response as json");
+
+        match &r_body["count"] {
+            serde_json::Value::Null => Ok(None),
+            serde_json::Value::Number(doc_count) => Ok(Some(doc_count.as_u64().unwrap())),
+            _ => unreachable!("unexpected doc count type"),
         }
     }
 
