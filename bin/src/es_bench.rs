@@ -12,15 +12,18 @@ mod utils;
 use crate::prep_data::ESSample;
 use clap::*;
 use constants::PARAMETERS;
-use elastic::{ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier, IngestStats};
+use elastic::{
+    ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier, IngestStats, Timerange,
+};
 use lazy_static::lazy_static;
 use std::sync::atomic::Ordering::SeqCst;
+use std::time::SystemTime;
 use std::{
     collections::HashMap,
     sync::{atomic::AtomicUsize, Arc},
-    time::Duration,
+    time::{Duration, Instant},
 };
-use tokio::{sync::Barrier, time::Instant};
+use tokio::sync::Barrier;
 use utils::timestamp_now_micros;
 
 lazy_static! {
@@ -75,6 +78,40 @@ async fn bench(
     }
     client.flush().await.unwrap();
     drop(client);
+    barr.wait().await;
+}
+
+#[allow(dead_code)]
+async fn _series_doc_count_querier(
+    barr: Arc<Barrier>,
+    es_builder: ESClientBuilder,
+    run_duration: Duration,
+) {
+    let one_sec = Duration::from_secs(1);
+    let client = ESIndexQuerier::new(es_builder.build().unwrap());
+    barr.wait().await;
+    let start = Instant::now();
+    let mut idx = 0;
+    while start.elapsed() < run_duration {
+        let picked_series = SAMPLES[idx].series_id.0;
+        idx += 1;
+        let time_range = Timerange::new(
+            SystemTime::now() - Duration::from_secs(60),
+            SystemTime::now(),
+        );
+        match client
+            .query_series_doc_count(INDEX_NAME.as_str(), picked_series, time_range)
+            .await
+        {
+            Err(e) => println!("{:?}", e),
+            Ok(doc_count) => {
+                if let Some(doc_count) = doc_count {
+                    println!("Series {picked_series} doc count in duration: {doc_count}");
+                }
+            }
+        }
+        tokio::time::sleep(one_sec).await;
+    }
     barr.wait().await;
 }
 
