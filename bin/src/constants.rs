@@ -1,3 +1,4 @@
+use crate::utils::timestamp_now_micros;
 use clap::*;
 use lazy_static::*;
 use std::sync::{
@@ -24,7 +25,6 @@ lazy_static! {
 
 #[derive(Parser, Debug, Clone)]
 pub struct Args {
-
     #[clap(long, default_value_t = 1_000_000)]
     pub workload_rate: u64,
 
@@ -68,6 +68,9 @@ pub struct Args {
 
     #[clap(short, long, default_value_t = 0)]
     pub es_num_replicas: usize,
+
+    #[clap(short, long, default_value_t = format!("test-data-{}", timestamp_now_micros()))]
+    pub es_index_name: String,
 
     /// The queue into which batches (e.g., Kafka or Mach batches) are written. If bounded, will be bounded to 1. If the queue is full, the workload will drop the batch.
     #[clap(short, long)]
@@ -238,11 +241,11 @@ impl Workload {
         for _ in 0..n {
             let w = Workload {
                 samples_per_second,
-                duration: self.duration
+                duration: self.duration,
             };
             result.push(w);
         }
-        result[n as usize -1].samples_per_second += excess;
+        result[n as usize - 1].samples_per_second += excess;
         result
     }
 }

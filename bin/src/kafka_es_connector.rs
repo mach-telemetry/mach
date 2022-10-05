@@ -31,7 +31,6 @@ use std::time::{Duration, Instant};
 use utils::timestamp_now_micros;
 
 lazy_static! {
-    static ref INDEX_NAME: String = format!("test-data-{}", timestamp_now_micros());
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
     static ref INDEXED_COUNT: AtomicU64 = AtomicU64::new(0);
     static ref TOTAL_SAMPLES: AtomicU64 = AtomicU64::new(0);
@@ -207,7 +206,7 @@ fn kafka_consumer(partition: i32, tx: Sender<EsWriterInput>) {
 fn es_writer(es_conf: ESClientBuilder, rx: Receiver<EsWriterInput>) {
     let es_writer = ESBatchedIndexClient::new(
         es_conf.build().unwrap(),
-        INDEX_NAME.clone(),
+        PARAMETERS.es_index_name.clone(),
         PARAMETERS.es_batch_bytes,
         INGESTION_STATS.clone(),
     );
@@ -270,7 +269,7 @@ fn create_es_index(elastic_builder: ESClientBuilder) {
     rt.block_on(async {
         let client = ESBatchedIndexClient::<prep_data::ESSample>::new(
             elastic_builder.build().unwrap(),
-            INDEX_NAME.clone(),
+            PARAMETERS.es_index_name.clone(),
             PARAMETERS.es_batch_bytes,
             INGESTION_STATS.clone(),
         );
@@ -289,7 +288,11 @@ fn create_es_index(elastic_builder: ESClientBuilder) {
 
         assert!(r.status_code().is_success());
 
-        println!("ES Index {} created, resp: {:?}", INDEX_NAME.as_str(), r);
+        println!(
+            "ES Index {} created, resp: {:?}",
+            PARAMETERS.es_index_name.as_str(),
+            r
+        );
     });
 }
 
@@ -311,9 +314,9 @@ fn main() {
     }
 
     let es_client_builder = es_client_config.clone();
-    thread::spawn(move || es_data_age_watcher(es_client_builder, &INDEX_NAME));
+    thread::spawn(move || es_data_age_watcher(es_client_builder, &PARAMETERS.es_index_name));
     let es_client_builder = es_client_config.clone();
-    thread::spawn(move || es_docs_count_watcher(es_client_builder, &INDEX_NAME));
+    thread::spawn(move || es_docs_count_watcher(es_client_builder, &PARAMETERS.es_index_name));
     thread::spawn(stats_watcher);
 
     for c in consumers {

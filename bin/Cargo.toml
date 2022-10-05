@@ -95,6 +95,10 @@ name = "simple-mach-query"
 path = "src/simple-mach-query.rs"
 
 [[bin]]
+name = "simple-es-query"
+path = "src/simple-es-query.rs"
+
+[[bin]]
 name = "from-json"
 path = "src/from-json.rs"
 
