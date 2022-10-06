@@ -12,7 +12,13 @@ lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
     pub static ref WORKLOAD: Vec<Workload> =
         vec![
-            Workload::new(3_000_000, Duration::from_secs(75)),
+            Workload::new(9_000_000, Duration::from_secs(120)),
+            Workload::new(10_000_000, Duration::from_secs(120)),
+            Workload::new(11_000_000, Duration::from_secs(120)),
+            Workload::new(12_000_000, Duration::from_secs(120)),
+            Workload::new(13_000_000, Duration::from_secs(120)),
+            Workload::new(14_000_000, Duration::from_secs(120)),
+            Workload::new(15_000_000, Duration::from_secs(120)),
         ];
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }

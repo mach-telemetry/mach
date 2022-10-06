@@ -1,0 +1,110 @@
+MADE TOPIC kafka-completeness-bench
+Read data for 464 sources
+Expanding data based on source_count = 1000
+Sorting by time
+Setting up final samples
+Samples stats:
+Total number of unique samples: 74030031
+Number of sources: 1000, Number of metrics: 671
+Max source length: 108788
+Average source length: 74030
+Min source length: 4
+Workloads: [Workload { samples_per_second: 1000000, duration: 120s }, Workload { samples_per_second: 2000000, duration: 120s }, Workload { samples_per_second: 3000000, duration: 120s }, Workload { samples_per_second: 4000000, duration: 120s }, Workload { samples_per_second: 5000000, duration: 120s }, Workload { samples_per_second: 6000000, duration: 120s }, Workload { samples_per_second: 7000000, duration: 120s }, Workload { samples_per_second: 8000000, duration: 120s }, Workload { samples_per_second: 9000000, duration: 120s }, Workload { samples_per_second: 10000000, duration: 120s }]
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Write rate (samples/second): 1776352.6850201439
+Write rate (samples/second): 1749207.0477119244
+Write rate (samples/second): 1353340.231128046
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Write rate (samples/second): 1440476.8752857565
+Queue length: 1
+Queue length: 0
+Queue length: 2
+Queue length: 1
+Write rate (samples/second): 1242376.9150168595
+Write rate (samples/second): 1229098.3105689741
+Write rate (samples/second): 2107034.7793523925
+Write rate (samples/second): 1553969.8467380146
+Write rate (samples/second): 2169698.479649315
+Queue length: 0
+Queue length: 1
+Queue length: 2
+Write rate (samples/second): 1623039.4316650864
+Queue length: 2
+Queue length: 0
+Queue length: 3
+Queue length: 1
+Queue length: 2
+Write rate (samples/second): 1727312.898917732
+Write rate (samples/second): 2144041.014921436
+Write rate (samples/second): 2312254.752722875
+Write rate (samples/second): 2597942.753562434
+Write rate (samples/second): 2575486.465223688
+Write rate (samples/second): 2039744.3867397131
+Write rate (samples/second): 1680889.0894749868
+Write rate (samples/second): 2166945.644305121
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Write rate (samples/second): 2050676.842912621
+Write rate (samples/second): 2116040.1727687554
+Write rate (samples/second): 1584005.7289812323
+Write rate (samples/second): 1440978.633376325
+Write rate (samples/second): 1357916.9237180771
+Queue length: 0
+Write rate (samples/second): 2096181.880167822
+Current workload rate: 1000000, Samples generated: 12000000, Samples dropped: 0, Samples completeness: 1.00, 
+Current workload rate: 1000000, Samples generated: 10000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5209820.085740302
+Write rate (samples/second): 4504943.594457193
+Queue length: 0
+Write rate (samples/second): 5385037.099297639
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Write rate (samples/second): 5368880.937409189
+Write rate (samples/second): 5373487.412998
+Write rate (samples/second): 5635820.281806795
+Write rate (samples/second): 5492566.859835483
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Write rate (samples/second): 5377273.140051767
+Write rate (samples/second): 5344728.865378733
+Write rate (samples/second): 5366834.344103236
+Write rate (samples/second): 4452651.611473839
+Write rate (samples/second): 5684437.867928794
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Write rate (samples/second): 5549704.255705243
+Write rate (samples/second): 5760204.08633486
+Write rate (samples/second): 5557907.044271464
+Write rate (samples/second): 5453538.810605218
+Current workload rate: 1000000, Samples generated: 8000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Write rate (samples/second): 5556225.698110589
+Write rate (samples/second): 5522622.0738055585
+Write rate (samples/second): 5550471.755131214
+Write rate (samples/second): 5524304.99188463
+Queue length: 0
+Write rate (samples/second): 5489717.435350261
+Queue length: 0
+Write rate (samples/second): 5326389.369225641
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5316942.291992604
