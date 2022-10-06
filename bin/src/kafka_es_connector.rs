@@ -200,7 +200,11 @@ fn kafka_consumer(partition: i32, tx: Sender<EsWriterInput>) {
         &[partition.try_into().unwrap()],
     );
 
-    consume_or_drop_from_kafka(kafka_consumer, tx);
+    if PARAMETERS.unbounded_queue {
+        blocking_consume_from_kafka(kafka_consumer, tx);
+    } else {
+        consume_or_drop_from_kafka(kafka_consumer, tx);
+    }
 }
 
 fn es_writer(es_conf: ESClientBuilder, rx: Receiver<EsWriterInput>) {
@@ -216,12 +220,17 @@ fn es_writer(es_conf: ESClientBuilder, rx: Receiver<EsWriterInput>) {
 
 fn stats_watcher() {
     let mut prev_bytes_written = 0;
+    let mut prev_samples_flushed = 0;
     let interval = Duration::from_secs(PARAMETERS.print_interval_seconds);
 
     loop {
         let flushed_count = INGESTION_STATS.num_flushed.load(SeqCst);
         let indexed_count = INDEXED_COUNT.load(SeqCst);
         let fraction_indexed = indexed_count as f64 / flushed_count as f64;
+
+        let flushed_count_delta = flushed_count - prev_samples_flushed;
+        prev_samples_flushed = flushed_count;
+        let samples_per_sec = flushed_count_delta as f64 / interval.as_secs_f64();
 
         let bytes_written = INGESTION_STATS.bytes_flushed.load(SeqCst);
         let flushed_delta = bytes_written - prev_bytes_written;
@@ -249,7 +258,8 @@ fn stats_watcher() {
         let completeness = written_samples as f64 / consumed_samples as f64;
 
         println!(
-            "bytes per sec: {bytes_per_sec}, flushed count: {flushed_count}, \
+            "samples per sec: {samples_per_sec}, bytes per sec: {bytes_per_sec}, \
+            flushed count: {flushed_count}, \
             indexed count: {indexed_count}, fraction indexed: {fraction_indexed}, \
                  flushes (init: {num_flushes_initiated}, completed: {num_flushes_completed}, \
                           pending: {num_flushes_pending}, retries: {num_flush_retries}, \
