@@ -353,10 +353,11 @@ fn main() {
     }
 
     {
-        snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap(), "172.31.22.116:50051");
+        snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap());
     }
 
     start_barrier.wait();
+    println!("Beginning workload");
     stats_barrier.wait();
     done_barrier.wait();
 }

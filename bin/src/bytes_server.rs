@@ -7,6 +7,7 @@ use bytes_service::bytes_service_client::BytesServiceClient;
 use bytes_service::bytes_service_server::{BytesService, BytesServiceServer};
 use bytes_service::BytesMessage;
 use tokio::runtime::Runtime;
+use std::net::SocketAddr;
 
 struct ResultWrapper(Result<Option<Vec<u8>>, Status>);
 type BytesResponse = Result<Response<BytesMessage>, Status>;
@@ -33,9 +34,10 @@ impl<B: BytesHandler> BytesServer<B> {
         Self { handler }
     }
 
-    pub fn serve(self, address: &str) {
-        //let addr = "172.31.22.116:50051".parse().unwrap();
-        let addr = address.parse().unwrap();
+    pub fn serve(self) {
+        let local_ip = local_ip_address::local_ip().unwrap();
+        let addr = std::net::SocketAddr::new(local_ip, 50051);
+        println!("Serving on: {:?}", local_ip);
         let rt = Runtime::new().expect("failed to obtain a new RunTime object");
         let server_future = Server::builder()
             .add_service(BytesServiceServer::new(self))
