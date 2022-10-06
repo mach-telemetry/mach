@@ -12,6 +12,6 @@ impl BytesHandler for BytesToString {
 }
 
 fn main() {
-    bytes_server::BytesServer::new(BytesToString {});
+    bytes_server::BytesServer::new(BytesToString {}).serve("172.31.22.116:50051");
 }
 

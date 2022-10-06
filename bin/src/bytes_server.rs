@@ -33,8 +33,9 @@ impl<B: BytesHandler> BytesServer<B> {
         Self { handler }
     }
 
-    pub fn serve(self) {
-        let addr = "[::1]:50051".parse().unwrap();
+    pub fn serve(self, address: &str) {
+        //let addr = "172.31.22.116:50051".parse().unwrap();
+        let addr = address.parse().unwrap();
         let rt = Runtime::new().expect("failed to obtain a new RunTime object");
         let server_future = Server::builder()
             .add_service(BytesServiceServer::new(self))
