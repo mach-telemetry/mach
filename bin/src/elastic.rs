@@ -286,6 +286,19 @@ where
     }
 }
 
+#[derive(Debug)]
+pub enum Error {
+    NonSuccessResponse(elasticsearch::http::response::Response),
+    EsError(elasticsearch::Error),
+    UnrecognizedResponse(serde_json::Value),
+}
+
+impl From<elasticsearch::Error> for Error {
+    fn from(value: elasticsearch::Error) -> Self {
+        Error::EsError(value)
+    }
+}
+
 pub struct ESIndexQuerier {
     client: Elasticsearch,
 }
@@ -299,7 +312,7 @@ impl ESIndexQuerier {
         &self,
         index_name: &str,
         series_id: u64,
-    ) -> Result<Option<u64>, elasticsearch::Error> {
+    ) -> Result<Option<u64>, Error> {
         let match_series = json!({
             "query": {
                 "term": {
@@ -319,14 +332,28 @@ impl ESIndexQuerier {
             .send()
             .await?;
 
+        if !r.status_code().is_success() {
+            return Err(Error::NonSuccessResponse(r));
+        }
+
         let r_body = r
             .json::<serde_json::Value>()
             .await
             .expect("Failed to parse response as json");
-        match &r_body["hits"]["hits"][0]["sort"][0] {
+
+        match &r_body["hits"]["hits"] {
+            serde_json::Value::Array(hits_arr) => {
+                if hits_arr.len() == 0 {
+                    return Ok(None);
+                }
+                match &hits_arr[0]["sort"][0] {
+                    serde_json::Value::Null => Err(Error::UnrecognizedResponse(r_body)),
+                    serde_json::Value::Number(ts) => Ok(Some(ts.as_u64().unwrap())),
+                    _ => unreachable!("unexpected timestamp type"),
+                }
+            }
             serde_json::Value::Null => Ok(None),
-            serde_json::Value::Number(ts) => Ok(Some(ts.as_u64().unwrap())),
-            _ => unreachable!("unexpected timestamp type"),
+            _ => Err(Error::UnrecognizedResponse(r_body)),
         }
     }
 
@@ -351,6 +378,7 @@ impl ESIndexQuerier {
             .json::<serde_json::Value>()
             .await
             .expect("Failed to parse response as json");
+
         match &r_body["hits"]["hits"][0]["sort"][0] {
             serde_json::Value::Null => Ok(None),
             serde_json::Value::Number(ts) => Ok(Some(ts.as_u64().unwrap())),
@@ -365,6 +393,8 @@ impl ESIndexQuerier {
         start: u64,
         end: u64,
     ) -> Result<Option<u64>, elasticsearch::Error> {
+        assert!(start <= end);
+
         let query = json!({
             "query": {
                 "bool": {

@@ -17,6 +17,24 @@ type SourceMap = HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>>;
 lazy_static! {
     static ref BASE_DATA: SourceMap = read_intel_data();
     pub static ref SAMPLES: Vec<(SeriesId, &'static [SampleType], f64)> = generate_samples();
+    pub static ref HOT_SOURCES: Vec<SeriesId> = {
+        let mut source_lengths = HashMap::new();
+        for s in SAMPLES.iter() {
+            source_lengths
+                .entry(s.0)
+                .and_modify(|c| *c += 1)
+                .or_insert(1);
+        }
+
+        let mut source_length_pairs: Vec<_> = source_lengths.into_iter().collect();
+
+        source_length_pairs.sort_by(|(_, l1), (_, l2)| l2.partial_cmp(l1).unwrap());
+
+        source_length_pairs
+            .into_iter()
+            .map(|(source_id, _)| source_id)
+            .collect()
+    };
 }
 
 fn generate_samples() -> Vec<(SeriesId, &'static [SampleType], f64)> {
