@@ -122,6 +122,10 @@ path = "src/mach-write-workload.rs"
 name = "kafka-write-workload"
 path = "src/kafka-write-workload.rs"
 
+[[bin]]
+name = "simple-bytes-server"
+path = "src/simple-bytes-server.rs"
+
 #[[bin]]
 #name = "convert-otlp-data"
 #path = "src/convert-otlp-data.rs"

@@ -4,6 +4,10 @@ mod data_generator;
 mod constants;
 #[allow(dead_code)]
 mod utils;
+#[allow(dead_code)]
+mod snapshotter;
+#[allow(dead_code)]
+mod bytes_server;
 
 use constants::*;
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
@@ -345,6 +349,10 @@ fn main() {
             workload_runner(workloads, data);
             done_barrier.wait();
         });
+    }
+
+    {
+        snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap());
     }
 
     start_barrier.wait();

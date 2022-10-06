@@ -12,25 +12,27 @@ lazy_static! {
     pub static ref PARAMETERS: Args = Args::parse();
     pub static ref WORKLOAD: Vec<Workload> =
         vec![
-            Workload::new(9_000_000, Duration::from_secs(120)),
-            Workload::new(10_000_000, Duration::from_secs(120)),
-            Workload::new(11_000_000, Duration::from_secs(120)),
-            Workload::new(12_000_000, Duration::from_secs(120)),
-            Workload::new(13_000_000, Duration::from_secs(120)),
-            Workload::new(14_000_000, Duration::from_secs(120)),
-            Workload::new(15_000_000, Duration::from_secs(120)),
+            //Workload::new(1_000_000, Duration::from_secs(60 * 4)),
+            //Workload::new(2_000_000, Duration::from_secs(60 * 4)),
+            //Workload::new(3_000_000, Duration::from_secs(60 * 4)),
+            //Workload::new(4_000_000, Duration::from_secs(60 * 4)),
+            //Workload::new(5_000_000, Duration::from_secs(60 * 4)),
+            //Workload::new(6_000_000, Duration::from_secs(60 * 4)),
+            Workload::new(7_000_000, Duration::from_secs(60 * 4)),
+            Workload::new(8_000_000, Duration::from_secs(60 * 4)),
+            Workload::new(9_000_000, Duration::from_secs(60 * 4)),
+            Workload::new(10_000_000, Duration::from_secs(60 * 4)),
+            Workload::new(11_000_000, Duration::from_secs(60 * 4)),
+            Workload::new(12_000_000, Duration::from_secs(60 * 4)),
+            Workload::new(13_000_000, Duration::from_secs(60 * 4)),
+            Workload::new(14_000_000, Duration::from_secs(60 * 4)),
+            Workload::new(15_000_000, Duration::from_secs(60 * 4)),
         ];
     pub static ref COUNTERS: Arc<Counters> = Arc::new(Counters::new());
 }
 
 #[derive(Parser, Debug, Clone)]
 pub struct Args {
-    #[clap(long, default_value_t = 1_000_000)]
-    pub workload_rate: u64,
-
-    #[clap(long, default_value_t = 120)]
-    pub workload_seconds: u64,
-
     #[clap(long, default_value_t = 1_000_000)]
     pub kafka_batch_bytes: usize,
 

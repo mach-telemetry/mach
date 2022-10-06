@@ -1,6 +1,6 @@
 import math
 
-FILE = "kafka_ingest_1_writers_500000_batch_2"
+FILE = "mach_ingest_2_writers_500000_batch_1000_sources_20221006132132"
 
 def parse_line(line):
     parts = line.split(",")

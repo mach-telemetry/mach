@@ -7,7 +7,7 @@ pub const PARTITIONS: i32 = 4;
 pub const REPLICAS: i32 = 3;
 //pub const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
 pub const BOOTSTRAPS: &str = {
-    "b-1.machkafka.y07p6u.c17.kafka.us-east-1.amazonaws.com:9092,b-2.machkafka.y07p6u.c17.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka.y07p6u.c17.kafka.us-east-1.amazonaws.com:9092"
+    "b-1.machkafka.6qa2b7.c17.kafka.us-east-1.amazonaws.com:9092,b-2.machkafka.6qa2b7.c17.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka.6qa2b7.c17.kafka.us-east-1.amazonaws.com:9092"
 };
 pub const TOPIC: &str = "MACH";
 pub const MAX_MSG_SZ: usize = 1_500_000;

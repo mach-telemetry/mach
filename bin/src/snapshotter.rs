@@ -54,10 +54,10 @@ impl BytesHandler for SnapshotterHandler {
 }
 
 pub fn initialize_snapshot_server(mach: &Mach) {
-    println!("INITTING SERVER");
+    println!("Initing snapshot server");
     let server = BytesServer::new(SnapshotterHandler(mach.init_snapshotter()));
     std::thread::spawn(move || server.serve());
-    println!("INITTED SERVER");
+    println!("Inited snapshot server");
 }
 
 pub struct SnapshotClient(BytesClient);
