@@ -56,8 +56,8 @@ pub struct BytesClient(BytesServiceClient<tonic::transport::Channel>);
 
 impl BytesClient {
     #[allow(dead_code)]
-    pub async fn new() -> Self {
-        let client = BytesServiceClient::connect("http://[::1]:50051")
+    pub async fn new(addr: &'static str) -> Self {
+        let client = BytesServiceClient::connect(addr)
             .await
             .unwrap();
         Self(client)
