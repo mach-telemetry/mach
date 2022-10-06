@@ -10,6 +10,9 @@ mod query_utils;
 #[allow(dead_code)]
 mod utils;
 
+#[allow(dead_code)]
+mod data_generator;
+
 use dashmap::DashMap;
 use mach;
 use mach::id::SeriesId;
@@ -27,6 +30,9 @@ use constants::*;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use query_utils::SimpleQuery;
 use std::thread;
+use rand::Rng;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 
 lazy_static::lazy_static! {
     static ref SNAPSHOT_INTERVAL: Duration = Duration::from_secs_f64(PARAMETERS.mach_snapshot_interval);
@@ -141,34 +147,28 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
 }
 
 fn main() {
-    //mach::utils::kafka::init_kafka_consumer();
+    let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
+    let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
+    let sources = &data_generator::HOT_SOURCES[0..num_sources];
+
     // Sleeping to make sure there's enough data
-    println!("Sleeping");
-    std::thread::sleep(Duration::from_secs(2 * PARAMETERS.query_max_delay));
+    let initial_sleep_secs = 2 * PARAMETERS.query_max_delay;
+    println!("Sleep for {initial_sleep_secs} seconds to wait for data arrival");
+    std::thread::sleep(Duration::from_secs(initial_sleep_secs));
     println!("Done Sleeping");
 
-    // Setup snapshot client
-    //let runtime = tokio::runtime::Builder::new_current_thread()
-    //    .enable_all()
-    //    .build()
-    //    .unwrap();
-    //let mut client = runtime.block_on(snapshotter::SnapshotClient::new());
-    //let interval = *SNAPSHOT_INTERVAL;
-    //let timeout = *SNAPSHOT_TIMEOUT;
-
-    //let mut snapshotter_map = HashMap::new();
-    //let micros_in_sec: u64 = Duration::from_secs(1).as_micros().try_into().unwrap();
-
-    //init_thread_local_consumer();
-
-    //let mut rng = rand::thread_rng();
     let (notification_channel, wait_notification_channel) = unbounded();
     for i in 0..(PARAMETERS.query_count as usize) {
         thread::sleep(Duration::from_secs(PARAMETERS.query_interval_seconds));
         let now: u64 = utils::timestamp_now_micros().try_into().unwrap();
-        let query = SimpleQuery::new_relative_to(now);
-        let tx = notification_channel.clone();
+        let query = {
+            let mut q = SimpleQuery::new_relative_to(now);
+            let source_idx = rng.gen_range(0..sources.len());
+            q.source = sources[source_idx];
+            q
+        };
 
+        let tx = notification_channel.clone();
         thread::spawn(move || {
             execute_query(i, query, tx);
         });
