@@ -14,6 +14,7 @@ pub struct SimpleQuery {
     pub source: SeriesId,
     pub start: u64,
     pub end: u64,
+    pub from_now: u64,
 }
 
 impl SimpleQuery {
@@ -21,10 +22,11 @@ impl SimpleQuery {
         let now = relative_to;
         let mut rng = RNG.borrow_mut();
         let source = SeriesId(rng.gen_range(0..PARAMETERS.source_count));
-        let start = now - rng.gen_range(0..PARAMETERS.query_max_delay) * MICROS_IN_SECOND;
+        let from_now: u64 = rng.gen_range(0..PARAMETERS.query_max_delay);
+        let start = now - from_now * MICROS_IN_SECOND;
         let end = start
             - rng.gen_range(PARAMETERS.min_query_duration..PARAMETERS.max_query_duration)
                 * MICROS_IN_SECOND;
-        SimpleQuery { source, start, end }
+        SimpleQuery { source, start, end, from_now }
     }
 }

@@ -1,0 +1,25 @@
+Read data for 464 sources
+Expanding data based on source_count = 1000
+Sorting by time
+Setting up final samples
+Samples stats:
+Total number of unique samples: 74030031
+Number of sources: 1000, Number of metrics: 671
+Max source length: 108788
+Average source length: 74030
+Min source length: 4
+Total samples: 74030031
+Sleep for 120 seconds to wait for data arrival
+Done Sleeping
+Query ID: 0, Source: SeriesId(729), Duration: 18446744073656551616, Total Latency: 8.117423688, Data Latency: 7.882670954, Execution Latency: 0.234752734, Sink: 17137, 
+Query ID: 1, Source: SeriesId(729), Duration: 18446744073658551616, Total Latency: 0.255892155, Data Latency: 0.022744432, Execution Latency: 0.233147723, Sink: 15958, 
+Query ID: 2, Source: SeriesId(729), Duration: 18446744073660551616, Total Latency: 0.237379931, Data Latency: 0.022254082, Execution Latency: 0.215125849, Sink: 14622, 
+Query ID: 3, Source: SeriesId(729), Duration: 18446744073678551616, Total Latency: 0.141664901, Data Latency: 0.024501884, Execution Latency: 0.117163017, Sink: 9859, 
+Query ID: 4, Source: SeriesId(729), Duration: 18446744073660551616, Total Latency: 0.2253794, Data Latency: 0.025616785, Execution Latency: 0.199762615, Sink: 14723, 
+Query ID: 5, Source: SeriesId(729), Duration: 18446744073689551616, Total Latency: 0.094894192, Data Latency: 0.030633922, Execution Latency: 0.06426027, Sink: 6350, 
+Query ID: 6, Source: SeriesId(729), Duration: 18446744073670551616, Total Latency: 0.218281658, Data Latency: 0.02610708, Execution Latency: 0.192174578, Sink: 12488, 
+Query ID: 7, Source: SeriesId(729), Duration: 18446744073692551616, Total Latency: 0.0913969, Data Latency: 0.024830814, Execution Latency: 0.066566086, Sink: 4919, 
+Query ID: 8, Source: SeriesId(729), Duration: 18446744073681551616, Total Latency: 0.147578372, Data Latency: 0.034466563, Execution Latency: 0.113111809, Sink: 9678, 
+Query ID: 9, Source: SeriesId(729), Duration: 18446744073687551616, Total Latency: 0.110239766, Data Latency: 0.025006978, Execution Latency: 0.085232788, Sink: 5867, 
+Query ID: 10, Source: SeriesId(729), Duration: 18446744073691551616, Total Latency: 0.116864032, Data Latency: 0.03441814, Execution Latency: 0.082445892, Sink: 5418, 
+Query ID: 11, Source: SeriesId(729), Duration: 18446744073693551616, Total Latency: 2.721559101, Data Latency: 2.6447755600000002, Execution Latency: 0.076783541, Sink: 5826, 

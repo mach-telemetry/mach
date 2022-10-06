@@ -126,6 +126,10 @@ path = "src/kafka-write-workload.rs"
 name = "simple-bytes-server"
 path = "src/simple-bytes-server.rs"
 
+[[bin]]
+name = "simple-bytes-client"
+path = "src/simple-bytes-client.rs"
+
 #[[bin]]
 #name = "convert-otlp-data"
 #path = "src/convert-otlp-data.rs"

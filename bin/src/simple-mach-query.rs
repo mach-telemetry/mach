@@ -7,6 +7,7 @@ mod snapshotter;
 mod constants;
 
 mod query_utils;
+
 #[allow(dead_code)]
 mod utils;
 
@@ -40,7 +41,7 @@ lazy_static::lazy_static! {
     static ref SNAPSHOTTER_MAP: Arc<DashMap<SeriesId, SnapshotterId>> = Arc::new(DashMap::new());
 }
 
-static IPADDR: &str = "172.31.22.116:50051";
+static IPADDR: &str = "https://172.31.22.116:50051";
 
 //const START_MAX_DELAY: u64 = 60;
 //const MIN_QUERY_DURATION: u64 = 10;
@@ -72,8 +73,8 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
 
     // Wait for timestamp to be available
     let timer = Instant::now();
-    let mut query_execution_time = Duration::from_secs(0);
     loop {
+        let now = Instant::now();
         let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
         let mut snapshot = snapshot_id.load().into_iterator();
         snapshot.next_segment_at_timestamp(start).unwrap();
@@ -163,8 +164,8 @@ fn main() {
         let now: u64 = utils::timestamp_now_micros().try_into().unwrap();
         let query = {
             let mut q = SimpleQuery::new_relative_to(now);
-            let source_idx = rng.gen_range(0..sources.len());
-            q.source = sources[source_idx];
+            //let source_idx = rng.gen_range(0..sources.len());
+            q.source = sources[0];
             q
         };
 
