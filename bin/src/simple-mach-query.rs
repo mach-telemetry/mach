@@ -41,8 +41,6 @@ lazy_static::lazy_static! {
     static ref SNAPSHOTTER_MAP: Arc<DashMap<SeriesId, SnapshotterId>> = Arc::new(DashMap::new());
 }
 
-static IPADDR: &str = "https://172.31.22.116:50051";
-
 //const START_MAX_DELAY: u64 = 60;
 //const MIN_QUERY_DURATION: u64 = 10;
 //const MAX_QUERY_DURATION: u64 = 60;
@@ -60,7 +58,7 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
         .enable_all()
         .build()
         .unwrap();
-    let mut client = runtime.block_on(snapshotter::SnapshotClient::new(IPADDR));
+    let mut client = runtime.block_on(snapshotter::SnapshotClient::new(PARAMETERS.snapshot_server_port.as_str()));
 
     let snapshotter_id = *SNAPSHOTTER_MAP
         .entry(source)
@@ -113,35 +111,16 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
         count
     };
     let total_latency = timer.elapsed();
-    //let kafka_fetch = {
-    //    let timers = ThreadLocalTimer::timers();
-    //    timers
-    //        .get("ReadOnlyBlock::as_bytes")
-    //        .unwrap()
-    //        .clone()
-    //        .as_secs_f64()
-    //};
-    //let mut timers: Vec<(String, Duration)> = ThreadLocalTimer::timers()
-    //    .iter()
-    //    .map(|(s, d)| (s.clone(), *d))
-    //    .collect();
-    //timers.sort();
-    //println!("TIMERS\n{:?}", timers);
-
     let execution_latency = total_latency - data_latency;
-    //let total_query = start_delay + to_end;
 
-    print!(
-        "Query ID: {}, Source: {:?}, Duration: {}, ",
-        i,
-        source,
-        end - start
-    );
+    print!("Query ID: {}, ", i);
+    print!("Source: {:?}, ", source);
+    print!("Duration: {}, ", start - end);
+    print!("From now: {}, ", query.from_now);
     print!("Total Latency: {}, ", total_latency.as_secs_f64());
     print!("Data Latency: {}, ", data_latency.as_secs_f64());
     print!("Execution Latency: {}, ", execution_latency.as_secs_f64());
     print!("Sink: {}, ", result_count);
-    //print!("Blocks seen: {}, ", blocks_seen);
     println!("");
 
     done_notifier.send(()).unwrap();

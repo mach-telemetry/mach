@@ -141,6 +141,9 @@ pub struct Args {
 
     #[clap(long, default_value_t = 10_000_000)]
     pub max_writers_per_generator: u64,
+
+    #[clap(long, default_value_t = String::from("http://localhost:50051"))]
+    pub snapshot_server_port: String,
 }
 
 pub struct Counters {
