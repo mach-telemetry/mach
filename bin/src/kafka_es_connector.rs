@@ -318,7 +318,7 @@ fn main() {
     let mut writers = Vec::new();
     for partition in 0..PARAMETERS.kafka_partitions {
         let es_conf = es_client_config.clone();
-        let (tx, rx) = bounded(1);
+        let (tx, rx) = bounded(100);
         consumers.push(thread::spawn(move || kafka_consumer(partition as i32, tx)));
         writers.push(thread::spawn(move || es_writer(es_conf, rx)));
     }
