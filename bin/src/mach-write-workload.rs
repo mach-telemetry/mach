@@ -65,6 +65,7 @@ lazy_static! {
     static ref SAMPLES: Vec<DataSample> = {
         let mach = MACH.clone(); // ensure MACH is initialized (prevent deadlock)
         let writers = MACH_WRITERS.clone(); // ensure WRITER is initialized (prevent deadlock)
+        let _hot_source = data_generator::HOT_SOURCES.as_slice();
         let samples = data_generator::SAMPLES.as_slice();
 
         let mut mach_guard = mach.lock().unwrap();

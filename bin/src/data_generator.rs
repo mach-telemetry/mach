@@ -34,10 +34,12 @@ lazy_static! {
             y.cmp(&x)
         });
 
-        source_length_pairs
+        let result: Vec<SeriesId> = source_length_pairs
             .into_iter()
             .map(|(_, source_id)| source_id)
-            .collect()
+            .collect();
+        println!("Longest sources: {:?}", &result[..10]);
+        result
     };
 }
 
