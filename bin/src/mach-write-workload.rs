@@ -352,7 +352,7 @@ fn main() {
     }
 
     {
-        snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap());
+        snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap(), "172.31.22.116:50051");
     }
 
     start_barrier.wait();

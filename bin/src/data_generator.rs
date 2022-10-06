@@ -26,13 +26,17 @@ lazy_static! {
                 .or_insert(1);
         }
 
-        let mut source_length_pairs: Vec<_> = source_lengths.into_iter().collect();
+        let mut source_length_pairs: Vec<_> = source_lengths.into_iter().map(|(id, cnt)| (cnt, id)).collect();
 
-        source_length_pairs.sort_by(|(_, l1), (_, l2)| l2.partial_cmp(l1).unwrap());
+        source_length_pairs.sort_by(|x, y| {
+            let x: (usize, u64) = (x.0, *x.1);
+            let y: (usize, u64) = (y.0, *y.1);
+            y.cmp(&x)
+        });
 
         source_length_pairs
             .into_iter()
-            .map(|(source_id, _)| source_id)
+            .map(|(_, source_id)| source_id)
             .collect()
     };
 }
@@ -100,8 +104,10 @@ fn read_intel_data() -> SourceMap {
     let mut file = File::open(&constants::PARAMETERS.file_path).unwrap();
     let mut bytes = Vec::new();
     file.read_to_end(&mut bytes).unwrap();
+
     let data: HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> =
         bincode::deserialize(&bytes).unwrap();
+
     //let data: SourceMap = data.into_iter().map(|x| {
     //    let series_id = x.0;
     //    let sequence = x.1.into_iter().map(|x| x.1).collect();

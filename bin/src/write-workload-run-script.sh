@@ -8,7 +8,7 @@ OUTPUT=evaluation_output
 
 WRITER_BATCHES=500000
 DATA_GENERATORS=1
-WRITER_COUNT=2
+WRITER_COUNT=1
 SOURCE_COUNT=1000
 
 # - KAFKA parameters
@@ -33,5 +33,5 @@ cargo run --release --bin mach-write-workload -- \
 	--writer-batches $WRITER_BATCHES \
 	--data-generator-count $DATA_GENERATORS \
 	--mach-writers $WRITER_COUNT \
-	--source-count $SOURCE_COUNT \
-	> ${OUTPUT}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
+	--source-count $SOURCE_COUNT
+	#> ${OUTPUT}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
