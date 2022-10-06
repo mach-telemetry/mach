@@ -34,6 +34,8 @@ lazy_static::lazy_static! {
     static ref SNAPSHOTTER_MAP: Arc<DashMap<SeriesId, SnapshotterId>> = Arc::new(DashMap::new());
 }
 
+static IPADDR: &str = "172.31.22.116:50051";
+
 //const START_MAX_DELAY: u64 = 60;
 //const MIN_QUERY_DURATION: u64 = 10;
 //const MAX_QUERY_DURATION: u64 = 60;
@@ -51,7 +53,7 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
         .enable_all()
         .build()
         .unwrap();
-    let mut client = runtime.block_on(snapshotter::SnapshotClient::new());
+    let mut client = runtime.block_on(snapshotter::SnapshotClient::new(IPADDR));
 
     let snapshotter_id = *SNAPSHOTTER_MAP
         .entry(source)
@@ -123,7 +125,7 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
     //let total_query = start_delay + to_end;
 
     print!(
-        "Query ID: {}, Source: {}, Duration: {}, ",
+        "Query ID: {}, Source: {:?}, Duration: {}, ",
         i,
         source,
         end - start

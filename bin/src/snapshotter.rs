@@ -53,18 +53,18 @@ impl BytesHandler for SnapshotterHandler {
     }
 }
 
-pub fn initialize_snapshot_server(mach: &Mach) {
+pub fn initialize_snapshot_server(mach: &Mach, addr: &'static str) {
     println!("Initing snapshot server");
     let server = BytesServer::new(SnapshotterHandler(mach.init_snapshotter()));
-    std::thread::spawn(move || server.serve());
+    std::thread::spawn(move || server.serve(addr));
     println!("Inited snapshot server");
 }
 
 pub struct SnapshotClient(BytesClient);
 
 impl SnapshotClient {
-    pub async fn new() -> Self {
-        Self(BytesClient::new().await)
+    pub async fn new(addr: &'static str) -> Self {
+        Self(BytesClient::new(addr).await)
     }
 
     pub async fn initialize(
