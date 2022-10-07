@@ -22,6 +22,9 @@ mod batching;
 #[allow(dead_code)]
 mod constants;
 
+#[allow(dead_code)]
+mod data_generator;
+
 //use crate::completeness::{kafka::decompress_kafka_msg, SampleOwned, Writer, COUNTERS};
 
 use constants::*;
@@ -39,6 +42,9 @@ use std::ops::Bound::Included;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
+use rand::Rng;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use query_utils::SimpleQuery;
@@ -186,12 +192,6 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
     }
     let total_latency = timer.elapsed();
     let execution_latency = total_latency - data_latency;
-    print!(
-        "Query ID: {}, Source: {:?}, Duration: {}, ",
-        i,
-        source,
-        end - start
-    );
     print!("Query ID: {}, ", i);
     print!("Total Latency: {}, ", total_latency.as_secs_f64());
     print!("Data Latency: {}, ", data_latency.as_secs_f64());
@@ -211,18 +211,29 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
 fn main() {
     init_consumer();
 
-    let (tx, rx) = unbounded();
+    let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
+    let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
+    let sources = data_generator::HOT_SOURCES.as_slice();
 
-    println!("Sleeping");
-    thread::sleep(Duration::from_secs(2 * PARAMETERS.query_max_delay));
+    // Sleeping to make sure there's enough data
+    let initial_sleep_secs = 2 * PARAMETERS.query_max_delay;
+    println!("Sleep for {initial_sleep_secs} seconds to wait for data arrival");
+    std::thread::sleep(Duration::from_secs(initial_sleep_secs));
     println!("Done Sleeping");
+
+    let (tx, rx) = unbounded();
 
     for i in 0..(PARAMETERS.query_count as usize) {
         thread::sleep(Duration::from_secs(PARAMETERS.query_interval_seconds));
         let now: u64 = utils::timestamp_now_micros().try_into().unwrap();
-        let query = SimpleQuery::new_relative_to(now);
-        let tx = tx.clone();
+        let query = {
+            let mut q = SimpleQuery::new_relative_to(now);
+            let source_idx = rng.gen_range(0..sources.len());
+            q.source = sources[source_idx];
+            q
+        };
 
+        let tx = tx.clone();
         thread::spawn(move || {
             execute_query(i, query, tx);
         });

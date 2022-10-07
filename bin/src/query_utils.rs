@@ -22,7 +22,7 @@ impl SimpleQuery {
         let now = relative_to;
         let mut rng = RNG.borrow_mut();
         let source = SeriesId(rng.gen_range(0..PARAMETERS.source_count));
-        let from_now: u64 = rng.gen_range(0..PARAMETERS.query_max_delay);
+        let from_now: u64 = rng.gen_range(PARAMETERS.query_min_delay..PARAMETERS.query_max_delay);
         let start = now - from_now * MICROS_IN_SECOND;
         let end = start
             - rng.gen_range(PARAMETERS.min_query_duration..PARAMETERS.max_query_duration)

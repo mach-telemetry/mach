@@ -102,17 +102,17 @@ impl KafkaEntry {
         let _timer_1 = ThreadLocalTimer::new("KafkaEntry::fetch");
         ThreadLocalCounter::new("kafka fetch").increment(1);
 
-        let mut tmp_block_store = THREAD_LOCAL_KAFKA_MESSAGES.borrow_mut();
+        //let mut tmp_block_store = THREAD_LOCAL_KAFKA_MESSAGES.borrow_mut();
 
         let mut hashmap = HashMap::new();
         let mut hashset = HashSet::new();
         for item in self.items.iter().copied() {
-            if let Some(block) = tmp_block_store.get(&item) {
-                hashmap.insert(item, block.clone());
-                ThreadLocalCounter::new("kafka message already fetched").increment(1);
-            } else {
+            //if let Some(block) = tmp_block_store.get(&item) {
+            //    hashmap.insert(item, block.clone());
+            //    ThreadLocalCounter::new("kafka message already fetched").increment(1);
+            //} else {
                 hashset.insert(item);
-            }
+            //}
         }
 
         let mut requests = Vec::new();
@@ -137,7 +137,7 @@ impl KafkaEntry {
             for (p, o, bytes) in responses.drain(..) {
                 let key = (p, o);
                 hashmap.insert(key, bytes.clone());
-                tmp_block_store.insert(key, bytes);
+                //tmp_block_store.insert(key, bytes);
                 hashset.remove(&key);
             }
         }
@@ -153,46 +153,6 @@ impl KafkaEntry {
         Ok(())
     }
 }
-
-//pub struct Client(KafkaClient);
-//
-//impl std::ops::Deref for Client {
-//    type Target = KafkaClient;
-//    fn deref(&self) -> &Self::Target {
-//        &self.0
-//    }
-//}
-//
-//impl std::ops::DerefMut for Client {
-//    fn deref_mut(&mut self) -> &mut Self::Target {
-//        &mut self.0
-//    }
-//}
-//
-//impl Client {
-//    pub fn new(bootstraps: &str) -> Self {
-//        let bootstraps = bootstraps.split(',').map(String::from).collect();
-//        let mut client = KafkaClient::new(bootstraps);
-//        Self(client)
-//    }
-//
-//    pub fn load(&mut self, topic: &str, partition: i32, offset: i64, max_bytes: usize) -> Arc<[u8]> {
-//        let mut topic_partition_list = TopicPartitionList::new();
-//        topic_partition_list.add_partition_offset(topic, partition, Offset::Offset(offset)).unwrap();
-//        let consumer: BaseConsumer<DefaultConsumerContext> = ClientConfig::new()
-//            .set("bootstrap.servers", BOOTSTRAPS)
-//            .set("group.id", "random_consumer")
-//            .create().unwrap();
-//        consumer.assign(&topic_partition_list).unwrap();
-//        loop {
-//            match consumer.poll(Timeout::After(std::time::Duration::from_secs(1))) {
-//                Some(Ok(msg)) => return msg.payload().unwrap().into(),
-//                None => panic!("NONE"),
-//                Some(Err(x)) => panic!("{:?}", x),
-//            }
-//        }
-//    }
-//}
 
 pub fn random_partition() -> i32 {
     thread_rng().gen_range(0..PARTITIONS)
