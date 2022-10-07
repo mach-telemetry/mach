@@ -1,11 +1,11 @@
 import math
 
-FILE = "mach_ingest_2_writers_500000_batch_1000_sources_20221006132132"
+FILE = "kafka_ingest_1_writers_500000_batch_1000_sources_20221007103400"
 
 def parse_line(line):
     parts = line.split(",")
-    rate = int(parts[0].split(":")[1])
-    completeness = float(parts[3].split(":")[1])
+    rate = int(parts[1].split(":")[1])
+    completeness = float(parts[4].split(":")[1])
     return rate, completeness
 
 
