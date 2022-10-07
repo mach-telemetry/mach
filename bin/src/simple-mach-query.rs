@@ -129,7 +129,7 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
 fn main() {
     let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
     let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
-    let sources = &data_generator::HOT_SOURCES[0..num_sources];
+    let sources = data_generator::HOT_SOURCES.as_slice();
 
     // Sleeping to make sure there's enough data
     let initial_sleep_secs = 2 * PARAMETERS.query_max_delay;
@@ -143,8 +143,8 @@ fn main() {
         let now: u64 = utils::timestamp_now_micros().try_into().unwrap();
         let query = {
             let mut q = SimpleQuery::new_relative_to(now);
-            //let source_idx = rng.gen_range(0..sources.len());
-            q.source = sources[0];
+            let source_idx = rng.gen_range(0..sources.len());
+            q.source = sources[source_idx];
             q
         };
 

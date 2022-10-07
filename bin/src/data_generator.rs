@@ -26,6 +26,8 @@ lazy_static! {
                 .or_insert(1);
         }
 
+        //source_lengths.into_iter().filter(|(id, cnt)| *cnt > 15000).map(|(id, cnt)| id).collect()
+
         let mut source_length_pairs: Vec<_> = source_lengths.into_iter().map(|(id, cnt)| (cnt, id)).collect();
 
         source_length_pairs.sort_by(|x, y| {
@@ -39,7 +41,7 @@ lazy_static! {
             .map(|(_, source_id)| source_id)
             .collect();
         println!("Longest sources: {:?}", &result[..10]);
-        result
+        result[..result.len()/10].into()
     };
 }
 

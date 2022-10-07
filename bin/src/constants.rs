@@ -112,7 +112,10 @@ pub struct Args {
     #[clap(long, default_value_t = 1000)]
     pub kafka_index_size: usize,
 
-    #[clap(long, default_value_t = 60)]
+    #[clap(long, default_value_t = 30)]
+    pub query_min_delay: u64,
+
+    #[clap(long, default_value_t = 90)]
     pub query_max_delay: u64,
 
     #[clap(long, default_value_t = 10)]
