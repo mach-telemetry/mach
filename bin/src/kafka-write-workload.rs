@@ -18,6 +18,7 @@ use std::mem;
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
+use utils::RemoteNotifier;
 
 lazy_static! {
     static ref PARTITION_WRITERS: Vec<Sender<(Box<[u8]>, u64)>> = {
@@ -225,6 +226,9 @@ fn validate_parameters() {
 }
 
 fn main() {
+    let querier_addr = format!("{}:{}", PARAMETERS.querier_ip, PARAMETERS.querier_port);
+    let mut query_start_notifier = RemoteNotifier::new(querier_addr);
+
     validate_parameters();
     let stats_barrier = utils::stats_printer();
 
@@ -267,54 +271,7 @@ fn main() {
     }
 
     start_barrier.wait();
+    query_start_notifier.notify();
     stats_barrier.wait();
     done_barrier.wait();
 }
-
-//fn main() {
-//    validate_parameters();
-//    let stats_barrier = utils::stats_printer();
-//
-//    init_kafka();
-//    let _samples = SAMPLES.clone();
-//
-//    let data_generator_count = PARAMETERS.data_generator_count;
-//
-//    // Prep data for data generator
-//    let mut data: Vec<Vec<(SeriesId, &'static [SampleType], f64)>> =
-//        (0..data_generator_count).map(|_| Vec::new()).collect();
-//    for sample in SAMPLES.iter() {
-//        let generator = *sample.0 % PARAMETERS.kafka_partitions as u64 % data_generator_count;
-//        data[generator as usize].push(*sample)
-//    }
-//
-//    // Prep Workloads
-//    let mut workloads: Vec<Vec<Workload>> = (0..data_generator_count).map(|_| Vec::new()).collect();
-//    for workload in constants::WORKLOAD.iter() {
-//        let workload = workload.split_rate(data_generator_count);
-//        workload
-//            .into_iter()
-//            .zip(workloads.iter_mut())
-//            .for_each(|(w, v)| v.push(w));
-//    }
-//
-//    let start_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
-//    let done_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
-//
-//    for i in 0..data_generator_count as usize {
-//        let start_barrier = start_barrier.clone();
-//        let done_barrier = done_barrier.clone();
-//        let data = data[i].clone();
-//        let workloads = workloads[i].clone();
-//        thread::spawn(move || {
-//            start_barrier.wait();
-//            workload_runner(workloads, data, i as u64);
-//            done_barrier.wait();
-//        });
-//    }
-//
-//    start_barrier.wait();
-//    stats_barrier.wait();
-//    done_barrier.wait();
-//}
-//

@@ -112,6 +112,12 @@ pub struct Args {
     #[clap(long, default_value_t = 1000)]
     pub kafka_index_size: usize,
 
+    #[clap(long, default_value_t = String::from("127.0.0.1"))]
+    pub querier_ip: String,
+
+    #[clap(long, default_value_t = 12989)]
+    pub querier_port: u16,
+
     #[clap(long, default_value_t = 30)]
     pub query_min_delay: u64,
 

@@ -24,6 +24,8 @@ use std::{
 };
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
+use crate::utils::NotificationReceiver;
+
 lazy_static! {
     static ref INGESTION_STATS: Arc<IngestStats> = Arc::new(IngestStats::default());
     static ref PENDING_QUERY_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -141,10 +143,23 @@ async fn exec_query(
     done_notifier.send(r).unwrap();
 }
 
+fn read_data_in_background() {
+    std::thread::spawn(|| {
+        println!("start reading data in the background");
+        let _data = &data_generator::HOT_SOURCES[..];
+    });
+}
+
 #[tokio::main]
 async fn main() {
-    let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
+    read_data_in_background();
 
+    let mut start_notif = NotificationReceiver::new(PARAMETERS.querier_port);
+    println!("Waiting for workload to start...");
+    start_notif.wait();
+    println!("Workload started");
+
+    let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
     let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
     let sources = &data_generator::HOT_SOURCES[0..num_sources];
 

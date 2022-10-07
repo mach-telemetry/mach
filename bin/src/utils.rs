@@ -1,6 +1,8 @@
 use crate::constants::*;
 use num::*;
 use rand::Rng;
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -66,7 +68,7 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
 
             let samples_generated_delta = max_min_delta(&samples_generated);
             let samples_dropped_delta = max_min_delta(&samples_dropped);
-            let samples_completeness = 1.-div(samples_dropped_delta, samples_generated_delta);
+            let samples_completeness = 1. - div(samples_dropped_delta, samples_generated_delta);
 
             let bytes_generated_delta = max_min_delta(&bytes_generated);
             let bytes_written_delta = max_min_delta(&bytes_written);
@@ -105,6 +107,43 @@ pub fn timestamp_now_micros() -> u64 {
         .as_micros()
         .try_into()
         .unwrap()
+}
+
+pub struct RemoteNotifier<A: ToSocketAddrs> {
+    remote: A,
+}
+
+impl<A> RemoteNotifier<A>
+where
+    A: ToSocketAddrs,
+{
+    pub fn new(remote: A) -> Self {
+        Self { remote }
+    }
+
+    pub fn notify(self) {
+        let mut conn = TcpStream::connect(self.remote)
+            .expect("Failed to connect to remote notification receiver");
+        conn.write_all(&[8; 16]).unwrap();
+    }
+}
+
+pub struct NotificationReceiver {
+    listener: TcpListener,
+}
+
+impl NotificationReceiver {
+    pub fn new(port: u16) -> Self {
+        let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))).unwrap();
+        Self { listener }
+    }
+
+    pub fn wait(&mut self) {
+        let (mut stream, _) = self.listener.accept().unwrap();
+        let mut buf = [0; 16];
+        stream.read_exact(&mut buf).unwrap();
+        assert_eq!(buf, [8; 16]);
+    }
 }
 
 pub struct ExponentialBackoff {
