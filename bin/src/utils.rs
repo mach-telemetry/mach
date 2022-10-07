@@ -134,7 +134,7 @@ pub struct NotificationReceiver {
 
 impl NotificationReceiver {
     pub fn new(port: u16) -> Self {
-        let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))).unwrap();
+        let listener = TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], port))).unwrap();
         Self { listener }
     }
 
