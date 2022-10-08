@@ -196,6 +196,9 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
     let execution_latency = total_latency - data_latency;
     print!("Current time: {:?}, ", now);
     print!("Query ID: {}, ", i);
+    print!("Source: {:?}, ", source);
+    print!("Duration: {}, ", start - end);
+    print!("From now: {}, ", query.from_now);
     print!("Total Latency: {}, ", total_latency.as_secs_f64());
     print!("Data Latency: {}, ", data_latency.as_secs_f64());
     print!("Execution Latency: {}, ", execution_latency.as_secs_f64());
