@@ -18,6 +18,8 @@ KAFKA_BATCH_BYTES=1000000
 KAFKA_BOOTSTRAPS=localhost:9093,localhost:9094,localhost:9095
 KAFKA_BOOTSTRAPS=b-3.machkafka.3ebzya.c17.kafka.us-east-1.amazonaws.com:9092,b-2.machkafka.3ebzya.c17.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka.3ebzya.c17.kafka.us-east-1.amazonaws.com:9092
 
+QUERIER_IP=172.31.78.194
+
 OUT_FILE=${OUTPUT}/kafka_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
 
 echo $OUT_FILE
@@ -30,6 +32,7 @@ cargo run --release --bin kafka-write-workload -- \
 	--kafka-writers $WRITER_COUNT \
 	--kafka-partitions $KAFKA_PARTITIONS \
 	--kafka-batch-bytes $KAFKA_BATCH_BYTES \
+	--querier-ip $QUERIER_IP \
 	${UNBOUNDED_QUEUE} \
 	> $OUT_FILE
 #
@@ -40,4 +43,5 @@ cargo run --release --bin kafka-write-workload -- \
 #	--data-generator-count $DATA_GENERATORS \
 #	--mach-writers $WRITER_COUNT \
 #	--source-count $SOURCE_COUNT
-	#> ${OUTPUT}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
+#	--querier-ip $QUERIER_IP \
+#	> ${OUTPUT}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
