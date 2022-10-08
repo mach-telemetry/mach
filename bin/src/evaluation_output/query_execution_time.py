@@ -4,8 +4,8 @@ def parse_line(line):
     parts = line.split(",")
     current_time = parts[0].split(" ")[2]
     query_id = int(parts[1].split(":")[1])
-    data_latency = float(parts[3].split(":")[1])
-    execution_latency = float(parts[3].split(":")[1])
+    data_latency = float(parts[6].split(":")[1])
+    execution_latency = float(parts[7].split(":")[1])
     return current_time, query_id, data_latency, execution_latency
 
 
