@@ -34,6 +34,7 @@ use std::thread;
 use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
+use utils::NotificationReceiver;
 
 lazy_static::lazy_static! {
     static ref SNAPSHOT_INTERVAL: Duration = Duration::from_secs_f64(PARAMETERS.mach_snapshot_interval);
@@ -127,6 +128,12 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
 }
 
 fn main() {
+
+    let mut start_notif = NotificationReceiver::new(PARAMETERS.querier_port);
+    println!("Waiting for workload to start...");
+    start_notif.wait();
+    println!("Workload started");
+
     let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
     let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
     let sources = data_generator::HOT_SOURCES.as_slice();

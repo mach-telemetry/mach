@@ -45,6 +45,7 @@ use std::time::{Duration, Instant};
 use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
+use utils::NotificationReceiver;
 
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use query_utils::SimpleQuery;
@@ -210,6 +211,11 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
 
 fn main() {
     init_consumer();
+
+    let mut start_notif = NotificationReceiver::new(PARAMETERS.querier_port);
+    println!("Waiting for workload to start...");
+    start_notif.wait();
+    println!("Workload started");
 
     let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
     let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();

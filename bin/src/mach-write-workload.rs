@@ -28,6 +28,7 @@ use std::mem;
 use std::sync::{Arc, Barrier, Mutex, atomic::{AtomicUsize, Ordering::SeqCst}};
 use std::thread;
 use std::time::{Duration, Instant};
+use utils::RemoteNotifier;
 
 lazy_static! {
     static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -319,6 +320,9 @@ fn validate_parameters() {
 fn main() {
     validate_parameters();
 
+    let querier_addr = format!("{}:{}", PARAMETERS.querier_ip, PARAMETERS.querier_port);
+    let mut query_start_notifier = RemoteNotifier::new(querier_addr);
+
     let stats_barrier = utils::stats_printer();
     let data_generator_count = PARAMETERS.data_generator_count;
     let _samples = SAMPLES.clone();
@@ -357,6 +361,7 @@ fn main() {
     }
 
     start_barrier.wait();
+    query_start_notifier.notify();
     println!("Beginning workload");
     stats_barrier.wait();
     done_barrier.wait();
