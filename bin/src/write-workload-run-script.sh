@@ -20,28 +20,28 @@ KAFKA_BOOTSTRAPS=b-3.machkafka.3ebzya.c17.kafka.us-east-1.amazonaws.com:9092,b-2
 
 QUERIER_IP=172.31.78.194
 
-OUT_FILE=${OUTPUT}/kafka_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
+KAFKA_OUT_FILE=${OUTPUT}/kafka_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
 
-echo $OUT_FILE
+MACH_OUT_FILE=${OUTPUT}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
 
-cargo run --release --bin kafka-write-workload -- \
-	--kafka-bootstraps $KAFKA_BOOTSTRAPS \
-	--file-path $FILE_PATH \
-	--writer-batches $WRITER_BATCHES \
-	--data-generator-count $DATA_GENERATORS \
-	--kafka-writers $WRITER_COUNT \
-	--kafka-partitions $KAFKA_PARTITIONS \
-	--kafka-batch-bytes $KAFKA_BATCH_BYTES \
-	--querier-ip $QUERIER_IP \
-	${UNBOUNDED_QUEUE} \
-	> $OUT_FILE
-#
-
-#cargo run --release --bin mach-write-workload -- \
+#cargo run --release --bin kafka-write-workload -- \
+#	--kafka-bootstraps $KAFKA_BOOTSTRAPS \
 #	--file-path $FILE_PATH \
 #	--writer-batches $WRITER_BATCHES \
 #	--data-generator-count $DATA_GENERATORS \
-#	--mach-writers $WRITER_COUNT \
-#	--source-count $SOURCE_COUNT
+#	--kafka-writers $WRITER_COUNT \
+#	--kafka-partitions $KAFKA_PARTITIONS \
+#	--kafka-batch-bytes $KAFKA_BATCH_BYTES \
 #	--querier-ip $QUERIER_IP \
-#	> ${OUTPUT}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
+#	${UNBOUNDED_QUEUE} \
+#	> $KAFKA_OUT_FILE
+#
+
+cargo run --release --bin mach-write-workload -- \
+	--file-path $FILE_PATH \
+	--writer-batches $WRITER_BATCHES \
+	--data-generator-count $DATA_GENERATORS \
+	--mach-writers $WRITER_COUNT \
+	--source-count $SOURCE_COUNT \
+	--querier-ip $QUERIER_IP \
+	> $MACH_OUT_FILE
