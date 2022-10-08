@@ -19,6 +19,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::{
+    cmp::{max, min},
     sync::{atomic::AtomicUsize, atomic::Ordering::SeqCst, Arc},
     time::{Duration, Instant},
 };
@@ -51,7 +52,9 @@ struct SeriesTimerangeDocCount {
 }
 
 async fn wait_for_series_timestamp(querier: &ESIndexQuerier, series_id: u64, timestamp: u64) {
-    let one_sec = std::time::Duration::from_secs(1);
+    let mut wait_secs = 1;
+    let max_wait_secs = 120;
+    let min_wait_secs = 1;
     loop {
         match querier
             .query_series_latest_timestamp(PARAMETERS.es_index_name.as_str(), series_id)
@@ -64,7 +67,12 @@ async fn wait_for_series_timestamp(querier: &ESIndexQuerier, series_id: u64, tim
                     } else {
                         let lag_micros = timestamp - ts;
                         let lag_seconds: f64 = lag_micros as f64 / 1_000_000.0;
-                        println!("Series {series_id} lags {lag_seconds}");
+
+                        wait_secs = min(max_wait_secs, max(min_wait_secs, lag_seconds as u64 / 10));
+
+                        println!(
+                            "Series {series_id} lags {lag_seconds}, will sleep {wait_secs} secs"
+                        );
                     }
                 }
                 None => {
@@ -75,7 +83,8 @@ async fn wait_for_series_timestamp(querier: &ESIndexQuerier, series_id: u64, tim
                 println!("query latest timestamp err: {:?}", e);
             }
         }
-        tokio::time::sleep(one_sec).await;
+
+        tokio::time::sleep(Duration::from_secs(wait_secs)).await;
     }
 }
 
@@ -90,8 +99,8 @@ async fn exec_query(
 
     let series_id = query.source.0;
     println!(
-        "Querying series {}, timerange [{}, {}]",
-        series_id, query.start, query.end
+        "Query {}, series {}, timerange [{}, {}]",
+        query_id, series_id, query.start, query.end
     );
 
     let timer = Instant::now();
@@ -128,13 +137,13 @@ async fn exec_query(
     let num_pending_queries = PENDING_QUERY_COUNT.load(SeqCst);
     println!(
         "Query {}, Data latency secs: {}, Query latency secs: {}, \
-            Total latency secs {}; series {} has {} docs in timerange [{}, {}]; {} pending queries",
+            Total latency secs {}; result: {}, series {} [{}, {}]; {} pending queries",
         query_id,
         r.data_latency.as_secs_f64(),
         query_latency.as_secs_f64(),
         r.total_latency.as_secs_f64(),
-        r.result.series.0,
         r.result.doc_count,
+        r.result.series.0,
         r.result.start,
         r.result.end,
         num_pending_queries
