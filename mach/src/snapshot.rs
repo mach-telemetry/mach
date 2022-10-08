@@ -294,6 +294,23 @@ impl ReadOnlyBlockReader {
         }
     }
 
+    fn next_segment(&mut self) -> Option<()> {
+        let _timer_1 = ThreadLocalTimer::new("ReadOnlyBlockReader::next_segment");
+        if self.current_idx > 0 {
+            self.current_idx -= 1;
+            //println!("Getting offset:{}", self.offsets[self.current_idx as usize]);
+            self.block.segment_at_offset(
+                self.offsets[self.current_idx as usize],
+                &mut self.read_buffer,
+            );
+            Some(())
+        } else {
+            //println!("NONE HERE");
+            None
+        }
+    }
+
+
     fn next_segment_at_timestamp(&mut self, ts: u64) -> Option<()> {
         let _timer_1 = ThreadLocalTimer::new("ReadOnlyBlockReader::next_segment");
         if self.current_idx > 0 {
@@ -376,6 +393,46 @@ impl SnapshotIterator {
         }
     }
 
+    pub fn next_segment(&mut self) -> Option<()> {
+        let _timer_1 = ThreadLocalTimer::new("SnapshotIterator::next_segment");
+        match self.state {
+            State::ActiveSegment => {
+                let _timer_2 =
+                    ThreadLocalTimer::new("SnapshotIterator::next_segment active segment");
+                match self.active_segment.as_mut().unwrap().next_segment() {
+                    None => {
+                        //println!("moving into blocks");
+                        self.state = State::Blocks;
+                        self.next_segment()
+                    }
+                    Some(_) => {
+                        Some(())
+                    }
+                }
+            }
+            State::Blocks => {
+                let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment blocks");
+                match self.block_reader.next_segment() {
+                    None => loop {
+                        match self.source_blocks.next_block() {
+                            Some(block) => {
+                                ThreadLocalCounter::new("loading block").increment(1);
+                                let bytes = block.as_bytes();
+                                let id = self.block_reader.id;
+                                let block_reader = ReadOnlyBlockReader::new(bytes, id);
+                                self.block_reader = block_reader;
+                                return self.next_segment();
+                            }
+                            None => return None,
+                        }
+                    }
+                    Some(_) => Some(()),
+                }
+            }
+        }
+    }
+
+
     pub fn next_segment_at_timestamp(&mut self, ts: u64) -> Option<()> {
         let _timer_1 = ThreadLocalTimer::new("SnapshotIterator::next_segment");
         match self.state {
@@ -429,7 +486,9 @@ impl SnapshotIterator {
 
     pub fn get_segment(&self) -> &Segment {
         match self.state {
-            State::ActiveSegment => self.active_segment.as_ref().unwrap().get_segment(),
+            State::ActiveSegment => {
+                self.active_segment.as_ref().unwrap().get_segment()
+            },
             State::Blocks => self.block_reader.get_segment(),
         }
     }

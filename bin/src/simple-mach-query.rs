@@ -49,6 +49,7 @@ lazy_static::lazy_static! {
 //const QUERY_COUNT: u64 = 100;
 
 fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
+    println!("Executing query: {}", i);
     let source = query.source;
     let start = query.start;
     let end = query.end;
@@ -77,13 +78,14 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
         let now = Instant::now();
         let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
         let mut snapshot = snapshot_id.load().into_iterator();
-        snapshot.next_segment_at_timestamp(start).unwrap();
+        snapshot.next_segment().unwrap();
         let seg = snapshot.get_segment();
         let mut timestamps = seg.timestamps().iterator();
         let ts = timestamps.next().unwrap();
         if ts > start {
             break;
         }
+        while now.elapsed() < interval {}
     }
 
     let data_latency = timer.elapsed();
