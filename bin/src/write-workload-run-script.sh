@@ -16,7 +16,7 @@ UNBOUNDED_QUEUE=--unbounded-queue
 KAFKA_PARTITIONS=24
 KAFKA_BATCH_BYTES=1000000
 KAFKA_BOOTSTRAPS=localhost:9093,localhost:9094,localhost:9095
-KAFKA_BOOTSTRAPS=b-2.machkafka.ebii4i.c17.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka.ebii4i.c17.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka.ebii4i.c17.kafka.us-east-1.amazonaws.com:9092
+KAFKA_BOOTSTRAPS=b-3.machkafka.3ebzya.c17.kafka.us-east-1.amazonaws.com:9092,b-2.machkafka.3ebzya.c17.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka.3ebzya.c17.kafka.us-east-1.amazonaws.com:9092
 
 OUT_FILE=${OUTPUT}/kafka_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
 
