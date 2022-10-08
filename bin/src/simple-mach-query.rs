@@ -71,6 +71,7 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
         .value();
 
     // Wait for timestamp to be available
+    let now = chrono::prelude::Utc::now();
     let timer = Instant::now();
     loop {
         let now = Instant::now();
@@ -114,6 +115,7 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
     let total_latency = timer.elapsed();
     let execution_latency = total_latency - data_latency;
 
+    print!("Current time: {:?}, ", now);
     print!("Query ID: {}, ", i);
     print!("Source: {:?}, ", source);
     print!("Duration: {}, ", start - end);

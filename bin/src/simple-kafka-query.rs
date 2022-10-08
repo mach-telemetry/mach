@@ -149,6 +149,7 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
     let timer = Instant::now();
     let index = INDEX.get_map(source).unwrap();
 
+    let now = chrono::prelude::Utc::now();
     'outer: loop {
         let guard = index.lock().unwrap();
         if guard.len() == 0 {
@@ -193,6 +194,7 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
     }
     let total_latency = timer.elapsed();
     let execution_latency = total_latency - data_latency;
+    print!("Current time: {:?}, ", now);
     print!("Query ID: {}, ", i);
     print!("Total Latency: {}, ", total_latency.as_secs_f64());
     print!("Data Latency: {}, ", data_latency.as_secs_f64());
