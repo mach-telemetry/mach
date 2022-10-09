@@ -29,7 +29,7 @@ lazy_static! {
         }).collect()
     };
 
-    static ref BATCHER_WRITERS: Vec<Sender<(i32, Batch, u64)>> = {
+    static ref BATCHER_WRITERS: Vec<Sender<(Batch, u64)>> = {
         (0..PARAMETERS.kafka_writers).map(|writer| {
             let (tx, rx) = if PARAMETERS.unbounded_queue {
                 unbounded()
@@ -67,17 +67,19 @@ fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
     }
 }
 
-fn kafka_batcher(i: u64, receiver: Receiver<(i32, Batch, u64)>) {
+fn kafka_batcher(i: u64, receiver: Receiver<(Batch, u64)>) {
     let mut batchers: Vec<batching::WriteBatch> = (0..PARAMETERS.kafka_partitions)
         .map(|_| batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes))
         .collect();
     loop {
-        if let Ok((partition, batch, data_generator)) = receiver.try_recv() {
+        if let Ok((batch, data_generator)) = receiver.try_recv() {
             let now = Instant::now();
-            let partition = partition as usize;
-            let batcher = &mut batchers[partition];
+            //let partition = partition as usize;
+            //let batcher = &mut batchers[partition];
             let batch_len = batch.len();
             for item in batch {
+                let partition = (*item.0) as usize % PARAMETERS.kafka_partitions as usize;
+                let batcher = &mut batchers[partition];
                 if batcher.insert(*item.0, item.1, item.2).is_err() {
                     let old_batch = mem::replace(
                         batcher,
@@ -134,7 +136,7 @@ fn run_workload(
     samples: &[(SeriesId, &'static [SampleType], f64)],
     data_generator: u64,
 ) {
-    let mut batches: Vec<Batcher> = (0..PARAMETERS.kafka_partitions)
+    let mut batches: Vec<Batcher> = (0..PARAMETERS.kafka_writers)
         .map(|_| Batcher::new())
         .collect();
     let mut data_idx = 0;
@@ -149,11 +151,12 @@ fn run_workload(
     'outer: loop {
         let id = samples[data_idx].0;
         let partition_id = id.0 as usize % PARAMETERS.kafka_partitions as usize;
+        let writer_id = partition_id % PARAMETERS.kafka_writers as usize;
         let items = samples[data_idx].1;
         let sample_size = samples[data_idx].2 as usize;
         let sample_size_mb = samples[data_idx].2 / 1_000_000.;
         let timestamp: u64 = utils::timestamp_now_micros().try_into().unwrap();
-        let batch = &mut batches[partition_id];
+        let batch = &mut batches[writer_id];
 
         if let Some(closed_batch) = batch.push(id, timestamp, items, sample_size) {
             let writer_id = partition_id % PARAMETERS.kafka_writers as usize;
@@ -161,7 +164,7 @@ fn run_workload(
             println!("Queue length: {}", BATCHER_WRITERS[writer_id].len());
             COUNTERS.add_samples_generated(batch_count);
             match BATCHER_WRITERS[writer_id].try_send((
-                partition_id as i32,
+                //partition_id as i32,
                 closed_batch.batch,
                 data_generator,
             )) {
