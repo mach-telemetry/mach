@@ -142,6 +142,10 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
     //println!("Waiting for timestamp {}", now);
     //let mut buf = vec![0u8; 500_000_000];
 
+    if *query.source == 385 {
+        println!("Query start: {}", query.start);
+    }
+
     let source = query.source;
     let start = query.start;
     let end = query.end;

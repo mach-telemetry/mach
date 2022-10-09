@@ -122,9 +122,10 @@ where
     }
 
     pub fn notify(self) {
-        let mut conn = TcpStream::connect(self.remote)
-            .expect("Failed to connect to remote notification receiver");
-        conn.write_all(&[8; 16]).unwrap();
+        match TcpStream::connect(self.remote) {
+            Ok(mut conn) => conn.write_all(&[8; 16]).unwrap(),
+            Err(_) => println!("No reachable notification receiver"),
+        }
     }
 }
 

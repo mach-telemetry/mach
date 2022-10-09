@@ -1,0 +1,2091 @@
+MADE TOPIC kafka-completeness-bench
+Read data for 464 sources
+Expanding data based on source_count = 1000
+Sorting by time
+Setting up final samples
+Samples stats:
+Total number of unique samples: 74030031
+Number of sources: 1000, Number of metrics: 671
+Max source length: 108788
+Average source length: 74030
+Min source length: 4
+Total samples: 74030031
+Workloads: [Workload { samples_per_second: 1000000, duration: 240s }, Workload { samples_per_second: 2000000, duration: 240s }, Workload { samples_per_second: 3000000, duration: 240s }, Workload { samples_per_second: 4000000, duration: 240s }, Workload { samples_per_second: 5000000, duration: 240s }, Workload { samples_per_second: 6000000, duration: 240s }, Workload { samples_per_second: 7000000, duration: 240s }, Workload { samples_per_second: 8000000, duration: 240s }, Workload { samples_per_second: 9000000, duration: 240s }, Workload { samples_per_second: 10000000, duration: 240s }, Workload { samples_per_second: 11000000, duration: 240s }, Workload { samples_per_second: 12000000, duration: 240s }, Workload { samples_per_second: 13000000, duration: 240s }, Workload { samples_per_second: 14000000, duration: 240s }, Workload { samples_per_second: 15000000, duration: 240s }]
+No reachable notification receiver
+Queue length: 0
+Write rate (samples/second): 555885.6762938824
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 563645.9383411588
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 1023540.0055964302
+Write rate (samples/second): 1246561.708564204
+Write rate (samples/second): 5175640.751570942
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4958416.094669571
+Write rate (samples/second): 5258156.944690278
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5185328.569122582
+Write rate (samples/second): 5095521.979870365
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5004140.125291258
+Write rate (samples/second): 4992685.167034926
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4969871.74291752
+Write rate (samples/second): 5084766.774002365
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4931001.093419907
+Write rate (samples/second): 5082067.254858355
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5027527.826411289
+Write rate (samples/second): 5359278.472193185
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5082462.393259777
+Write rate (samples/second): 5082223.257188753
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 1814070.2313008842
+Write rate (samples/second): 1384508.4464609877
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4964907.43843624
+Write rate (samples/second): 5006706.834273988
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4908242.902148219
+Write rate (samples/second): 4987438.885794183
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4906984.718835026
+Write rate (samples/second): 4892295.526899837
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4833897.049516856
+Write rate (samples/second): 4956968.310250302
+Current time: 2022-10-09T03:56:59.287491715Z, Current workload rate: 1000000, Samples generated: 14500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4935725.989025709
+Write rate (samples/second): 4887557.678923491
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4847942.725086005
+Write rate (samples/second): 4930781.881183225
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4981110.384145724
+Write rate (samples/second): 5004269.642859288
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4285174.157876717
+Write rate (samples/second): 4257092.345647495
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4934068.460851192
+Write rate (samples/second): 5037786.37006948
+Current time: 2022-10-09T03:57:04.287874558Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4966374.614372185
+Write rate (samples/second): 5118155.590333082
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4905534.466172332
+Write rate (samples/second): 5017120.925157098
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4964704.7225979185
+Write rate (samples/second): 5019378.817739529
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4970534.423411297
+Write rate (samples/second): 4989370.097114397
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4949544.785911449
+Write rate (samples/second): 4930213.031744183
+Current time: 2022-10-09T03:57:09.288267085Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5006306.394101585
+Write rate (samples/second): 5006485.050280179
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4958873.434405555
+Write rate (samples/second): 4913595.938633864
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4980451.826191236
+Write rate (samples/second): 4942065.256255276
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4920403.1790173855
+Write rate (samples/second): 4884152.827916184
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4924257.241780125
+Write rate (samples/second): 4807601.98024741
+Current time: 2022-10-09T03:57:14.288642506Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4974903.056800329
+Write rate (samples/second): 4863264.078118494
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4940415.525702403
+Write rate (samples/second): 4862152.813845498
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4991214.71342217
+Write rate (samples/second): 4786286.194949189
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4778095.726070778
+Write rate (samples/second): 4750316.839007687
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5033305.787057422
+Write rate (samples/second): 5023372.143102772
+Current time: 2022-10-09T03:57:19.289037452Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5016687.5596653465
+Write rate (samples/second): 4974635.378876538
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5064977.481819212
+Write rate (samples/second): 5010619.758046191
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5080861.194591354
+Write rate (samples/second): 5006146.697099099
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5162176.485109135
+Write rate (samples/second): 4920570.575192656
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4954153.863811975
+Write rate (samples/second): 4934165.648131523
+Current time: 2022-10-09T03:57:24.289418997Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5010128.877348758
+Write rate (samples/second): 4880293.667962447
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5106384.212947333
+Write rate (samples/second): 4987691.375224222
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4866528.686303259
+Write rate (samples/second): 4958190.652307297
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4954368.237244005
+Write rate (samples/second): 4742405.4360562125
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4901870.1958302045
+Write rate (samples/second): 4988721.150013569
+Current time: 2022-10-09T03:57:29.289797589Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5073722.8675946975
+Write rate (samples/second): 5079755.823858776
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5055642.6558524445
+Write rate (samples/second): 5021865.9576595435
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4923067.907046097
+Write rate (samples/second): 4917403.407616974
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4912815.698765006
+Write rate (samples/second): 4837272.7421451425
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4781488.875115438
+Write rate (samples/second): 4845620.563991857
+Queue length: 0
+Current time: 2022-10-09T03:57:34.290170831Z, Current workload rate: 1000000, Samples generated: 9500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4902120.968325367
+Write rate (samples/second): 5033740.761625918
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4875454.04006498
+Write rate (samples/second): 4821115.823923246
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4860779.7342038145
+Write rate (samples/second): 5357267.662346291
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4816314.204779565
+Write rate (samples/second): 4939975.152320182
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4770986.4026792105
+Write rate (samples/second): 4947830.0306782285
+Queue length: 0
+Current time: 2022-10-09T03:57:39.290528534Z, Current workload rate: 1000000, Samples generated: 9500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4787068.832659574
+Write rate (samples/second): 5006216.770047212
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4854178.393754894
+Write rate (samples/second): 4950626.657748277
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4782796.152148666
+Write rate (samples/second): 4914783.744207288
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4722673.95910495
+Write rate (samples/second): 4858560.312962802
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4789240.010636711
+Write rate (samples/second): 4904746.295523599
+Current time: 2022-10-09T03:57:44.290886617Z, Current workload rate: 1000000, Samples generated: 8500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4745836.084099025
+Write rate (samples/second): 4897131.1087854095
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4706646.8009773595
+Write rate (samples/second): 4792579.645101425
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4810133.219044568
+Write rate (samples/second): 5000480.746218941
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4832316.07120178
+Write rate (samples/second): 4872916.957133125
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4920530.189883457
+Write rate (samples/second): 4911292.38429366
+Current time: 2022-10-09T03:57:49.291264624Z, Current workload rate: 1000000, Samples generated: 8500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4874102.469367509
+Write rate (samples/second): 4900296.893307815
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4859871.1554847155
+Write rate (samples/second): 4992535.909188967
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4950214.700712
+Write rate (samples/second): 4857171.56719011
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4834890.051892682
+Write rate (samples/second): 4886694.749914991
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4884432.757928919
+Write rate (samples/second): 4851246.566130015
+Current time: 2022-10-09T03:57:54.291634147Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4897114.897079344
+Write rate (samples/second): 4869939.215171894
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4901376.175073079
+Write rate (samples/second): 4819682.3333878955
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4752049.2380730575
+Write rate (samples/second): 4813187.764822794
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4892926.523157262
+Write rate (samples/second): 4813868.130205813
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 1373387.6984642048
+Write rate (samples/second): 1118390.358555345
+Current time: 2022-10-09T03:57:59.292004023Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 549571.340399773
+Write rate (samples/second): 543307.1456934778
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5059895.808244683
+Write rate (samples/second): 5076212.94128509
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5118173.9272604305
+Write rate (samples/second): 5103322.218875918
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5030772.531265597
+Write rate (samples/second): 4971900.014374757
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5151140.754117529
+Write rate (samples/second): 4996057.511096843
+Current time: 2022-10-09T03:58:04.292366506Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5069322.786330153
+Write rate (samples/second): 4864016.448936266
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5182597.901787925
+Write rate (samples/second): 5082198.358161261
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5095677.822630727
+Write rate (samples/second): 5185037.069800327
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5134352.607066629
+Write rate (samples/second): 5034843.736777242
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 1820155.4358865647
+Write rate (samples/second): 1383436.3358867436
+Current time: 2022-10-09T03:58:09.292738357Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5159641.633994526
+Write rate (samples/second): 5009947.752256881
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5029546.422527387
+Write rate (samples/second): 4902961.757604317
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5043422.251691947
+Write rate (samples/second): 4789305.243840963
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5017731.156588035
+Write rate (samples/second): 4901570.821105752
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4975855.705120601
+Write rate (samples/second): 4783088.05673722
+Current time: 2022-10-09T03:58:14.293102391Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4927649.490693917
+Write rate (samples/second): 4946164.070712023
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4950117.811318874
+Write rate (samples/second): 4884782.107113482
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4440885.65683994
+Write rate (samples/second): 4438144.882423068
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4902604.323228272
+Write rate (samples/second): 4824811.760451647
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5050509.488831571
+Write rate (samples/second): 5206167.7302502915
+Current time: 2022-10-09T03:58:19.293461800Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5077325.586986311
+Write rate (samples/second): 5114704.040668362
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5060889.638201959
+Write rate (samples/second): 5062669.7766309595
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5049660.737028485
+Write rate (samples/second): 5012972.620677515
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5013067.613478731
+Write rate (samples/second): 4922954.385440626
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5037095.995685989
+Write rate (samples/second): 4897070.914973627
+Queue length: 0
+Current time: 2022-10-09T03:58:24.293813348Z, Current workload rate: 1000000, Samples generated: 9500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4968757.002531353
+Write rate (samples/second): 4967375.025935907
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5008960.32877373
+Write rate (samples/second): 5025328.15644128
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4944099.734120159
+Write rate (samples/second): 4779109.419268143
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4945276.998860934
+Write rate (samples/second): 4807470.054653627
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4899924.481383909
+Write rate (samples/second): 5261918.463689874
+Queue length: 0
+Current time: 2022-10-09T03:58:29.294149586Z, Current workload rate: 1000000, Samples generated: 9500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4759394.294733202
+Write rate (samples/second): 5013034.440980338
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4806650.235164882
+Write rate (samples/second): 5000247.262227117
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4736963.296729397
+Write rate (samples/second): 4979254.682254588
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4738163.135070456
+Write rate (samples/second): 5129631.165669184
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5028597.837043178
+Write rate (samples/second): 5052591.107160749
+Queue length: 0
+Current time: 2022-10-09T03:58:34.294502575Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4943151.093127444
+Write rate (samples/second): 5074982.047758504
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5154107.345768827
+Write rate (samples/second): 5008957.568910058
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5058603.926488368
+Write rate (samples/second): 5045165.379966187
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4825999.877438907
+Write rate (samples/second): 4915051.397282267
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4963301.349819435
+Write rate (samples/second): 4975738.795208443
+Current time: 2022-10-09T03:58:39.294863447Z, Current workload rate: 1000000, Samples generated: 8500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5027500.124028428
+Write rate (samples/second): 4990179.327084298
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4878999.638017259
+Write rate (samples/second): 5029145.912219678
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5014843.1332996655
+Write rate (samples/second): 4791642.746386773
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4795881.757151607
+Write rate (samples/second): 4909626.299375559
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4962443.680358244
+Write rate (samples/second): 5070531.344528965
+Current time: 2022-10-09T03:58:44.295219151Z, Current workload rate: 1000000, Samples generated: 8500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5019570.955786645
+Write rate (samples/second): 4971368.842846589
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4818994.146387086
+Write rate (samples/second): 4935710.349062222
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4950832.588447565
+Write rate (samples/second): 4929880.485794761
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4730820.970302545
+Write rate (samples/second): 4756794.514905996
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5007627.066709034
+Write rate (samples/second): 4902714.55264328
+Current time: 2022-10-09T03:58:49.295591225Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4883123.6083830185
+Write rate (samples/second): 4914519.018579202
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4945058.178362216
+Write rate (samples/second): 4884572.233928534
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4790260.641338873
+Write rate (samples/second): 4910813.150906185
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4898466.640824969
+Write rate (samples/second): 4916081.94050654
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4982385.324746744
+Write rate (samples/second): 4878346.240624429
+Current time: 2022-10-09T03:58:54.295974455Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4869697.415702226
+Write rate (samples/second): 4720273.656543561
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4814597.3661995465
+Write rate (samples/second): 4792704.644678127
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4941440.910926565
+Write rate (samples/second): 4857258.340541585
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4912918.567519896
+Write rate (samples/second): 4824684.894281167
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4976172.147052774
+Write rate (samples/second): 4789528.756732976
+Current time: 2022-10-09T03:58:59.296345406Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4976635.294488612
+Write rate (samples/second): 4843840.726650511
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4949973.194905155
+Write rate (samples/second): 4833093.420186986
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4955609.876748531
+Write rate (samples/second): 4915274.673167412
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4891908.248582083
+Write rate (samples/second): 4848975.1768547315
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4946818.87738139
+Write rate (samples/second): 4770997.374138465
+Current time: 2022-10-09T03:59:04.296720466Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4889611.351784302
+Write rate (samples/second): 4967160.907124382
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5101008.226518392
+Write rate (samples/second): 4885166.062329287
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4865177.940380242
+Write rate (samples/second): 4873962.355347377
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5022505.243294573
+Write rate (samples/second): 4811980.522642679
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4943598.9247909635
+Write rate (samples/second): 4893142.525958194
+Current time: 2022-10-09T03:59:09.297086499Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4934545.0365266865
+Write rate (samples/second): 4853716.601952225
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4894865.053563235
+Write rate (samples/second): 4781937.2077130545
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4887286.371581048
+Write rate (samples/second): 4819759.502483603
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 3137227.5994686713
+Write rate (samples/second): 771663.9193553422
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 805540.1662924576
+Write rate (samples/second): 551371.6494578428
+Queue length: 0
+Current time: 2022-10-09T03:59:14.297437643Z, Current workload rate: 1000000, Samples generated: 9500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 5069678.266455557
+Write rate (samples/second): 1289004.5958994825
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5034032.22245767
+Write rate (samples/second): 5219154.325602224
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5345616.047984132
+Write rate (samples/second): 5077017.543816895
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5058857.274965587
+Write rate (samples/second): 5162651.450639492
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4940056.856102368
+Write rate (samples/second): 5122570.668244364
+Queue length: 0
+Current time: 2022-10-09T03:59:19.297776894Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4970007.8415789725
+Write rate (samples/second): 5145107.8894137675
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4990109.154545866
+Write rate (samples/second): 5307338.696045263
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5060176.222863439
+Write rate (samples/second): 5097559.229509223
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 2269904.924532857
+Write rate (samples/second): 1838568.96058677
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5084268.1344989445
+Write rate (samples/second): 2100774.0823098244
+Queue length: 0
+Current time: 2022-10-09T03:59:24.298126390Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4971181.810485525
+Write rate (samples/second): 5050408.021453972
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4941482.714619342
+Write rate (samples/second): 5029192.855182622
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4827848.622111243
+Write rate (samples/second): 4959432.093447207
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4934124.21160343
+Write rate (samples/second): 4899730.158140946
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4848966.38317314
+Write rate (samples/second): 5015390.981073169
+Queue length: 0
+Current time: 2022-10-09T03:59:29.298466739Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4876822.4380649645
+Write rate (samples/second): 4967264.238489086
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4429703.258254057
+Write rate (samples/second): 4406777.698133594
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4945713.719557241
+Write rate (samples/second): 5005349.41713607
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4942145.075205808
+Write rate (samples/second): 5077789.088383713
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4997237.876708407
+Write rate (samples/second): 5059983.268052128
+Current time: 2022-10-09T03:59:34.298830608Z, Current workload rate: 1000000, Samples generated: 8500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4998595.894413259
+Write rate (samples/second): 4988072.520987814
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4966867.8128926065
+Write rate (samples/second): 5006173.813794124
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4976917.801773047
+Write rate (samples/second): 4990314.04994476
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4954668.401038431
+Write rate (samples/second): 4931002.3577883635
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5006901.162078728
+Write rate (samples/second): 4958537.207722743
+Current time: 2022-10-09T03:59:39.299215427Z, Current workload rate: 1000000, Samples generated: 8500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4868986.954484301
+Write rate (samples/second): 4960705.999740753
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4949315.936237052
+Write rate (samples/second): 4945082.5831758445
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5026807.71419944
+Write rate (samples/second): 4907030.179462361
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4838104.118458386
+Write rate (samples/second): 4938985.306607614
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4876184.22278607
+Write rate (samples/second): 5004689.74461899
+Current time: 2022-10-09T03:59:44.299583485Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4915141.169047453
+Write rate (samples/second): 4860257.062689841
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4790113.879400951
+Write rate (samples/second): 4831490.651113905
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5015698.232642489
+Write rate (samples/second): 4972079.3381971475
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4976113.807783293
+Write rate (samples/second): 4932868.49400768
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4972747.454306368
+Write rate (samples/second): 4940096.147115273
+Current time: 2022-10-09T03:59:49.299957515Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5033200.196463924
+Write rate (samples/second): 5072077.466934721
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5076982.43700173
+Write rate (samples/second): 4966858.882449797
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5010716.469420314
+Write rate (samples/second): 4946514.280918146
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4942599.613646873
+Write rate (samples/second): 4737856.575113021
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5162123.18952725
+Write rate (samples/second): 4987366.551661652
+Current time: 2022-10-09T03:59:54.300326663Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4964835.805680894
+Write rate (samples/second): 4898280.878770007
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4987637.143811634
+Write rate (samples/second): 4807364.297528315
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4943223.469895122
+Write rate (samples/second): 4907036.343680072
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5094248.539399983
+Write rate (samples/second): 5009648.53297803
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5099060.155509505
+Write rate (samples/second): 4947313.094469141
+Queue length: 0
+Current time: 2022-10-09T03:59:59.300699612Z, Current workload rate: 1000000, Samples generated: 9500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 5025127.900811614
+Write rate (samples/second): 4991698.406214593
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4956451.821266064
+Write rate (samples/second): 4797721.489139441
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4917118.283493012
+Write rate (samples/second): 4836698.4065971095
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4830826.112037331
+Write rate (samples/second): 4757145.03442018
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4801662.896529005
+Write rate (samples/second): 4739620.600575147
+Queue length: 0
+Current time: 2022-10-09T04:00:04.301044169Z, Current workload rate: 1000000, Samples generated: 9500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4945421.243167727
+Write rate (samples/second): 4937199.562149394
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4874931.9154821355
+Write rate (samples/second): 4829714.832095785
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4903307.07860827
+Write rate (samples/second): 4865331.042475995
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4900339.156393285
+Write rate (samples/second): 4962639.6113348
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4868355.528409605
+Write rate (samples/second): 4909040.535194595
+Queue length: 0
+Current time: 2022-10-09T04:00:09.301397149Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4866781.54023143
+Write rate (samples/second): 4832301.780261533
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4774741.632045652
+Write rate (samples/second): 4827774.037272096
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4909613.620477912
+Write rate (samples/second): 4853886.229547095
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4890933.02500109
+Write rate (samples/second): 5102351.591190284
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4696945.20453543
+Write rate (samples/second): 4925651.623319422
+Queue length: 0
+Current time: 2022-10-09T04:00:14.301747246Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4726279.775420797
+Write rate (samples/second): 5024643.009917128
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4875655.475808685
+Write rate (samples/second): 4942670.508466058
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4950349.185750725
+Write rate (samples/second): 4919432.922012004
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4728473.821523415
+Write rate (samples/second): 4785427.599634014
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4812113.066409527
+Write rate (samples/second): 4974764.06659064
+Queue length: 0
+Current time: 2022-10-09T04:00:19.302099688Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4962238.3092915695
+Write rate (samples/second): 4938125.436425353
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4785504.545937403
+Write rate (samples/second): 4901090.023986131
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4924831.605725388
+Write rate (samples/second): 4894931.374922197
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4863698.781251441
+Write rate (samples/second): 4932887.619970417
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4988566.007168928
+Write rate (samples/second): 4905837.694696631
+Queue length: 0
+Current time: 2022-10-09T04:00:24.302454400Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Write rate (samples/second): 4836399.734899519
+Write rate (samples/second): 4849397.969549311
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4769001.12641899
+Write rate (samples/second): 4824654.354283845
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 2256919.775841103
+Write rate (samples/second): 992667.3075578279
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 586084.2003094245
+Write rate (samples/second): 541560.4305622047
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5190005.747100964
+Write rate (samples/second): 2174206.0886467304
+Current time: 2022-10-09T04:00:29.302782611Z, Current workload rate: 1000000, Samples generated: 8500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5130447.844282782
+Write rate (samples/second): 5130239.281234597
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5114819.305095739
+Write rate (samples/second): 5112789.412640195
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5062476.067777199
+Write rate (samples/second): 5105645.245574644
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4849150.633928007
+Write rate (samples/second): 4942605.7209771555
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5115603.952806712
+Write rate (samples/second): 5294099.902481621
+Current time: 2022-10-09T04:00:34.303154692Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5080558.710667191
+Write rate (samples/second): 5098116.723054556
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4924134.645380171
+Write rate (samples/second): 5022373.771123075
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 1768146.8312978751
+Write rate (samples/second): 1353771.7122306966
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5123961.332046303
+Write rate (samples/second): 5088482.450989288
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5038401.283833016
+Write rate (samples/second): 4922686.064832721
+Current time: 2022-10-09T04:00:39.303539603Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5026001.415201374
+Write rate (samples/second): 4950656.901674152
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4923963.224336779
+Write rate (samples/second): 4953901.715283515
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5009965.723618107
+Write rate (samples/second): 4906021.623466922
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4921260.617521357
+Write rate (samples/second): 4845875.100980768
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5018648.797065014
+Write rate (samples/second): 4995386.111525811
+Current time: 2022-10-09T04:00:44.303903452Z, Current workload rate: 1000000, Samples generated: 9000000, Samples dropped: 0, Samples completeness: 1.00, 
+Workload expected rate: 1000000, Actual rate: 999999.8058125378, Mbps: 62.78264731185017
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 569867.9486488983
+Write rate (samples/second): 565442.4461499812
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Write rate (samples/second): 1257991.529570666
+Write rate (samples/second): 1034728.805712991
+Write rate (samples/second): 4998575.555923829
+Write rate (samples/second): 5166310.616593696
+Write rate (samples/second): 5622619.8536483785
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5161624.6093708305
+Queue length: 0
+Write rate (samples/second): 4977690.488997363
+Write rate (samples/second): 5287146.625095877
+Write rate (samples/second): 5247093.118283111
+Queue length: 0
+Current time: 2022-10-09T04:00:49.304255854Z, Current workload rate: 2000000, Samples generated: 10000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4974950.725103048
+Queue length: 0
+Write rate (samples/second): 4979961.729591703
+Write rate (samples/second): 5119507.16429464
+Write rate (samples/second): 5254692.308864508
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5016014.8311921405
+Queue length: 0
+Write rate (samples/second): 5266553.158401961
+Write rate (samples/second): 5231776.542536735
+Write rate (samples/second): 5099850.274515761
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 1813643.2912591062
+Write rate (samples/second): 1385229.286268229
+Write rate (samples/second): 5034420.585262469
+Write rate (samples/second): 5000844.7426939355
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4721075.462501101
+Write rate (samples/second): 4852750.374889525
+Write rate (samples/second): 5084912.909832158
+Write rate (samples/second): 5101663.657620413
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4849166.153390511
+Write rate (samples/second): 4878938.4608660685
+Write rate (samples/second): 5201349.546314366
+Write rate (samples/second): 5027026.9558334565
+Current time: 2022-10-09T04:00:54.304601879Z, Current workload rate: 2000000, Samples generated: 15500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4763306.671105307
+Write rate (samples/second): 4886624.496595826
+Write rate (samples/second): 5129796.891027089
+Write rate (samples/second): 5005177.1550420895
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4321024.687102936
+Write rate (samples/second): 4260030.234797786
+Write rate (samples/second): 5203975.0042672595
+Write rate (samples/second): 5136907.945931537
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4993204.149288734
+Write rate (samples/second): 5077561.2716935
+Write rate (samples/second): 5150317.5278912615
+Write rate (samples/second): 5066917.102084587
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4968640.771575058
+Write rate (samples/second): 4977397.141839194
+Write rate (samples/second): 5023227.403513848
+Write rate (samples/second): 4983078.611144633
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4920231.920839058
+Write rate (samples/second): 4974039.641524146
+Write rate (samples/second): 5177520.131259662
+Write rate (samples/second): 5127884.254135031
+Current time: 2022-10-09T04:00:59.304969111Z, Current workload rate: 2000000, Samples generated: 17500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4946247.496197152
+Write rate (samples/second): 4900268.702314077
+Write rate (samples/second): 5072401.583413051
+Write rate (samples/second): 4947270.947316601
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4894438.176790063
+Write rate (samples/second): 4913274.465819711
+Write rate (samples/second): 5147072.819025945
+Write rate (samples/second): 4888726.904725244
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4955240.4526961
+Write rate (samples/second): 4915918.619523532
+Write rate (samples/second): 5171453.8107827725
+Write rate (samples/second): 4981965.186385979
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4885217.56321303
+Queue length: 0
+Write rate (samples/second): 4623984.47243819
+Write rate (samples/second): 5102338.105618195
+Write rate (samples/second): 4937945.286005841
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4973382.011868101
+Queue length: 0
+Write rate (samples/second): 4936195.185292476
+Write rate (samples/second): 5263649.297953932
+Write rate (samples/second): 5019421.900129265
+Current time: 2022-10-09T04:01:04.305343015Z, Current workload rate: 2000000, Samples generated: 18000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4980625.416934379
+Queue length: 0
+Write rate (samples/second): 4872179.491638156
+Write rate (samples/second): 5290265.661482333
+Write rate (samples/second): 5081842.2047950495
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5149443.705081595
+Queue length: 0
+Write rate (samples/second): 4885530.553472962
+Write rate (samples/second): 5154486.825631659
+Write rate (samples/second): 4989802.838918386
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4906886.913921427
+Queue length: 0
+Write rate (samples/second): 4772241.436856994
+Write rate (samples/second): 5300749.639435058
+Write rate (samples/second): 5094566.982592313
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4887821.4668856645
+Queue length: 0
+Write rate (samples/second): 4881002.143931381
+Write rate (samples/second): 5186938.132058884
+Write rate (samples/second): 4856216.463090511
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4860277.897470222
+Queue length: 0
+Write rate (samples/second): 4884917.785075107
+Write rate (samples/second): 5258178.34449536
+Write rate (samples/second): 5125341.823140875
+Queue length: 0
+Current time: 2022-10-09T04:01:09.305708679Z, Current workload rate: 2000000, Samples generated: 18500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4898806.289256033
+Queue length: 0
+Write rate (samples/second): 4876535.627164664
+Write rate (samples/second): 5025421.4461649265
+Write rate (samples/second): 4726518.130918824
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4995067.869985176
+Queue length: 0
+Write rate (samples/second): 4842658.349794821
+Write rate (samples/second): 5176929.914691753
+Write rate (samples/second): 4968862.572997685
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4933426.322499401
+Queue length: 0
+Write rate (samples/second): 4811045.79164931
+Write rate (samples/second): 5144012.546863884
+Write rate (samples/second): 4989203.712410604
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4847354.527667134
+Queue length: 0
+Write rate (samples/second): 4710259.502892024
+Write rate (samples/second): 4971885.528620167
+Write rate (samples/second): 5056585.4156992575
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4796660.771986289
+Queue length: 0
+Write rate (samples/second): 4793066.771398371
+Write rate (samples/second): 5072464.466498731
+Write rate (samples/second): 5180946.740924416
+Queue length: 0
+Current time: 2022-10-09T04:01:14.306050159Z, Current workload rate: 2000000, Samples generated: 18500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4877207.426519847
+Queue length: 0
+Write rate (samples/second): 4821378.76486401
+Write rate (samples/second): 5048490.09102054
+Write rate (samples/second): 4909247.696180877
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4626312.905965897
+Queue length: 0
+Write rate (samples/second): 4770682.317583349
+Write rate (samples/second): 5137024.582758535
+Write rate (samples/second): 4897400.680102033
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4763301.86102299
+Queue length: 0
+Write rate (samples/second): 4784263.676463595
+Write rate (samples/second): 5156296.419558518
+Write rate (samples/second): 4985695.6900665015
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4683137.204015543
+Queue length: 0
+Write rate (samples/second): 4793115.154054747
+Write rate (samples/second): 5047522.321708438
+Write rate (samples/second): 5003009.209979619
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4852043.248784539
+Queue length: 0
+Write rate (samples/second): 4807718.380318909
+Write rate (samples/second): 5089539.815922949
+Write rate (samples/second): 5018638.722350939
+Current time: 2022-10-09T04:01:19.306395420Z, Current workload rate: 2000000, Samples generated: 17500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4915734.189578199
+Queue length: 0
+Write rate (samples/second): 4961201.666547019
+Write rate (samples/second): 5195093.691176929
+Write rate (samples/second): 4936889.71465281
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4777721.157535197
+Write rate (samples/second): 4840956.7558494825
+Write rate (samples/second): 5115949.412264383
+Write rate (samples/second): 4919602.430397735
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4780985.950030531
+Write rate (samples/second): 4695795.3425880885
+Write rate (samples/second): 5181619.386635132
+Write rate (samples/second): 5029649.684295931
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4794687.501591237
+Write rate (samples/second): 4770201.004631044
+Write rate (samples/second): 5147619.520415644
+Write rate (samples/second): 5073154.430301042
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 1389559.0307506716
+Write rate (samples/second): 1116774.3058785903
+Current time: 2022-10-09T04:01:24.306757140Z, Current workload rate: 2000000, Samples generated: 17500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Write rate (samples/second): 548238.2074090423
+Write rate (samples/second): 547185.9147131454
+Write rate (samples/second): 4963135.812439525
+Write rate (samples/second): 5097848.356242129
+Write rate (samples/second): 5114737.839866785
+Write rate (samples/second): 5348079.600346141
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5125230.076703373
+Write rate (samples/second): 4917727.307339132
+Write rate (samples/second): 5295524.867377021
+Write rate (samples/second): 5237993.142126051
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5000864.899584383
+Write rate (samples/second): 4928562.798657969
+Write rate (samples/second): 5433795.784130855
+Write rate (samples/second): 5364110.683660627
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5029974.270575011
+Write rate (samples/second): 5070209.934881671
+Write rate (samples/second): 5111966.22037259
+Write rate (samples/second): 4972601.809372664
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 1822591.422379544
+Write rate (samples/second): 5109002.9798055515
+Write rate (samples/second): 1372667.7952064096
+Write rate (samples/second): 5081835.283672264
+Current time: 2022-10-09T04:01:29.307115358Z, Current workload rate: 2000000, Samples generated: 18000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4961262.019637092
+Write rate (samples/second): 4893480.430702616
+Write rate (samples/second): 5212302.88204176
+Write rate (samples/second): 5046733.203671991
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4904271.513575205
+Write rate (samples/second): 4865020.114231061
+Write rate (samples/second): 5260353.627903878
+Write rate (samples/second): 4920770.041855971
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4802496.376036234
+Write rate (samples/second): 4806669.550091596
+Write rate (samples/second): 5228365.707617786
+Write rate (samples/second): 5055838.500501397
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4294694.442711774
+Write rate (samples/second): 4244774.731120899
+Write rate (samples/second): 5230478.197306066
+Write rate (samples/second): 5017503.762575896
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4922151.255739229
+Queue length: 0
+Write rate (samples/second): 5090278.377652945
+Write rate (samples/second): 5219634.984870732
+Write rate (samples/second): 5143769.065508636
+Queue length: 0
+Current time: 2022-10-09T04:01:34.307462060Z, Current workload rate: 2000000, Samples generated: 18500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4912272.462925483
+Queue length: 0
+Write rate (samples/second): 4932934.486506086
+Write rate (samples/second): 5160662.466396605
+Write rate (samples/second): 5090268.842447109
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4927600.247838582
+Queue length: 0
+Write rate (samples/second): 4818427.300407298
+Write rate (samples/second): 5149041.530119664
+Write rate (samples/second): 5058890.23772393
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4887450.518717831
+Queue length: 0
+Write rate (samples/second): 4825327.254900759
+Write rate (samples/second): 5171992.436230006
+Write rate (samples/second): 5143178.476892542
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4858811.631268167
+Queue length: 0
+Write rate (samples/second): 4784993.128462768
+Write rate (samples/second): 5183645.627074994
+Write rate (samples/second): 5005791.300070878
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4829391.786591573
+Queue length: 0
+Write rate (samples/second): 4797271.9871496055
+Write rate (samples/second): 5164435.203732011
+Write rate (samples/second): 5339241.239359626
+Queue length: 0
+Current time: 2022-10-09T04:01:39.307774586Z, Current workload rate: 2000000, Samples generated: 18500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4829598.297485462
+Queue length: 0
+Write rate (samples/second): 4774958.452370263
+Write rate (samples/second): 4899658.473225851
+Write rate (samples/second): 4968143.814727027
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4727606.338120277
+Queue length: 0
+Write rate (samples/second): 5139361.337528245
+Write rate (samples/second): 5259004.388428802
+Write rate (samples/second): 5188747.917872208
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4933661.299454947
+Queue length: 0
+Write rate (samples/second): 5032899.40916076
+Write rate (samples/second): 5239352.31839192
+Write rate (samples/second): 5207573.461572399
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5025155.526553485
+Queue length: 0
+Write rate (samples/second): 4817879.250109043
+Write rate (samples/second): 4811420.140500781
+Write rate (samples/second): 4977958.396692788
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4811271.569904731
+Queue length: 0
+Write rate (samples/second): 4870666.702995346
+Write rate (samples/second): 5155386.281081991
+Write rate (samples/second): 4977690.439442557
+Queue length: 0
+Current time: 2022-10-09T04:01:44.308119399Z, Current workload rate: 2000000, Samples generated: 18000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4700311.123933977
+Write rate (samples/second): 4844569.12126095
+Write rate (samples/second): 5121806.1274891505
+Write rate (samples/second): 4989651.014726865
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4681293.248829873
+Write rate (samples/second): 4828767.5565538015
+Write rate (samples/second): 5115482.843673177
+Write rate (samples/second): 5089100.065732853
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4960570.754540413
+Write rate (samples/second): 4937628.615967392
+Write rate (samples/second): 5202515.890902701
+Write rate (samples/second): 5148412.144231077
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4853695.116636187
+Write rate (samples/second): 4760158.373134763
+Write rate (samples/second): 5079853.519375857
+Write rate (samples/second): 4999426.515784374
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4844440.27521149
+Write rate (samples/second): 4869823.292618039
+Write rate (samples/second): 5086817.373398043
+Write rate (samples/second): 5106868.944025846
+Current time: 2022-10-09T04:01:49.308467084Z, Current workload rate: 2000000, Samples generated: 17500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4612777.445186273
+Write rate (samples/second): 4853024.220279157
+Write rate (samples/second): 5096041.163863642
+Write rate (samples/second): 5048756.191958679
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4799985.4694839865
+Write rate (samples/second): 4851251.93202321
+Write rate (samples/second): 5165895.1281755185
+Write rate (samples/second): 5146542.390705839
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4825895.399527965
+Write rate (samples/second): 4769581.607913339
+Write rate (samples/second): 5101050.796059785
+Write rate (samples/second): 5025071.387671655
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4835603.971771678
+Write rate (samples/second): 4749832.5874006245
+Write rate (samples/second): 5173199.3345030835
+Write rate (samples/second): 5104488.731192856
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5046144.824578496
+Write rate (samples/second): 4827875.752918086
+Write rate (samples/second): 5237816.072475367
+Write rate (samples/second): 5009771.007274879
+Current time: 2022-10-09T04:01:54.308825879Z, Current workload rate: 2000000, Samples generated: 17500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4940037.77212161
+Write rate (samples/second): 4783911.346391951
+Write rate (samples/second): 5071396.077544932
+Write rate (samples/second): 4982124.585378873
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4867614.324976184
+Write rate (samples/second): 4814056.073220098
+Write rate (samples/second): 5215877.121612785
+Write rate (samples/second): 4891725.376502406
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4958690.193324355
+Write rate (samples/second): 4888447.438186144
+Write rate (samples/second): 5290212.262995581
+Write rate (samples/second): 4969608.607044052
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4773928.833725271
+Write rate (samples/second): 4704817.403684154
+Write rate (samples/second): 5027484.453107627
+Write rate (samples/second): 4883630.174212274
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4888157.72911834
+Queue length: 0
+Write rate (samples/second): 4820441.680681699
+Write rate (samples/second): 5232125.716512148
+Write rate (samples/second): 4964106.728453513
+Queue length: 0
+Current time: 2022-10-09T04:01:59.309178570Z, Current workload rate: 2000000, Samples generated: 18500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4803844.012920688
+Write rate (samples/second): 4664240.844755212
+Write rate (samples/second): 5204299.729985317
+Write rate (samples/second): 5016040.193008399
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 3157196.218810469
+Write rate (samples/second): 760394.3747709189
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Write rate (samples/second): 544076.0827985385
+Queue length: 1
+Write rate (samples/second): 806060.0588288747
+Write rate (samples/second): 4970825.380799771
+Write rate (samples/second): 1270681.985314042
+Write rate (samples/second): 5302361.884077644
+Write rate (samples/second): 5171822.956915301
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5238099.59818957
+Queue length: 0
+Write rate (samples/second): 4789252.671794755
+Write rate (samples/second): 5120984.95959548
+Write rate (samples/second): 5283811.479524279
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4849904.053863112
+Queue length: 0
+Write rate (samples/second): 4961267.385521236
+Write rate (samples/second): 5104239.076678269
+Write rate (samples/second): 5241848.236688905
+Queue length: 0
+Current time: 2022-10-09T04:02:04.309528029Z, Current workload rate: 2000000, Samples generated: 18500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4649099.239346926
+Queue length: 0
+Write rate (samples/second): 5170176.996252904
+Write rate (samples/second): 5287122.8084638035
+Write rate (samples/second): 5209410.43320509
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 2266836.2393161403
+Write rate (samples/second): 1822890.3439402157
+Write rate (samples/second): 5098000.027060184
+Write rate (samples/second): 2071802.449194525
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4849583.38199082
+Queue length: 0
+Write rate (samples/second): 4891697.523331587
+Write rate (samples/second): 5179733.703467435
+Write rate (samples/second): 5169385.994599067
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4754040.582696289
+Queue length: 0
+Write rate (samples/second): 4856787.659446518
+Write rate (samples/second): 5193000.890018037
+Write rate (samples/second): 5088855.4879031805
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4784765.780403959
+Queue length: 0
+Write rate (samples/second): 4889402.354366535
+Write rate (samples/second): 5100670.921850377
+Write rate (samples/second): 5088535.117191915
+Queue length: 0
+Current time: 2022-10-09T04:02:09.309873122Z, Current workload rate: 2000000, Samples generated: 18000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4292064.70201697
+Write rate (samples/second): 4346806.704086934
+Write rate (samples/second): 5110054.946785625
+Write rate (samples/second): 4975420.428001586
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4835033.819562707
+Write rate (samples/second): 5129711.0535331825
+Write rate (samples/second): 5232606.303850583
+Write rate (samples/second): 5183033.8652383825
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4975241.754210938
+Write rate (samples/second): 4982507.264022253
+Write rate (samples/second): 5232634.888902893
+Write rate (samples/second): 5149597.613017317
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4920376.547757337
+Write rate (samples/second): 4911911.739626239
+Write rate (samples/second): 5013147.581109168
+Write rate (samples/second): 4973224.111650632
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4869643.870185306
+Write rate (samples/second): 4881398.801144076
+Write rate (samples/second): 5146395.021822104
+Write rate (samples/second): 5080083.296703393
+Current time: 2022-10-09T04:02:14.310218852Z, Current workload rate: 2000000, Samples generated: 17500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4900367.972551353
+Write rate (samples/second): 4903232.211654569
+Write rate (samples/second): 5292961.446333474
+Write rate (samples/second): 5115471.696059297
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4761457.638358912
+Write rate (samples/second): 4865933.555385345
+Write rate (samples/second): 5085413.693013388
+Write rate (samples/second): 5078074.5326670855
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4880204.164317255
+Write rate (samples/second): 4797700.496695378
+Write rate (samples/second): 5026171.223298
+Write rate (samples/second): 5040039.586486928
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4896219.1992681995
+Write rate (samples/second): 4849788.989075937
+Write rate (samples/second): 5147880.697823645
+Write rate (samples/second): 5142339.124183129
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4913349.543194101
+Write rate (samples/second): 4899016.763416369
+Write rate (samples/second): 5315140.754600737
+Write rate (samples/second): 5244933.132347495
+Current time: 2022-10-09T04:02:19.310577981Z, Current workload rate: 2000000, Samples generated: 17500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5051671.782578875
+Write rate (samples/second): 4995444.654019999
+Write rate (samples/second): 5201200.104107222
+Write rate (samples/second): 5101578.811102566
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4834964.576245235
+Write rate (samples/second): 4787477.3686369825
+Write rate (samples/second): 5324263.741110103
+Write rate (samples/second): 5169081.642656816
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4876643.355661208
+Write rate (samples/second): 4809879.184011692
+Write rate (samples/second): 5206447.785727434
+Write rate (samples/second): 4966969.158399726
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4802223.360263786
+Write rate (samples/second): 4852789.6552500585
+Write rate (samples/second): 5271615.5081861075
+Write rate (samples/second): 5125684.237840278
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5021339.084279682
+Write rate (samples/second): 4847262.374789396
+Write rate (samples/second): 5198306.017621426
+Write rate (samples/second): 5113206.91236035
+Queue length: 0
+Current time: 2022-10-09T04:02:24.310928571Z, Current workload rate: 2000000, Samples generated: 18500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4901456.318740842
+Write rate (samples/second): 4751322.9773751125
+Write rate (samples/second): 5090722.9444594905
+Write rate (samples/second): 4848373.518075241
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4920063.966735644
+Queue length: 0
+Write rate (samples/second): 4838230.099566131
+Write rate (samples/second): 5157756.321121785
+Write rate (samples/second): 4965707.321806338
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4946169.893279163
+Queue length: 0
+Write rate (samples/second): 4867347.6910290625
+Write rate (samples/second): 5166809.835522668
+Write rate (samples/second): 4993169.444063909
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4879944.293679108
+Queue length: 0
+Write rate (samples/second): 4639575.160412383
+Write rate (samples/second): 4947115.8754739305
+Write rate (samples/second): 5002078.613767951
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4908851.271467094
+Queue length: 0
+Write rate (samples/second): 4819037.526789753
+Write rate (samples/second): 5123911.658106216
+Write rate (samples/second): 4981246.255410393
+Queue length: 0
+Current time: 2022-10-09T04:02:29.311267774Z, Current workload rate: 2000000, Samples generated: 18500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4752969.993112566
+Queue length: 0
+Write rate (samples/second): 4715384.21827672
+Write rate (samples/second): 5196913.548885786
+Write rate (samples/second): 5034332.58760436
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4745966.405524928
+Queue length: 0
+Write rate (samples/second): 4696019.253979486
+Write rate (samples/second): 5139141.167901281
+Write rate (samples/second): 5262390.139712248
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4692661.854717348
+Queue length: 0
+Write rate (samples/second): 4896493.129661939
+Write rate (samples/second): 5162537.378448444
+Write rate (samples/second): 5202480.54272277
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4803623.130824976
+Queue length: 0
+Write rate (samples/second): 4718791.011012677
+Write rate (samples/second): 4932382.608036171
+Write rate (samples/second): 5053527.315068114
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4715955.545214827
+Queue length: 0
+Write rate (samples/second): 4889649.3662755275
+Write rate (samples/second): 5134478.35486713
+Write rate (samples/second): 5079757.3204865325
+Queue length: 0
+Current time: 2022-10-09T04:02:34.311616899Z, Current workload rate: 2000000, Samples generated: 18000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4640050.280327246
+Queue length: 0
+Write rate (samples/second): 4797409.383581156
+Write rate (samples/second): 5203913.584477117
+Write rate (samples/second): 5112209.784068132
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4746519.75441241
+Write rate (samples/second): 4845975.373354053
+Write rate (samples/second): 5156167.63344466
+Write rate (samples/second): 5063105.791114584
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4721458.36632649
+Write rate (samples/second): 4719247.172099675
+Write rate (samples/second): 5112112.094467905
+Write rate (samples/second): 5046061.610979188
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 2238213.511692092
+Write rate (samples/second): 979358.2694610888
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Write rate (samples/second): 537377.9851176456
+Write rate (samples/second): 2155593.7208693065
+Write rate (samples/second): 581540.3484847972
+Write rate (samples/second): 5060686.384740484
+Write rate (samples/second): 5191951.85989007
+Write rate (samples/second): 5363913.763800573
+Current time: 2022-10-09T04:02:39.311966313Z, Current workload rate: 2000000, Samples generated: 17500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5125121.8548972225
+Write rate (samples/second): 5116115.720521046
+Write rate (samples/second): 5137851.114322839
+Write rate (samples/second): 5181820.87071214
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4734564.769641455
+Write rate (samples/second): 5015766.812185765
+Write rate (samples/second): 5336459.616373871
+Write rate (samples/second): 5447633.635655573
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5032085.027019932
+Write rate (samples/second): 5061620.420075014
+Write rate (samples/second): 5169578.778275308
+Write rate (samples/second): 5238923.132644263
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 1802787.5140422275
+Write rate (samples/second): 1377610.115524373
+Write rate (samples/second): 5142746.653149335
+Write rate (samples/second): 5218887.772765952
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4992613.278875506
+Write rate (samples/second): 4982403.446452027
+Write rate (samples/second): 5098002.210187878
+Write rate (samples/second): 4990304.536927385
+Current time: 2022-10-09T04:02:44.312318358Z, Current workload rate: 2000000, Samples generated: 17500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4916512.166091266
+Write rate (samples/second): 4869653.829846874
+Write rate (samples/second): 5199782.615808051
+Write rate (samples/second): 5080691.026818834
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4780575.458711274
+Write rate (samples/second): 4802567.414119048
+Write rate (samples/second): 5113302.65672173
+Write rate (samples/second): 5051741.196267471
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4339134.461046609
+Write rate (samples/second): 4319490.865412845
+Write rate (samples/second): 5260973.095678204
+Write rate (samples/second): 5192175.661271598
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4936240.360312374
+Write rate (samples/second): 4925463.502615899
+Write rate (samples/second): 5230872.180771745
+Write rate (samples/second): 5128865.9365527695
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 5045158.151127531
+Write rate (samples/second): 4952212.829943408
+Write rate (samples/second): 5295764.810593952
+Write rate (samples/second): 5085902.365871252
+Queue length: 0
+Current time: 2022-10-09T04:02:49.312670723Z, Current workload rate: 2000000, Samples generated: 18500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4951186.597914225
+Write rate (samples/second): 4867401.517743407
+Write rate (samples/second): 5249820.4771389635
+Write rate (samples/second): 4946995.711271326
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4931393.078699077
+Queue length: 0
+Write rate (samples/second): 4801448.116752013
+Write rate (samples/second): 5277665.530628051
+Write rate (samples/second): 5128979.104303196
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4760762.949587053
+Write rate (samples/second): 4844828.664765995
+Write rate (samples/second): 5211872.411862339
+Write rate (samples/second): 4894391.080680964
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4873519.497879337
+Queue length: 0
+Write rate (samples/second): 4911215.5366499955
+Write rate (samples/second): 5153301.282616493
+Write rate (samples/second): 4970535.4610724365
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4910121.213216318
+Queue length: 0
+Write rate (samples/second): 4678965.727352755
+Write rate (samples/second): 5117935.609839543
+Write rate (samples/second): 5121525.923002939
+Queue length: 0
+Current time: 2022-10-09T04:02:54.313012332Z, Current workload rate: 2000000, Samples generated: 18500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4867353.803333713
+Queue length: 0
+Write rate (samples/second): 4999175.485987096
+Write rate (samples/second): 5252764.884720458
+Write rate (samples/second): 4956491.619177364
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4852312.587917838
+Queue length: 0
+Write rate (samples/second): 4905934.302514391
+Write rate (samples/second): 5302979.137316445
+Write rate (samples/second): 5323758.518146723
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Write rate (samples/second): 4891316.703717412
+Queue length: 0
+Write rate (samples/second): 4902191.9563069595
+Write rate (samples/second): 5099392.202423515
+Write rate (samples/second): 5125848.026704848

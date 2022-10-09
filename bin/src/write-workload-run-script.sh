@@ -16,7 +16,7 @@ UNBOUNDED_QUEUE=--unbounded-queue
 KAFKA_PARTITIONS=24
 KAFKA_BATCH_BYTES=1000000
 KAFKA_BOOTSTRAPS=localhost:9093,localhost:9094,localhost:9095
-KAFKA_BOOTSTRAPS=b-3.machkafka.3ebzya.c17.kafka.us-east-1.amazonaws.com:9092,b-2.machkafka.3ebzya.c17.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka.3ebzya.c17.kafka.us-east-1.amazonaws.com:9092
+KAFKA_BOOTSTRAPS=b-3.k1.a76n55.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k1.a76n55.c17.kafka.us-east-1.amazonaws.com:9092,b-1.k1.a76n55.c17.kafka.us-east-1.amazonaws.com:9092
 
 QUERIER_IP=172.31.78.194
 
