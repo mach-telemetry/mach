@@ -1,5 +1,5 @@
 
-WRITER_COUNT=64
+WRITER_COUNT=24
 BOOTSTRAPS=b-1.machkafka.xoskvb.c17.kafka.us-east-1.amazonaws.com:9092,b-2.machkafka.xoskvb.c17.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka.xoskvb.c17.kafka.us-east-1.amazonaws.com:9092
 RATE=500
 PARTITIONS=24

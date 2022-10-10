@@ -128,8 +128,8 @@ name = "simple-bytes-server"
 path = "src/simple-bytes-server.rs"
 
 [[bin]]
-name = "simple-bytes-client"
-path = "src/simple-bytes-client.rs"
+name = "kafka-load-generator"
+path = "src/kafka-load-generator.rs"
 
 #[[bin]]
 #name = "convert-otlp-data"
