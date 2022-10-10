@@ -46,6 +46,8 @@ lazy_static! {
 }
 
 fn generate_samples() -> Vec<(SeriesId, &'static [SampleType], f64)> {
+    print_source_data_stats(&BASE_DATA);
+
     let source_count = constants::PARAMETERS.source_count;
     let mut keys: Vec<u64> = BASE_DATA.keys().map(|x| x.0).collect();
     keys.sort();
@@ -111,12 +113,44 @@ fn read_intel_data() -> SourceMap {
 
     let data: HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> =
         bincode::deserialize(&bytes).unwrap();
-
-    //let data: SourceMap = data.into_iter().map(|x| {
-    //    let series_id = x.0;
-    //    let sequence = x.1.into_iter().map(|x| x.1).collect();
-    //    (series_id, sequence)
-    //}).collect();
     println!("Read data for {} sources", data.len());
     data
+}
+
+fn print_source_data_stats(data: &SourceMap) {
+    let mut metric_sources = 0;
+    let mut non_metric_sources = 0;
+    let mut metric_samples = 0;
+    let mut non_metric_samples = 0;
+    let mut metric_bytes = 0;
+    let mut non_metric_bytes = 0;
+
+    let count_source_bytes = |source: &Vec<(u64, Vec<SampleType>)>| {
+        source.iter().fold(0, |acc, (_, samples)| {
+            acc + samples.iter().fold(0, |acc, s| s.size())
+        })
+    };
+
+    for (_, source_data) in data {
+        let is_metric = match source_data[0].1[0] {
+            SampleType::I64(_) => true,
+            SampleType::U64(_) => true,
+            SampleType::F64(_) => true,
+            _ => false,
+        };
+
+        if is_metric {
+            metric_sources += 1;
+            metric_samples += source_data.len();
+            metric_bytes += count_source_bytes(source_data);
+        } else {
+            non_metric_sources += 1;
+            non_metric_samples += source_data.len();
+            non_metric_bytes += count_source_bytes(source_data);
+        }
+    }
+
+    println!("\t\tSources,\tSamples,\tBytes");
+    println!("Metrics,\t{metric_sources},\t{metric_samples},\t{metric_bytes}");
+    println!("Logs + Traces,\t{non_metric_sources},\t{non_metric_samples},\t{non_metric_bytes}");
 }
