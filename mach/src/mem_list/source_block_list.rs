@@ -153,6 +153,10 @@ impl InnerBuffer {
         }
 
         // Traverse list
+        let mut producer = kafka::Producer::new();
+        for item in copy.iter() {
+            item.block.flush(&mut producer);
+        }
         let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(256);
         for item in copy.iter().rev() {
             v.push(ReadOnlyBlock2 {
