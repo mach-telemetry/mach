@@ -44,7 +44,7 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
         };
         let mut v = Vec::new();
         for item in data.iter().rev() {
-            item.block.flush(&mut producer);
+            item.block.flush(&mut producer, 0..PARTITIONS/2);
             let x = item.block.partition_offset();
             let (min_ts, max_ts) = (item.min_ts, item.max_ts);
             let block = ReadOnlyBlock::Offset(x);
@@ -63,7 +63,7 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
             //messages_read: 0,
         };
         let bytes = bincode::serialize(&to_serialize).unwrap();
-        let kafka_entry = producer.send(&bytes);
+        let kafka_entry = producer.send(&bytes, 0..PARTITIONS/2);
         //HISTORICAL_BLOCKS.insert(id, kafka_entry.clone());
         //drop(guard);
         *list_item.write().unwrap() = ListItem::Kafka(kafka_entry);
@@ -155,7 +155,7 @@ impl InnerBuffer {
         // Traverse list
         let mut producer = kafka::Producer::new();
         for item in copy.iter() {
-            item.block.flush(&mut producer);
+            item.block.flush(&mut producer, 2..PARTITIONS);
         }
         let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(256);
         for item in copy.iter().rev() {

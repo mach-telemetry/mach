@@ -205,24 +205,24 @@ impl Producer {
         Self(client)
     }
 
-    pub fn send(&mut self, item: &[u8]) -> KafkaEntry {
+    pub fn send(&mut self, item: &[u8], partitions: std::ops::Range<i32>) -> KafkaEntry {
         //return KafkaEntry::new();
         //println!("item length: {}", item.len());
         let mut start = 0;
 
         let producer: &mut OgProducer = &mut self.0;
 
-        let mut data = Vec::new();
+        //let mut data = Vec::new();
         let mut rng = thread_rng();
         let mut items = Vec::new();
         while start < item.len() {
             let end = item.len().min(start + MAX_MSG_SZ);
-            data.push(
-                Record::from_value(TOPIC, &item[start..end])
-                    .with_partition(rng.gen_range(0..PARTITIONS)),
-            );
+            //data.push(
+            //    Record::from_value(TOPIC, &item[start..end])
+            //        .with_partition(rng.gen_range(0..PARTITIONS)),
+            //);
             let reqs = &[Record::from_value(TOPIC, &item[start..end])
-                .with_partition(rng.gen_range(0..PARTITIONS))];
+                .with_partition(rng.gen_range(partitions.clone()))];
             let result = producer.send_all(reqs).unwrap();
             for topic in result.iter() {
                 for partition in topic.partition_confirms.iter() {

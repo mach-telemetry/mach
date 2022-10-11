@@ -73,7 +73,7 @@ fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     //    }
     //}
     while let Ok(block) = chan.recv() {
-        block.flush(&mut producer);
+        block.flush(&mut producer, 0..PARTITIONS/2);
         PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
     }
 }
@@ -420,11 +420,11 @@ impl BlockListEntry {
         self.inner.read().unwrap().clone()
     }
 
-    fn flush(&self, producer: &mut kafka::Producer) {
+    fn flush(&self, producer: &mut kafka::Producer, partitions: std::ops::Range<i32>) {
         let guard = self.inner.read().unwrap();
         match &*guard {
             InnerBlockListEntry::Bytes(bytes) => {
-                let kafka_entry = producer.send(bytes);
+                let kafka_entry = producer.send(bytes, partitions);
                 TOTAL_BYTES_FLUSHED.fetch_add(bytes.len(), SeqCst);
                 drop(guard);
                 self.set_partition_offset(kafka_entry);

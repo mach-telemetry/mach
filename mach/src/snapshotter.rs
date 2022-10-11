@@ -1,4 +1,5 @@
 use crate::{
+    constants::*,
     id::SeriesId,
     series::Series,
     snapshot::Snapshot,
@@ -73,7 +74,7 @@ impl Snapshotter {
             let mut producer = Producer::new();
             let snapshot = series.snapshot();
             let bytes = bincode::serialize(&snapshot).unwrap();
-            let kafka_entry = producer.send(bytes.as_slice());
+            let kafka_entry = producer.send(bytes.as_slice(), PARTITIONS/2..PARTITIONS);
 
             let snapshot_worker_data = Arc::new(Mutex::new(SnapshotWorkerData {
                 snapshot_id: SnapshotId { kafka: kafka_entry },
@@ -122,7 +123,7 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
         {
             let snapshot = series.snapshot();
             let bytes = bincode::serialize(&snapshot).unwrap();
-            let entry = producer.send(bytes.as_slice());
+            let entry = producer.send(bytes.as_slice(), PARTITIONS/2..PARTITIONS);
             //let snapshot = Arc::new(snapshot);
             let id = SnapshotId { kafka: entry };
             let mut guard = data.lock().unwrap();
