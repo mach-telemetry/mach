@@ -24,6 +24,8 @@ use std::sync::{
     atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst},
     Arc, RwLock,
 };
+use std::time::Duration;
+use std::thread;
 
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -34,9 +36,37 @@ static BLOCK_LIST_ENTRY_ID: AtomicUsize = AtomicUsize::new(0);
 static CHUNK_ID: AtomicUsize = AtomicUsize::new(0);
 
 lazy_static! {
-    pub static ref PENDING_UNFLUSHED_BLOCKS: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    pub static ref PENDING_UNFLUSHED_BLOCKS: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || loop {
+            let x = x2.load(SeqCst);
+            println!("Snap Pending unflushed data blocks: {}", x);
+            thread::sleep(Duration::from_secs(1));
+        });
+        x
+    };
     //static ref TOPIC: String = random_id();
-    pub static ref TOTAL_BYTES_FLUSHED: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    pub static ref TOTAL_BYTES_FLUSHED: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || loop {
+            let x = x2.load(SeqCst);
+            println!("Total data bytes flushed: {}", x);
+            thread::sleep(Duration::from_secs(1));
+        });
+        x
+    };
+    pub static ref COMPRESSED_BYTES: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || loop {
+            let x = x2.load(SeqCst);
+            println!("Total compressed bytes: {}", x);
+            thread::sleep(Duration::from_secs(1));
+        });
+        x
+    };
     static ref N_FLUSHERS: AtomicUsize = AtomicUsize::new(INIT_FLUSHERS);
     static ref FLUSH_WORKERS: DashMap<usize, crossbeam::channel::Sender<Arc<BlockListEntry>>> = {
         let flushers = DashMap::new();
@@ -234,21 +264,27 @@ impl Block {
         let items = self.items.load(SeqCst);
         //let u64sz = mem::size_of::<u64>();
 
+        let min_ts = segment.to_flush().unwrap().timestamps()[0];
+        let max_ts = *segment.to_flush().unwrap().timestamps().last().unwrap();
+
         bytes[0..8].copy_from_slice(&1234567890u64.to_be_bytes());
         bytes[8..16].copy_from_slice(&chunk_id.to_be_bytes());
         bytes[16..24].copy_from_slice(&series_id.0.to_be_bytes()); // series ID
-        bytes[24..32].copy_from_slice(&0u64.to_be_bytes()); // place holder for chunk size
+        bytes[24..32].copy_from_slice(&min_ts.to_be_bytes()); // series ID
+        bytes[32..40].copy_from_slice(&max_ts.to_be_bytes()); // series ID
+        bytes[40..48].copy_from_slice(&0u64.to_be_bytes()); // place holder for chunk size
 
         // Compress the data into the buffer
         let size = {
-            let mut byte_buffer = ByteBuffer::new(&mut bytes[32..]);
+            let mut byte_buffer = ByteBuffer::new(&mut bytes[48..]);
             assert!(byte_buffer.len() == 0);
             compression.compress(&segment.to_flush().unwrap(), &mut byte_buffer);
             byte_buffer.len()
         };
+        COMPRESSED_BYTES.fetch_add(size, SeqCst);
 
         // Write the chunk size
-        bytes[24..32].copy_from_slice(&size.to_be_bytes());
+        bytes[40..48].copy_from_slice(&size.to_be_bytes());
 
         // store location of this thing
         //if series_id.0 == 4560055620737106128 {
@@ -258,7 +294,7 @@ impl Block {
         self.offsets[items] = (series_id.0, start_offset);
 
         //calculate new length
-        let new_length = start_offset + 32 + size;
+        let new_length = start_offset + 48 + size;
 
         // update length
         self.len.store(new_length, SeqCst);
@@ -288,6 +324,14 @@ impl Block {
             _id: BLOCK_LIST_ENTRY_ID.fetch_add(1, SeqCst),
         }
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ChunkBytes {
+    pub id: usize,
+    pub min_ts: u64,
+    pub max_ts: u64,
+    pub data: Box<[u8]>,
 }
 
 pub struct ReadOnlyBlockBytes(Arc<[u8]>);
@@ -322,7 +366,7 @@ impl ReadOnlyBlockBytes {
         segments
     }
 
-    pub fn chunks_for_id(&self, id: u64) -> Vec<(usize, Box<[u8]>)> {
+    pub fn chunks_for_id(&self, id: u64) -> Vec<ChunkBytes> {
         let offsets = self.offsets();
         let mut result = Vec::new();
         for (i, offset) in offsets.iter() {
@@ -331,15 +375,23 @@ impl ReadOnlyBlockBytes {
 
                 let magic = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
                 let chunk_id = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
-                let _series_id = u64::from_be_bytes(bytes[16..24].try_into().unwrap()) as usize;
-                let chunk_size = u64::from_be_bytes(bytes[24..32].try_into().unwrap()) as usize;
+                let _series_id = u64::from_be_bytes(bytes[16..24].try_into().unwrap());
+                let min_ts = u64::from_be_bytes(bytes[24..32].try_into().unwrap());
+                let max_ts = u64::from_be_bytes(bytes[32..40].try_into().unwrap());
+                let chunk_size = u64::from_be_bytes(bytes[40..48].try_into().unwrap()) as usize;
 
                 assert_eq!(magic, 1234567890);
                 //println!("{} {}",series_id, chunk_size);
 
                 // decompress data
-                let bytes = &bytes[32..32 + chunk_size];
-                result.push((chunk_id, bytes.into()));
+                let bytes = &bytes[48..48 + chunk_size];
+                let entry = ChunkBytes {
+                    id: chunk_id,
+                    min_ts,
+                    max_ts,
+                    data: bytes.into(),
+                };
+                result.push(entry);
             }
         }
         result
@@ -372,6 +424,23 @@ impl std::ops::Deref for ReadOnlyBlockBytes {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+pub enum ChunkBytesOrKafka {
+    Bytes(Vec<ChunkBytes>),
+    Kafka(kafka::KafkaEntry),
+}
+
+impl ChunkBytesOrKafka {
+    fn to_bytes(self, id: u64) -> Self {
+        match self {
+            Self::Bytes(_) => self,
+            Self::Kafka(entry) => {
+                Self::Bytes(ReadOnlyBlock::Offset(entry).as_bytes().chunks_for_id(id))
+            },
+        }
+    }
+}
+
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub enum ReadOnlyBlock {
     Bytes(Box<[u8]>),
@@ -388,6 +457,13 @@ impl std::convert::From<InnerBlockListEntry> for ReadOnlyBlock {
 }
 
 impl ReadOnlyBlock {
+    pub fn chunk_bytes_or_kafka(&self, id: u64) -> ChunkBytesOrKafka {
+        match self {
+            Self::Bytes(x) => ChunkBytesOrKafka::Bytes(ReadOnlyBlockBytes(x.clone().into()).chunks_for_id(id)),
+            Self::Offset(x) => ChunkBytesOrKafka::Kafka(x.clone()),
+        }
+    }
+
     pub fn as_bytes(&self) -> ReadOnlyBlockBytes {
         let _timer = ThreadLocalTimer::new("ReadOnlyBlock::as_bytes");
         match self {

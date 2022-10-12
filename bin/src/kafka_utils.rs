@@ -8,6 +8,29 @@ use rdkafka::{
 };
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
+use lazy_static::*;
+use num::NumCast;
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
+use std::thread;
+
+lazy_static! {
+    static ref TOTAL_MB_WRITTEN: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || {
+            let mut last = 0.;
+            loop {
+                let x = x2.load(SeqCst);
+                let x2 = <f64 as NumCast>::from(x).unwrap();
+                let mb = (x2 - last) / 1_000_000.;
+                println!("Total mb written to Kafka: {} mbps, {} total mb", mb, x);
+                last = x2;
+                thread::sleep(Duration::from_secs(1));
+            }
+        });
+        x
+    };
+}
 
 #[derive(Copy, Clone)]
 pub struct KafkaTopicOptions {
@@ -77,6 +100,7 @@ impl Producer {
             Ok(resp) => {
                 let part = resp[0].partition_confirms[0].partition;
                 let offset = resp[0].partition_confirms[0].offset.unwrap();
+                TOTAL_MB_WRITTEN.fetch_add(item.len(), SeqCst);
                 (part, offset)
             }
             Err(e) => {

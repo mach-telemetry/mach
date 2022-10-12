@@ -7,6 +7,7 @@ use crate::{
         wp_lock::{NoDealloc, WpLock},
     },
     constants::*,
+    snapshot2::*,
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use std::mem::MaybeUninit;
@@ -140,7 +141,7 @@ impl InnerBuffer {
         }
     }
 
-    //fn chunks_for_id(&self, id: u64, last_chunk_id: usize) -> Result<Vec<(usize, Box<[u8]>)>, Error> {
+    //fn chunks_for_id(&self, id: u64, last_chunk_id: usize) {
     //    let mut result = Vec::new();
     //    // Get components to read
     //    let guard = self.data.protected_read();
@@ -153,17 +154,34 @@ impl InnerBuffer {
     //        return Err(Error::Snapshot);
     //    }
 
+    //    let mut chunks: Vec<SourceBlockSnapshot> = Vec::with_capacity(256);
+
     //    // Traverse list
-    //    let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(256);
     //    for item in copy.iter().rev() {
     //        let item = match item.block.inner() {
-    //        };
-    //        v.push(ReadOnlyBlock2 {
-    //            min_ts: item.min_ts,
-    //            max_ts: item.max_ts,
-    //            block: item.block.inner().into(),
-    //        });
-    //    }
+    //            ReadOnlyBlock::Offset(k) => chunks.push(SourceBlockSnapshot::Kafka(k.clone())),
+    //            ReadOnlyBlock::Bytes(block) => {
+    //                let mut bytes = block.as_bytes().chunks_for_id(serid.0);
+    //                bytes.sort_by(|x, y| y.0.cmp(&x.0)); // sort chunks
+    //                let mut v = Vec::new();
+    //                for (id, chunk) in bytes {
+    //                    if id > last_compressed_block_id {
+    //                        if last_id == usize::MAX {
+    //                            last_id = id;
+    //                        }
+    //                        v.push(chunk);
+    //                    } else {
+    //                        return Snapshot2 {
+    //                            segment,
+    //                            chunks,
+    //                            last_id,
+    //                            next: NextItem::Snapshot(prev_snapshot.unwrap()),
+    //                        };
+    //                    }
+    //                }
+    //                chunks.push(SourceBlockSnapshot::Bytes(v));
+    //            };
+    //        }
 
     //    Ok(result)
     //}
@@ -262,9 +280,9 @@ impl SourceBlockList {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct SourceBlocks2 {
-    data: Vec<ReadOnlyBlock2>,
-    next: kafka::KafkaEntry,
-    idx: usize,
+    pub data: Vec<ReadOnlyBlock2>,
+    pub next: kafka::KafkaEntry,
+    pub idx: usize,
 }
 
 impl SourceBlocks2 {

@@ -2,6 +2,7 @@ use crate::{
     snapshot::Segment,
     utils::kafka::*,
     series::Series,
+    mem_list::{ChunkBytes, ChunkBytesOrKafka, ReadOnlyBlock},
 };
 use serde::*;
 
@@ -11,15 +12,25 @@ pub enum NextItem {
     SourceBlock(KafkaEntry),
 }
 
+
 #[derive(Serialize, Deserialize)]
 pub struct Snapshot2 {
     pub segment: Option<Segment>,
-    pub compressed: Vec<Box<[u8]>>,
+    pub chunks: Vec<ChunkBytesOrKafka>,
+    pub last_id: usize,
+    pub next: NextItem,
 }
 
 impl Snapshot2 {
-    fn from_series(series: Series, last_compressed_block_id: usize) {
+    pub fn new(series: &Series, last_compressed_block_id: usize, prev_snapshot: Option<KafkaEntry>) { //-> Self {
+        let now = std::time::Instant::now();
         let serid = series.config.id;
+
+        let mut chunks: Vec<ChunkBytesOrKafka> = Vec::new();
+        let mut done = false;
+        let mut last_id = usize::MAX;
+
+        // Get the active segment
         let segment: Option<Segment> = match series.segment.snapshot() {
             Ok(mut x) => {
                 assert_eq!(x.inner.len(), 1);
@@ -27,9 +38,31 @@ impl Snapshot2 {
             },
             Err(_) => None,
         };
-        let active_chunks: Option<Vec<(usize, Box<[u8]>)>> = series.block_list.snapshot().ok().map(|x| {
+
+        // Get the active block
+        let mut active_chunks: Option<Vec<ChunkBytes>> = series.block_list.snapshot().ok().map(|x| {
             x.as_bytes().chunks_for_id(serid.0)
         });
+
+        match active_chunks.as_mut() {
+            Some(x) => {
+                x.sort_by(|x, y| y.id.cmp(&x.id)); // sort active chunks
+                let mut v = Vec::new();
+                for chunk in x.drain(..) {
+                    if chunk.id > last_compressed_block_id {
+                        if last_id == usize::MAX {
+                            last_id = chunk.id;
+                        }
+                        v.push(chunk);
+                    } else {
+                        done = true;
+                        break;
+                    }
+                }
+                chunks.push(ChunkBytesOrKafka::Bytes(v));
+            },
+            None => {},
+        }
     }
 }
 
