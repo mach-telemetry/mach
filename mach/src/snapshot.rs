@@ -1,6 +1,6 @@
 use crate::{
     id::SeriesId,
-    mem_list::{ReadOnlyBlock, ReadOnlyBlockBytes, SourceBlocks2},
+    mem_list::{ReadOnlyBlock, ReadOnlyBlock3, ReadOnlyBlockBytes, SourceBlocks2, SourceBlocks3, ChunkBytesOrKafka},
     sample::SampleType,
     series::FieldType,
     utils::{counter::*, timer::*},
@@ -219,7 +219,7 @@ impl Segment {
 pub struct Snapshot {
     pub active_segment: Option<Vec<Segment>>,
     pub active_block: Option<ReadOnlyBlock>,
-    pub source_blocks: SourceBlocks2,
+    pub source_blocks: SourceBlocks3,
     pub id: SeriesId,
 }
 
@@ -265,32 +265,18 @@ impl ActiveSegmentReader {
 }
 
 struct ReadOnlyBlockReader {
-    block: ReadOnlyBlockBytes,
-    _offsets: Box<[(u64, usize)]>,
-    offsets: Vec<usize>,
-    id: SeriesId,
+    block: ChunkBytesOrKafka,
     read_buffer: Segment,
     current_idx: i64,
 }
 
 impl ReadOnlyBlockReader {
-    fn new(block: ReadOnlyBlockBytes, id: SeriesId) -> Self {
-        let _offsets = block.offsets();
-        let mut offsets = Vec::new();
-        for item in _offsets.iter() {
-            if SeriesId(item.0) == id {
-                offsets.push(item.1);
-            }
-        }
-        let current_idx = offsets.len().try_into().unwrap();
-        //println!("Current index: {}", current_idx);
+    fn new(block: ChunkBytesOrKafka) -> Self {
+        let current_idx = block.len().try_into().unwrap();
         Self {
-            _offsets,
-            offsets,
             block,
-            id,
-            current_idx,
             read_buffer: Segment::new_empty(),
+            current_idx
         }
     }
 
@@ -300,7 +286,7 @@ impl ReadOnlyBlockReader {
             self.current_idx -= 1;
             //println!("Getting offset:{}", self.offsets[self.current_idx as usize]);
             self.block.segment_at_offset(
-                self.offsets[self.current_idx as usize],
+                self.current_idx as usize,
                 &mut self.read_buffer,
             );
             Some(())
@@ -317,7 +303,7 @@ impl ReadOnlyBlockReader {
             self.current_idx -= 1;
             //println!("Getting offset:{}", self.offsets[self.current_idx as usize]);
             self.block.segment_at_offset(
-                self.offsets[self.current_idx as usize],
+                self.current_idx as usize,
                 &mut self.read_buffer,
             );
             let min_ts = self.read_buffer.timestamps()[0];
@@ -344,9 +330,10 @@ impl ReadOnlyBlockReader {
 pub struct SnapshotIterator {
     active_segment: Option<ActiveSegmentReader>,
     block_reader: ReadOnlyBlockReader,
-    source_blocks: SourceBlocks2,
+    source_blocks: SourceBlocks3,
     //consumer: &'a mut kafka::Client,
     state: State,
+    id: SeriesId,
 }
 
 impl SnapshotIterator {
@@ -371,11 +358,10 @@ impl SnapshotIterator {
         let active_segment = snapshot.active_segment.map(ActiveSegmentReader::new);
         let mut source_blocks = snapshot.source_blocks;
         let block_reader = match snapshot.active_block {
-            Some(x) => ReadOnlyBlockReader::new(x.as_bytes(), id),
+            Some(x) => ReadOnlyBlockReader::new(x.chunk_bytes_or_kafka(id.0).to_bytes(id.0)),
             None => {
                 let block = source_blocks.next_block().unwrap();
-                let bytes = block.as_bytes();
-                ReadOnlyBlockReader::new(bytes, id)
+                ReadOnlyBlockReader::new(block.block.to_bytes(id.0))
             }
         };
         let state = if active_segment.is_some() {
@@ -390,6 +376,7 @@ impl SnapshotIterator {
             block_reader,
             //consumer,
             state,
+            id,
         }
     }
 
@@ -417,9 +404,8 @@ impl SnapshotIterator {
                         match self.source_blocks.next_block() {
                             Some(block) => {
                                 ThreadLocalCounter::new("loading block").increment(1);
-                                let bytes = block.as_bytes();
-                                let id = self.block_reader.id;
-                                let block_reader = ReadOnlyBlockReader::new(bytes, id);
+                                let bytes = block.clone();
+                                let block_reader = ReadOnlyBlockReader::new(bytes.block.to_bytes(self.id.0));
                                 self.block_reader = block_reader;
                                 return self.next_segment();
                             }
@@ -468,9 +454,8 @@ impl SnapshotIterator {
                                     continue;
                                 } else {
                                     ThreadLocalCounter::new("loading block").increment(1);
-                                    let bytes = block.as_bytes();
-                                    let id = self.block_reader.id;
-                                    let block_reader = ReadOnlyBlockReader::new(bytes, id);
+                                    let bytes = block.clone();
+                                    let block_reader = ReadOnlyBlockReader::new(bytes.block.to_bytes(self.id.0));
                                     self.block_reader = block_reader;
                                     return self.next_segment_at_timestamp(ts);
                                 }
@@ -656,3 +641,4 @@ impl SnapshotZipper {
         Some((timestamp, data))
     }
 }
+

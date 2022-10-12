@@ -190,7 +190,7 @@ mod test {
 
         let mut result_timestamps = Vec::new();
         let mut result_field0: Vec<Vec<u8>> = Vec::new();
-        while let Some((ts, value)) = zipper.next() {
+        while let Some((ts, value)) = zipper.next_item() {
             result_timestamps.push(ts);
             result_field0.push(value[0].as_bytes().into());
         }
