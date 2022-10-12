@@ -31,6 +31,8 @@ static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
 #[allow(dead_code)]
 static BLOCK_LIST_ENTRY_ID: AtomicUsize = AtomicUsize::new(0);
 
+static CHUNK_ID: AtomicUsize = AtomicUsize::new(0);
+
 lazy_static! {
     pub static ref PENDING_UNFLUSHED_BLOCKS: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     //static ref TOPIC: String = random_id();
@@ -73,7 +75,7 @@ fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     //    }
     //}
     while let Ok(block) = chan.recv() {
-        block.flush(&mut producer, 0..PARTITIONS/2);
+        block.flush(&mut producer);
         PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
     }
 }
@@ -225,6 +227,7 @@ impl Block {
         segment: &FlushSegment,
         compression: &Compression,
     ) -> bool {
+        let chunk_id = CHUNK_ID.fetch_add(1, SeqCst);
         let start_offset = self.len.load(SeqCst);
 
         let bytes = &mut self.bytes[start_offset..];
@@ -232,19 +235,20 @@ impl Block {
         //let u64sz = mem::size_of::<u64>();
 
         bytes[0..8].copy_from_slice(&1234567890u64.to_be_bytes());
-        bytes[8..16].copy_from_slice(&series_id.0.to_be_bytes()); // series ID
-        bytes[16..24].copy_from_slice(&0u64.to_be_bytes()); // place holder for chunk size
+        bytes[8..16].copy_from_slice(&chunk_id.to_be_bytes());
+        bytes[16..24].copy_from_slice(&series_id.0.to_be_bytes()); // series ID
+        bytes[24..32].copy_from_slice(&0u64.to_be_bytes()); // place holder for chunk size
 
         // Compress the data into the buffer
         let size = {
-            let mut byte_buffer = ByteBuffer::new(&mut bytes[24..]);
+            let mut byte_buffer = ByteBuffer::new(&mut bytes[32..]);
             assert!(byte_buffer.len() == 0);
             compression.compress(&segment.to_flush().unwrap(), &mut byte_buffer);
             byte_buffer.len()
         };
 
         // Write the chunk size
-        bytes[16..24].copy_from_slice(&size.to_be_bytes());
+        bytes[24..32].copy_from_slice(&size.to_be_bytes());
 
         // store location of this thing
         //if series_id.0 == 4560055620737106128 {
@@ -254,7 +258,7 @@ impl Block {
         self.offsets[items] = (series_id.0, start_offset);
 
         //calculate new length
-        let new_length = start_offset + 24 + size;
+        let new_length = start_offset + 32 + size;
 
         // update length
         self.len.store(new_length, SeqCst);
@@ -318,20 +322,44 @@ impl ReadOnlyBlockBytes {
         segments
     }
 
+    pub fn chunks_for_id(&self, id: u64) -> Vec<(usize, Box<[u8]>)> {
+        let offsets = self.offsets();
+        let mut result = Vec::new();
+        for (i, offset) in offsets.iter() {
+            if *i == id {
+                let bytes = &self.0[*offset..];
+
+                let magic = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
+                let chunk_id = usize::from_be_bytes(bytes[8..16].try_into().unwrap());
+                let _series_id = u64::from_be_bytes(bytes[16..24].try_into().unwrap()) as usize;
+                let chunk_size = u64::from_be_bytes(bytes[24..32].try_into().unwrap()) as usize;
+
+                assert_eq!(magic, 1234567890);
+                //println!("{} {}",series_id, chunk_size);
+
+                // decompress data
+                let bytes = &bytes[32..32 + chunk_size];
+                result.push((chunk_id, bytes.into()));
+            }
+        }
+        result
+    }
+
     pub fn segment_at_offset(&self, offset: usize, segment: &mut Segment) {
         //println!("getting segment at offset: {}", offset);
 
         let bytes = &self.0[offset..];
-
         let magic = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
-        let _series_id = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
-        let chunk_size = u64::from_be_bytes(bytes[16..24].try_into().unwrap()) as usize;
+        let chunk_id = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
+        let _series_id = u64::from_be_bytes(bytes[16..24].try_into().unwrap()) as usize;
+        let chunk_size = u64::from_be_bytes(bytes[24..32].try_into().unwrap()) as usize;
 
         assert_eq!(magic, 1234567890);
         //println!("{} {}",series_id, chunk_size);
 
         // decompress data
-        let bytes = &bytes[24..24 + chunk_size];
+        let bytes = &bytes[32..32 + chunk_size];
+
         Compression::decompress(bytes, segment).unwrap();
         //println!("size decompressed: {}", size);
     }
@@ -420,11 +448,11 @@ impl BlockListEntry {
         self.inner.read().unwrap().clone()
     }
 
-    fn flush(&self, producer: &mut kafka::Producer, partitions: std::ops::Range<i32>) {
+    fn flush(&self, producer: &mut kafka::Producer) {
         let guard = self.inner.read().unwrap();
         match &*guard {
             InnerBlockListEntry::Bytes(bytes) => {
-                let kafka_entry = producer.send(bytes, partitions);
+                let kafka_entry = producer.send(bytes);
                 TOTAL_BYTES_FLUSHED.fetch_add(bytes.len(), SeqCst);
                 drop(guard);
                 self.set_partition_offset(kafka_entry);

@@ -44,7 +44,7 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
         };
         let mut v = Vec::new();
         for item in data.iter().rev() {
-            item.block.flush(&mut producer, 0..PARTITIONS/2);
+            item.block.flush(&mut producer);
             let x = item.block.partition_offset();
             let (min_ts, max_ts) = (item.min_ts, item.max_ts);
             let block = ReadOnlyBlock::Offset(x);
@@ -63,7 +63,7 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
             //messages_read: 0,
         };
         let bytes = bincode::serialize(&to_serialize).unwrap();
-        let kafka_entry = producer.send(&bytes, 0..PARTITIONS/2);
+        let kafka_entry = producer.send(&bytes);
         //HISTORICAL_BLOCKS.insert(id, kafka_entry.clone());
         //drop(guard);
         *list_item.write().unwrap() = ListItem::Kafka(kafka_entry);
@@ -140,6 +140,34 @@ impl InnerBuffer {
         }
     }
 
+    //fn chunks_for_id(&self, id: u64, last_chunk_id: usize) -> Result<Vec<(usize, Box<[u8]>)>, Error> {
+    //    let mut result = Vec::new();
+    //    // Get components to read
+    //    let guard = self.data.protected_read();
+    //    let len = guard.offset.load(SeqCst) % 256;
+    //    //println!("Snapshot len: {}", len);
+    //    let copy: Vec<InnerListEntry> =
+    //        unsafe { MaybeUninit::slice_assume_init_ref(&guard.data[..len]).to_vec() };
+    //    let current = self.next.read().unwrap().clone();
+    //    if guard.release().is_err() {
+    //        return Err(Error::Snapshot);
+    //    }
+
+    //    // Traverse list
+    //    let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(256);
+    //    for item in copy.iter().rev() {
+    //        let item = match item.block.inner() {
+    //        };
+    //        v.push(ReadOnlyBlock2 {
+    //            min_ts: item.min_ts,
+    //            max_ts: item.max_ts,
+    //            block: item.block.inner().into(),
+    //        });
+    //    }
+
+    //    Ok(result)
+    //}
+
     fn snapshot(&self) -> Result<SourceBlocks2, Error> {
         // Get components to read
         let guard = self.data.protected_read();
@@ -153,10 +181,6 @@ impl InnerBuffer {
         }
 
         // Traverse list
-        let mut producer = kafka::Producer::new();
-        for item in copy.iter() {
-            item.block.flush(&mut producer, 2..PARTITIONS);
-        }
         let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(256);
         for item in copy.iter().rev() {
             v.push(ReadOnlyBlock2 {

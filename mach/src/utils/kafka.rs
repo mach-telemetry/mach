@@ -205,7 +205,7 @@ impl Producer {
         Self(client)
     }
 
-    pub fn send(&mut self, item: &[u8], partitions: std::ops::Range<i32>) -> KafkaEntry {
+    pub fn send(&mut self, item: &[u8]) -> KafkaEntry {
         //return KafkaEntry::new();
         //println!("item length: {}", item.len());
         let mut start = 0;
@@ -222,7 +222,7 @@ impl Producer {
             //        .with_partition(rng.gen_range(0..PARTITIONS)),
             //);
             let reqs = &[Record::from_value(TOPIC, &item[start..end])
-                .with_partition(rng.gen_range(partitions.clone()))];
+                .with_partition(rng.gen_range(0..PARTITIONS))];
             let result = producer.send_all(reqs).unwrap();
             for topic in result.iter() {
                 for partition in topic.partition_confirms.iter() {
@@ -259,7 +259,7 @@ mod test {
         data.try_fill(&mut thread_rng()).unwrap();
 
         let mut producer = Producer::new();
-        let key = producer.send(data.as_slice());
+        let key = producer.send(data.as_slice(), 0..PARTITIONS);
         std::thread::sleep(std::time::Duration::from_secs(5));
 
         println!("Key: {:?}", key);

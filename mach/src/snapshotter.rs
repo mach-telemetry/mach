@@ -74,7 +74,7 @@ impl Snapshotter {
             let mut producer = Producer::new();
             let snapshot = series.snapshot();
             let bytes = bincode::serialize(&snapshot).unwrap();
-            let kafka_entry = producer.send(bytes.as_slice(), PARTITIONS/2..PARTITIONS);
+            let kafka_entry = producer.send(bytes.as_slice());
 
             let snapshot_worker_data = Arc::new(Mutex::new(SnapshotWorkerData {
                 snapshot_id: SnapshotId { kafka: kafka_entry },
@@ -121,9 +121,18 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
             }
         }
         {
+            let now = Instant::now();
             let snapshot = series.snapshot();
+            let snapshot_time = now.elapsed();
+
+            let now = Instant::now();
             let bytes = bincode::serialize(&snapshot).unwrap();
-            let entry = producer.send(bytes.as_slice(), PARTITIONS/2..PARTITIONS);
+            let serialize_time = now.elapsed();
+
+            let now = Instant::now();
+            let entry = producer.send(bytes.as_slice());
+            let produce_time = now.elapsed();
+            println!("Snapshot time: {:?}, Serialize time: {:?}, Produce time: {:?}", snapshot_time, serialize_time, produce_time);
             //let snapshot = Arc::new(snapshot);
             let id = SnapshotId { kafka: entry };
             let mut guard = data.lock().unwrap();
