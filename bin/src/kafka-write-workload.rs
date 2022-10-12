@@ -56,17 +56,28 @@ type Batch = Vec<(SeriesId, u64, &'static [SampleType], usize)>;
 fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
     let mut producer = kafka_utils::Producer::new(PARAMETERS.kafka_bootstraps.as_str());
     let mut last_batch_writer = u64::MAX;
-    let mut rng = thread_rng();
-    while let Ok((bytes, batch_writer)) = rx.recv() {
-        if last_batch_writer == u64::MAX {
-            last_batch_writer = batch_writer;
-        } else {
-            assert_eq!(last_batch_writer, batch_writer);
+    let mut data: Vec<Box<[u8]>> = Vec::new();
+    let mut total_bytes = 0;
+    loop {
+        if let Ok((bytes, batch_writer)) = rx.try_recv() {
+            if last_batch_writer == u64::MAX {
+                last_batch_writer = batch_writer;
+            } else {
+                assert_eq!(last_batch_writer, batch_writer);
+            }
+            total_bytes += bytes.len();
+            data.push(bytes);
+            if total_bytes > 1_000_000 {
+                let bytes = bincode::serialize(&data).unwrap();
+                println!("Bytes len {}", bytes.len());
+                COUNTERS.add_bytes_written_to_kafka(bytes.len());
+                COUNTERS.add_messages_written_to_kafka(1);
+                producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
+                data.clear();
+                total_bytes = 0;
+            }
+            PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
         }
-        producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
-        COUNTERS.add_bytes_written_to_kafka(bytes.len());
-        COUNTERS.add_messages_written_to_kafka(1);
-        //println!("Parition writer queue length: {}", rx.len());
     }
 }
 
