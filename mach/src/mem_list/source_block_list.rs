@@ -1,6 +1,6 @@
 use crate::{
     id::SeriesId,
-    mem_list::{BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2},
+    mem_list::{ChunkBytes, ChunkBytesOrKafka, BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2, ReadOnlyBlock3},
     utils::{
         kafka,
         timer::*,
@@ -140,6 +140,51 @@ impl InnerBuffer {
         }
     }
 
+    //fn chunks_for_id(&self, id: u64, last_chunk_id: usize) {
+    //    let mut result = Vec::new();
+    //    // Get components to read
+    //    let guard = self.data.protected_read();
+    //    let len = guard.offset.load(SeqCst) % 256;
+    //    //println!("Snapshot len: {}", len);
+    //    let copy: Vec<InnerListEntry> =
+    //        unsafe { MaybeUninit::slice_assume_init_ref(&guard.data[..len]).to_vec() };
+    //    let current = self.next.read().unwrap().clone();
+    //    if guard.release().is_err() {
+    //        return Err(Error::Snapshot);
+    //    }
+
+    //    let mut chunks: Vec<SourceBlockSnapshot> = Vec::with_capacity(256);
+
+    //    // Traverse list
+    //    for item in copy.iter().rev() {
+    //        let item = match item.block.inner() {
+    //            ReadOnlyBlock::Offset(k) => chunks.push(SourceBlockSnapshot::Kafka(k.clone())),
+    //            ReadOnlyBlock::Bytes(block) => {
+    //                let mut bytes = block.as_bytes().chunks_for_id(serid.0);
+    //                bytes.sort_by(|x, y| y.0.cmp(&x.0)); // sort chunks
+    //                let mut v = Vec::new();
+    //                for (id, chunk) in bytes {
+    //                    if id > last_compressed_block_id {
+    //                        if last_id == usize::MAX {
+    //                            last_id = id;
+    //                        }
+    //                        v.push(chunk);
+    //                    } else {
+    //                        return Snapshot2 {
+    //                            segment,
+    //                            chunks,
+    //                            last_id,
+    //                            next: NextItem::Snapshot(prev_snapshot.unwrap()),
+    //                        };
+    //                    }
+    //                }
+    //                chunks.push(SourceBlockSnapshot::Bytes(v));
+    //            };
+    //        }
+
+    //    Ok(result)
+    //}
+
     fn snapshot(&self) -> Result<SourceBlocks2, Error> {
         // Get components to read
         let guard = self.data.protected_read();
@@ -234,9 +279,9 @@ impl SourceBlockList {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct SourceBlocks2 {
-    data: Vec<ReadOnlyBlock2>,
-    next: kafka::KafkaEntry,
-    idx: usize,
+    pub data: Vec<ReadOnlyBlock2>,
+    pub next: kafka::KafkaEntry,
+    pub idx: usize,
 }
 
 impl SourceBlocks2 {
@@ -258,6 +303,49 @@ impl SourceBlocks2 {
                 let _timer_2 = ThreadLocalTimer::new("SourceBlocks::next_block deserializing");
                 bincode::deserialize(vec.as_slice()).unwrap()
             };
+            self.idx = 0;
+            self.data = next_blocks.data;
+            self.next = next_blocks.next;
+            self.next_block()
+        }
+    }
+    pub fn to_sourceblocks3(self, id: u64) -> SourceBlocks3 {
+        SourceBlocks3::from_sourceblocks2(self, id)
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct SourceBlocks3 {
+    pub id: u64,
+    pub data: Vec<ReadOnlyBlock3>,
+    pub next: kafka::KafkaEntry,
+    pub idx: usize,
+}
+
+impl SourceBlocks3 {
+    pub fn from_sourceblocks2(source: SourceBlocks2, id: u64) -> Self {
+        let data = source.data.iter().map(|x| x.to_readonlyblock_3(id)).collect();
+        let next = source.next;
+        Self {
+            id,
+            data,
+            next,
+            idx: 0,
+        }
+    }
+
+    pub fn next_block(&mut self) -> Option<&ReadOnlyBlock3> {
+        if self.idx < self.data.len() {
+            let idx = self.idx;
+            self.idx += 1;
+            Some(&self.data[idx])
+        } else if self.next.is_empty() {
+            None
+        } else {
+            let mut vec = Vec::new();
+            self.next.load(&mut vec).unwrap();
+            let next_blocks: SourceBlocks2 = bincode::deserialize(vec.as_slice()).unwrap();
+            let next_blocks = SourceBlocks3::from_sourceblocks2(next_blocks, self.id);
             self.idx = 0;
             self.data = next_blocks.data;
             self.next = next_blocks.next;

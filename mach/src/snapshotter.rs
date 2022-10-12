@@ -1,4 +1,5 @@
 use crate::{
+    constants::*,
     id::SeriesId,
     series::Series,
     snapshot::Snapshot,
@@ -101,6 +102,7 @@ impl Snapshotter {
 }
 
 fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
+    println!("INITING Snapshot*****************");
     let data = snapshot_table.get(&worker_id).unwrap().clone();
     let guard = data.lock().unwrap();
     let time_out = guard.time_out;
@@ -120,9 +122,19 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
             }
         }
         {
+            let now = Instant::now();
             let snapshot = series.snapshot();
+            let snapshot_time = now.elapsed();
+
+            let now = Instant::now();
             let bytes = bincode::serialize(&snapshot).unwrap();
+            let serialize_time = now.elapsed();
+            let bytes_len = bytes.len();
+
+            let now = Instant::now();
             let entry = producer.send(bytes.as_slice());
+            let produce_time = now.elapsed();
+            println!("Snapshot time: {:?}, Serialize time: {:?}, Produce time: {:?}, Bytes len: {:?}", snapshot_time, serialize_time, produce_time, bytes_len);
             //let snapshot = Arc::new(snapshot);
             let id = SnapshotId { kafka: entry };
             let mut guard = data.lock().unwrap();

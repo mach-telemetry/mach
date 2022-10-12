@@ -22,6 +22,9 @@ use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
 use std::time::Duration;
+use lazy_static::*;
+use std::thread;
+use num::NumCast;
 
 ref_thread_local! {
     static managed THREAD_LOCAL_CONSUMER: KafkaClient = {
@@ -40,7 +43,24 @@ ref_thread_local! {
     static managed THREAD_LOCAL_KAFKA_MESSAGES: HashMap<(i32, i64), Arc<[u8]>> = HashMap::new();
 }
 
-pub static TOTAL_MB_WRITTEN: AtomicUsize = AtomicUsize::new(0);
+lazy_static! {
+    static ref TOTAL_MB_WRITTEN: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || {
+            let mut last = 0.;
+            loop {
+                let x = x2.load(SeqCst);
+                let x2 = <f64 as NumCast>::from(x).unwrap();
+                let mb = (x2 - last) / 1_000_000.;
+                println!("Total mb written to Kafka: {} mbps, {} total mb", mb, x);
+                last = x2;
+                thread::sleep(Duration::from_secs(1));
+            }
+        });
+        x
+    };
+}
 
 fn parse_response(resps: Vec<Response>, buffer: &mut Vec<(i32, i64, Arc<[u8]>)>) {
     buffer.clear();
@@ -234,8 +254,8 @@ impl Producer {
             start = end;
         }
         //let result = producer.send_all(data.as_slice()).unwrap();
-        //println!("Result Length: {:?}", result.len());
-        //println!("Result: {:?}", result);
+        ////println!("Result Length: {:?}", result.len());
+        ////println!("Result: {:?}", result);
         //for topic in result.iter() {
         //    for partition in topic.partition_confirms.iter() {
         //        let p = partition.partition;
