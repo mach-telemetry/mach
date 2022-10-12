@@ -1,11 +1,28 @@
 use crate::constants::*;
 use num::*;
+use procinfo::pid::statm;
 use rand::Rng;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+pub fn mem_usage_printer() -> Arc<Barrier> {
+    let barrier = Arc::new(Barrier::new(2));
+    let barrier2 = barrier.clone();
+    thread::spawn(move || inner_mem_usage_printer(barrier2));
+    barrier
+}
+
+fn inner_mem_usage_printer(barrier: Arc<Barrier>) {
+    barrier.wait();
+    loop {
+        let r = statm(std::process::id().try_into().unwrap()).unwrap();
+        println!("mem usage: {:?}", r);
+        std::thread::sleep(Duration::from_secs(PARAMETERS.print_interval_seconds));
+    }
+}
 
 pub fn stats_printer() -> Arc<Barrier> {
     let barrier = Arc::new(Barrier::new(2));
