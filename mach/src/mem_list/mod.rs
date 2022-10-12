@@ -1,5 +1,5 @@
 mod source_block_list;
-pub use source_block_list::{SourceBlockList, SourceBlocks2, PENDING_UNFLUSHED_BLOCKLISTS};
+pub use source_block_list::{SourceBlockList, SourceBlocks2, PENDING_UNFLUSHED_BLOCKLISTS, SourceBlocks3};
 
 use crate::constants::*;
 use crate::{
@@ -326,7 +326,7 @@ impl Block {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ChunkBytes {
     pub id: usize,
     pub min_ts: u64,
@@ -424,20 +424,38 @@ impl std::ops::Deref for ReadOnlyBlockBytes {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum ChunkBytesOrKafka {
     Bytes(Vec<ChunkBytes>),
     Kafka(kafka::KafkaEntry),
 }
 
 impl ChunkBytesOrKafka {
-    fn to_bytes(self, id: u64) -> Self {
+    pub fn to_bytes(&self, id: u64) -> Self {
         match self {
-            Self::Bytes(_) => self,
+            Self::Bytes(_) => self.clone(),
             Self::Kafka(entry) => {
-                Self::Bytes(ReadOnlyBlock::Offset(entry).as_bytes().chunks_for_id(id))
+                Self::Bytes(ReadOnlyBlock::Offset(entry.clone()).as_bytes().chunks_for_id(id))
             },
         }
+    }
+
+    pub fn segment_at_offset(&self, offset: usize, segment: &mut Segment) {
+        match self {
+            Self::Bytes(x) => {
+                let chunk_bytes = &x[offset];
+                Compression::decompress(&chunk_bytes.data[..], segment).unwrap();
+            },
+            _ => panic!("Need to make bytes first!"),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Bytes(x) => x.len(),
+            _ => panic!("Need to make bytes first!"),
+        }
+
     }
 }
 
@@ -489,6 +507,45 @@ impl std::ops::Deref for ReadOnlyBlock2 {
     fn deref(&self) -> &Self::Target {
         &self.block
     }
+}
+
+impl ReadOnlyBlock2 {
+    pub fn to_readonlyblock_3(&self, id: u64) -> ReadOnlyBlock3 {
+        let block = self.block.chunk_bytes_or_kafka(id);
+        ReadOnlyBlock3 {
+            id,
+            min_ts: self.min_ts,
+            max_ts: self.max_ts,
+            block,
+        }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct ReadOnlyBlock3 {
+    pub id: u64,
+    pub min_ts: u64,
+    pub max_ts: u64,
+    pub block: ChunkBytesOrKafka,
+}
+
+impl ReadOnlyBlock3 {
+    //pub fn to_bytes(&mut self) {
+    //    self.block = self.block.to_bytes(self.id);
+    //}
+
+    //pub fn chunk_bytes(&mut self) -> &[ChunkBytes] {
+    //    self.to_bytes();
+    //    match &self.block {
+    //        ChunkBytesOrKafka::Bytes(x) => x.as_slice(),
+    //        _ => unreachable!(),
+    //    }
+    //}
+
+    //pub fn segment_at_offset(&mut self, offset: usize, segment: &mut Segment) {
+    //    let bytes = &self.chunk_bytes()[offset];
+    //    Compression::decompress(&bytes.data[..], segment).unwrap();
+    //}
 }
 
 #[derive(Serialize, Deserialize, Clone)]

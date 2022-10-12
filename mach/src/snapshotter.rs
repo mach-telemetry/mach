@@ -3,7 +3,6 @@ use crate::{
     id::SeriesId,
     series::Series,
     snapshot::Snapshot,
-    snapshot2::Snapshot2,
     utils::kafka::{KafkaEntry, Producer},
 };
 use dashmap::DashMap;
@@ -123,7 +122,6 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
             }
         }
         {
-            let snapshot = Snapshot2::new(&series, usize::MAX, None);
             let now = Instant::now();
             let snapshot = series.snapshot();
             let snapshot_time = now.elapsed();

@@ -33,7 +33,6 @@ pub mod snapshotter;
 pub mod tsdb;
 pub mod utils;
 pub mod writer;
-pub mod snapshot2;
 
 #[cfg(test)]
 mod test_utils;

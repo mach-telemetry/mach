@@ -121,7 +121,7 @@ impl Series {
         Snapshot {
             active_segment,
             active_block,
-            source_blocks: source_blocks.unwrap(),
+            source_blocks: source_blocks.unwrap().to_sourceblocks3(self.config.id.0),
             id: self.config.id,
             //historical_blocks,
         }

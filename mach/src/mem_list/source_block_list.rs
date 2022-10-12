@@ -1,13 +1,12 @@
 use crate::{
     id::SeriesId,
-    mem_list::{BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2},
+    mem_list::{ChunkBytes, ChunkBytesOrKafka, BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2, ReadOnlyBlock3},
     utils::{
         kafka,
         timer::*,
         wp_lock::{NoDealloc, WpLock},
     },
     constants::*,
-    snapshot2::*,
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use std::mem::MaybeUninit;
@@ -304,6 +303,49 @@ impl SourceBlocks2 {
                 let _timer_2 = ThreadLocalTimer::new("SourceBlocks::next_block deserializing");
                 bincode::deserialize(vec.as_slice()).unwrap()
             };
+            self.idx = 0;
+            self.data = next_blocks.data;
+            self.next = next_blocks.next;
+            self.next_block()
+        }
+    }
+    pub fn to_sourceblocks3(self, id: u64) -> SourceBlocks3 {
+        SourceBlocks3::from_sourceblocks2(self, id)
+    }
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct SourceBlocks3 {
+    pub id: u64,
+    pub data: Vec<ReadOnlyBlock3>,
+    pub next: kafka::KafkaEntry,
+    pub idx: usize,
+}
+
+impl SourceBlocks3 {
+    pub fn from_sourceblocks2(source: SourceBlocks2, id: u64) -> Self {
+        let data = source.data.iter().map(|x| x.to_readonlyblock_3(id)).collect();
+        let next = source.next;
+        Self {
+            id,
+            data,
+            next,
+            idx: 0,
+        }
+    }
+
+    pub fn next_block(&mut self) -> Option<&ReadOnlyBlock3> {
+        if self.idx < self.data.len() {
+            let idx = self.idx;
+            self.idx += 1;
+            Some(&self.data[idx])
+        } else if self.next.is_empty() {
+            None
+        } else {
+            let mut vec = Vec::new();
+            self.next.load(&mut vec).unwrap();
+            let next_blocks: SourceBlocks2 = bincode::deserialize(vec.as_slice()).unwrap();
+            let next_blocks = SourceBlocks3::from_sourceblocks2(next_blocks, self.id);
             self.idx = 0;
             self.data = next_blocks.data;
             self.next = next_blocks.next;
