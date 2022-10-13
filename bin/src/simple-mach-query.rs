@@ -62,6 +62,8 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
         .unwrap();
     let mut client = runtime.block_on(snapshotter::SnapshotClient::new(PARAMETERS.snapshot_server_port.as_str()));
 
+    let now = chrono::prelude::Utc::now();
+    let timer = Instant::now();
     let snapshotter_id = *SNAPSHOTTER_MAP
         .entry(source)
         .or_insert(
@@ -72,8 +74,6 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
         .value();
 
     // Wait for timestamp to be available
-    let now = chrono::prelude::Utc::now();
-    let timer = Instant::now();
     loop {
         let now = Instant::now();
         let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
@@ -85,7 +85,8 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
         if ts > start {
             break;
         }
-        while now.elapsed() < interval {}
+        thread::sleep(interval);
+        //while now.elapsed() < interval {}
     }
 
     let data_latency = timer.elapsed();
