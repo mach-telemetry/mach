@@ -202,7 +202,10 @@ impl BlockList {
 
         if is_full {
             // Safety: there should be only one writer and it should be doing this push
-            let copy = Arc::new(unsafe { self.head_block.unprotected_read().as_read_only() });
+            let block = unsafe { self.head_block.unprotected_read() };
+            let num_bytes = block.len.load(SeqCst);
+            let copy = Arc::new(block.as_read_only());
+
             for (id, time_range) in self.id_set.borrow_mut().drain() {
                 let min_ts = time_range.0;
                 let max_ts = time_range.1;
@@ -212,10 +215,6 @@ impl BlockList {
                     .unwrap()
                     .push(min_ts, max_ts, copy.clone());
             }
-            let num_bytes = match &*copy.inner.lock().unwrap() {
-                InnerBlockListEntry::Bytes(b) => b.len(),
-                InnerBlockListEntry::Offset(_) => unreachable!(),
-            };
             PENDING_UNFLUSHED_BYTES.fetch_add(num_bytes, SeqCst);
             let n_flushers = N_FLUSHERS.load(SeqCst);
             FLUSH_WORKERS
