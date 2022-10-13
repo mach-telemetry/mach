@@ -216,14 +216,16 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
     signal.send(()).unwrap();
 }
 
-//const START_MAX_DELAY: u64 = 60;
-//const MIN_QUERY_DURATION: u64 = 10;
-//const MAX_QUERY_DURATION: u64 = 60;
-//const SOURCE_COUNT: u64 = 1000;
-//const QUERY_COUNT: u64 = 1;
+fn read_data_in_background() {
+    std::thread::spawn(|| {
+        println!("start reading data in the background");
+        let _data = &data_generator::HOT_SOURCES[..];
+    });
+}
 
 fn main() {
     init_consumer();
+    read_data_in_background();
 
     let mut start_notif = NotificationReceiver::new(PARAMETERS.querier_port);
     println!("Waiting for workload to start...");
