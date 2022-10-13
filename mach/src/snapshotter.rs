@@ -209,6 +209,7 @@ fn compress_snapshot(snapshot: Snapshot) -> Box<[u8]> {
     let mut compressed_bytes = Vec::new();
     compressed_bytes.extend_from_slice(&og_sz.to_be_bytes());
     compress_to_vec(bytes.as_slice(), &mut compressed_bytes, ACC_LEVEL_DEFAULT).unwrap();
+    println!("Snapshot compression result: {} -> {}", og_sz, compressed_bytes.len());
     compressed_bytes.into_boxed_slice()
 }
 
