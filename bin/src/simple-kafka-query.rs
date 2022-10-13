@@ -188,13 +188,9 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
         let samples = match msg {
             Entry::Bytes(x) => {
                 let entries = x.entries();
-                *msg = Entry::Processed(Arc::new(entries));
-                match msg {
-                    Entry::Processed(samples) => samples.clone(),
-                    _ => unreachable!(),
-                }
+                entries.clone()
             }
-            Entry::Processed(x) => x.clone(),
+            Entry::Processed(x) => unimplemented!(),
         };
         for item in samples.iter().rev() {
             if item.0 == source.0 && item.1 <= start && item.1 >= end {
