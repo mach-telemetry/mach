@@ -42,14 +42,17 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::collections::BTreeMap;
 use std::ops::Bound::Included;
-use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering::SeqCst}};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc, Mutex,
+};
 use std::thread;
 use std::time::{Duration, Instant};
 use utils::NotificationReceiver;
 
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
-use query_utils::SimpleQuery;
 use num::NumCast;
+use query_utils::SimpleQuery;
 
 lazy_static! {
     static ref HOSTS: Vec<String> = {
@@ -64,7 +67,10 @@ lazy_static! {
         let x2 = x.clone();
         thread::spawn(move || loop {
             let x = x2.load(SeqCst);
-            println!("B-Tree index size: {:.2}", <f64 as NumCast>::from(x).unwrap()/1_000_000.);
+            println!(
+                "B-Tree index size: {:.2}",
+                <f64 as NumCast>::from(x).unwrap() / 1_000_000.
+            );
             thread::sleep(Duration::from_secs(1));
         });
         x
@@ -189,7 +195,6 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
         drop(guard);
         let now = Instant::now();
         std::thread::sleep(Duration::from_millis(100));
-        //while now.elapsed() < Duration::from_millis(100) {}
     }
     let data_latency = timer.elapsed();
 
