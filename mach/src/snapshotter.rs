@@ -6,6 +6,8 @@ use crate::{
     utils::kafka::{KafkaEntry, Producer},
 };
 use dashmap::DashMap;
+use kafka::producer::Partitioner;
+use rand::{thread_rng, Rng};
 use std::{
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
@@ -74,7 +76,8 @@ impl Snapshotter {
             let mut producer = Producer::new();
             let snapshot = series.snapshot();
             let bytes = bincode::serialize(&snapshot).unwrap();
-            let kafka_entry = producer.send(bytes.as_slice());
+            let partition = thread_rng().gen_range(0..PARTITIONS);
+            let kafka_entry = producer.send(partition, bytes.as_slice());
 
             let snapshot_worker_data = Arc::new(Mutex::new(SnapshotWorkerData {
                 snapshot_id: SnapshotId { kafka: kafka_entry },
@@ -132,9 +135,13 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
             let bytes_len = bytes.len();
 
             let now = Instant::now();
-            let entry = producer.send(bytes.as_slice());
+            let partition = thread_rng().gen_range(0..PARTITIONS);
+            let entry = producer.send(partition, bytes.as_slice());
             let produce_time = now.elapsed();
-            println!("Snapshot time: {:?}, Serialize time: {:?}, Produce time: {:?}, Bytes len: {:?}", snapshot_time, serialize_time, produce_time, bytes_len);
+            println!(
+                "Snapshot time: {:?}, Serialize time: {:?}, Produce time: {:?}, Bytes len: {:?}",
+                snapshot_time, serialize_time, produce_time, bytes_len
+            );
             //let snapshot = Arc::new(snapshot);
             let id = SnapshotId { kafka: entry };
             let mut guard = data.lock().unwrap();

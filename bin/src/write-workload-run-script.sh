@@ -1,24 +1,24 @@
 #!/bin/bash
 
 
-FILE_PATH=/home/ubuntu/data/processed-data.bin
+FILE_PATH=/home/ubuntu/processed-data.bin
 #FILE_PATH=/home/fsolleza/data/intel-telemetry/processed-data.bin
 
 OUTPUT=evaluation_output
 
 WRITER_BATCHES=500000
 DATA_GENERATORS=1
-WRITER_COUNT=1
+WRITER_COUNT=2
 SOURCE_COUNT=1000
 UNBOUNDED_QUEUE=--unbounded-queue
-QUERIER_IP=172.31.78.194
 
 # - KAFKA parameters
-KAFKA_PARTITIONS=24
+KAFKA_PARTITIONS=4
 KAFKA_BATCH_BYTES=1000000
 KAFKA_BOOTSTRAPS=localhost:9093,localhost:9094,localhost:9095
-KAFKA_BOOTSTRAPS=b-3.k1.5vjj0v.c17.kafka.us-east-1.amazonaws.com:9092,b-1.k1.5vjj0v.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k1.5vjj0v.c17.kafka.us-east-1.amazonaws.com:9092
+KAFKA_BOOTSTRAPS=b-3.k1.5vjj0v.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k1.5vjj0v.c17.kafka.us-east-1.amazonaws.com:9092,b-1.k1.5vjj0v.c17.kafka.us-east-1.amazonaws.com:9092
 
+QUERIER_IP=172.31.16.138
 
 KAFKA_OUT_FILE=${OUTPUT}/kafka_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
 
@@ -31,8 +31,9 @@ cargo run --release --bin kafka-write-workload -- \
 	--kafka-partitions $KAFKA_PARTITIONS \
 	--kafka-batch-bytes $KAFKA_BATCH_BYTES \
 	--querier-ip $QUERIER_IP \
-	${UNBOUNDED_QUEUE}
-	#> $KAFKA_OUT_FILE
+    --kafka-topic k2 \
+	${UNBOUNDED_QUEUE} \
+	> $KAFKA_OUT_FILE
 
 
 MACH_OUT_FILE=${OUTPUT}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
@@ -44,5 +45,5 @@ MACH_OUT_FILE=${OUTPUT}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_ba
 #	--mach-writers $WRITER_COUNT \
 #	--source-count $SOURCE_COUNT \
 #	--querier-ip $QUERIER_IP \
-#	${UNBOUNDED_QUEUE}
-##	> $MACH_OUT_FILE
+#	${UNBOUNDED_QUEUE} \
+#	> $MACH_OUT_FILE

@@ -16,15 +16,15 @@ use rdkafka::{
 use crate::constants::*;
 use crate::utils::counter::*;
 use crate::utils::timer::*;
+use lazy_static::*;
+use num::NumCast;
 use ref_thread_local::{ref_thread_local, RefThreadLocal};
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use std::sync::Arc;
-use std::time::Duration;
-use lazy_static::*;
 use std::thread;
-use num::NumCast;
+use std::time::Duration;
 
 ref_thread_local! {
     static managed THREAD_LOCAL_CONSUMER: KafkaClient = {
@@ -131,7 +131,7 @@ impl KafkaEntry {
             //    hashmap.insert(item, block.clone());
             //    ThreadLocalCounter::new("kafka message already fetched").increment(1);
             //} else {
-                hashset.insert(item);
+            hashset.insert(item);
             //}
         }
 
@@ -218,51 +218,69 @@ impl Producer {
     pub fn new() -> Self {
         let bootstraps = BOOTSTRAPS.split(',').map(String::from).collect();
         let client = OgProducer::from_hosts(bootstraps)
-            .with_ack_timeout(Duration::from_millis(3000))
+            .with_ack_timeout(Duration::from_millis(10_000))
             .with_required_acks(RequiredAcks::All)
             .create()
             .unwrap();
         Self(client)
     }
 
-    pub fn send(&mut self, item: &[u8]) -> KafkaEntry {
-        //return KafkaEntry::new();
-        //println!("item length: {}", item.len());
+    pub fn send(&mut self, partition: i32, item: &[u8]) -> KafkaEntry {
         let mut start = 0;
+        let mut t = Instant::now();
 
         let producer: &mut OgProducer = &mut self.0;
 
-        let mut data = Vec::new();
         let mut rng = thread_rng();
-        let mut items = Vec::new();
+        let mut items = Vec::with_capacity(5);
+
+        let mut num_iters = 0;
+        let mut num_retries = 0;
+
         while start < item.len() {
+            num_iters += 1;
+
             let end = item.len().min(start + MAX_MSG_SZ);
-            data.push(
-                Record::from_value(TOPIC, &item[start..end])
-                    .with_partition(rng.gen_range(0..PARTITIONS)),
-            );
-            let reqs = &[Record::from_value(TOPIC, &item[start..end])
-                .with_partition(rng.gen_range(0..PARTITIONS))];
-            let result = producer.send_all(reqs).unwrap();
-            for topic in result.iter() {
-                for partition in topic.partition_confirms.iter() {
-                    let p = partition.partition;
-                    let o = partition.offset.unwrap();
-                    items.push((p, o))
+
+            loop {
+                let mut erred = false;
+
+                let reqs =
+                    &[Record::from_value(TOPIC, &item[start..end]).with_partition(partition)];
+
+                let result = producer.send_all(reqs).unwrap();
+
+                for topic in result.iter() {
+                    for partition in topic.partition_confirms.iter() {
+                        let p = partition.partition;
+                        let o = match partition.offset {
+                            Ok(o) => o,
+                            Err(_) => {
+                                num_retries += 1;
+                                erred = true;
+                                std::thread::sleep(Duration::from_millis(500));
+                                eprintln!("Retrying");
+                                break;
+                            }
+                        };
+                        items.push((p, o))
+                    }
+                }
+
+                if !erred {
+                    start = end;
+                    break;
                 }
             }
-            start = end;
         }
-        //let result = producer.send_all(data.as_slice()).unwrap();
-        ////println!("Result Length: {:?}", result.len());
-        ////println!("Result: {:?}", result);
-        //for topic in result.iter() {
-        //    for partition in topic.partition_confirms.iter() {
-        //        let p = partition.partition;
-        //        let o = partition.offset.unwrap();
-        //        items.push((p, o))
-        //    }
-        //}
+        println!(
+            "Flush: {} bytes, {} secs, iters {}, retries: {}",
+            item.len(),
+            t.elapsed().as_secs_f64(),
+            num_iters,
+            num_retries
+        );
+
         TOTAL_MB_WRITTEN.fetch_add(item.len(), SeqCst);
         KafkaEntry { items }
     }

@@ -14,12 +14,15 @@ use data_generator::SAMPLES;
 use lazy_static::*;
 use mach::{id::SeriesId, sample::SampleType};
 use num::NumCast;
+use rand::{thread_rng, Rng};
 use std::mem;
-use std::sync::{Arc, Barrier, atomic::{AtomicUsize, Ordering::SeqCst}};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc, Barrier,
+};
 use std::thread;
 use std::time::{Duration, Instant};
 use utils::RemoteNotifier;
-use rand::{thread_rng, Rng};
 
 lazy_static! {
     static ref PENDING_UNFLUSHED_BLOCKS: Arc<AtomicUsize> = {
@@ -32,28 +35,37 @@ lazy_static! {
         });
         x
     };
+    static ref PENDING_UNFLUSHED_BYTES: Arc<AtomicUsize> = {
+        let c = Arc::new(AtomicUsize::new(0));
+        let c2 = c.clone();
+        std::thread::spawn(move || loop {
+            println!("unflushed bytes: {}", c2.load(SeqCst));
+            std::thread::sleep(Duration::from_secs(1));
+        });
+        c
+    };
     static ref PARTITION_WRITERS: Vec<Sender<(Box<[u8]>, u64)>> = {
-        (0..PARAMETERS.kafka_partitions).map(|partition| {
-            let (tx, rx) = unbounded();
-            thread::spawn(move || partition_writer(partition, rx));
-            tx
-        }).collect()
+        (0..PARAMETERS.kafka_partitions)
+            .map(|partition| {
+                let (tx, rx) = unbounded();
+                thread::spawn(move || partition_writer(partition, rx));
+                tx
+            })
+            .collect()
     };
-
     static ref BATCHER_WRITERS: Vec<Sender<(Batch, u64)>> = {
-        (0..PARAMETERS.kafka_writers).map(|writer| {
-            let (tx, rx) = if PARAMETERS.unbounded_queue {
-                unbounded()
-            } else {
-                bounded(100)
-            };
-            thread::spawn(move || kafka_batcher(writer, rx));
-            tx
-        }).collect()
+        (0..PARAMETERS.kafka_writers)
+            .map(|writer| {
+                let (tx, rx) = if PARAMETERS.unbounded_queue {
+                    unbounded()
+                } else {
+                    bounded(100)
+                };
+                thread::spawn(move || kafka_batcher(writer, rx));
+                tx
+            })
+            .collect()
     };
-
-    //static ref WORKLOAD_RUNNERS: Vec<Sender<Workload>> = {
-    //}
 }
 
 struct ClosedBatch {
@@ -68,6 +80,7 @@ fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
     let mut last_batch_writer = u64::MAX;
     let mut data: Vec<Box<[u8]>> = Vec::new();
     let mut total_bytes = 0;
+    let mut total_blocks = 0;
     let mut last_flush = Instant::now();
     while let Ok((bytes, batch_writer)) = rx.recv() {
         if last_batch_writer == u64::MAX {
@@ -75,18 +88,24 @@ fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
         } else {
             assert_eq!(last_batch_writer, batch_writer);
         }
+        total_blocks += 1;
         total_bytes += bytes.len();
         data.push(bytes);
+
         if total_bytes > 1_000_000 || last_flush.elapsed() > Duration::from_secs_f64(0.5) {
             let bytes = bincode::serialize(&data).unwrap();
+            producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
+
             COUNTERS.add_bytes_written_to_kafka(bytes.len());
             COUNTERS.add_messages_written_to_kafka(1);
-            producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
+            PENDING_UNFLUSHED_BLOCKS.fetch_sub(total_blocks, SeqCst);
+            PENDING_UNFLUSHED_BYTES.fetch_sub(total_bytes, SeqCst);
+
             data.clear();
             total_bytes = 0;
+            total_blocks = 0;
             last_flush = Instant::now();
         }
-        PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
     }
 }
 
@@ -97,8 +116,6 @@ fn kafka_batcher(i: u64, receiver: Receiver<(Batch, u64)>) {
     loop {
         if let Ok((batch, data_generator)) = receiver.try_recv() {
             let now = Instant::now();
-            //let partition = partition as usize;
-            //let batcher = &mut batchers[partition];
             let batch_len = batch.len();
             for item in batch {
                 let partition = (*item.0) as usize % PARAMETERS.kafka_partitions as usize;
@@ -109,15 +126,12 @@ fn kafka_batcher(i: u64, receiver: Receiver<(Batch, u64)>) {
                         batching::WriteBatch::new(PARAMETERS.kafka_batch_bytes),
                     );
                     let bytes = old_batch.close();
+                    let bytes_len = bytes.len();
                     PARTITION_WRITERS[partition].send((bytes, i)).unwrap();
                     PENDING_UNFLUSHED_BLOCKS.fetch_add(1, SeqCst);
+                    PENDING_UNFLUSHED_BYTES.fetch_add(bytes_len, SeqCst);
                 }
             }
-            //COUNTERS.add_samples_written(batch_len);
-            println!(
-                "Write rate (samples/second): {:?}",
-                <f64 as NumCast>::from(batch_len).unwrap() / now.elapsed().as_secs_f64()
-            );
         }
     }
 }
@@ -154,7 +168,6 @@ impl Batcher {
         }
     }
 }
-
 
 fn run_workload(
     workload: Workload,

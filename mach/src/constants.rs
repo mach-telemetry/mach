@@ -5,7 +5,7 @@ pub const BLOCK_SZ: usize = 1_000_000;
 // Kafka specification
 pub const PARTITIONS: i32 = 4;
 pub const REPLICAS: i32 = 3;
-pub const BOOTSTRAPS: &str = "localhost:9093,localhost:9094,localhost:9095";
+pub const BOOTSTRAPS: &str = "b-1.k1.yu7pt3.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k1.yu7pt3.c17.kafka.us-east-1.amazonaws.com:9092,b-3.k1.yu7pt3.c17.kafka.us-east-1.amazonaws.com:9092";
 //pub const BOOTSTRAPS: &str = {
 //    "b-3.k1.aorvtf.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k1.aorvtf.c17.kafka.us-east-1.amazonaws.com:9092,b-1.k1.aorvtf.c17.kafka.us-east-1.amazonaws.com:9092"
 //};

@@ -1,5 +1,7 @@
 mod source_block_list;
-pub use source_block_list::{SourceBlockList, SourceBlocks2, PENDING_UNFLUSHED_BLOCKLISTS, SourceBlocks3};
+pub use source_block_list::{
+    SourceBlockList, SourceBlocks2, SourceBlocks3, PENDING_UNFLUSHED_BLOCKLISTS,
+};
 
 use crate::constants::*;
 use crate::{
@@ -24,8 +26,8 @@ use std::sync::{
     atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst},
     Arc, RwLock,
 };
-use std::time::Duration;
 use std::thread;
+use std::time::Duration;
 
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -36,16 +38,17 @@ static BLOCK_LIST_ENTRY_ID: AtomicUsize = AtomicUsize::new(0);
 static CHUNK_ID: AtomicUsize = AtomicUsize::new(0);
 
 lazy_static! {
-    pub static ref PENDING_UNFLUSHED_BLOCKS: Arc<AtomicUsize> = {
+    pub static ref PENDING_UNFLUSHED_BYTES: Arc<AtomicUsize> = {
         let x = Arc::new(AtomicUsize::new(0));
         let x2 = x.clone();
         thread::spawn(move || loop {
             let x = x2.load(SeqCst);
-            println!("Snap Pending unflushed data blocks: {}", x);
+            println!("Snap Pending unflushed data bytes: {}", x);
             thread::sleep(Duration::from_secs(1));
         });
         x
     };
+
     //static ref TOPIC: String = random_id();
     pub static ref TOTAL_BYTES_FLUSHED: Arc<AtomicUsize> = {
         let x = Arc::new(AtomicUsize::new(0));
@@ -73,7 +76,7 @@ lazy_static! {
         for idx in 0..N_FLUSHERS.load(SeqCst) {
             let (tx, rx) = crossbeam::channel::unbounded();
             std::thread::Builder::new().name(format!("Kafka Flusher {}", idx)).spawn(move || {
-                flush_worker(rx);
+                flush_worker(idx, rx);
             }).unwrap();
             flushers.insert(idx, tx);
         }
@@ -96,18 +99,12 @@ pub enum Error {
 //    println!("ADDED FLUSH WORKER: {}", idx);
 //}
 
-fn flush_worker(chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
+fn flush_worker(id: usize, chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new();
-    //loop {
-    //    if let Ok(block) = chan.try_recv() {
-    //        block.flush(&mut producer);
-    //        PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
-    //    }
-    //}
     while let Ok(block) = chan.recv() {
-        block.flush(&mut producer);
-        PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
+        block.flush(id as i32, &mut producer);
     }
+    println!("FLUSHER EXITING");
 }
 
 //struct List {
@@ -214,8 +211,12 @@ impl BlockList {
                     .unwrap()
                     .push(min_ts, max_ts, copy.clone());
             }
+            let num_bytes = match &*copy.inner.read().unwrap() {
+                InnerBlockListEntry::Bytes(b) => b.len(),
+                InnerBlockListEntry::Offset(_) => unreachable!(),
+            };
+            PENDING_UNFLUSHED_BYTES.fetch_add(num_bytes, SeqCst);
             let n_flushers = N_FLUSHERS.load(SeqCst);
-            PENDING_UNFLUSHED_BLOCKS.fetch_add(1, SeqCst);
             FLUSH_WORKERS
                 .get(&thread_rng().gen_range(0..n_flushers))
                 .unwrap()
@@ -434,9 +435,11 @@ impl ChunkBytesOrKafka {
     pub fn to_bytes(&self, id: u64) -> Self {
         match self {
             Self::Bytes(_) => self.clone(),
-            Self::Kafka(entry) => {
-                Self::Bytes(ReadOnlyBlock::Offset(entry.clone()).as_bytes().chunks_for_id(id))
-            },
+            Self::Kafka(entry) => Self::Bytes(
+                ReadOnlyBlock::Offset(entry.clone())
+                    .as_bytes()
+                    .chunks_for_id(id),
+            ),
         }
     }
 
@@ -445,7 +448,7 @@ impl ChunkBytesOrKafka {
             Self::Bytes(x) => {
                 let chunk_bytes = &x[offset];
                 Compression::decompress(&chunk_bytes.data[..], segment).unwrap();
-            },
+            }
             _ => panic!("Need to make bytes first!"),
         }
     }
@@ -455,7 +458,6 @@ impl ChunkBytesOrKafka {
             Self::Bytes(x) => x.len(),
             _ => panic!("Need to make bytes first!"),
         }
-
     }
 }
 
@@ -477,7 +479,9 @@ impl std::convert::From<InnerBlockListEntry> for ReadOnlyBlock {
 impl ReadOnlyBlock {
     pub fn chunk_bytes_or_kafka(&self, id: u64) -> ChunkBytesOrKafka {
         match self {
-            Self::Bytes(x) => ChunkBytesOrKafka::Bytes(ReadOnlyBlockBytes(x.clone().into()).chunks_for_id(id)),
+            Self::Bytes(x) => {
+                ChunkBytesOrKafka::Bytes(ReadOnlyBlockBytes(x.clone().into()).chunks_for_id(id))
+            }
             Self::Offset(x) => ChunkBytesOrKafka::Kafka(x.clone()),
         }
     }
@@ -581,12 +585,14 @@ impl BlockListEntry {
         self.inner.read().unwrap().clone()
     }
 
-    fn flush(&self, producer: &mut kafka::Producer) {
+    fn flush(&self, partition: i32, producer: &mut kafka::Producer) {
         let guard = self.inner.read().unwrap();
         match &*guard {
             InnerBlockListEntry::Bytes(bytes) => {
-                let kafka_entry = producer.send(bytes);
+                let num_bytes = bytes.len();
+                let kafka_entry = producer.send(partition, bytes);
                 TOTAL_BYTES_FLUSHED.fetch_add(bytes.len(), SeqCst);
+                PENDING_UNFLUSHED_BYTES.fetch_sub(num_bytes, SeqCst);
                 drop(guard);
                 self.set_partition_offset(kafka_entry);
             }

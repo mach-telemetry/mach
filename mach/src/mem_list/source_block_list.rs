@@ -1,14 +1,18 @@
 use crate::{
+    constants::*,
     id::SeriesId,
-    mem_list::{ChunkBytes, ChunkBytesOrKafka, BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2, ReadOnlyBlock3},
+    mem_list::{
+        BlockListEntry, ChunkBytes, ChunkBytesOrKafka, Error, ReadOnlyBlock, ReadOnlyBlock2,
+        ReadOnlyBlock3,
+    },
     utils::{
         kafka,
         timer::*,
         wp_lock::{NoDealloc, WpLock},
     },
-    constants::*,
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
+use rand::{thread_rng, Rng};
 use std::mem::MaybeUninit;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
@@ -44,7 +48,8 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
         };
         let mut v = Vec::new();
         for item in data.iter().rev() {
-            item.block.flush(&mut producer);
+            let partition = thread_rng().gen_range(0..PARTITIONS);
+            item.block.flush(partition, &mut producer);
             let x = item.block.partition_offset();
             let (min_ts, max_ts) = (item.min_ts, item.max_ts);
             let block = ReadOnlyBlock::Offset(x);
@@ -63,12 +68,15 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
             //messages_read: 0,
         };
         let bytes = bincode::serialize(&to_serialize).unwrap();
-        let kafka_entry = producer.send(&bytes);
+        let partition = thread_rng().gen_range(0..PARTITIONS);
+        let kafka_entry = producer.send(partition, &bytes);
         //HISTORICAL_BLOCKS.insert(id, kafka_entry.clone());
         //drop(guard);
         *list_item.write().unwrap() = ListItem::Kafka(kafka_entry);
         PENDING_UNFLUSHED_BLOCKLISTS.fetch_sub(1, SeqCst);
     }
+
+    println!("BLOCKLIST FLUSHER EXIT");
 }
 
 enum ListItem {
@@ -324,7 +332,11 @@ pub struct SourceBlocks3 {
 
 impl SourceBlocks3 {
     pub fn from_sourceblocks2(source: SourceBlocks2, id: u64) -> Self {
-        let data = source.data.iter().map(|x| x.to_readonlyblock_3(id)).collect();
+        let data = source
+            .data
+            .iter()
+            .map(|x| x.to_readonlyblock_3(id))
+            .collect();
         let next = source.next;
         Self {
             id,
