@@ -1,17 +1,23 @@
 #![allow(dead_code)]
 
 pub use kafka::client::{KafkaClient, ProduceMessage, RequiredAcks};
+use kafka::producer::{Producer as OgProducer, Record};
+use lazy_static::*;
+use num::NumCast;
+use rand::thread_rng;
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
     config::ClientConfig,
 };
 use std::ops::{Deref, DerefMut};
-use std::time::Duration;
-use lazy_static::*;
-use num::NumCast;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
 use std::thread;
+use std::time::Duration;
+use std::time::Instant;
 
 lazy_static! {
     static ref TOTAL_MB_WRITTEN: Arc<AtomicUsize> = {
@@ -68,10 +74,10 @@ pub fn make_topic(bootstrap: &str, topic: &str, opts: KafkaTopicOptions) {
     println!("MADE TOPIC {}", topic);
 }
 
-pub struct Producer(KafkaClient);
+pub struct Producer(OgProducer);
 
 impl Deref for Producer {
-    type Target = KafkaClient;
+    type Target = OgProducer;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -85,27 +91,50 @@ impl DerefMut for Producer {
 
 impl Producer {
     pub fn new(bootstraps: &str) -> Self {
-        let bootstraps = bootstraps.split(",").map(|x| String::from(x)).collect();
-        let mut client = KafkaClient::new(bootstraps);
-        client.load_metadata_all().unwrap();
+        let bootstraps = bootstraps.clone().split(',').map(String::from).collect();
+        let client = OgProducer::from_hosts(bootstraps)
+            .with_ack_timeout(Duration::from_millis(10_000))
+            .with_required_acks(RequiredAcks::All)
+            .create()
+            .unwrap();
         Self(client)
     }
 
-    pub fn send(&mut self, topic: &str, partition: i32, item: &[u8]) -> (i32, i64) {
-        let req = &[ProduceMessage::new(topic, partition, None, Some(item))];
-        let resp = self
-            .0
-            .produce_messages(RequiredAcks::All, Duration::from_secs(10), req);
-        match resp {
-            Ok(resp) => {
-                let part = resp[0].partition_confirms[0].partition;
-                let offset = resp[0].partition_confirms[0].offset.unwrap();
-                TOTAL_MB_WRITTEN.fetch_add(item.len(), SeqCst);
-                (part, offset)
+    pub fn send(&mut self, topic: &str, partition: i32, item: &[u8]) {
+        let mut rng = thread_rng();
+        let t = Instant::now();
+
+        let producer: &mut OgProducer = &mut self.0;
+
+        loop {
+            let mut erred = false;
+
+            let reqs = &[Record::from_value(topic, item).with_partition(partition)];
+            let result = producer.send_all(reqs).unwrap();
+
+            for topic in result.iter() {
+                for partition in topic.partition_confirms.iter() {
+                    let p = partition.partition;
+                    let o = match partition.offset {
+                        Ok(o) => o,
+                        Err(_) => {
+                            erred = true;
+                            eprintln!("Retrying");
+                            break;
+                        }
+                    };
+                }
             }
-            Err(e) => {
-                panic!("ERROR writing to {} {}, {:?}", topic, partition, e);
+
+            if !erred {
+                break;
             }
         }
+
+        println!(
+            "Flush: {} bytes, {} seconds",
+            item.len(),
+            t.elapsed().as_secs_f64()
+        );
     }
 }
