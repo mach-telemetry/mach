@@ -13,7 +13,7 @@ lazy_static! {
     pub static ref WORKLOAD: Vec<Workload> =
         vec![
             //Workload::new(200_000, Duration::from_secs(60*5)),
-            Workload::new(6_000_000, Duration::from_secs(60 * 60)),
+            Workload::new(6_000_000, Duration::from_secs(60 * 2)),
             //Workload::new(200_000, Duration::from_secs(60 * 60)),
             //Workload::new(1_000_000, Duration::from_secs(60 * 4)),
             //Workload::new(2_000_000, Duration::from_secs(60 * 4)),

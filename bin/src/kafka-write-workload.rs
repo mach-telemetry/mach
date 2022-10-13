@@ -34,7 +34,7 @@ lazy_static! {
     };
     static ref PARTITION_WRITERS: Vec<Sender<(Box<[u8]>, u64)>> = {
         (0..PARAMETERS.kafka_partitions).map(|partition| {
-            let (tx, rx) = unbounded();
+            let (tx, rx) = bounded(100);
             thread::spawn(move || partition_writer(partition, rx));
             tx
         }).collect()
@@ -69,26 +69,24 @@ fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
     let mut data: Vec<Box<[u8]>> = Vec::new();
     let mut total_bytes = 0;
     let mut last_flush = Instant::now();
-    loop {
-        if let Ok((bytes, batch_writer)) = rx.try_recv() {
-            if last_batch_writer == u64::MAX {
-                last_batch_writer = batch_writer;
-            } else {
-                assert_eq!(last_batch_writer, batch_writer);
-            }
-            total_bytes += bytes.len();
-            data.push(bytes);
-            if total_bytes > 1_000_000 || last_flush.elapsed() > Duration::from_secs_f64(0.5) {
-                let bytes = bincode::serialize(&data).unwrap();
-                COUNTERS.add_bytes_written_to_kafka(bytes.len());
-                COUNTERS.add_messages_written_to_kafka(1);
-                producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
-                data.clear();
-                total_bytes = 0;
-                last_flush = Instant::now();
-            }
-            PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
+    while let Ok((bytes, batch_writer)) = rx.recv() {
+        if last_batch_writer == u64::MAX {
+            last_batch_writer = batch_writer;
+        } else {
+            assert_eq!(last_batch_writer, batch_writer);
         }
+        total_bytes += bytes.len();
+        data.push(bytes);
+        if total_bytes > 1_000_000 || last_flush.elapsed() > Duration::from_secs_f64(0.5) {
+            let bytes = bincode::serialize(&data).unwrap();
+            COUNTERS.add_bytes_written_to_kafka(bytes.len());
+            COUNTERS.add_messages_written_to_kafka(1);
+            producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
+            data.clear();
+            total_bytes = 0;
+            last_flush = Instant::now();
+        }
+        PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
     }
 }
 
@@ -156,6 +154,7 @@ impl Batcher {
         }
     }
 }
+
 
 fn run_workload(
     workload: Workload,
