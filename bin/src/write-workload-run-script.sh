@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-FILE_PATH=/home/ubuntu/processed-data.bin
+FILE_PATH=/home/ubuntu/data/processed-data.bin
 #FILE_PATH=/home/fsolleza/data/intel-telemetry/processed-data.bin
 
 OUTPUT=evaluation_output
@@ -18,7 +18,7 @@ KAFKA_BATCH_BYTES=1000000
 KAFKA_BOOTSTRAPS=localhost:9093,localhost:9094,localhost:9095
 KAFKA_BOOTSTRAPS=b-3.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-1.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092
 
-QUERIER_IP=172.31.16.138
+QUERIER_IP=172.31.78.194
 
 KAFKA_OUT_FILE=${OUTPUT}/kafka_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
 

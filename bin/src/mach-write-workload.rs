@@ -360,11 +360,11 @@ fn main() {
         snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap());
     }
 
-    start_barrier.wait();
     println!("You've got 30 seconds!");
     std::thread::sleep(Duration::from_secs(30));
     query_start_notifier.notify();
     println!("Beginning workload");
+    start_barrier.wait();
     stats_barrier.wait();
     done_barrier.wait();
 }

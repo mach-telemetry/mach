@@ -80,7 +80,9 @@ impl SnapshotEntry {
         match self {
             Self::Id(_) => self.clone(),
             Self::Bytes(x) => {
+                let now = Instant::now();
                 let entry = p.send(0, &x[..]);
+                println!("Snapshot flushed {} in {:?}", x.len(), now.elapsed());
                 let id = SnapshotId { kafka: entry };
                 Self::Id(id)
             }
@@ -116,9 +118,15 @@ impl Snapshotter {
             let series = self.series_table.get(&series_id).unwrap().clone();
             let last_request = Instant::now();
 
+            println!("Initial snapshotting");
+            let now = Instant::now();
             let mut producer = Producer::new();
             let snapshot = series.snapshot();
+            let d = now.elapsed();
+            let now = Instant::now();
             let compressed_bytes = compress_snapshot(snapshot);
+            let d2 = now.elapsed();
+            println!("Snapshot creation: {:?}, compression: {:?}", d, d2);
             let snapshot_entry = SnapshotEntry::Bytes(compressed_bytes).flush(&mut producer);
 
             let snapshot_worker_data = Arc::new(Mutex::new(SnapshotWorkerData {
@@ -187,6 +195,7 @@ fn snapshot_worker(worker_id: SnapshotterId) {
 
             let snapshot_entry = SnapshotEntry::Bytes(compressed);
 
+            println!("Snapshot creation: {:?}, compression: {:?}", snapshot_time, compress_time);
             let mut guard = data.lock().unwrap();
             guard.snapshot_id = snapshot_entry;
         }

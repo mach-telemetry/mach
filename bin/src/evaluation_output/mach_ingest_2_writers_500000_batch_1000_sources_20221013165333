@@ -1,0 +1,450 @@
+BOOTSTRAPS: b-3.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-1.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092
+BOOTSTRAPS: b-3.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-1.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092
+Read data for 464 sources
+		Sources,	Samples,	Bytes
+Metrics,	311,	33585593,	268684744
+Logs + Traces,	153,	686135,	897249338
+Expanding data based on source_count = 1000
+Sorting by time
+Setting up final samples
+Samples stats:
+Total number of unique samples: 74030031
+Number of sources: 1000, Number of metrics: 671
+Max source length: 108788
+Average source length: 74030
+Min source length: 4
+Total samples: 74030031
+Longest sources: [SeriesId(995), SeriesId(989), SeriesId(987), SeriesId(978), SeriesId(972), SeriesId(965), SeriesId(953), SeriesId(947), SeriesId(923), SeriesId(888)]
+Registering sources to Mach
+Initing snapshot server
+Inited snapshot server
+You've got 30 seconds!
+Serving on: 172.31.22.116
+Beginning workload
+Workloads: [Workload { samples_per_second: 200000, duration: 120s }, Workload { samples_per_second: 8000000, duration: 300s }, Workload { samples_per_second: 200000, duration: 3600s }]
+Queue length: 0
+Total compressed bytes: 17855
+Snap Pending unflushed data bytes: 1016094
+Flush: 1016094 bytes, 0.02609924 secs, iters 1, retries: 0
+Total mb written to Kafka: 1.016094 mbps, 1016094 total mb
+Total data bytes flushed: 1016094
+Flush: 1015700 bytes, 0.022701785 secs, iters 1, retries: 0
+Flush: 1005327 bytes, 0.022733778 secs, iters 1, retries: 0
+Flush: 1018321 bytes, 0.027926053 secs, iters 1, retries: 0
+Flush: 1014974 bytes, 0.021161987 secs, iters 1, retries: 0
+Flush: 1009636 bytes, 0.021000689 secs, iters 1, retries: 0
+Flush: 1003482 bytes, 0.02180549 secs, iters 1, retries: 0
+Flush: 1010767 bytes, 0.033117844 secs, iters 1, retries: 0
+Flush: 1007733 bytes, 0.034403529 secs, iters 1, retries: 0
+Flush: 1016986 bytes, 0.021799493 secs, iters 1, retries: 0
+Flush: 1014399 bytes, 0.02044884 secs, iters 1, retries: 0
+Flush: 1006208 bytes, 0.022085641 secs, iters 1, retries: 0
+Flush: 1006809 bytes, 0.022632012 secs, iters 1, retries: 0
+Flush: 1002646 bytes, 0.021916799 secs, iters 1, retries: 0
+Flush: 1004956 bytes, 0.024465638 secs, iters 1, retries: 0
+Flush: 1013829 bytes, 0.020997696 secs, iters 1, retries: 0
+Flush: 1005230 bytes, 0.022761361 secs, iters 1, retries: 0
+Flush: 1003616 bytes, 0.019545279 secs, iters 1, retries: 0
+Flush: 1017459 bytes, 0.025490809 secs, iters 1, retries: 0
+Flush: 1006562 bytes, 0.020930133 secs, iters 1, retries: 0
+Flush: 1014064 bytes, 0.021218639 secs, iters 1, retries: 0
+Flush: 1007631 bytes, 0.021970346 secs, iters 1, retries: 0
+Flush: 1018616 bytes, 0.022239714 secs, iters 1, retries: 0
+Flush: 1010090 bytes, 0.024740543 secs, iters 1, retries: 0
+Flush: 1018664 bytes, 0.020029506 secs, iters 1, retries: 0
+Flush: 1000794 bytes, 0.02437456 secs, iters 1, retries: 0
+Flush: 1019639 bytes, 0.021252058 secs, iters 1, retries: 0
+Flush: 1018630 bytes, 0.021190747 secs, iters 1, retries: 0
+Flush: 1020029 bytes, 0.023975056 secs, iters 1, retries: 0
+Flush: 1010123 bytes, 0.020444484 secs, iters 1, retries: 0
+Flush: 1019158 bytes, 0.025237844 secs, iters 1, retries: 0
+Flush: 1027735 bytes, 0.019996458 secs, iters 1, retries: 0
+Flush: 1002740 bytes, 0.020678228 secs, iters 1, retries: 0
+Flush: 1018067 bytes, 0.021597401 secs, iters 1, retries: 0
+Flush: 1010846 bytes, 0.020388964 secs, iters 1, retries: 0
+Write rate (samples/second): 1327095.3939818034
+Flush: 1008829 bytes, 0.021603813 secs, iters 1, retries: 0
+Flush: 1011528 bytes, 0.021891904 secs, iters 1, retries: 0
+Queue length: 0
+Total compressed bytes: 38072515
+Snap Pending unflushed data bytes: 1012287
+Flush: 1012287 bytes, 0.020179668 secs, iters 1, retries: 0
+Flush: 1007947 bytes, 0.023135494 secs, iters 1, retries: 0
+Total mb written to Kafka: 38.442057 mbps, 39458151 total mb
+Total data bytes flushed: 39458151
+Flush: 1009483 bytes, 0.020966937 secs, iters 1, retries: 0
+Flush: 1013857 bytes, 0.021582428 secs, iters 1, retries: 0
+Flush: 1013378 bytes, 0.022594576 secs, iters 1, retries: 0
+Flush: 1016930 bytes, 0.022604602 secs, iters 1, retries: 0
+Flush: 1009062 bytes, 0.021723965 secs, iters 1, retries: 0
+Flush: 1017591 bytes, 0.021326288 secs, iters 1, retries: 0
+Flush: 1001118 bytes, 0.024473208 secs, iters 1, retries: 0
+Flush: 1001642 bytes, 0.021102874 secs, iters 1, retries: 0
+Flush: 1010880 bytes, 0.021718905 secs, iters 1, retries: 0
+Flush: 1003087 bytes, 0.020573444 secs, iters 1, retries: 0
+Flush: 1014552 bytes, 0.023054525 secs, iters 1, retries: 0
+Flush: 1007651 bytes, 0.021439565 secs, iters 1, retries: 0
+Flush: 1005319 bytes, 0.023373064 secs, iters 1, retries: 0
+Flush: 1016014 bytes, 0.021875984 secs, iters 1, retries: 0
+Flush: 1008841 bytes, 0.022336225 secs, iters 1, retries: 0
+Flush: 1008481 bytes, 0.019935732 secs, iters 1, retries: 0
+Flush: 1010188 bytes, 0.020609815 secs, iters 1, retries: 0
+Flush: 1010499 bytes, 0.024659979 secs, iters 1, retries: 0
+Flush: 1028057 bytes, 0.020985293 secs, iters 1, retries: 0
+Flush: 1010073 bytes, 0.024364714 secs, iters 1, retries: 0
+Flush: 1001161 bytes, 0.021093348 secs, iters 1, retries: 0
+Flush: 1007261 bytes, 0.023913503 secs, iters 1, retries: 0
+Flush: 1007084 bytes, 0.020985913 secs, iters 1, retries: 0
+Flush: 1015508 bytes, 0.020530115 secs, iters 1, retries: 0
+Flush: 1007560 bytes, 0.021892609 secs, iters 1, retries: 0
+Flush: 1008378 bytes, 0.020845904 secs, iters 1, retries: 0
+Flush: 1005818 bytes, 0.019897351 secs, iters 1, retries: 0
+Flush: 1006206 bytes, 0.020079267 secs, iters 1, retries: 0
+Flush: 1019799 bytes, 0.022579518 secs, iters 1, retries: 0
+Flush: 1023999 bytes, 0.025173251 secs, iters 1, retries: 0
+Flush: 1017259 bytes, 0.020180797 secs, iters 1, retries: 0
+Write rate (samples/second): 1340186.6655409813
+Flush: 1017289 bytes, 0.024595937 secs, iters 1, retries: 0
+Flush: 1005823 bytes, 0.021949213 secs, iters 1, retries: 0
+Flush: 1003076 bytes, 0.023038125 secs, iters 1, retries: 0
+Flush: 1021703 bytes, 0.023650046 secs, iters 1, retries: 0
+Total compressed bytes: 74909053
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 35.384627 mbps, 74842778 total mb
+Total data bytes flushed: 74842778
+Total compressed bytes: 74909053
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 74842778 total mb
+Total data bytes flushed: 74842778
+Total compressed bytes: 74909053
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 74842778 total mb
+Total data bytes flushed: 74842778
+Queue length: 0
+Total compressed bytes: 75280834
+Snap Pending unflushed data bytes: 1006123
+Flush: 1006123 bytes, 0.021667546 secs, iters 1, retries: 0
+Total mb written to Kafka: 1.006123 mbps, 75848901 total mb
+Total data bytes flushed: 75848901
+Flush: 1011032 bytes, 0.021797309 secs, iters 1, retries: 0
+Flush: 1005492 bytes, 0.020709741 secs, iters 1, retries: 0
+Flush: 1010842 bytes, 0.020834541 secs, iters 1, retries: 0
+Flush: 1001587 bytes, 0.020217757 secs, iters 1, retries: 0
+Flush: 1004706 bytes, 0.021494649 secs, iters 1, retries: 0
+Flush: 1020358 bytes, 0.01959586 secs, iters 1, retries: 0
+Flush: 1007553 bytes, 0.022380187 secs, iters 1, retries: 0
+Flush: 1001144 bytes, 0.021313605 secs, iters 1, retries: 0
+Flush: 1011864 bytes, 0.021018777 secs, iters 1, retries: 0
+Flush: 1005003 bytes, 0.021366146 secs, iters 1, retries: 0
+Flush: 1014757 bytes, 0.021865954 secs, iters 1, retries: 0
+Flush: 1021409 bytes, 0.022387235 secs, iters 1, retries: 0
+Flush: 1009465 bytes, 0.022269856 secs, iters 1, retries: 0
+Flush: 1003866 bytes, 0.02610195 secs, iters 1, retries: 0
+Flush: 1015782 bytes, 0.021178171 secs, iters 1, retries: 0
+Flush: 1020953 bytes, 0.022435495 secs, iters 1, retries: 0
+Write rate (samples/second): 2464550.837285799
+Queue length: 0
+Total compressed bytes: 92631493
+Snap Pending unflushed data bytes: 1009912
+Flush: 1009912 bytes, 0.020533543 secs, iters 1, retries: 0
+Total mb written to Kafka: 17.175725 mbps, 93024626 total mb
+Total data bytes flushed: 93024626
+Flush: 1020312 bytes, 0.024650888 secs, iters 1, retries: 0
+Flush: 1006338 bytes, 0.019123033 secs, iters 1, retries: 0
+Flush: 1012126 bytes, 0.021373441 secs, iters 1, retries: 0
+Flush: 1008325 bytes, 0.031811877 secs, iters 1, retries: 0
+Flush: 1008832 bytes, 0.030187553 secs, iters 1, retries: 0
+Flush: 1024273 bytes, 0.021195683 secs, iters 1, retries: 0
+Flush: 1005842 bytes, 0.024101053 secs, iters 1, retries: 0
+Flush: 1002019 bytes, 0.02189406 secs, iters 1, retries: 0
+Flush: 1017672 bytes, 0.020369426 secs, iters 1, retries: 0
+Flush: 1012411 bytes, 0.024305435 secs, iters 1, retries: 0
+Write rate (samples/second): 2911735.552729606
+Flush: 1017077 bytes, 0.024370425 secs, iters 1, retries: 0
+Total compressed bytes: 104449485
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 11.135227 mbps, 104159853 total mb
+Total data bytes flushed: 104159853
+Total compressed bytes: 104449485
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 104159853 total mb
+Total data bytes flushed: 104159853
+Total compressed bytes: 104449485
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 104159853 total mb
+Total data bytes flushed: 104159853
+Queue length: 0
+Total compressed bytes: 104484395
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 104159853 total mb
+Total data bytes flushed: 104159853
+Write rate (samples/second): 8065501.160883713
+Current time: 2022-10-13T16:55:03.648260826Z, Current workload rate: 200000, Samples generated: 2500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Total compressed bytes: 104965971
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 104159853 total mb
+Total data bytes flushed: 104159853
+Write rate (samples/second): 7800839.573159901
+Total compressed bytes: 105404455
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 104159853 total mb
+Total data bytes flushed: 104159853
+Total compressed bytes: 105404455
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 104159853 total mb
+Total data bytes flushed: 104159853
+Total compressed bytes: 105404455
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 104159853 total mb
+Total data bytes flushed: 104159853
+Queue length: 0
+Total compressed bytes: 105491669
+Snap Pending unflushed data bytes: 1048840
+Flush: 1048840 bytes, 0.020876713 secs, iters 1, retries: 0
+Total mb written to Kafka: 1.04884 mbps, 105208693 total mb
+Total data bytes flushed: 105208693
+Write rate (samples/second): 9121224.55869281
+Current time: 2022-10-13T16:55:08.648651565Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Total compressed bytes: 106051257
+Snap Pending unflushed data bytes: 1053242
+Flush: 1053242 bytes, 0.022883951 secs, iters 1, retries: 0
+Total mb written to Kafka: 1.053242 mbps, 106261935 total mb
+Total data bytes flushed: 106261935
+Write rate (samples/second): 8777443.753131023
+Total compressed bytes: 106535893
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 106261935 total mb
+Total data bytes flushed: 106261935
+Total compressed bytes: 106535893
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 106261935 total mb
+Total data bytes flushed: 106261935
+Total compressed bytes: 106535893
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 106261935 total mb
+Total data bytes flushed: 106261935
+Queue length: 0
+Total compressed bytes: 106640347
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 106261935 total mb
+Total data bytes flushed: 106261935
+Write rate (samples/second): 7921458.297379814
+Flush: 1045906 bytes, 0.024709579 secs, iters 1, retries: 0
+Current time: 2022-10-13T16:55:13.649033594Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Total compressed bytes: 107183255
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 1.045906 mbps, 107307841 total mb
+Total data bytes flushed: 107307841
+Flush: 1045946 bytes, 0.020943841 secs, iters 1, retries: 0
+Write rate (samples/second): 7570191.764312678
+Total compressed bytes: 107741975
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 1.045946 mbps, 108353787 total mb
+Total data bytes flushed: 108353787
+Total compressed bytes: 107741975
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 108353787 total mb
+Total data bytes flushed: 108353787
+Total compressed bytes: 107741975
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 108353787 total mb
+Total data bytes flushed: 108353787
+Queue length: 0
+Total compressed bytes: 107858965
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 108353787 total mb
+Total data bytes flushed: 108353787
+Write rate (samples/second): 7817863.29853102
+Flush: 1044278 bytes, 0.0228291 secs, iters 1, retries: 0
+Current time: 2022-10-13T16:55:18.649423879Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Initial snapshotting
+Snapshot creation: 1.749626ms, compression: 837.037µs
+Flush: 67344 bytes, 0.003050857 secs, iters 1, retries: 0
+Snapshot flushed 67344 in 3.095895ms
+INITING Snapshot*****************
+Queue length: 0
+Snapshot creation: 388.094µs, compression: 876.275µs
+Total compressed bytes: 108445201
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 1.111622 mbps, 109465409 total mb
+Total data bytes flushed: 109398065
+Write rate (samples/second): 7351961.527597036
+Flush: 1042034 bytes, 0.023408712 secs, iters 1, retries: 0
+Snapshot creation: 79.81µs, compression: 290.921µs
+Flush: 27009 bytes, 0.001758639 secs, iters 1, retries: 0
+Snapshot flushed 27009 in 1.781104ms
+Snapshot creation: 53.418µs, compression: 289.436µs
+Total compressed bytes: 109112147
+Snap Pending unflushed data bytes: 0
+Flush: 27009 bytes, 0.001674238 secs, iters 1, retries: 0
+Snapshot flushed 27009 in 1.691558ms
+Total mb written to Kafka: 1.096052 mbps, 110561461 total mb
+Total data bytes flushed: 110440099
+Snapshot creation: 51.447µs, compression: 291.044µs
+Flush: 27009 bytes, 0.001688548 secs, iters 1, retries: 0
+Snapshot flushed 27009 in 1.708753ms
+Snapshot creation: 52.42µs, compression: 286.459µs
+Total compressed bytes: 109112147
+Snap Pending unflushed data bytes: 0
+Flush: 27009 bytes, 0.001792477 secs, iters 1, retries: 0
+Snapshot flushed 27009 in 1.809213ms
+Total mb written to Kafka: 0.054018 mbps, 110615479 total mb
+Total data bytes flushed: 110440099
+Snapshot creation: 51.447µs, compression: 284.577µs
+Flush: 27009 bytes, 0.001773113 secs, iters 1, retries: 0
+Snapshot flushed 27009 in 1.797215ms
+Snapshot creation: 54.195µs, compression: 299.447µs
+Total compressed bytes: 109112147
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0.027009 mbps, 110642488 total mb
+Total data bytes flushed: 110440099
+Flush: 27009 bytes, 0.001731288 secs, iters 1, retries: 0
+Snapshot flushed 27009 in 1.747077ms
+Snapshot creation: 53.716µs, compression: 285.193µs
+Flush: 27009 bytes, 0.001783425 secs, iters 1, retries: 0
+Snapshot flushed 27009 in 1.803654ms
+Queue length: 0
+Snapshot creation: 51.881µs, compression: 285.58µs
+Total compressed bytes: 109237299
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0.054018 mbps, 110696506 total mb
+Total data bytes flushed: 110440099
+Write rate (samples/second): 7857021.6906440705
+Flush: 27009 bytes, 0.001645213 secs, iters 1, retries: 0
+Snapshot flushed 27009 in 1.6675ms
+Snapshot creation: 53.612µs, compression: 283.305µs
+Flush: 27009 bytes, 0.001723437 secs, iters 1, retries: 0
+Snapshot flushed 27009 in 1.744307ms
+Current time: 2022-10-13T16:55:23.649825356Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Snapshot creation: 68.782µs, compression: 374.733µs
+Total compressed bytes: 109819133
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0.054018 mbps, 110750524 total mb
+Total data bytes flushed: 110440099
+Write rate (samples/second): 7391719.331804539
+Flush: 35731 bytes, 0.001804808 secs, iters 1, retries: 0
+Snapshot flushed 35731 in 1.833121ms
+Snapshot creation: 1.18494ms, compression: 2.538595ms
+Flush: 206300 bytes, 0.005060428 secs, iters 1, retries: 0
+Snapshot flushed 206300 in 5.081376ms
+Total compressed bytes: 110434031
+Snapshot creation: 366.979µs, compression: 2.149009ms
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0.242031 mbps, 110992555 total mb
+Total data bytes flushed: 110440099
+Snapshot creation: 531.805µs, compression: 2.164341ms
+Total compressed bytes: 110434031
+Snapshot creation: 476.277µs, compression: 2.196842ms
+Snap Pending unflushed data bytes: 0
+Total mb written to Kafka: 0 mbps, 110992555 total mb
+Total data bytes flushed: 110440099
+Snapshot creation: 502.534µs, compression: 2.150051ms
+Total compressed bytes: 110434031
+Snap Pending unflushed data bytes: 0
+Snapshot creation: 466.395µs, compression: 2.160939ms
+Total mb written to Kafka: 0 mbps, 110992555 total mb
+Total data bytes flushed: 110440099
+Snapshot creation: 375.388µs, compression: 2.181262ms
+Queue length: 0
+Total compressed bytes: 110553871
+Snap Pending unflushed data bytes: 1043572
+Snapshot creation: 392.375µs, compression: 2.149611ms
+Flush: 1043572 bytes, 0.025596326 secs, iters 1, retries: 0
+Total mb written to Kafka: 1.043572 mbps, 112036127 total mb
+Total data bytes flushed: 111483671
+Write rate (samples/second): 7836556.391428783
+Snapshot creation: 374.579µs, compression: 2.141508ms
+Initial snapshotting
+Current time: 2022-10-13T16:55:28.650203040Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Snapshot creation: 2.365122ms, compression: 2.556873ms
+Queue length: 0
+Flush: 206359 bytes, 0.004948317 secs, iters 1, retries: 0
+Snapshot flushed 206359 in 5.511179ms
+INITING Snapshot*****************
+Total compressed bytes: 111090335
+Snapshot creation: 1.202549ms, compression: 2.584215ms
+Snap Pending unflushed data bytes: 1040932
+Snapshot creation: 961.491µs, compression: 410.913µs
+Flush: 1040932 bytes, 0.021448311 secs, iters 1, retries: 0
+Total mb written to Kafka: 1.247291 mbps, 113283418 total mb
+Total data bytes flushed: 112524603
+Write rate (samples/second): 7410543.659269842
+Snapshot creation: 659.885µs, compression: 1.51636ms
+Flush: 146996 bytes, 0.003781066 secs, iters 1, retries: 0
+Snapshot flushed 146996 in 3.802636ms
+Snapshot creation: 252µs, compression: 1.551977ms
+Total compressed bytes: 111706275
+Snapshot creation: 400.273µs, compression: 1.519647ms
+Snap Pending unflushed data bytes: 0
+Snapshot creation: 360.722µs, compression: 1.517391ms
+Total mb written to Kafka: 0.146996 mbps, 113430414 total mb
+Total data bytes flushed: 112524603
+Snapshot creation: 316.755µs, compression: 1.496763ms
+Snapshot creation: 338.74µs, compression: 1.51836ms
+Total compressed bytes: 111706275
+Snapshot creation: 361.454µs, compression: 1.512429ms
+Snap Pending unflushed data bytes: 0
+Snapshot creation: 359.223µs, compression: 1.507729ms
+Total mb written to Kafka: 0 mbps, 113430414 total mb
+Total data bytes flushed: 112524603
+Snapshot creation: 367.248µs, compression: 1.500709ms
+Snapshot creation: 361.816µs, compression: 1.51365ms
+Total compressed bytes: 111706275
+Queue length: 0
+Snap Pending unflushed data bytes: 0
+Snapshot creation: 286.12µs, compression: 1.515537ms
+Snapshot creation: 343.091µs, compression: 1.518228ms
+Total mb written to Kafka: 0 mbps, 113430414 total mb
+Total data bytes flushed: 112524603
+Write rate (samples/second): 8978446.861214885
+Flush: 1044142 bytes, 0.022143747 secs, iters 1, retries: 0
+Snapshot creation: 316.426µs, compression: 1.500063ms
+Snapshot creation: 341.176µs, compression: 1.512381ms
+Total compressed bytes: 112296651
+Snap Pending unflushed data bytes: 0
+Snapshot creation: 340.596µs, compression: 1.51003ms
+Total mb written to Kafka: 1.044142 mbps, 114474556 total mb
+Total data bytes flushed: 113568745
+Snapshot creation: 302.578µs, compression: 1.533156ms
+Snapshot creation: 285.518µs, compression: 1.504417ms
+Snapshot creation: 333.989µs, compression: 1.504803ms
+Current time: 2022-10-13T16:55:33.650584714Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Total compressed bytes: 112296651
+Snap Pending unflushed data bytes: 0
+Snapshot creation: 327.643µs, compression: 1.523944ms
+Total mb written to Kafka: 0 mbps, 114474556 total mb
+Total data bytes flushed: 113568745
+Snapshot creation: 372.656µs, compression: 1.517522ms
+Snapshot creation: 373.681µs, compression: 1.495366ms
+Snapshot creation: 356.251µs, compression: 1.489524ms
+Queue length: 0
+Total compressed bytes: 112449155
+Snap Pending unflushed data bytes: 0
+Snapshot creation: 1.087009ms, compression: 175.182µs
+Total mb written to Kafka: 0 mbps, 114474556 total mb
+Total data bytes flushed: 113568745
+Flush: 1043416 bytes, 0.026668384 secs, iters 1, retries: 0
+Snapshot creation: 171.9µs, compression: 739.238µs
+Write rate (samples/second): 7652000.017018048
+Snapshot creation: 153.705µs, compression: 926.68µs
+Snapshot creation: 126.644µs, compression: 868.001µs
+Total compressed bytes: 112948673
+Snap Pending unflushed data bytes: 0
+Snapshot creation: 141.437µs, compression: 900.464µs
+Total mb written to Kafka: 1.043416 mbps, 115517972 total mb
+Total data bytes flushed: 114612161
+Snapshot creation: 122.219µs, compression: 880.216µs
+Snapshot creation: 148.171µs, compression: 888.133µs
+Snapshot creation: 150.498µs, compression: 872.726µs
+Queue length: 0
+Total compressed bytes: 112994481
+Snap Pending unflushed data bytes: 0
+Snapshot creation: 155.741µs, compression: 928.42µs
+Total mb written to Kafka: 0 mbps, 115517972 total mb
+Total data bytes flushed: 114612161
+Snapshot creation: 212.393µs, compression: 862.023µs
+Write rate (samples/second): 7742712.99212374
