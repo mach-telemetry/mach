@@ -25,7 +25,7 @@ impl SimpleQuery {
         let from_now: u64 = rng.gen_range(PARAMETERS.query_min_delay..PARAMETERS.query_max_delay);
         let start = now - from_now * MICROS_IN_SECOND;
         let end = start
-            - rng.gen_range(PARAMETERS.min_query_duration..PARAMETERS.max_query_duration)
+            - rng.gen_range(PARAMETERS.query_min_duration..PARAMETERS.query_max_duration)
                 * MICROS_IN_SECOND;
         SimpleQuery { source, start, end, from_now }
     }
