@@ -129,10 +129,10 @@ pub struct Args {
     pub query_max_delay: u64,
 
     #[clap(long, default_value_t = 10)]
-    pub min_query_duration: u64,
+    pub query_min_duration: u64,
 
     #[clap(long, default_value_t = 60)]
-    pub max_query_duration: u64,
+    pub query_max_duration: u64,
 
     #[clap(long, default_value_t = 1)]
     pub query_count: u64,

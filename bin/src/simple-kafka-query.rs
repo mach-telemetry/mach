@@ -42,13 +42,14 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::collections::BTreeMap;
 use std::ops::Bound::Included;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering::SeqCst}};
 use std::thread;
 use std::time::{Duration, Instant};
 use utils::NotificationReceiver;
 
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use query_utils::SimpleQuery;
+use num::NumCast;
 
 lazy_static! {
     static ref HOSTS: Vec<String> = {
@@ -57,6 +58,16 @@ lazy_static! {
             .split(',')
             .map(|x| x.into())
             .collect()
+    };
+    static ref INDEX_SIZE: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || loop {
+            let x = x2.load(SeqCst);
+            println!("B-Tree index size: {:.2}", <f64 as NumCast>::from(x).unwrap()/1_000_000.);
+            thread::sleep(Duration::from_secs(1));
+        });
+        x
     };
     static ref INDEX: Arc<Index> = {
         let meta_index = Arc::new(Index::new());
@@ -129,11 +140,15 @@ fn consumer() {
     loop {
         for ms in consumer.poll().unwrap().iter() {
             for m in ms.messages() {
-                let batch = batching::BytesBatch::new(m.value.into());
-                let (ids, (low, high)) = batch.metadata();
-                let entry = Entry::Bytes(batch);
-                for id in ids.iter() {
-                    index.insert(SeriesId(*id), (low, high), entry.clone());
+                let batches: Vec<Box<[u8]>> = bincode::deserialize(m.value).unwrap();
+                for batch in batches {
+                    INDEX_SIZE.fetch_add(batch.len(), SeqCst);
+                    let batch = batching::BytesBatch::new(batch.into());
+                    let (ids, (low, high)) = batch.metadata();
+                    let entry = Entry::Bytes(batch);
+                    for id in ids.iter() {
+                        index.insert(SeriesId(*id), (low, high), entry.clone());
+                    }
                 }
             }
         }
@@ -173,7 +188,8 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
         }
         drop(guard);
         let now = Instant::now();
-        while now.elapsed() < Duration::from_millis(100) {}
+        std::thread::sleep(Duration::from_millis(100));
+        //while now.elapsed() < Duration::from_millis(100) {}
     }
     let data_latency = timer.elapsed();
 
@@ -225,14 +241,14 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
 fn main() {
     init_consumer();
 
+    let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
+    let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
+    let sources = data_generator::HOT_SOURCES.as_slice();
+
     let mut start_notif = NotificationReceiver::new(PARAMETERS.querier_port);
     println!("Waiting for workload to start...");
     start_notif.wait();
     println!("Workload started");
-
-    let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
-    let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
-    let sources = data_generator::HOT_SOURCES.as_slice();
 
     // Sleeping to make sure there's enough data
     let initial_sleep_secs = 2 * PARAMETERS.query_max_delay;
