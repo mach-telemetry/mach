@@ -15,7 +15,24 @@ use std::{
     },
     thread,
     time::{Duration, Instant},
+    convert::TryInto,
 };
+use lzzzz::lz4::*;
+use lazy_static::*;
+use crossbeam::channel::{bounded, Sender, Receiver};
+
+lazy_static! {
+    static ref SNAPSHOT_TABLE: Arc<DashMap<SnapshotterId, Arc<Mutex<SnapshotWorkerData>>>> = {
+        Arc::new(DashMap::new())
+    };
+
+    static ref SNAPSHOT_SENDER: Sender<SnapshotterId> = {
+        let _ = SNAPSHOT_TABLE.clone();
+        let (tx, rx) = bounded(1000);
+        thread::spawn(move || snapshots_to_kafka(rx));
+        tx
+    };
+}
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SnapshotterId(usize);
@@ -29,23 +46,50 @@ impl SnapshotId {
     pub fn load(&self) -> Snapshot {
         let mut vec = Vec::new();
         self.kafka.load(&mut vec).unwrap();
-        bincode::deserialize(&vec[..]).unwrap()
+        decompress_snapshot(vec.as_slice())
     }
 }
 
-type SnapshotTable = Arc<DashMap<SnapshotterId, Arc<Mutex<SnapshotWorkerData>>>>;
+
+fn snapshots_to_kafka(rx: Receiver<SnapshotterId>) {
+    let mut producer = Producer::new();
+    while let Ok(id) = rx.recv() {
+        let entry = SNAPSHOT_TABLE.get(&id).unwrap().value().clone();
+        let mut guard = entry.lock().unwrap();
+        let new_entry = guard.snapshot_id.flush(&mut producer);
+        guard.snapshot_id = new_entry;
+    }
+}
 
 struct SnapshotWorkerData {
-    snapshot_id: SnapshotId,
+    snapshot_id: SnapshotEntry,
     series: Series,
     last_request: Instant,
     interval: Duration,
     time_out: Duration,
 }
 
+#[derive(Clone)]
+enum SnapshotEntry {
+    Id(SnapshotId),
+    Bytes(Box<[u8]>)
+}
+
+impl SnapshotEntry {
+    fn flush(&self, p: &mut Producer) -> Self {
+        match self {
+            Self::Id(_) => self.clone(),
+            Self::Bytes(x) => {
+                let entry = p.send(0, &x[..]);
+                let id = SnapshotId { kafka: entry };
+                Self::Id(id)
+            }
+        }
+    }
+}
+
 pub struct Snapshotter {
     series_table: Arc<DashMap<SeriesId, Series>>, // Same series table as in tsdb
-    snapshot_table: SnapshotTable,
     id_map: Arc<DashMap<(SeriesId, Duration, Duration), SnapshotterId>>,
     worker_id: AtomicUsize,
 }
@@ -54,7 +98,6 @@ impl Snapshotter {
     pub fn new(series_table: Arc<DashMap<SeriesId, Series>>) -> Self {
         Self {
             series_table,
-            snapshot_table: Arc::new(DashMap::new()),
             id_map: Arc::new(DashMap::new()),
             worker_id: AtomicUsize::new(0),
         }
@@ -75,37 +118,46 @@ impl Snapshotter {
 
             let mut producer = Producer::new();
             let snapshot = series.snapshot();
-            let bytes = bincode::serialize(&snapshot).unwrap();
-            let partition = thread_rng().gen_range(0..PARTITIONS);
-            let kafka_entry = producer.send(partition, bytes.as_slice());
+            let compressed_bytes = compress_snapshot(snapshot);
+            let snapshot_entry = SnapshotEntry::Bytes(compressed_bytes).flush(&mut producer);
 
             let snapshot_worker_data = Arc::new(Mutex::new(SnapshotWorkerData {
-                snapshot_id: SnapshotId { kafka: kafka_entry },
+                snapshot_id: snapshot_entry,
                 series,
                 last_request,
                 interval,
                 time_out,
             }));
 
-            self.snapshot_table.insert(worker_id, snapshot_worker_data);
-            let snapshot_table = self.snapshot_table.clone();
-
-            thread::spawn(move || snapshot_worker(worker_id, snapshot_table));
+            SNAPSHOT_TABLE.insert(worker_id, snapshot_worker_data);
+            thread::spawn(move || snapshot_worker(worker_id));
 
             worker_id
         })
     }
 
     pub fn get(&self, id: SnapshotterId) -> Option<SnapshotId> {
-        let data = self.snapshot_table.get(&id)?.value().clone();
-        let mut guard = data.lock().unwrap();
+        let entry = SNAPSHOT_TABLE.get(&id)?.value().clone();
+        let mut guard = entry.lock().unwrap();
+        match &mut guard.snapshot_id {
+            SnapshotEntry::Id(x) => {},
+            SnapshotEntry::Bytes(x) => {
+                guard.last_request = Instant::now();
+                let new_entry = guard.snapshot_id.flush(&mut Producer::new());
+                guard.snapshot_id = new_entry;
+            },
+        }
         guard.last_request = Instant::now();
-        Some(guard.snapshot_id.clone())
+        match &guard.snapshot_id {
+            SnapshotEntry::Id(x) => Some(x.clone()),
+            _ => unreachable!(),
+        }
     }
 }
 
-fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
+fn snapshot_worker(worker_id: SnapshotterId) {
     println!("INITING Snapshot*****************");
+    let snapshot_table = SNAPSHOT_TABLE.clone();
     let data = snapshot_table.get(&worker_id).unwrap().clone();
     let guard = data.lock().unwrap();
     let time_out = guard.time_out;
@@ -113,7 +165,7 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
     let interval = guard.interval;
     drop(guard);
 
-    let mut producer = Producer::new();
+    //let mut producer = Producer::new();
 
     loop {
         {
@@ -130,23 +182,31 @@ fn snapshot_worker(worker_id: SnapshotterId, snapshot_table: SnapshotTable) {
             let snapshot_time = now.elapsed();
 
             let now = Instant::now();
-            let bytes = bincode::serialize(&snapshot).unwrap();
-            let serialize_time = now.elapsed();
-            let bytes_len = bytes.len();
+            let compressed = compress_snapshot(snapshot);
+            let compress_time = now.elapsed();
 
-            let now = Instant::now();
-            let partition = thread_rng().gen_range(0..PARTITIONS);
-            let entry = producer.send(partition, bytes.as_slice());
-            let produce_time = now.elapsed();
-            println!(
-                "Snapshot time: {:?}, Serialize time: {:?}, Produce time: {:?}, Bytes len: {:?}",
-                snapshot_time, serialize_time, produce_time, bytes_len
-            );
-            //let snapshot = Arc::new(snapshot);
-            let id = SnapshotId { kafka: entry };
+            let snapshot_entry = SnapshotEntry::Bytes(compressed);
+
             let mut guard = data.lock().unwrap();
-            guard.snapshot_id = id;
+            guard.snapshot_id = snapshot_entry;
         }
         thread::sleep(interval);
     }
 }
+
+fn compress_snapshot(snapshot: Snapshot) -> Box<[u8]> {
+    let bytes = bincode::serialize(&snapshot).unwrap();
+    let og_sz = bytes.len();
+    let mut compressed_bytes = Vec::new();
+    compressed_bytes.extend_from_slice(&og_sz.to_be_bytes());
+    compress_to_vec(bytes.as_slice(), &mut compressed_bytes, ACC_LEVEL_DEFAULT).unwrap();
+    compressed_bytes.into_boxed_slice()
+}
+
+fn decompress_snapshot(bytes: &[u8]) -> Snapshot {
+    let og_sz = usize::from_be_bytes((&bytes[0..8]).try_into().unwrap());
+    let mut data = vec![0u8; og_sz];
+    decompress(&bytes[8..], &mut data).unwrap();
+    bincode::deserialize(&data).unwrap()
+}
+

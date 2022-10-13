@@ -1,0 +1,100 @@
+BOOTSTRAPS: b-3.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-1.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092
+Read data for 464 sources
+		Sources,	Samples,	Bytes
+Metrics,	311,	33585593,	268684744
+Logs + Traces,	153,	686135,	897249338
+Expanding data based on source_count = 1000
+Sorting by time
+Setting up final samples
+Samples stats:
+Total number of unique samples: 74030031
+Number of sources: 1000, Number of metrics: 671
+Max source length: 108788
+Average source length: 74030
+Min source length: 4
+Total samples: 74030031
+Longest sources: [SeriesId(995), SeriesId(989), SeriesId(987), SeriesId(978), SeriesId(972), SeriesId(965), SeriesId(953), SeriesId(947), SeriesId(923), SeriesId(888)]
+Registering sources to Mach
+Initing snapshot server
+Inited snapshot server
+You've got 30 seconds!
+Workloads: [Workload { samples_per_second: 200000, duration: 120s }, Workload { samples_per_second: 6000000, duration: 300s }, Workload { samples_per_second: 200000, duration: 3600s }]
+Serving on: 172.31.22.116
+Queue length: 0
+Total compressed bytes: 17855
+Snap Pending unflushed data blocks: 1
+Total mb written to Kafka: 1.010769 mbps, 1010769 total mb
+Total data bytes flushed: 1010769
+Write rate (samples/second): 1485962.6340549302
+Total compressed bytes: 33718882
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 32.301896 mbps, 33312665 total mb
+Total data bytes flushed: 33312665
+Total compressed bytes: 33718882
+Queue length: 0
+Snap Pending unflushed data blocks: 1
+Total mb written to Kafka: 1.011771 mbps, 34324436 total mb
+Total data bytes flushed: 34324436
+Write rate (samples/second): 1289437.8632194952
+Total compressed bytes: 74931722
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 40.446336 mbps, 74770772 total mb
+Total data bytes flushed: 74770772
+Total compressed bytes: 74931722
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 0 mbps, 74770772 total mb
+Total data bytes flushed: 74770772
+Queue length: 0
+Total compressed bytes: 75450834
+Snap Pending unflushed data blocks: 2
+Total mb written to Kafka: 2.021378 mbps, 76792150 total mb
+Total data bytes flushed: 76792150
+Write rate (samples/second): 1685444.2800447114
+Total compressed bytes: 104025169
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 27.292146 mbps, 104084296 total mb
+Total data bytes flushed: 104084296
+Queue length: 0
+Total compressed bytes: 104036511
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 0 mbps, 104084296 total mb
+Total data bytes flushed: 104084296
+Write rate (samples/second): 7701669.6049049655
+Total compressed bytes: 104426151
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 0 mbps, 104084296 total mb
+Total data bytes flushed: 104084296
+Total compressed bytes: 104426151
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 0 mbps, 104084296 total mb
+Total data bytes flushed: 104084296
+Queue length: 0
+Total compressed bytes: 104461539
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 0 mbps, 104084296 total mb
+Total data bytes flushed: 104084296
+Write rate (samples/second): 8403988.74820201
+Total compressed bytes: 104744401
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 1.051385 mbps, 105135681 total mb
+Total data bytes flushed: 105135681
+Queue length: 0
+Total compressed bytes: 104756585
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 0 mbps, 105135681 total mb
+Total data bytes flushed: 105135681
+Write rate (samples/second): 7413167.053821786
+Total compressed bytes: 105322715
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 0 mbps, 105135681 total mb
+Total data bytes flushed: 105135681
+Total compressed bytes: 105322715
+Snap Pending unflushed data blocks: 0
+Total mb written to Kafka: 0 mbps, 105135681 total mb
+Total data bytes flushed: 105135681
+Queue length: 0
+Total compressed bytes: 105392191
+Snap Pending unflushed data blocks: 1
+Total mb written to Kafka: 1.050466 mbps, 106186147 total mb
+Total data bytes flushed: 106186147
+Write rate (samples/second): 8766310.158365147
