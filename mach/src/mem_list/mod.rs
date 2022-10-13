@@ -574,7 +574,9 @@ impl BlockListEntry {
     fn set_partition_offset(&self, entry: kafka::KafkaEntry) {
         let mut guard = self.inner.write().unwrap();
         match &mut *guard {
-            InnerBlockListEntry::Bytes(_x) => {
+            InnerBlockListEntry::Bytes(bytes) => {
+                let num_bytes = bytes.len();
+                PENDING_UNFLUSHED_BYTES.fetch_sub(num_bytes, SeqCst);
                 let _x = std::mem::replace(&mut *guard, InnerBlockListEntry::Offset(entry));
             }
             InnerBlockListEntry::Offset(..) => {}
@@ -589,10 +591,8 @@ impl BlockListEntry {
         let guard = self.inner.read().unwrap();
         match &*guard {
             InnerBlockListEntry::Bytes(bytes) => {
-                let num_bytes = bytes.len();
                 let kafka_entry = producer.send(partition, bytes);
                 TOTAL_BYTES_FLUSHED.fetch_add(bytes.len(), SeqCst);
-                PENDING_UNFLUSHED_BYTES.fetch_sub(num_bytes, SeqCst);
                 drop(guard);
                 self.set_partition_offset(kafka_entry);
             }
