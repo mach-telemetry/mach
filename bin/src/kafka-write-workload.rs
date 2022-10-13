@@ -15,13 +15,23 @@ use lazy_static::*;
 use mach::{id::SeriesId, sample::SampleType};
 use num::NumCast;
 use std::mem;
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc, Barrier, atomic::{AtomicUsize, Ordering::SeqCst}};
 use std::thread;
 use std::time::{Duration, Instant};
 use utils::RemoteNotifier;
 use rand::{thread_rng, Rng};
 
 lazy_static! {
+    static ref PENDING_UNFLUSHED_BLOCKS: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || loop {
+            let x = x2.load(SeqCst);
+            println!("Pending unflushed data blocks: {}", x);
+            thread::sleep(Duration::from_secs(1));
+        });
+        x
+    };
     static ref PARTITION_WRITERS: Vec<Sender<(Box<[u8]>, u64)>> = {
         (0..PARAMETERS.kafka_partitions).map(|partition| {
             let (tx, rx) = unbounded();
@@ -58,6 +68,7 @@ fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
     let mut last_batch_writer = u64::MAX;
     let mut data: Vec<Box<[u8]>> = Vec::new();
     let mut total_bytes = 0;
+    let mut last_flush = Instant::now();
     loop {
         if let Ok((bytes, batch_writer)) = rx.try_recv() {
             if last_batch_writer == u64::MAX {
@@ -67,14 +78,14 @@ fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
             }
             total_bytes += bytes.len();
             data.push(bytes);
-            if total_bytes > 1_000_000 {
+            if total_bytes > 1_000_000 || last_flush.elapsed() > Duration::from_secs_f64(0.5) {
                 let bytes = bincode::serialize(&data).unwrap();
-                println!("Bytes len {}", bytes.len());
                 COUNTERS.add_bytes_written_to_kafka(bytes.len());
                 COUNTERS.add_messages_written_to_kafka(1);
                 producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
                 data.clear();
                 total_bytes = 0;
+                last_flush = Instant::now();
             }
             PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
         }
@@ -101,6 +112,7 @@ fn kafka_batcher(i: u64, receiver: Receiver<(Batch, u64)>) {
                     );
                     let bytes = old_batch.close();
                     PARTITION_WRITERS[partition].send((bytes, i)).unwrap();
+                    PENDING_UNFLUSHED_BLOCKS.fetch_add(1, SeqCst);
                 }
             }
             //COUNTERS.add_samples_written(batch_len);

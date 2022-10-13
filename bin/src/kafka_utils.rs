@@ -131,10 +131,10 @@ impl Producer {
             }
         }
 
-        println!(
-            "Flush: {} bytes, {} seconds",
-            item.len(),
-            t.elapsed().as_secs_f64()
-        );
+        //println!(
+        //    "Flush: {} bytes, {} seconds",
+        //    item.len(),
+        //    t.elapsed().as_secs_f64()
+        //);
     }
 }
