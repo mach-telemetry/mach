@@ -30,10 +30,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use constants::*;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use query_utils::SimpleQuery;
+use std::thread;
 use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
-use std::thread;
 use utils::NotificationReceiver;
 
 lazy_static::lazy_static! {
@@ -60,9 +60,7 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
         .enable_all()
         .build()
         .unwrap();
-    let mut client = runtime.block_on(snapshotter::SnapshotClient::new(
-        PARAMETERS.snapshot_server_port.as_str(),
-    ));
+    let mut client = runtime.block_on(snapshotter::SnapshotClient::new(PARAMETERS.snapshot_server_port.as_str()));
 
     let snapshotter_id = *SNAPSHOTTER_MAP
         .entry(source)
@@ -134,6 +132,7 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
 }
 
 fn main() {
+
     let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
     let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
     let sources = data_generator::HOT_SOURCES.as_slice();
@@ -169,3 +168,135 @@ fn main() {
     drop(notification_channel);
     while let Ok(_) = wait_notification_channel.recv() {}
 }
+
+//let id = SeriesId(rng.gen_range(0..SOURCE_COUNT));
+//let snapshotter_id = *snapshotter_map.entry(id).or_insert(
+//    runtime
+//        .block_on(client.initialize(id, interval, timeout))
+//        .unwrap(),
+//);
+//let now: u64 = micros_from_epoch().try_into().unwrap();
+//let start_delay = rng.gen_range(0..START_MAX_DELAY);
+//let to_end = rng.gen_range(MIN_QUERY_DURATION..MAX_QUERY_DURATION);
+//let start = now - start_delay * micros_in_sec;
+//let end = start - to_end * micros_in_sec;
+
+//let mut count = 0;
+
+//let timer = Instant::now();
+//let mut query_execution_time = Duration::from_secs(0);
+////println!("Waiting for data to be available");
+//loop {
+//    let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
+//    let mut snapshot = snapshot_id.load().into_iterator();
+//    snapshot.next_segment_at_timestamp(start).unwrap();
+//    let seg = snapshot.get_segment();
+//    let mut timestamps = seg.timestamps().iterator();
+//    let ts = timestamps.next().unwrap();
+//    if ts > start {
+//        break;
+//    }
+//}
+
+//let data_latency = timer.elapsed();
+
+////println!("Executing query");
+//ThreadLocalTimer::reset();
+//ThreadLocalCounter::reset();
+//let result_count = {
+//    let _timer_1 = ThreadLocalTimer::new("query execution");
+//    let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
+//    let mut snapshot = snapshot_id.load().into_iterator();
+//    //println!("Range: {} {}", start, end);
+//    let mut count = 0;
+//    'outer: loop {
+//        if snapshot.next_segment_at_timestamp(start).is_none() {
+//            break;
+//        }
+//        let seg = snapshot.get_segment();
+//        let mut timestamps = seg.timestamps().iterator();
+//        for (i, ts) in timestamps.enumerate() {
+//            count += 1;
+//            if ts < end {
+//                break 'outer;
+//            }
+//        }
+//    }
+//    count
+//};
+//let total_latency = timer.elapsed();
+//let kafka_fetch = {
+//    let timers = ThreadLocalTimer::timers();
+//    timers
+//        .get("ReadOnlyBlock::as_bytes")
+//        .unwrap()
+//        .clone()
+//        .as_secs_f64()
+//};
+//let mut timers: Vec<(String, Duration)> = ThreadLocalTimer::timers()
+//    .iter()
+//    .map(|(s, d)| (s.clone(), *d))
+//    .collect();
+//timers.sort();
+////println!("TIMERS\n{:?}", timers);
+
+//let query_latency = total_latency - data_latency;
+//let total_query = start_delay + to_end;
+
+////let uncached_blocks_read = snapshot.uncached_blocks_read();
+//let counters = ThreadLocalCounter::counters();
+//let blocks_skipped = counters.get("skipping block").or(Some(&0)).unwrap();
+//let blocks_loaded = counters.get("loading block").or(Some(&0)).unwrap();
+//let segments_skipped = counters.get("skipping segment").or(Some(&0)).unwrap();
+//let segments_loaded = counters.get("loading segment").or(Some(&0)).unwrap();
+//let fetch_requests = counters.get("kafka fetch").or(Some(&0)).unwrap();
+////let cached_messages = counters.get("cached kafka messages read").or(Some(&0)).unwrap();
+//let kafka_messages_read = counters.get("kafka messages fetched").or(Some(&0)).unwrap();
+
+//println!(
+//    "Query id: {}, Total Time: {:?}, Data Latency: {:?}, Query Latency: {:?}, Blocks Skipped: {}, Blocks Read: {}, Segments Read: {}, Start Delay: {}, Query Execution Range: {}, Total Query Range: {}, Kafka Fetch Time: {:?}, Fetch Requests: {:?}, Kafka messages read: {}, Result: {}",
+//    query_id,
+//    total_latency.as_secs_f64(),
+//    data_latency.as_secs_f64(),
+//    query_latency.as_secs_f64(),
+//    blocks_skipped,
+//    blocks_loaded,
+//    segments_loaded,
+//    start_delay,
+//    to_end,
+//    total_query,
+//    kafka_fetch,
+//    fetch_requests,
+//    kafka_messages_read,
+//    //cached_messages,
+//    result_count,
+//);
+
+//let mut kafka_client = Client::new(BOOTSTRAPS);
+//let consumer_offset = ConsumerOffset::Latest;
+//let mut consumer = BufferedConsumer::new(BOOTSTRAPS, TOPIC, consumer_offset);
+
+// Freshness query
+//loop {
+//    let start: usize = micros_from_epoch().try_into().unwrap();
+//    let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
+//    let mut snapshot = snapshot_id.load(&mut kafka_client).into_iterator(&mut consumer);
+//    snapshot.next_segment().unwrap();
+//    let seg = snapshot.get_segment();
+//    let mut timestamps = seg.timestamps().iterator();
+//    let ts: usize = timestamps.next_timestamp().unwrap().try_into().unwrap();
+//    let end: usize = micros_from_epoch().try_into().unwrap();
+//    let duration = Duration::from_micros((end - start) as u64);
+//    let age = Duration::from_micros((start - ts) as u64);
+//    println!("snapshot id: {:?}, query latency: {:?}, data age: {:?}", snapshot_id, duration, age);
+//    std::thread::sleep(Duration::from_secs(1));
+//}
+
+// Query the number of samples from a source for the past 5 minutes
+
+//let ts: usize = timestamps.next_timestamp().unwrap().try_into().unwrap();
+//}
+//let end: usize = micros_from_epoch().try_into().unwrap();
+//let duration = Duration::from_micros((end - start) as u64);
+//let age = Duration::from_micros((start - ts) as u64);
+//println!("snapshot id: {:?}, query latency: {:?}, data age: {:?}", snapshot_id, duration, age);

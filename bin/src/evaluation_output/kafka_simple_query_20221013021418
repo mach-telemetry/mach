@@ -1,9 +1,0 @@
-Waiting for workload to start...
-Workload started
-Read data for 464 sources
-		Sources,	Samples,	Bytes
-Metrics,	311,	33585593,	268684744
-Logs + Traces,	153,	686135,	897249338
-Expanding data based on source_count = 1000
-Sorting by time
-Setting up final samples
