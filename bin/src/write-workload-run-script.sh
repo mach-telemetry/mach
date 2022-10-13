@@ -32,7 +32,7 @@ cargo run --release --bin kafka-write-workload -- \
 	--kafka-batch-bytes $KAFKA_BATCH_BYTES \
 	--querier-ip $QUERIER_IP \
 	${UNBOUNDED_QUEUE}
-	> $KAFKA_OUT_FILE
+	#> $KAFKA_OUT_FILE
 
 
 MACH_OUT_FILE=${OUTPUT}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")

@@ -34,7 +34,7 @@ lazy_static! {
     };
     static ref PARTITION_WRITERS: Vec<Sender<(Box<[u8]>, u64)>> = {
         (0..PARAMETERS.kafka_partitions).map(|partition| {
-            let (tx, rx) = bounded(100);
+            let (tx, rx) = unbounded();
             thread::spawn(move || partition_writer(partition, rx));
             tx
         }).collect()
