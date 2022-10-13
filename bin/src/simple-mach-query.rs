@@ -133,14 +133,14 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
 
 fn main() {
 
+    let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
+    let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
+    let sources = data_generator::HOT_SOURCES.as_slice();
+
     let mut start_notif = NotificationReceiver::new(PARAMETERS.querier_port);
     println!("Waiting for workload to start...");
     start_notif.wait();
     println!("Workload started");
-
-    let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
-    let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
-    let sources = data_generator::HOT_SOURCES.as_slice();
 
     // Sleeping to make sure there's enough data
     let initial_sleep_secs = 2 * PARAMETERS.query_max_delay;

@@ -299,6 +299,8 @@ fn main() {
     }
 
     start_barrier.wait();
+    println!("You've got 30 seconds!");
+    std::thread::sleep(Duration::from_secs(30));
     query_start_notifier.notify();
     stats_barrier.wait();
     done_barrier.wait();
