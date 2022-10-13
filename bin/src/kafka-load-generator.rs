@@ -1,6 +1,7 @@
 mod kafka_utils;
 
 use clap::*;
+use crossbeam::channel::{bounded, Receiver, Sender};
 use kafka_utils::{make_topic, Producer};
 use lazy_static::lazy_static;
 use num_format::{Locale, ToFormattedString};
@@ -10,11 +11,15 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use crossbeam::channel::{Sender, Receiver, bounded};
 
 lazy_static! {
     static ref BYTES: Box<[u8]> = vec![8u8; 1_000_000].into_boxed_slice();
     static ref ARGS: Args = Args::parse();
+    static ref TOPIC_NAMES: Vec<String> = {
+        let num_topics = ARGS.writer_count / 10;
+        assert!(num_topics > 0);
+        (0..num_topics).map(|_| random_topic()).collect()
+    };
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -46,8 +51,9 @@ fn kafka_writer(rx: Receiver<()>) {
     let payload = &BYTES[..];
     loop {
         if let Ok(x) = rx.try_recv() {
+            let topic_idx = rng.gen_range(0..TOPIC_NAMES.len());
             let partition = rng.gen_range(0..ARGS.kafka_partitions);
-            producer.send(&ARGS.topic, partition, payload);
+            producer.send(&TOPIC_NAMES[topic_idx], partition, payload);
         }
     }
 }
@@ -61,14 +67,15 @@ fn init_kafka_loader() -> Sender<()> {
     tx
 }
 
-
 fn main() {
     let opts = kafka_utils::KafkaTopicOptions {
         num_partitions: ARGS.kafka_partitions,
         num_replicas: 3,
     };
-    make_topic(ARGS.bootstrap_servers.as_str(), ARGS.topic.as_str(), opts);
 
+    for topic in TOPIC_NAMES.iter() {
+        make_topic(ARGS.bootstrap_servers.as_str(), topic, opts);
+    }
 
     let mut sender = init_kafka_loader();
 

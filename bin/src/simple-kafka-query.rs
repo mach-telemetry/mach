@@ -37,14 +37,14 @@ use mach::id::SeriesId;
 use mach::sample::SampleType;
 //use rand::{self, prelude::*};
 //use regex::Regex;
+use rand::Rng;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 use std::collections::BTreeMap;
 use std::ops::Bound::Included;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use rand::Rng;
-use rand::SeedableRng;
-use rand_chacha::ChaCha8Rng;
 use utils::NotificationReceiver;
 
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
@@ -58,7 +58,15 @@ lazy_static! {
             .map(|x| x.into())
             .collect()
     };
-    static ref INDEX: Arc<Index> = Arc::new(Index::new());
+    static ref INDEX: Arc<Index> = {
+        let meta_index = Arc::new(Index::new());
+        for id in 0..PARAMETERS.source_count {
+            meta_index
+                .index
+                .insert(SeriesId(id), Arc::new(Mutex::new(BTreeMap::new())));
+        }
+        meta_index
+    };
 }
 
 struct Index {
@@ -114,7 +122,7 @@ fn consumer() {
         .with_topic(PARAMETERS.kafka_topic.clone())
         .with_fallback_offset(FetchOffset::Latest)
         .with_offset_storage(GroupOffsetStorage::Kafka)
-        .with_fetch_max_bytes_per_partition(PARAMETERS.kafka_batch_bytes as i32) // messages are actually MUCH smaller than batch size due to compression
+        .with_fetch_max_bytes_per_partition((PARAMETERS.kafka_batch_bytes * 2) as i32) // messages are actually MUCH smaller than batch size due to compression
         .create()
         .unwrap();
 
