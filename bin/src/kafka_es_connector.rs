@@ -164,14 +164,17 @@ fn consume_or_drop_from_kafka(mut consumer: Consumer, tx: Sender<EsWriterInput>)
     loop {
         for mset in consumer.poll().unwrap().iter() {
             for m in mset.messages() {
-                let batch = BytesBatch::new(m.value.into());
-                let count = batch.count() as u64;
-                TOTAL_SAMPLES.fetch_add(count, SeqCst);
-                match tx.try_send(batch) {
-                    Ok(_) => {
-                        WRITTEN_SAMPLES.fetch_add(count, SeqCst);
+                let batches: Vec<Box<[u8]>> = bincode::deserialize(m.value).unwrap();
+                for batch in batches {
+                    let batch = batching::BytesBatch::new(batch.into());
+                    let count = batch.count() as u64;
+                    TOTAL_SAMPLES.fetch_add(count, SeqCst);
+                    match tx.try_send(batch) {
+                        Ok(_) => {
+                            WRITTEN_SAMPLES.fetch_add(count, SeqCst);
+                        }
+                        Err(_) => {}
                     }
-                    Err(_) => {}
                 }
             }
         }
@@ -183,11 +186,14 @@ fn blocking_consume_from_kafka(mut consumer: Consumer, tx: Sender<EsWriterInput>
     loop {
         for mset in consumer.poll().unwrap().iter() {
             for m in mset.messages() {
-                let batch = BytesBatch::new(m.value.into());
-                let count = batch.count() as u64;
-                TOTAL_SAMPLES.fetch_add(count, SeqCst);
-                WRITTEN_SAMPLES.fetch_add(count, SeqCst);
-                tx.send(batch).unwrap();
+                let batches: Vec<Box<[u8]>> = bincode::deserialize(m.value).unwrap();
+                for batch in batches {
+                    let batch = BytesBatch::new(batch.into());
+                    let count = batch.count() as u64;
+                    TOTAL_SAMPLES.fetch_add(count, SeqCst);
+                    WRITTEN_SAMPLES.fetch_add(count, SeqCst);
+                    tx.send(batch).unwrap();
+                }
             }
         }
     }
