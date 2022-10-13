@@ -22,6 +22,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::mem;
+use std::sync::Mutex;
 use std::sync::{
     atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst},
     Arc, RwLock,
@@ -211,7 +212,7 @@ impl BlockList {
                     .unwrap()
                     .push(min_ts, max_ts, copy.clone());
             }
-            let num_bytes = match &*copy.inner.read().unwrap() {
+            let num_bytes = match &*copy.inner.lock().unwrap() {
                 InnerBlockListEntry::Bytes(b) => b.len(),
                 InnerBlockListEntry::Offset(_) => unreachable!(),
             };
@@ -321,7 +322,7 @@ impl Block {
         bincode::serialize_into(&mut bytes, &self.offsets[..item_count]).unwrap();
         bytes.extend_from_slice(&len.to_be_bytes());
         BlockListEntry {
-            inner: RwLock::new(InnerBlockListEntry::Bytes(bytes.into())),
+            inner: Mutex::new(InnerBlockListEntry::Bytes(bytes.into())),
             _id: BLOCK_LIST_ENTRY_ID.fetch_add(1, SeqCst),
         }
     }
@@ -566,42 +567,30 @@ enum InnerBlockListEntry {
 }
 
 pub struct BlockListEntry {
-    inner: RwLock<InnerBlockListEntry>,
+    inner: Mutex<InnerBlockListEntry>,
     _id: usize,
 }
 
 impl BlockListEntry {
-    fn set_partition_offset(&self, entry: kafka::KafkaEntry) {
-        let mut guard = self.inner.write().unwrap();
-        match &mut *guard {
-            InnerBlockListEntry::Bytes(bytes) => {
-                let num_bytes = bytes.len();
-                PENDING_UNFLUSHED_BYTES.fetch_sub(num_bytes, SeqCst);
-                let _x = std::mem::replace(&mut *guard, InnerBlockListEntry::Offset(entry));
-            }
-            InnerBlockListEntry::Offset(..) => {}
-        }
-    }
-
     fn inner(&self) -> InnerBlockListEntry {
-        self.inner.read().unwrap().clone()
+        self.inner.lock().unwrap().clone()
     }
 
     fn flush(&self, partition: i32, producer: &mut kafka::Producer) {
-        let guard = self.inner.read().unwrap();
+        let mut guard = self.inner.lock().unwrap();
         match &*guard {
             InnerBlockListEntry::Bytes(bytes) => {
                 let kafka_entry = producer.send(partition, bytes);
                 TOTAL_BYTES_FLUSHED.fetch_add(bytes.len(), SeqCst);
-                drop(guard);
-                self.set_partition_offset(kafka_entry);
+                PENDING_UNFLUSHED_BYTES.fetch_sub(bytes.len(), SeqCst);
+                let _x = std::mem::replace(&mut *guard, InnerBlockListEntry::Offset(kafka_entry));
             }
             InnerBlockListEntry::Offset(_) => {} // already flushed
         }
     }
 
     fn partition_offset(&self) -> kafka::KafkaEntry {
-        match &*self.inner.read().unwrap() {
+        match &*self.inner.lock().unwrap() {
             InnerBlockListEntry::Bytes(_) => unimplemented!(),
             InnerBlockListEntry::Offset(entry) => entry.clone(),
         }
