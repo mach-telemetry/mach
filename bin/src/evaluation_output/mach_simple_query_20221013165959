@@ -1,0 +1,219 @@
+Read data for 464 sources
+		Sources,	Samples,	Bytes
+Metrics,	311,	33585593,	268684744
+Logs + Traces,	153,	686135,	897249338
+Expanding data based on source_count = 1000
+Sorting by time
+Setting up final samples
+Samples stats:
+Total number of unique samples: 74030031
+Number of sources: 1000, Number of metrics: 671
+Max source length: 108788
+Average source length: 74030
+Min source length: 4
+Total samples: 74030031
+Longest sources: [SeriesId(995), SeriesId(989), SeriesId(987), SeriesId(978), SeriesId(972), SeriesId(965), SeriesId(953), SeriesId(947), SeriesId(923), SeriesId(888)]
+Waiting for workload to start...
+Workload started
+Sleep for 20 seconds to wait for data arrival
+Done Sleeping
+Executing query: 0
+Current time: 2022-10-13T17:02:04.325887138Z, Query ID: 0, Source: SeriesId(362), Duration: 53000000, From now: 3, Total Latency: 5.671153349, Data Latency: 5.6164034229999995, Execution Latency: 0.054749926, Init, Latency: 0.005999626, Sink: 7424, 
+Executing query: 1
+Current time: 2022-10-13T17:02:14.325934403Z, Query ID: 1, Source: SeriesId(850), Duration: 51000000, From now: 4, Total Latency: 0.604350299, Data Latency: 0.538921977, Execution Latency: 0.065428322, Init, Latency: 0.01157697, Sink: 9216, 
+Executing query: 2
+Current time: 2022-10-13T17:02:24.326028506Z, Query ID: 2, Source: SeriesId(385), Duration: 49000000, From now: 4, Total Latency: 3.743796989, Data Latency: 3.631989237, Execution Latency: 0.111807752, Init, Latency: 0.010907614, Sink: 13312, 
+Executing query: 3
+Current time: 2022-10-13T17:02:34.326252162Z, Query ID: 3, Source: SeriesId(734), Duration: 31000000, From now: 3, Total Latency: 6.252424758, Data Latency: 6.17146039, Execution Latency: 0.080964368, Init, Latency: 0.004032475, Sink: 10498, 
+Executing query: 4
+Current time: 2022-10-13T17:02:44.326306835Z, Query ID: 4, Source: SeriesId(843), Duration: 49000000, From now: 4, Total Latency: 3.213705435, Data Latency: 3.094315852, Execution Latency: 0.119389583, Init, Latency: 0.007931309, Sink: 15487, 
+Executing query: 5
+Current time: 2022-10-13T17:02:54.326389420Z, Query ID: 5, Source: SeriesId(417), Duration: 20000000, From now: 6, Total Latency: 0.077675478, Data Latency: 0.012138023, Execution Latency: 0.065537455, Init, Latency: 0.006237443, Sink: 6674, 
+Executing query: 6
+Current time: 2022-10-13T17:03:04.326544760Z, Query ID: 6, Source: SeriesId(691), Duration: 39000000, From now: 9, Total Latency: 0.132654678, Data Latency: 0.018125818, Execution Latency: 0.11452886, Init, Latency: 0.009408964, Sink: 13484, 
+Executing query: 7
+Current time: 2022-10-13T17:03:14.326658790Z, Query ID: 7, Source: SeriesId(835), Duration: 17000000, From now: 6, Total Latency: 0.088492085, Data Latency: 0.014305826, Execution Latency: 0.074186259, Init, Latency: 0.006743426, Sink: 5121, 
+Executing query: 8
+Current time: 2022-10-13T17:03:24.326816904Z, Query ID: 8, Source: SeriesId(420), Duration: 28000000, From now: 8, Total Latency: 0.10779808, Data Latency: 0.015949603, Execution Latency: 0.091848477, Init, Latency: 0.00812825, Sink: 7169, 
+Executing query: 9
+Current time: 2022-10-13T17:03:34.326895145Z, Query ID: 9, Source: SeriesId(686), Duration: 44000000, From now: 4, Total Latency: 1.199330376, Data Latency: 1.066194848, Execution Latency: 0.133135528, Init, Latency: 0.005810812, Sink: 13274, 
+Executing query: 10
+Current time: 2022-10-13T17:03:44.326949699Z, Query ID: 10, Source: SeriesId(978), Duration: 47000000, From now: 4, Total Latency: 0.685648516, Data Latency: 0.030199953, Execution Latency: 0.655448563, Init, Latency: 0.021434734, Sink: 81582, 
+Executing query: 11
+Current time: 2022-10-13T17:03:54.327064217Z, Query ID: 11, Source: SeriesId(347), Duration: 21000000, From now: 9, Total Latency: 0.949132487, Data Latency: 0.012149241, Execution Latency: 0.936983246, Init, Latency: 0.004159987, Sink: 131031, 
+Executing query: 12
+Current time: 2022-10-13T17:04:04.327242834Z, Query ID: 12, Source: SeriesId(570), Duration: 55000000, From now: 5, Total Latency: 2.207885849, Data Latency: 0.01928905, Execution Latency: 2.188596799, Init, Latency: 0.009866522, Sink: 301493, 
+Executing query: 13
+Current time: 2022-10-13T17:04:14.327315696Z, Query ID: 13, Source: SeriesId(257), Duration: 49000000, From now: 8, Total Latency: 2.855471844, Data Latency: 0.012473653, Execution Latency: 2.842998191, Init, Latency: 0.006193715, Sink: 381703, 
+Executing query: 14
+Current time: 2022-10-13T17:04:24.327466770Z, Query ID: 14, Source: SeriesId(686), Duration: 15000000, From now: 4, Total Latency: 1.3303354490000001, Data Latency: 0.013751097, Execution Latency: 1.316584352, Init, Latency: 0.000671637, Sink: 176946, 
+Executing query: 15
+Current time: 2022-10-13T17:04:34.327569176Z, Query ID: 15, Source: SeriesId(868), Duration: 50000000, From now: 9, Total Latency: 4.245821288, Data Latency: 0.010551778, Execution Latency: 4.23526951, Init, Latency: 0.0050403, Sink: 588188, 
+Executing query: 16
+Current time: 2022-10-13T17:04:44.327691019Z, Query ID: 16, Source: SeriesId(498), Duration: 58000000, From now: 9, Total Latency: 4.944366142, Data Latency: 0.012668321, Execution Latency: 4.931697821, Init, Latency: 0.006198192, Sink: 682822, 
+Executing query: 17
+Current time: 2022-10-13T17:04:54.327888644Z, Query ID: 17, Source: SeriesId(420), Duration: 42000000, From now: 8, Total Latency: 3.536842272, Data Latency: 0.014083759, Execution Latency: 3.522758513, Init, Latency: 0.000685142, Sink: 494025, 
+Executing query: 18
+Current time: 2022-10-13T17:05:04.327966709Z, Query ID: 18, Source: SeriesId(723), Duration: 30000000, From now: 3, Total Latency: 2.7344734, Data Latency: 0.018550677, Execution Latency: 2.7159227230000003, Init, Latency: 0.009808724, Sink: 353486, 
+Executing query: 19
+Current time: 2022-10-13T17:05:14.328071838Z, Query ID: 19, Source: SeriesId(257), Duration: 55000000, From now: 3, Total Latency: 4.896516488, Data Latency: 0.009223944, Execution Latency: 4.887292544, Init, Latency: 0.000658951, Sink: 645943, 
+Executing query: 20
+Current time: 2022-10-13T17:05:24.328243985Z, Query ID: 20, Source: SeriesId(793), Duration: 19000000, From now: 9, Total Latency: 1.715104959, Data Latency: 0.017144147, Execution Latency: 1.697960812, Init, Latency: 0.00896971, Sink: 223038, 
+Executing query: 21
+Current time: 2022-10-13T17:05:34.328358460Z, Query ID: 21, Source: SeriesId(481), Duration: 23000000, From now: 6, Total Latency: 2.090111264, Data Latency: 0.019390146, Execution Latency: 2.070721118, Init, Latency: 0.007873771, Sink: 268412, 
+Executing query: 22
+Current time: 2022-10-13T17:05:44.328436814Z, Query ID: 22, Source: SeriesId(731), Duration: 43000000, From now: 8, Total Latency: 3.871156665, Data Latency: 0.044085864, Execution Latency: 3.827070801, Init, Latency: 0.035452868, Sink: 505735, 
+Executing query: 23
+Current time: 2022-10-13T17:05:54.328703172Z, Query ID: 23, Source: SeriesId(850), Duration: 48000000, From now: 4, Total Latency: 4.106885767, Data Latency: 0.015727596, Execution Latency: 4.091158171, Init, Latency: 0.000649211, Sink: 564605, 
+Executing query: 24
+Current time: 2022-10-13T17:06:04.328705966Z, Query ID: 24, Source: SeriesId(425), Duration: 31000000, From now: 5, Total Latency: 2.769274464, Data Latency: 0.010408656, Execution Latency: 2.758865808, Init, Latency: 0.004980022, Sink: 365681, 
+Executing query: 25
+Current time: 2022-10-13T17:06:14.328861235Z, Query ID: 25, Source: SeriesId(871), Duration: 37000000, From now: 9, Total Latency: 3.2394275280000002, Data Latency: 0.01895465, Execution Latency: 3.220472878, Init, Latency: 0.010258047, Sink: 435313, 
+Executing query: 26
+Current time: 2022-10-13T17:06:24.328970650Z, Query ID: 26, Source: SeriesId(826), Duration: 53000000, From now: 5, Total Latency: 4.5317556119999995, Data Latency: 0.017954819, Execution Latency: 4.513800793, Init, Latency: 0.009746794, Sink: 626644, 
+Executing query: 27
+Current time: 2022-10-13T17:06:34.329102771Z, Query ID: 27, Source: SeriesId(312), Duration: 55000000, From now: 4, Total Latency: 4.640469776, Data Latency: 0.017365423, Execution Latency: 4.623104353, Init, Latency: 0.008251342, Sink: 647651, 
+Executing query: 28
+Current time: 2022-10-13T17:06:44.329208577Z, Query ID: 28, Source: SeriesId(425), Duration: 15000000, From now: 9, Total Latency: 1.281561612, Data Latency: 0.019591995, Execution Latency: 1.261969617, Init, Latency: 0.000673485, Sink: 175808, 
+Executing query: 29
+Current time: 2022-10-13T17:06:54.329311040Z, Query ID: 29, Source: SeriesId(417), Duration: 49000000, From now: 7, Total Latency: 4.203225314, Data Latency: 0.01624312, Execution Latency: 4.186982194, Init, Latency: 0.000647508, Sink: 577967, 
+Executing query: 30
+Current time: 2022-10-13T17:07:04.329489944Z, Query ID: 30, Source: SeriesId(271), Duration: 19000000, From now: 8, Total Latency: 1.726660651, Data Latency: 0.013490459, Execution Latency: 1.713170192, Init, Latency: 0.006101906, Sink: 224020, 
+Executing query: 31
+Current time: 2022-10-13T17:07:14.329588755Z, Query ID: 31, Source: SeriesId(693), Duration: 12000000, From now: 3, Total Latency: 1.072262774, Data Latency: 0.012394208, Execution Latency: 1.059868566, Init, Latency: 0.005807923, Sink: 141454, 
+Executing query: 32
+Current time: 2022-10-13T17:07:24.329713899Z, Query ID: 32, Source: SeriesId(804), Duration: 38000000, From now: 5, Total Latency: 3.3362899329999998, Data Latency: 0.01124768, Execution Latency: 3.325042253, Init, Latency: 0.005377479, Sink: 446945, 
+Executing query: 33
+Current time: 2022-10-13T17:07:34.329810982Z, Query ID: 33, Source: SeriesId(880), Duration: 26000000, From now: 3, Total Latency: 2.258010563, Data Latency: 0.016225183, Execution Latency: 2.24178538, Init, Latency: 0.004103535, Sink: 305755, 
+Executing query: 34
+Current time: 2022-10-13T17:07:44.329999774Z, Query ID: 34, Source: SeriesId(340), Duration: 52000000, From now: 5, Total Latency: 4.463699352, Data Latency: 0.012603112, Execution Latency: 4.45109624, Init, Latency: 0.006220692, Sink: 609742, 
+Executing query: 35
+Current time: 2022-10-13T17:07:54.330091959Z, Query ID: 35, Source: SeriesId(271), Duration: 47000000, From now: 8, Total Latency: 4.17647983, Data Latency: 0.013188092, Execution Latency: 4.163291738, Init, Latency: 0.000626847, Sink: 553614, 
+Executing query: 36
+Current time: 2022-10-13T17:08:04.330221217Z, Query ID: 36, Source: SeriesId(403), Duration: 47000000, From now: 9, Total Latency: 4.115824657, Data Latency: 0.014181154, Execution Latency: 4.101643503, Init, Latency: 0.006677084, Sink: 552704, 
+Executing query: 37
+Current time: 2022-10-13T17:08:14.330332988Z, Query ID: 37, Source: SeriesId(730), Duration: 53000000, From now: 6, Total Latency: 4.533463892, Data Latency: 0.013836474, Execution Latency: 4.519627418, Init, Latency: 0.007063304, Sink: 621613, 
+Executing query: 38
+Current time: 2022-10-13T17:08:24.330484595Z, Query ID: 38, Source: SeriesId(267), Duration: 27000000, From now: 8, Total Latency: 2.428663183, Data Latency: 0.013877721, Execution Latency: 2.414785462, Init, Latency: 0.005315087, Sink: 318484, 
+Executing query: 39
+Current time: 2022-10-13T17:08:34.330626228Z, Query ID: 39, Source: SeriesId(237), Duration: 46000000, From now: 9, Total Latency: 4.041124568, Data Latency: 0.012955471, Execution Latency: 4.028169097, Init, Latency: 0.006328372, Sink: 540934, 
+Executing query: 40
+Current time: 2022-10-13T17:08:44.330722750Z, Query ID: 40, Source: SeriesId(423), Duration: 45000000, From now: 4, Total Latency: 3.45054721, Data Latency: 0.014476424, Execution Latency: 3.436070786, Init, Latency: 0.005929432, Sink: 458817, 
+Executing query: 41
+Current time: 2022-10-13T17:08:54.330874871Z, Query ID: 41, Source: SeriesId(501), Duration: 35000000, From now: 7, Total Latency: 1.968877171, Data Latency: 0.016142487, Execution Latency: 1.9527346840000002, Init, Latency: 0.008251704, Sink: 261079, 
+Executing query: 42
+Current time: 2022-10-13T17:09:04.331020771Z, Query ID: 42, Source: SeriesId(953), Duration: 41000000, From now: 9, Total Latency: 1.7935806109999999, Data Latency: 0.014394481, Execution Latency: 1.77918613, Init, Latency: 0.006989064, Sink: 238056, 
+Executing query: 43
+Current time: 2022-10-13T17:09:14.331140448Z, Query ID: 43, Source: SeriesId(693), Duration: 47000000, From now: 4, Total Latency: 1.034490789, Data Latency: 0.014021738, Execution Latency: 1.020469051, Init, Latency: 0.000647596, Sink: 137642, 
+Executing query: 44
+Current time: 2022-10-13T17:09:24.331271227Z, Query ID: 44, Source: SeriesId(763), Duration: 26000000, From now: 7, Total Latency: 0.084839822, Data Latency: 0.019726142, Execution Latency: 0.06511368, Init, Latency: 0.010327212, Sink: 7277, 
+Executing query: 45
+Current time: 2022-10-13T17:09:34.331385355Z, Query ID: 45, Source: SeriesId(881), Duration: 30000000, From now: 7, Total Latency: 0.087652923, Data Latency: 0.0115947, Execution Latency: 0.076058223, Init, Latency: 0.005577147, Sink: 9456, 
+Executing query: 46
+Current time: 2022-10-13T17:09:44.331585974Z, Query ID: 46, Source: SeriesId(290), Duration: 22000000, From now: 8, Total Latency: 0.062546858, Data Latency: 0.013110312, Execution Latency: 0.049436546, Init, Latency: 0.006395139, Sink: 7066, 
+Executing query: 47
+Current time: 2022-10-13T17:09:54.331742034Z, Query ID: 47, Source: SeriesId(730), Duration: 39000000, From now: 3, Total Latency: 1.62396815, Data Latency: 1.534237143, Execution Latency: 0.089731007, Init, Latency: 0.000660655, Sink: 10906, 
+Executing query: 48
+Current time: 2022-10-13T17:10:04.331878673Z, Query ID: 48, Source: SeriesId(229), Duration: 16000000, From now: 4, Total Latency: 3.113973591, Data Latency: 3.066489035, Execution Latency: 0.047484556, Init, Latency: 0.005071121, Sink: 5487, 
+Executing query: 49
+Current time: 2022-10-13T17:10:14.331994182Z, Query ID: 49, Source: SeriesId(856), Duration: 30000000, From now: 6, Total Latency: 0.104078732, Data Latency: 0.014826426, Execution Latency: 0.089252306, Init, Latency: 0.004156268, Sink: 8771, 
+Executing query: 50
+Current time: 2022-10-13T17:10:24.332101627Z, Query ID: 50, Source: SeriesId(839), Duration: 45000000, From now: 6, Total Latency: 0.138270022, Data Latency: 0.011156314, Execution Latency: 0.127113708, Init, Latency: 0.003963827, Sink: 12932, 
+Executing query: 51
+Current time: 2022-10-13T17:10:34.332227856Z, Query ID: 51, Source: SeriesId(691), Duration: 51000000, From now: 3, Total Latency: 2.706644867, Data Latency: 2.577348734, Execution Latency: 0.129296133, Init, Latency: 0.000666141, Sink: 14313, 
+Executing query: 52
+Current time: 2022-10-13T17:10:44.332328234Z, Query ID: 52, Source: SeriesId(675), Duration: 53000000, From now: 6, Total Latency: 2.716116178, Data Latency: 2.558632133, Execution Latency: 0.157484045, Init, Latency: 0.004348451, Sink: 15727, 
+Executing query: 53
+Current time: 2022-10-13T17:10:54.332700472Z, Query ID: 53, Source: SeriesId(786), Duration: 41000000, From now: 6, Total Latency: 0.116010336, Data Latency: 0.012308699, Execution Latency: 0.103701637, Init, Latency: 0.005984531, Sink: 12195, 
+Executing query: 54
+Current time: 2022-10-13T17:11:04.332754628Z, Query ID: 54, Source: SeriesId(723), Duration: 45000000, From now: 3, Total Latency: 2.689304565, Data Latency: 2.568387218, Execution Latency: 0.120917347, Init, Latency: 0.000697781, Sink: 14325, 
+Executing query: 55
+Current time: 2022-10-13T17:11:14.332816166Z, Query ID: 55, Source: SeriesId(458), Duration: 54000000, From now: 5, Total Latency: 3.206358075, Data Latency: 3.096260578, Execution Latency: 0.110097497, Init, Latency: 0.008601753, Sink: 16373, 
+Executing query: 56
+Current time: 2022-10-13T17:11:24.332923983Z, Query ID: 56, Source: SeriesId(498), Duration: 48000000, From now: 6, Total Latency: 0.133410369, Data Latency: 0.009629823, Execution Latency: 0.123780546, Init, Latency: 0.000686892, Sink: 14559, 
+Executing query: 57
+Current time: 2022-10-13T17:11:34.333091847Z, Query ID: 57, Source: SeriesId(237), Duration: 35000000, From now: 8, Total Latency: 0.109839505, Data Latency: 0.008724802, Execution Latency: 0.101114703, Init, Latency: 0.000655294, Sink: 10845, 
+Executing query: 58
+Current time: 2022-10-13T17:11:44.333257976Z, Query ID: 58, Source: SeriesId(423), Duration: 50000000, From now: 8, Total Latency: 0.148936546, Data Latency: 0.012786224, Execution Latency: 0.136150322, Init, Latency: 0.000668602, Sink: 15132, 
+Executing query: 59
+Current time: 2022-10-13T17:11:54.333320333Z, Query ID: 59, Source: SeriesId(661), Duration: 49000000, From now: 3, Total Latency: 1.687290654, Data Latency: 1.545913263, Execution Latency: 0.141377391, Init, Latency: 0.004075756, Sink: 14872, 
+Executing query: 60
+Current time: 2022-10-13T17:12:04.333456853Z, Query ID: 60, Source: SeriesId(618), Duration: 54000000, From now: 6, Total Latency: 0.158370748, Data Latency: 0.015906117, Execution Latency: 0.142464631, Init, Latency: 0.007290052, Sink: 17009, 
+Executing query: 61
+Current time: 2022-10-13T17:12:14.333572211Z, Query ID: 61, Source: SeriesId(697), Duration: 44000000, From now: 6, Total Latency: 0.11939989, Data Latency: 0.013439813, Execution Latency: 0.105960077, Init, Latency: 0.006416787, Sink: 12210, 
+Executing query: 62
+Current time: 2022-10-13T17:12:24.333711254Z, Query ID: 62, Source: SeriesId(691), Duration: 52000000, From now: 8, Total Latency: 0.666259779, Data Latency: 0.534210505, Execution Latency: 0.132049274, Init, Latency: 0.000667935, Sink: 15971, 
+Executing query: 63
+Current time: 2022-10-13T17:12:34.333894758Z, Query ID: 63, Source: SeriesId(271), Duration: 53000000, From now: 9, Total Latency: 0.147347529, Data Latency: 0.014356227, Execution Latency: 0.132991302, Init, Latency: 0.000681419, Sink: 16755, 
+Executing query: 64
+Current time: 2022-10-13T17:12:44.334013263Z, Query ID: 64, Source: SeriesId(626), Duration: 10000000, From now: 7, Total Latency: 0.060895438, Data Latency: 0.010754404, Execution Latency: 0.050141034, Init, Latency: 0.005256121, Sink: 3864, 
+Executing query: 65
+Current time: 2022-10-13T17:12:54.334172508Z, Query ID: 65, Source: SeriesId(693), Duration: 18000000, From now: 8, Total Latency: 0.584268245, Data Latency: 0.521351555, Execution Latency: 0.06291669, Init, Latency: 0.000671255, Sink: 6335, 
+Executing query: 66
+Current time: 2022-10-13T17:13:04.334284564Z, Query ID: 66, Source: SeriesId(379), Duration: 25000000, From now: 8, Total Latency: 0.096072988, Data Latency: 0.016913288, Execution Latency: 0.0791597, Init, Latency: 0.008630434, Sink: 8394, 
+Executing query: 67
+Current time: 2022-10-13T17:13:14.334420693Z, Query ID: 67, Source: SeriesId(362), Duration: 45000000, From now: 5, Total Latency: 0.645578031, Data Latency: 0.52503694, Execution Latency: 0.120541091, Init, Latency: 0.000673226, Sink: 12824, 
+Executing query: 68
+Current time: 2022-10-13T17:13:24.334516431Z, Query ID: 68, Source: SeriesId(763), Duration: 56000000, From now: 9, Total Latency: 0.165039265, Data Latency: 0.013149845, Execution Latency: 0.15188942, Init, Latency: 0.000652085, Sink: 17369, 
+Executing query: 69
+Current time: 2022-10-13T17:13:34.334631907Z, Query ID: 69, Source: SeriesId(843), Duration: 33000000, From now: 8, Total Latency: 0.117555471, Data Latency: 0.014272494, Execution Latency: 0.103282977, Init, Latency: 0.000691306, Sink: 10160, 
+Executing query: 70
+Current time: 2022-10-13T17:13:44.334812052Z, Query ID: 70, Source: SeriesId(697), Duration: 44000000, From now: 6, Total Latency: 0.148752649, Data Latency: 0.010714613, Execution Latency: 0.138038036, Init, Latency: 0.000803336, Sink: 13734, 
+Executing query: 71
+Current time: 2022-10-13T17:13:54.334880017Z, Query ID: 71, Source: SeriesId(880), Duration: 42000000, From now: 9, Total Latency: 0.142121291, Data Latency: 0.009767846, Execution Latency: 0.132353445, Init, Latency: 0.000798836, Sink: 13443, 
+Executing query: 72
+Current time: 2022-10-13T17:14:04.335004842Z, Query ID: 72, Source: SeriesId(229), Duration: 26000000, From now: 7, Total Latency: 0.103151137, Data Latency: 0.016238289, Execution Latency: 0.086912848, Init, Latency: 0.000675751, Sink: 8960, 
+Executing query: 73
+Current time: 2022-10-13T17:14:14.335143282Z, Query ID: 73, Source: SeriesId(869), Duration: 41000000, From now: 7, Total Latency: 0.147386267, Data Latency: 0.016099694, Execution Latency: 0.131286573, Init, Latency: 0.008163813, Sink: 11925, 
+Executing query: 74
+Current time: 2022-10-13T17:14:24.335272220Z, Query ID: 74, Source: SeriesId(447), Duration: 15000000, From now: 5, Total Latency: 0.064011569, Data Latency: 0.014732482, Execution Latency: 0.049279087, Init, Latency: 0.007429878, Sink: 3533, 
+Executing query: 75
+Current time: 2022-10-13T17:14:34.335394887Z, Query ID: 75, Source: SeriesId(881), Duration: 56000000, From now: 7, Total Latency: 0.187781916, Data Latency: 0.015431873, Execution Latency: 0.172350043, Init, Latency: 0.00071814, Sink: 16465, 
+Executing query: 76
+Current time: 2022-10-13T17:14:44.335478780Z, Query ID: 76, Source: SeriesId(697), Duration: 59000000, From now: 7, Total Latency: 0.185964747, Data Latency: 0.013811911, Execution Latency: 0.172152836, Init, Latency: 0.00066814, Sink: 17310, 
+Executing query: 77
+Current time: 2022-10-13T17:14:54.335643409Z, Query ID: 77, Source: SeriesId(420), Duration: 36000000, From now: 9, Total Latency: 2.722035493, Data Latency: 2.594142424, Execution Latency: 0.127893069, Init, Latency: 0.000690314, Sink: 9657, 
+Executing query: 78
+Current time: 2022-10-13T17:15:04.335775722Z, Query ID: 78, Source: SeriesId(267), Duration: 46000000, From now: 5, Total Latency: 2.6741603229999997, Data Latency: 2.5593803680000002, Execution Latency: 0.114779955, Init, Latency: 0.000673936, Sink: 11178, 
+Executing query: 79
+Current time: 2022-10-13T17:15:14.335851318Z, Query ID: 79, Source: SeriesId(838), Duration: 35000000, From now: 5, Total Latency: 0.113720807, Data Latency: 0.01541471, Execution Latency: 0.098306097, Init, Latency: 0.00784641, Sink: 8337, 
+Executing query: 80
+Current time: 2022-10-13T17:15:24.335939936Z, Query ID: 80, Source: SeriesId(456), Duration: 44000000, From now: 7, Total Latency: 3.190261924, Data Latency: 3.07409207, Execution Latency: 0.116169854, Init, Latency: 0.004273309, Sink: 12339, 
+Executing query: 81
+Current time: 2022-10-13T17:15:34.336082974Z, Query ID: 81, Source: SeriesId(989), Duration: 30000000, From now: 4, Total Latency: 1.6510816369999999, Data Latency: 1.5649658180000001, Execution Latency: 0.086115819, Init, Latency: 0.006435137, Sink: 9337, 
+Executing query: 82
+Current time: 2022-10-13T17:15:44.336190868Z, Query ID: 82, Source: SeriesId(693), Duration: 49000000, From now: 4, Total Latency: 1.6780615669999999, Data Latency: 1.5506590839999999, Execution Latency: 0.127402483, Init, Latency: 0.000667713, Sink: 15266, 
+Executing query: 83
+Current time: 2022-10-13T17:15:54.336323003Z, Query ID: 83, Source: SeriesId(734), Duration: 56000000, From now: 6, Total Latency: 0.133063396, Data Latency: 0.018097282, Execution Latency: 0.114966114, Init, Latency: 0.00067185, Sink: 16025, 
+Executing query: 84
+Current time: 2022-10-13T17:16:04.336455507Z, Query ID: 84, Source: SeriesId(580), Duration: 26000000, From now: 6, Total Latency: 0.083052589, Data Latency: 0.016041781, Execution Latency: 0.067010808, Init, Latency: 0.008057985, Sink: 8950, 
+Executing query: 85
+Current time: 2022-10-13T17:16:14.336626408Z, Query ID: 85, Source: SeriesId(746), Duration: 12000000, From now: 3, Total Latency: 3.112946738, Data Latency: 3.079217799, Execution Latency: 0.033728939, Init, Latency: 0.005988777, Sink: 4091, 
+Executing query: 86
+Current time: 2022-10-13T17:16:24.336747003Z, Query ID: 86, Source: SeriesId(734), Duration: 41000000, From now: 4, Total Latency: 0.117316574, Data Latency: 0.013892321, Execution Latency: 0.103424253, Init, Latency: 0.000685512, Sink: 12812, 
+Executing query: 87
+Current time: 2022-10-13T17:16:34.336862578Z, Query ID: 87, Source: SeriesId(481), Duration: 47000000, From now: 6, Total Latency: 0.630044337, Data Latency: 0.52644195, Execution Latency: 0.103602387, Init, Latency: 0.0006466, Sink: 14647, 
+Executing query: 88
+Current time: 2022-10-13T17:16:44.337013360Z, Query ID: 88, Source: SeriesId(697), Duration: 47000000, From now: 6, Total Latency: 0.115792113, Data Latency: 0.014740454, Execution Latency: 0.101051659, Init, Latency: 0.000655557, Sink: 12868, 
+Executing query: 89
+Current time: 2022-10-13T17:16:54.337234416Z, Query ID: 89, Source: SeriesId(379), Duration: 35000000, From now: 8, Total Latency: 0.098406474, Data Latency: 0.012477002, Execution Latency: 0.085929472, Init, Latency: 0.000674994, Sink: 9191, 
+Executing query: 90
+Current time: 2022-10-13T17:17:04.337226667Z, Query ID: 90, Source: SeriesId(425), Duration: 10000000, From now: 6, Total Latency: 0.565160043, Data Latency: 0.53235547, Execution Latency: 0.032804573, Init, Latency: 0.0006716, Sink: 2722, 
+Executing query: 91
+Current time: 2022-10-13T17:17:14.337384587Z, Query ID: 91, Source: SeriesId(871), Duration: 57000000, From now: 5, Total Latency: 0.667417391, Data Latency: 0.527185519, Execution Latency: 0.140231872, Init, Latency: 0.000654617, Sink: 16192, 
+Executing query: 92
+Current time: 2022-10-13T17:17:24.337522745Z, Query ID: 92, Source: SeriesId(271), Duration: 15000000, From now: 8, Total Latency: 0.070852468, Data Latency: 0.010000414, Execution Latency: 0.060852054, Init, Latency: 0.000643327, Sink: 4457, 
+Executing query: 93
+Current time: 2022-10-13T17:17:34.337591030Z, Query ID: 93, Source: SeriesId(428), Duration: 36000000, From now: 7, Total Latency: 0.131531578, Data Latency: 0.018020026, Execution Latency: 0.113511552, Init, Latency: 0.008692029, Sink: 12027, 
+Executing query: 94
+Current time: 2022-10-13T17:17:44.337745965Z, Query ID: 94, Source: SeriesId(526), Duration: 26000000, From now: 7, Total Latency: 0.091565158, Data Latency: 0.015095832, Execution Latency: 0.076469326, Init, Latency: 0.007758291, Sink: 7549, 
+Executing query: 95
+Current time: 2022-10-13T17:17:54.337848300Z, Query ID: 95, Source: SeriesId(354), Duration: 27000000, From now: 6, Total Latency: 0.090451578, Data Latency: 0.020237203, Execution Latency: 0.070214375, Init, Latency: 0.009948304, Sink: 8736, 
+Executing query: 96
+Current time: 2022-10-13T17:18:04.337980310Z, Query ID: 96, Source: SeriesId(428), Duration: 35000000, From now: 5, Total Latency: 0.626733466, Data Latency: 0.523340787, Execution Latency: 0.103392679, Init, Latency: 0.000672142, Sink: 11627, 
+Executing query: 97
+Current time: 2022-10-13T17:18:14.338126245Z, Query ID: 97, Source: SeriesId(729), Duration: 12000000, From now: 6, Total Latency: 0.060719194, Data Latency: 0.016651012, Execution Latency: 0.044068182, Init, Latency: 0.008486778, Sink: 3428, 
+Executing query: 98
+Current time: 2022-10-13T17:18:24.338220791Z, Query ID: 98, Source: SeriesId(693), Duration: 11000000, From now: 3, Total Latency: 3.619083966, Data Latency: 3.58857048, Execution Latency: 0.030513486, Init, Latency: 0.000631218, Sink: 3756, 
+Executing query: 99
+Current time: 2022-10-13T17:18:34.338319734Z, Query ID: 99, Source: SeriesId(374), Duration: 18000000, From now: 8, Total Latency: 0.068608489, Data Latency: 0.013504285, Execution Latency: 0.055104204, Init, Latency: 0.006907406, Sink: 6618, 

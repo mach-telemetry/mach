@@ -72,6 +72,7 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
                 .unwrap(),
         )
         .value();
+    let init_latency = timer.elapsed();
 
     // Wait for timestamp to be available
     loop {
@@ -126,6 +127,7 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
     print!("Total Latency: {}, ", total_latency.as_secs_f64());
     print!("Data Latency: {}, ", data_latency.as_secs_f64());
     print!("Execution Latency: {}, ", execution_latency.as_secs_f64());
+    print!("Init, Latency: {}, ", init_latency.as_secs_f64());
     print!("Sink: {}, ", result_count);
     println!("");
 
