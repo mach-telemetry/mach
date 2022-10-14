@@ -21,6 +21,7 @@ use elastic::{
 };
 use kafka::{client::KafkaClient, consumer::Consumer};
 use lazy_static::lazy_static;
+use lzzzz::lz4;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::sync::atomic::Ordering::SeqCst;
@@ -161,10 +162,14 @@ async fn write_to_es(mut es_writer: ESBatchedIndexClient<Vec<u8>>, rx: Receiver<
 
 #[allow(dead_code)]
 fn consume_or_drop_from_kafka(mut consumer: Consumer, tx: Sender<EsWriterInput>) {
+    let mut decompressed = vec![0u8; 10_000_000];
+
     loop {
         for mset in consumer.poll().unwrap().iter() {
             for m in mset.messages() {
-                let batches: Vec<Box<[u8]>> = bincode::deserialize(m.value).unwrap();
+                lz4::decompress(m.value, &mut decompressed).unwrap();
+                let batches: Vec<Box<[u8]>> =
+                    bincode::deserialize(decompressed.as_slice()).unwrap();
                 for batch in batches {
                     let batch = batching::BytesBatch::new(batch.into());
                     let count = batch.count() as u64;
@@ -183,10 +188,14 @@ fn consume_or_drop_from_kafka(mut consumer: Consumer, tx: Sender<EsWriterInput>)
 
 #[allow(dead_code)]
 fn blocking_consume_from_kafka(mut consumer: Consumer, tx: Sender<EsWriterInput>) {
+    let mut decompressed = vec![0u8; 10_000_000];
+
     loop {
         for mset in consumer.poll().unwrap().iter() {
             for m in mset.messages() {
-                let batches: Vec<Box<[u8]>> = bincode::deserialize(m.value).unwrap();
+                lz4::decompress(m.value, &mut decompressed).unwrap();
+                let batches: Vec<Box<[u8]>> =
+                    bincode::deserialize(decompressed.as_slice()).unwrap();
                 for batch in batches {
                     let batch = BytesBatch::new(batch.into());
                     let count = batch.count() as u64;
