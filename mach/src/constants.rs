@@ -9,7 +9,7 @@ pub const REPLICAS: i32 = 3;
 pub const BOOTSTRAPS: &str = {
     "b-3.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-1.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092"
 };
-pub const TOPIC: &str = "MACH";
+pub const TOPIC: &str = "MACH12345";
 pub const MAX_MSG_SZ: usize = 1_500_000;
 pub const MAX_FETCH_BYTES: i32 = 1_750_000;
 
