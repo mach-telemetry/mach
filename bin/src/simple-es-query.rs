@@ -99,8 +99,8 @@ async fn exec_query(
 
     let series_id = query.source.0;
     println!(
-        "Query {}, series {}, timerange [{}, {}]",
-        query_id, series_id, query.start, query.end
+        "Start query {}, series {}, from now: {}, timerange [{}, {}]",
+        query_id, series_id, query.from_now, query.start, query.end
     );
 
     let timer = Instant::now();
