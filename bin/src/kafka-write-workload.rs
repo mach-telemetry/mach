@@ -12,6 +12,7 @@ use constants::*;
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use data_generator::SAMPLES;
 use lazy_static::*;
+use lzzzz::lz4::{compress_to_vec, ACC_LEVEL_DEFAULT};
 use mach::{id::SeriesId, sample::SampleType};
 use num::NumCast;
 use rand::{thread_rng, Rng};
@@ -94,7 +95,9 @@ fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
 
         if total_bytes > 1_000_000 || last_flush.elapsed() > Duration::from_secs_f64(0.5) {
             let bytes = bincode::serialize(&data).unwrap();
-            producer.send(PARAMETERS.kafka_topic.as_str(), partition, &bytes);
+            let mut compressed = Vec::new();
+            compress_to_vec(bytes.as_slice(), &mut compressed, ACC_LEVEL_DEFAULT).unwrap();
+            producer.send(PARAMETERS.kafka_topic.as_str(), partition, &compressed);
 
             COUNTERS.add_bytes_written_to_kafka(bytes.len());
             COUNTERS.add_messages_written_to_kafka(1);
