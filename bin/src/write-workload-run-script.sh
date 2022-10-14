@@ -21,6 +21,7 @@ KAFKA_BOOTSTRAPS=b-3.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k2.aao
 QUERIER_IP=172.31.78.194
 
 KAFKA_OUT_FILE=${OUTPUT}/kafka_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
+KAFKA_OUT_FILE=${OUTPUT}/kafka_tmp
 
 #cargo run --release --bin kafka-write-workload -- \
 #	--kafka-bootstraps $KAFKA_BOOTSTRAPS \
@@ -36,6 +37,7 @@ KAFKA_OUT_FILE=${OUTPUT}/kafka_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_
 
 
 MACH_OUT_FILE=${OUTPUT}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
+MACH_OUT_FILE=${OUTPUT}/mach_tmp
 
 cargo run --release --bin mach-write-workload -- \
 	--file-path $FILE_PATH \
