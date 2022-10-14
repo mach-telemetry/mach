@@ -109,7 +109,7 @@ fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
         let (t, c) = match v {
             //SampleType::U32(_) => (FieldType::U32, CompressFn::IntBitpack),
             SampleType::U64(_) => (FieldType::U64, CompressFn::LZ4),
-            SampleType::F64(_) => (FieldType::F64, CompressFn::Decimal(3)),
+            SampleType::F64(_) => (FieldType::F64, CompressFn::LZ4),
             SampleType::Bytes(_) => (FieldType::Bytes, CompressFn::BytesLZ4),
             _ => unimplemented!(),
         };
