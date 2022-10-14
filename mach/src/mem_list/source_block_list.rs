@@ -3,7 +3,7 @@ use crate::{
     id::SeriesId,
     mem_list::{
         BlockListEntry, ChunkBytes, ChunkBytesOrKafka, Error, ReadOnlyBlock, ReadOnlyBlock2,
-        ReadOnlyBlock3,
+        ReadOnlyBlock3, PENDING_UNFLUSHED_BYTES,
     },
     utils::{
         kafka,
@@ -41,7 +41,7 @@ lazy_static::lazy_static! {
 
 fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
     while let Ok((_id, list_item)) = channel.recv() {
-        let (data, next) = {
+        let (data, next): (Arc<[InnerListEntry]>, Arc<RwLock<ListItem>>) = {
             let guard = list_item.read().unwrap();
             match &*guard {
                 ListItem::Kafka(_) => unimplemented!(),
@@ -52,6 +52,7 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
                 }
             }
         };
+        let size_to_flush = data.len() * std::mem::size_of::<InnerListEntry>();
         let last = match &*next.read().unwrap() {
             ListItem::Kafka(entry) => entry.clone(),
             _ => panic!("Expected offset, got unflushed data"),
@@ -81,6 +82,7 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
         //drop(guard);
         *list_item.write().unwrap() = ListItem::Kafka(kafka_entry);
         PENDING_UNFLUSHED_BLOCKLISTS.fetch_sub(1, SeqCst);
+        PENDING_UNFLUSHED_BYTES.fetch_sub(size_to_flush, SeqCst);
     }
 
     println!("BLOCKLIST FLUSHER EXIT");
@@ -140,6 +142,7 @@ impl InnerBuffer {
                 MaybeUninit::slice_assume_init_ref(&guard.data[..]).into()
             };
             {
+                PENDING_UNFLUSHED_BYTES.fetch_add(copy.len() * std::mem::size_of::<InnerListEntry>(), SeqCst);
                 let mut guard = self.next.write().unwrap();
                 let list_item = Arc::new(RwLock::new(ListItem::Block(Arc::new((
                     copy,

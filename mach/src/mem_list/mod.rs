@@ -29,6 +29,7 @@ use std::sync::{
 };
 use std::thread;
 use std::time::Duration;
+use lzzzz::lz4;
 
 #[allow(dead_code)]
 static QUEUE_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -83,7 +84,7 @@ lazy_static! {
     };
     static ref N_FLUSHERS: AtomicUsize = AtomicUsize::new(INIT_FLUSHERS);
 
-    static ref FLUSH_WORKERS: DashMap<usize, crossbeam::channel::Sender<(Arc<BlockListEntry>, usize)>> = {
+    static ref FLUSH_WORKERS: DashMap<usize, crossbeam::channel::Sender<Arc<BlockListEntry>>> = {
         let flushers = DashMap::new();
         for idx in 0..N_FLUSHERS.load(SeqCst) {
             let (tx, rx) = crossbeam::channel::unbounded();
@@ -111,13 +112,13 @@ pub enum Error {
 //    println!("ADDED FLUSH WORKER: {}", idx);
 //}
 
-fn flush_worker(id: usize, chan: crossbeam::channel::Receiver<(Arc<BlockListEntry>, usize)>) {
+fn flush_worker(id: usize, chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new();
-    while let Ok((block, sz)) = chan.recv() {
-        println!("FLUSHING AT WORKER {}", sz);
+    while let Ok(block) = chan.recv() {
+        let block_len = block.len;
         block.flush(id as i32 % PARTITIONS, &mut producer);
-        PENDING_UNFLUSHED_BYTES.fetch_sub(sz, SeqCst);
-        TOTAL_BYTES_FLUSHED.fetch_add(sz, SeqCst);
+        PENDING_UNFLUSHED_BYTES.fetch_sub(block_len, SeqCst);
+        TOTAL_BYTES_FLUSHED.fetch_add(block_len, SeqCst);
     }
     println!("FLUSHER EXITING");
 }
@@ -217,8 +218,8 @@ impl BlockList {
         if is_full {
             // Safety: there should be only one writer and it should be doing this push
             let block = unsafe { self.head_block.unprotected_read() };
-            let num_bytes = block.len.load(SeqCst);
-            let copy = Arc::new(block.as_read_only());
+            //let num_bytes = block.len.load(SeqCst);
+            let copy: Arc<BlockListEntry> = Arc::new(block.as_read_only());
 
             for (id, time_range) in self.id_set.borrow_mut().drain() {
                 let min_ts = time_range.0;
@@ -229,13 +230,13 @@ impl BlockList {
                     .unwrap()
                     .push(min_ts, max_ts, copy.clone());
             }
-            PENDING_UNFLUSHED_BYTES.fetch_add(num_bytes, SeqCst);
+            PENDING_UNFLUSHED_BYTES.fetch_add(copy.len, SeqCst);
             let n_flushers = N_FLUSHERS.load(SeqCst);
             FLUSH_WORKERS
                 .get(&thread_rng().gen_range(0..n_flushers))
                 .unwrap()
                 .value()
-                .send((copy, num_bytes))
+                .send(copy)
                 .unwrap();
             //// Mark current block as cleared
             self.head_block.protected_write().reset();
@@ -296,7 +297,7 @@ impl Block {
             compression.compress(&segment.to_flush().unwrap(), &mut byte_buffer);
             byte_buffer.len()
         };
-        COMPRESSED_BYTES.fetch_add(size, SeqCst);
+        //COMPRESSED_BYTES.fetch_add(size, SeqCst);
 
         // Write the chunk size
         bytes[40..48].copy_from_slice(&size.to_be_bytes());
@@ -334,9 +335,16 @@ impl Block {
         let mut bytes: Vec<u8> = self.bytes[..len].into();
         bincode::serialize_into(&mut bytes, &self.offsets[..item_count]).unwrap();
         bytes.extend_from_slice(&len.to_be_bytes());
-        let inner = InnerBlockListEntry::new_bytes(bytes.into());
+
+        let mut v = Vec::new();
+        v.extend_from_slice(&bytes.len().to_be_bytes());
+        lz4::compress_to_vec(bytes.as_slice(), &mut v, 1).unwrap();
+        let compressed_len = v.len();
+
+        let inner = InnerBlockListEntry::new_bytes(v.into());
         BlockListEntry {
             inner: RwLock::new(inner),
+            len: compressed_len,
             _id: BLOCK_LIST_ENTRY_ID.fetch_add(1, SeqCst),
         }
     }
@@ -353,6 +361,14 @@ pub struct ChunkBytes {
 pub struct ReadOnlyBlockBytes(Arc<[u8]>);
 
 impl ReadOnlyBlockBytes {
+
+    pub fn new_from_compressed(data: &[u8]) -> Self {
+        let sz = usize::from_be_bytes(data[..8].try_into().unwrap());
+        let mut vec = vec![0u8; sz];
+        lz4::decompress(&data[8..], &mut vec).unwrap();
+        Self(vec.into())
+    }
+
     pub fn id(&self) -> usize {
         usize::from_be_bytes(self.0[..8].try_into().unwrap())
     }
@@ -495,7 +511,7 @@ impl ReadOnlyBlock {
     pub fn chunk_bytes_or_kafka(&self, id: u64) -> ChunkBytesOrKafka {
         match self {
             Self::Bytes(x) => {
-                ChunkBytesOrKafka::Bytes(ReadOnlyBlockBytes(x.clone().into()).chunks_for_id(id))
+                ChunkBytesOrKafka::Bytes(ReadOnlyBlockBytes::new_from_compressed(&x[..]).chunks_for_id(id))
             }
             Self::Offset(x) => ChunkBytesOrKafka::Kafka(x.clone()),
         }
@@ -504,11 +520,11 @@ impl ReadOnlyBlock {
     pub fn as_bytes(&self) -> ReadOnlyBlockBytes {
         let _timer = ThreadLocalTimer::new("ReadOnlyBlock::as_bytes");
         match self {
-            ReadOnlyBlock::Bytes(x) => ReadOnlyBlockBytes(x.clone().into()),
+            ReadOnlyBlock::Bytes(x) => ReadOnlyBlockBytes::new_from_compressed(&x[..]),
             ReadOnlyBlock::Offset(entry) => {
                 let mut vec = Vec::new();
                 entry.load(&mut vec).unwrap();
-                ReadOnlyBlockBytes(vec.into())
+                ReadOnlyBlockBytes::new_from_compressed(&vec)
             }
         }
     }
@@ -598,6 +614,7 @@ impl InnerBlockListEntry {
 
 pub struct BlockListEntry {
     inner: RwLock<InnerBlockListEntry>,
+    len: usize,
     _id: usize,
 }
 

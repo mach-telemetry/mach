@@ -297,7 +297,7 @@ mod test {
         data.try_fill(&mut thread_rng()).unwrap();
 
         let mut producer = Producer::new();
-        let key = producer.send(data.as_slice());
+        let key = producer.send(thread_rng().gen_range(0..PARTITIONS), data.as_slice());
         std::thread::sleep(std::time::Duration::from_secs(5));
 
         println!("Key: {:?}", key);
