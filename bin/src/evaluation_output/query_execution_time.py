@@ -1,4 +1,4 @@
-FILE = "mach_simple_query_20221013165959"
+FILE = "kafka_simple_query_20221014150011"
 
 def parse_line(line):
     parts = line.split(",")
