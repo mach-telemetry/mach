@@ -124,10 +124,10 @@ pub struct Args {
     #[clap(long, default_value_t = 12989)]
     pub querier_port: u16,
 
-    #[clap(long, default_value_t = 30)]
+    #[clap(long, default_value_t = 3)]
     pub query_min_delay: u64,
 
-    #[clap(long, default_value_t = 60)]
+    #[clap(long, default_value_t = 10)]
     pub query_max_delay: u64,
 
     #[clap(long, default_value_t = 10)]
@@ -136,7 +136,7 @@ pub struct Args {
     #[clap(long, default_value_t = 60)]
     pub query_max_duration: u64,
 
-    #[clap(long, default_value_t = 1)]
+    #[clap(long, default_value_t = 100)]
     pub query_count: u64,
 
     #[clap(long, default_value_t = 10)]
