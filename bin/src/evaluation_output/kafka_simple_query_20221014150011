@@ -1,0 +1,1240 @@
+start reading data in the background
+Read data for 464 sources
+		Sources,	Samples,	Bytes
+Metrics,	311,	33585593,	268684744
+Logs + Traces,	153,	686135,	897249338
+Expanding data based on source_count = 1000
+Sorting by time
+Setting up final samples
+Samples stats:
+Total number of unique samples: 74030031
+Number of sources: 1000, Number of metrics: 671
+Max source length: 108788
+Average source length: 74030
+Min source length: 4
+Total samples: 74030031
+Longest sources: [SeriesId(995), SeriesId(989), SeriesId(987), SeriesId(978), SeriesId(972), SeriesId(965), SeriesId(953), SeriesId(947), SeriesId(923), SeriesId(888)]
+Waiting for workload to start...
+Workload started
+Sleep for 20 seconds to wait for data arrival
+B-Tree index size: 0.06
+B-Tree index size: 25.76
+B-Tree index size: 26.53
+B-Tree index size: 63.65
+B-Tree index size: 63.65
+B-Tree index size: 64.35
+B-Tree index size: 90.40
+B-Tree index size: 91.88
+B-Tree index size: 92.53
+B-Tree index size: 92.53
+B-Tree index size: 92.91
+B-Tree index size: 92.91
+B-Tree index size: 93.26
+B-Tree index size: 93.26
+B-Tree index size: 93.26
+B-Tree index size: 93.64
+B-Tree index size: 93.64
+B-Tree index size: 93.88
+Done Sleeping
+B-Tree index size: 93.95
+B-Tree index size: 93.95
+B-Tree index size: 94.22
+B-Tree index size: 94.30
+B-Tree index size: 94.56
+B-Tree index size: 94.67
+B-Tree index size: 94.67
+B-Tree index size: 95.01
+B-Tree index size: 95.01
+B-Tree index size: 95.28
+Executing query: 0
+B-Tree index size: 95.37
+B-Tree index size: 95.37
+B-Tree index size: 95.74
+B-Tree index size: 95.74
+Current time: 2022-10-14T15:02:06.526200325Z, Query ID: 0, Source: SeriesId(362), Duration: 53000000, From now: 3, Total Latency: 4.121426455, Data Latency: 4.102916933, Execution Latency: 0.018509522, Sink: 7337, Blocks seen: 5, 
+B-Tree index size: 95.91
+B-Tree index size: 96.11
+B-Tree index size: 96.11
+B-Tree index size: 96.34
+B-Tree index size: 96.44
+B-Tree index size: 96.78
+Executing query: 1
+B-Tree index size: 96.78
+B-Tree index size: 96.78
+Current time: 2022-10-14T15:02:16.526233183Z, Query ID: 1, Source: SeriesId(850), Duration: 51000000, From now: 4, Total Latency: 2.118607117, Data Latency: 2.10152042, Execution Latency: 0.017086697, Sink: 9132, Blocks seen: 6, 
+B-Tree index size: 97.13
+B-Tree index size: 97.13
+B-Tree index size: 97.48
+B-Tree index size: 97.48
+B-Tree index size: 97.48
+B-Tree index size: 97.84
+B-Tree index size: 97.84
+B-Tree index size: 98.08
+Executing query: 2
+Query start: 1665759742526231
+B-Tree index size: 104.34
+B-Tree index size: 104.34
+B-Tree index size: 105.37
+Current time: 2022-10-14T15:02:26.526332874Z, Query ID: 2, Source: SeriesId(385), Duration: 49000000, From now: 4, Total Latency: 2.42531645, Data Latency: 2.40171915, Execution Latency: 0.0235973, Sink: 13061, Blocks seen: 7, 
+B-Tree index size: 113.60
+B-Tree index size: 113.96
+B-Tree index size: 114.96
+B-Tree index size: 114.96
+B-Tree index size: 115.18
+B-Tree index size: 115.28
+B-Tree index size: 115.68
+Executing query: 3
+B-Tree index size: 115.68
+B-Tree index size: 115.68
+B-Tree index size: 116.03
+B-Tree index size: 116.03
+Current time: 2022-10-14T15:02:36.526466170Z, Query ID: 3, Source: SeriesId(734), Duration: 31000000, From now: 3, Total Latency: 4.121426077, Data Latency: 4.102988785, Execution Latency: 0.018437292, Sink: 10348, Blocks seen: 6, 
+B-Tree index size: 116.40
+B-Tree index size: 116.40
+B-Tree index size: 116.40
+B-Tree index size: 116.75
+B-Tree index size: 116.75
+B-Tree index size: 117.12
+Executing query: 4
+Current time: 2022-10-14T15:02:46.526593700Z, Query ID: 4, Source: SeriesId(843), Duration: 49000000, From now: 4, Total Latency: 0.029478672, Data Latency: 0.000002821, Execution Latency: 0.029475851, Sink: 15402, Blocks seen: 10, 
+B-Tree index size: 117.12
+B-Tree index size: 117.12
+B-Tree index size: 117.39
+B-Tree index size: 117.49
+B-Tree index size: 117.84
+B-Tree index size: 117.84
+B-Tree index size: 117.84
+B-Tree index size: 118.21
+B-Tree index size: 118.21
+B-Tree index size: 118.58
+Executing query: 5
+Current time: 2022-10-14T15:02:56.526773136Z, Query ID: 5, Source: SeriesId(417), Duration: 20000000, From now: 6, Total Latency: 0.018739489, Data Latency: 0.000002863, Execution Latency: 0.018736626, Sink: 6672, Blocks seen: 6, 
+B-Tree index size: 118.58
+B-Tree index size: 118.58
+B-Tree index size: 118.82
+B-Tree index size: 118.92
+B-Tree index size: 119.28
+B-Tree index size: 119.28
+B-Tree index size: 119.28
+B-Tree index size: 119.47
+B-Tree index size: 119.65
+B-Tree index size: 120.00
+Executing query: 6
+Current time: 2022-10-14T15:03:06.526834785Z, Query ID: 6, Source: SeriesId(691), Duration: 39000000, From now: 9, Total Latency: 0.02944644, Data Latency: 0.000002681, Execution Latency: 0.029443759, Sink: 13263, Blocks seen: 9, 
+B-Tree index size: 120.00
+B-Tree index size: 120.00
+B-Tree index size: 120.38
+B-Tree index size: 120.38
+B-Tree index size: 121.88
+B-Tree index size: 121.88
+B-Tree index size: 121.88
+B-Tree index size: 122.13
+B-Tree index size: 122.23
+B-Tree index size: 122.41
+Executing query: 7
+Current time: 2022-10-14T15:03:16.527013470Z, Query ID: 7, Source: SeriesId(835), Duration: 17000000, From now: 6, Total Latency: 0.012032858, Data Latency: 0.000003119, Execution Latency: 0.012029739, Sink: 4940, Blocks seen: 4, 
+B-Tree index size: 122.58
+B-Tree index size: 122.58
+B-Tree index size: 122.85
+B-Tree index size: 122.94
+B-Tree index size: 123.28
+B-Tree index size: 123.28
+B-Tree index size: 123.28
+B-Tree index size: 123.67
+B-Tree index size: 123.67
+B-Tree index size: 123.90
+Executing query: 8
+Current time: 2022-10-14T15:03:26.527084277Z, Query ID: 8, Source: SeriesId(420), Duration: 28000000, From now: 8, Total Latency: 0.019232681, Data Latency: 0.0000024, Execution Latency: 0.019230281, Sink: 7162, Blocks seen: 6, 
+B-Tree index size: 124.01
+B-Tree index size: 124.01
+B-Tree index size: 124.36
+B-Tree index size: 124.36
+B-Tree index size: 124.70
+B-Tree index size: 124.70
+B-Tree index size: 124.70
+B-Tree index size: 124.89
+B-Tree index size: 125.07
+B-Tree index size: 125.43
+Executing query: 9
+B-Tree index size: 125.43
+B-Tree index size: 125.43
+B-Tree index size: 125.79
+Current time: 2022-10-14T15:03:36.527204332Z, Query ID: 9, Source: SeriesId(686), Duration: 44000000, From now: 4, Total Latency: 2.237075869, Data Latency: 2.201635929, Execution Latency: 0.03543994, Sink: 13031, Blocks seen: 12, 
+B-Tree index size: 125.79
+B-Tree index size: 126.04
+B-Tree index size: 126.13
+B-Tree index size: 126.13
+B-Tree index size: 126.40
+B-Tree index size: 126.49
+B-Tree index size: 126.85
+Executing query: 10
+B-Tree index size: 126.85
+B-Tree index size: 126.85
+Current time: 2022-10-14T15:03:46.527308233Z, Query ID: 10, Source: SeriesId(978), Duration: 47000000, From now: 4, Total Latency: 2.138658322, Data Latency: 2.101521745, Execution Latency: 0.037136577, Sink: 12971, Blocks seen: 12, 
+B-Tree index size: 127.02
+B-Tree index size: 127.20
+B-Tree index size: 127.56
+B-Tree index size: 127.56
+B-Tree index size: 127.56
+B-Tree index size: 127.92
+B-Tree index size: 127.92
+B-Tree index size: 128.29
+Executing query: 11
+Current time: 2022-10-14T15:03:56.527421981Z, Query ID: 11, Source: SeriesId(347), Duration: 21000000, From now: 9, Total Latency: 0.017402362, Data Latency: 0.000003037, Execution Latency: 0.017399325, Sink: 5560, Blocks seen: 5, 
+B-Tree index size: 128.29
+B-Tree index size: 128.29
+B-Tree index size: 128.46
+B-Tree index size: 128.65
+B-Tree index size: 129.01
+B-Tree index size: 129.01
+B-Tree index size: 129.01
+B-Tree index size: 129.37
+B-Tree index size: 129.37
+B-Tree index size: 129.53
+Executing query: 12
+Current time: 2022-10-14T15:04:06.527523963Z, Query ID: 12, Source: SeriesId(570), Duration: 55000000, From now: 5, Total Latency: 0.039020662, Data Latency: 0.000002884, Execution Latency: 0.039017778, Sink: 15051, Blocks seen: 13, 
+B-Tree index size: 129.72
+B-Tree index size: 129.72
+B-Tree index size: 129.97
+B-Tree index size: 130.07
+B-Tree index size: 130.34
+B-Tree index size: 130.44
+B-Tree index size: 130.44
+B-Tree index size: 130.81
+B-Tree index size: 130.81
+B-Tree index size: 131.16
+Executing query: 13
+Current time: 2022-10-14T15:04:16.527624407Z, Query ID: 13, Source: SeriesId(257), Duration: 49000000, From now: 8, Total Latency: 0.041473945, Data Latency: 0.000002858, Execution Latency: 0.041471087, Sink: 15239, Blocks seen: 13, 
+B-Tree index size: 131.16
+B-Tree index size: 131.16
+B-Tree index size: 131.52
+B-Tree index size: 131.52
+B-Tree index size: 131.84
+B-Tree index size: 131.94
+B-Tree index size: 131.94
+B-Tree index size: 132.20
+B-Tree index size: 132.30
+B-Tree index size: 132.68
+Executing query: 14
+B-Tree index size: 132.68
+B-Tree index size: 132.68
+Current time: 2022-10-14T15:04:26.527720311Z, Query ID: 14, Source: SeriesId(686), Duration: 15000000, From now: 4, Total Latency: 2.128756689, Data Latency: 2.101544144, Execution Latency: 0.027212545, Sink: 4662, Blocks seen: 9, 
+B-Tree index size: 132.86
+B-Tree index size: 133.04
+B-Tree index size: 133.39
+B-Tree index size: 133.39
+B-Tree index size: 133.39
+B-Tree index size: 133.65
+B-Tree index size: 133.74
+B-Tree index size: 133.92
+Executing query: 15
+Current time: 2022-10-14T15:04:36.527844610Z, Query ID: 15, Source: SeriesId(868), Duration: 50000000, From now: 9, Total Latency: 0.054731445, Data Latency: 0.000003, Execution Latency: 0.054728445, Sink: 15751, Blocks seen: 18, 
+B-Tree index size: 134.09
+B-Tree index size: 134.09
+B-Tree index size: 134.34
+B-Tree index size: 134.43
+B-Tree index size: 134.81
+B-Tree index size: 134.81
+B-Tree index size: 134.81
+B-Tree index size: 135.15
+B-Tree index size: 135.15
+B-Tree index size: 135.41
+Executing query: 16
+Current time: 2022-10-14T15:04:46.527966021Z, Query ID: 16, Source: SeriesId(498), Duration: 58000000, From now: 9, Total Latency: 0.059080079, Data Latency: 0.000002729, Execution Latency: 0.05907735, Sink: 19090, Blocks seen: 20, 
+B-Tree index size: 135.50
+B-Tree index size: 135.50
+B-Tree index size: 135.77
+B-Tree index size: 135.87
+B-Tree index size: 136.24
+B-Tree index size: 136.24
+B-Tree index size: 136.24
+B-Tree index size: 136.40
+B-Tree index size: 136.58
+B-Tree index size: 136.84
+Executing query: 17
+Current time: 2022-10-14T15:04:56.528076896Z, Query ID: 17, Source: SeriesId(420), Duration: 42000000, From now: 8, Total Latency: 0.042009191, Data Latency: 0.000003233, Execution Latency: 0.042005958, Sink: 12565, Blocks seen: 13, 
+B-Tree index size: 136.93
+B-Tree index size: 136.93
+B-Tree index size: 137.30
+B-Tree index size: 137.30
+B-Tree index size: 137.67
+B-Tree index size: 137.67
+B-Tree index size: 137.67
+B-Tree index size: 138.04
+B-Tree index size: 138.04
+B-Tree index size: 138.22
+Executing query: 18
+B-Tree index size: 138.39
+B-Tree index size: 138.39
+B-Tree index size: 138.63
+B-Tree index size: 138.73
+B-Tree index size: 139.09
+Current time: 2022-10-14T15:05:06.528207331Z, Query ID: 18, Source: SeriesId(723), Duration: 30000000, From now: 3, Total Latency: 4.225127725, Data Latency: 4.203085169, Execution Latency: 0.022042556, Sink: 9171, Blocks seen: 7, 
+B-Tree index size: 139.09
+B-Tree index size: 139.09
+B-Tree index size: 139.47
+B-Tree index size: 139.47
+B-Tree index size: 139.73
+Executing query: 19
+Current time: 2022-10-14T15:05:16.528332546Z, Query ID: 19, Source: SeriesId(257), Duration: 55000000, From now: 3, Total Latency: 0.04869184, Data Latency: 0.000002565, Execution Latency: 0.048689275, Sink: 17807, Blocks seen: 15, 
+B-Tree index size: 139.82
+B-Tree index size: 139.82
+B-Tree index size: 140.20
+B-Tree index size: 140.20
+B-Tree index size: 140.36
+B-Tree index size: 140.54
+B-Tree index size: 140.54
+B-Tree index size: 140.82
+B-Tree index size: 140.91
+B-Tree index size: 141.25
+Executing query: 20
+Current time: 2022-10-14T15:05:26.528447027Z, Query ID: 20, Source: SeriesId(793), Duration: 19000000, From now: 9, Total Latency: 0.023054414, Data Latency: 0.0000021, Execution Latency: 0.023052314, Sink: 6387, Blocks seen: 7, 
+B-Tree index size: 141.25
+B-Tree index size: 141.25
+B-Tree index size: 141.52
+B-Tree index size: 141.60
+B-Tree index size: 141.96
+B-Tree index size: 141.96
+B-Tree index size: 141.96
+B-Tree index size: 142.23
+B-Tree index size: 142.33
+B-Tree index size: 142.68
+Executing query: 21
+Current time: 2022-10-14T15:05:36.528569963Z, Query ID: 21, Source: SeriesId(481), Duration: 23000000, From now: 6, Total Latency: 0.015993918, Data Latency: 0.000002229, Execution Latency: 0.015991689, Sink: 5899, Blocks seen: 5, 
+B-Tree index size: 142.68
+B-Tree index size: 142.68
+B-Tree index size: 143.05
+B-Tree index size: 143.05
+B-Tree index size: 143.29
+B-Tree index size: 143.38
+B-Tree index size: 143.38
+B-Tree index size: 143.67
+B-Tree index size: 143.76
+B-Tree index size: 144.12
+Executing query: 22
+Current time: 2022-10-14T15:05:46.528685981Z, Query ID: 22, Source: SeriesId(731), Duration: 43000000, From now: 8, Total Latency: 0.040911804, Data Latency: 0.000001911, Execution Latency: 0.040909893, Sink: 12185, Blocks seen: 13, 
+B-Tree index size: 144.12
+B-Tree index size: 144.12
+B-Tree index size: 144.48
+B-Tree index size: 144.48
+B-Tree index size: 144.75
+B-Tree index size: 144.85
+B-Tree index size: 144.85
+B-Tree index size: 145.19
+B-Tree index size: 145.19
+B-Tree index size: 145.36
+Executing query: 23
+B-Tree index size: 145.56
+B-Tree index size: 145.56
+Current time: 2022-10-14T15:05:56.528810443Z, Query ID: 23, Source: SeriesId(850), Duration: 48000000, From now: 4, Total Latency: 2.14626087, Data Latency: 2.101565784, Execution Latency: 0.044695086, Sink: 14498, Blocks seen: 15, 
+B-Tree index size: 145.92
+B-Tree index size: 145.92
+B-Tree index size: 146.10
+B-Tree index size: 146.29
+B-Tree index size: 146.29
+B-Tree index size: 146.63
+B-Tree index size: 146.63
+B-Tree index size: 146.90
+Executing query: 24
+Current time: 2022-10-14T15:06:06.528925958Z, Query ID: 24, Source: SeriesId(425), Duration: 31000000, From now: 5, Total Latency: 0.034291616, Data Latency: 0.00000243, Execution Latency: 0.034289186, Sink: 10238, Blocks seen: 11, 
+B-Tree index size: 146.99
+B-Tree index size: 146.99
+B-Tree index size: 147.28
+B-Tree index size: 147.38
+B-Tree index size: 147.64
+B-Tree index size: 147.72
+B-Tree index size: 147.72
+B-Tree index size: 148.09
+B-Tree index size: 148.09
+B-Tree index size: 148.35
+Executing query: 25
+Current time: 2022-10-14T15:06:16.529038728Z, Query ID: 25, Source: SeriesId(871), Duration: 37000000, From now: 9, Total Latency: 0.036759598, Data Latency: 0.000002739, Execution Latency: 0.036756859, Sink: 11648, Blocks seen: 12, 
+B-Tree index size: 148.44
+B-Tree index size: 148.44
+B-Tree index size: 148.68
+B-Tree index size: 148.78
+B-Tree index size: 149.07
+B-Tree index size: 149.17
+B-Tree index size: 149.17
+B-Tree index size: 149.45
+B-Tree index size: 149.54
+B-Tree index size: 149.72
+Executing query: 26
+Current time: 2022-10-14T15:06:26.529161189Z, Query ID: 26, Source: SeriesId(826), Duration: 53000000, From now: 5, Total Latency: 0.046419269, Data Latency: 0.000001941, Execution Latency: 0.046417328, Sink: 15886, Blocks seen: 16, 
+B-Tree index size: 149.90
+B-Tree index size: 149.90
+B-Tree index size: 150.21
+B-Tree index size: 150.31
+B-Tree index size: 150.66
+B-Tree index size: 150.66
+B-Tree index size: 150.66
+B-Tree index size: 151.04
+B-Tree index size: 151.04
+B-Tree index size: 151.30
+Executing query: 27
+B-Tree index size: 151.40
+B-Tree index size: 151.40
+B-Tree index size: 151.91
+Current time: 2022-10-14T15:06:36.529277878Z, Query ID: 27, Source: SeriesId(312), Duration: 55000000, From now: 4, Total Latency: 2.178305118, Data Latency: 2.101542998, Execution Latency: 0.07676212, Sink: 16918, Blocks seen: 23, 
+B-Tree index size: 187.93
+B-Tree index size: 230.93
+B-Tree index size: 246.41
+B-Tree index size: 254.77
+B-Tree index size: 268.46
+B-Tree index size: 272.65
+B-Tree index size: 277.28
+Executing query: 28
+Current time: 2022-10-14T15:06:46.529402444Z, Query ID: 28, Source: SeriesId(425), Duration: 15000000, From now: 9, Total Latency: 0.027250112, Data Latency: 0.000001965, Execution Latency: 0.027248147, Sink: 3615, Blocks seen: 8, 
+B-Tree index size: 281.91
+B-Tree index size: 285.57
+B-Tree index size: 290.10
+B-Tree index size: 294.01
+B-Tree index size: 297.40
+B-Tree index size: 300.92
+B-Tree index size: 304.60
+B-Tree index size: 308.77
+B-Tree index size: 313.46
+B-Tree index size: 347.51
+Executing query: 29
+B-Tree index size: 383.37
+Current time: 2022-10-14T15:06:56.529535229Z, Query ID: 29, Source: SeriesId(417), Duration: 49000000, From now: 7, Total Latency: 0.369734633, Data Latency: 0.000003215, Execution Latency: 0.369731418, Sink: 108625, Blocks seen: 116, 
+B-Tree index size: 407.58
+B-Tree index size: 413.78
+B-Tree index size: 431.16
+B-Tree index size: 434.24
+B-Tree index size: 438.79
+B-Tree index size: 444.51
+B-Tree index size: 446.65
+B-Tree index size: 450.92
+B-Tree index size: 455.58
+Executing query: 30
+B-Tree index size: 459.15
+Current time: 2022-10-14T15:07:06.529649802Z, Query ID: 30, Source: SeriesId(271), Duration: 19000000, From now: 8, Total Latency: 0.56235103, Data Latency: 0.000002577, Execution Latency: 0.562348453, Sink: 168720, Blocks seen: 168, 
+B-Tree index size: 463.28
+B-Tree index size: 467.55
+B-Tree index size: 471.68
+B-Tree index size: 475.85
+B-Tree index size: 508.80
+B-Tree index size: 548.86
+B-Tree index size: 570.40
+B-Tree index size: 574.51
+B-Tree index size: 592.92
+Executing query: 31
+B-Tree index size: 597.08
+B-Tree index size: 602.71
+B-Tree index size: 606.30
+B-Tree index size: 609.98
+B-Tree index size: 614.53
+B-Tree index size: 618.04
+B-Tree index size: 621.63
+B-Tree index size: 625.77
+B-Tree index size: 630.13
+Current time: 2022-10-14T15:07:16.529785742Z, Query ID: 31, Source: SeriesId(693), Duration: 12000000, From now: 3, Total Latency: 8.885524273, Data Latency: 8.506290568, Execution Latency: 0.379233705, Sink: 106526, Blocks seen: 124, 
+B-Tree index size: 634.31
+Executing query: 32
+B-Tree index size: 638.50
+B-Tree index size: 666.98
+B-Tree index size: 712.01
+B-Tree index size: 733.34
+B-Tree index size: 737.43
+B-Tree index size: 755.24
+B-Tree index size: 759.19
+B-Tree index size: 765.27
+B-Tree index size: 768.31
+B-Tree index size: 771.83
+Executing query: 33
+B-Tree index size: 775.15
+Current time: 2022-10-14T15:07:26.529901873Z, Query ID: 32, Source: SeriesId(804), Duration: 38000000, From now: 5, Total Latency: 10.9311246, Data Latency: 9.807114495, Execution Latency: 1.124010105, Sink: 335185, Blocks seen: 383, 
+B-Tree index size: 780.61
+B-Tree index size: 784.13
+B-Tree index size: 788.15
+B-Tree index size: 792.35
+B-Tree index size: 796.01
+B-Tree index size: 800.64
+B-Tree index size: 833.13
+B-Tree index size: 868.10
+B-Tree index size: 895.14
+Executing query: 34
+B-Tree index size: 899.86
+B-Tree index size: 919.16
+B-Tree index size: 924.36
+B-Tree index size: 926.40
+B-Tree index size: 930.47
+B-Tree index size: 935.19
+Current time: 2022-10-14T15:07:36.530066586Z, Query ID: 33, Source: SeriesId(880), Duration: 26000000, From now: 3, Total Latency: 16.055808051, Data Latency: 15.211551573, Execution Latency: 0.844256478, Sink: 230419, Blocks seen: 267, 
+B-Tree index size: 938.82
+B-Tree index size: 942.92
+B-Tree index size: 946.98
+B-Tree index size: 951.05
+Executing query: 35
+B-Tree index size: 955.37
+B-Tree index size: 959.37
+B-Tree index size: 963.42
+B-Tree index size: 995.38
+B-Tree index size: 1034.37
+B-Tree index size: 1057.88
+B-Tree index size: 1061.99
+B-Tree index size: 1077.81
+Current time: 2022-10-14T15:07:46.530173954Z, Query ID: 34, Source: SeriesId(340), Duration: 52000000, From now: 5, Total Latency: 17.941792245, Data Latency: 16.411421243, Execution Latency: 1.5303710019999999, Sink: 456256, Blocks seen: 467, 
+B-Tree index size: 1084.24
+B-Tree index size: 1089.52
+Executing query: 36
+B-Tree index size: 1093.21
+B-Tree index size: 1097.55
+B-Tree index size: 1101.72
+B-Tree index size: 1105.85
+B-Tree index size: 1109.97
+B-Tree index size: 1111.54
+Current time: 2022-10-14T15:07:56.530296548Z, Query ID: 35, Source: SeriesId(271), Duration: 47000000, From now: 8, Total Latency: 15.620312863, Data Latency: 14.210164824, Execution Latency: 1.410148039, Sink: 412747, Blocks seen: 429, 
+B-Tree index size: 1117.79
+B-Tree index size: 1121.99
+B-Tree index size: 1125.63
+B-Tree index size: 1163.74
+Executing query: 37
+B-Tree index size: 1203.74
+B-Tree index size: 1220.45
+B-Tree index size: 1224.50
+B-Tree index size: 1244.08
+B-Tree index size: 1249.24
+B-Tree index size: 1253.35
+B-Tree index size: 1255.88
+B-Tree index size: 1260.06
+Current time: 2022-10-14T15:08:06.530435747Z, Query ID: 36, Source: SeriesId(403), Duration: 47000000, From now: 9, Total Latency: 18.156178113, Data Latency: 16.711847577, Execution Latency: 1.444330536, Sink: 413480, Blocks seen: 433, 
+B-Tree index size: 1265.70
+B-Tree index size: 1268.36
+Executing query: 38
+B-Tree index size: 1272.09
+B-Tree index size: 1276.37
+B-Tree index size: 1280.67
+B-Tree index size: 1284.92
+B-Tree index size: 1290.04
+B-Tree index size: 1330.10
+B-Tree index size: 1366.98
+B-Tree index size: 1383.73
+B-Tree index size: 1389.91
+B-Tree index size: 1406.58
+Executing query: 39
+B-Tree index size: 1410.70
+B-Tree index size: 1415.84
+B-Tree index size: 1419.76
+B-Tree index size: 1423.77
+B-Tree index size: 1425.39
+Current time: 2022-10-14T15:08:16.530558188Z, Query ID: 37, Source: SeriesId(730), Duration: 53000000, From now: 6, Total Latency: 24.560388846, Data Latency: 23.115961531, Execution Latency: 1.444427315, Sink: 467715, Blocks seen: 489, 
+B-Tree index size: 1431.11
+B-Tree index size: 1435.05
+B-Tree index size: 1437.49
+B-Tree index size: 1442.29
+B-Tree index size: 1446.06
+Executing query: 40
+B-Tree index size: 1450.82
+B-Tree index size: 1481.21
+B-Tree index size: 1516.08
+B-Tree index size: 1544.66
+B-Tree index size: 1549.77
+Current time: 2022-10-14T15:08:26.530683123Z, Query ID: 38, Source: SeriesId(267), Duration: 27000000, From now: 8, Total Latency: 24.943993796, Data Latency: 24.116825609, Execution Latency: 0.827168187, Sink: 235829, Blocks seen: 248, 
+B-Tree index size: 1566.16
+B-Tree index size: 1571.97
+B-Tree index size: 1577.18
+B-Tree index size: 1580.75
+B-Tree index size: 1584.93
+Executing query: 41
+B-Tree index size: 1589.07
+B-Tree index size: 1593.20
+B-Tree index size: 1597.31
+B-Tree index size: 1601.42
+B-Tree index size: 1605.63
+B-Tree index size: 1609.38
+Current time: 2022-10-14T15:08:36.530840660Z, Query ID: 39, Source: SeriesId(237), Duration: 46000000, From now: 9, Total Latency: 25.900789411, Data Latency: 24.517942528, Execution Latency: 1.382846883, Sink: 407990, Blocks seen: 433, 
+B-Tree index size: 1613.94
+B-Tree index size: 1648.71
+B-Tree index size: 1687.71
+B-Tree index size: 1708.12
+Executing query: 42
+B-Tree index size: 1713.47
+B-Tree index size: 1729.26
+B-Tree index size: 1735.49
+B-Tree index size: 1740.33
+B-Tree index size: 1744.46
+B-Tree index size: 1748.20
+B-Tree index size: 1751.87
+B-Tree index size: 1755.99
+B-Tree index size: 1760.07
+B-Tree index size: 1764.11
+Executing query: 43
+B-Tree index size: 1768.44
+B-Tree index size: 1772.61
+B-Tree index size: 1776.80
+B-Tree index size: 1811.81
+B-Tree index size: 1852.95
+B-Tree index size: 1871.83
+B-Tree index size: 1876.09
+Current time: 2022-10-14T15:08:46.530952708Z, Query ID: 40, Source: SeriesId(423), Duration: 45000000, From now: 4, Total Latency: 36.917693251, Data Latency: 35.524547518, Execution Latency: 1.3931457329999999, Sink: 395964, Blocks seen: 427, 
+B-Tree index size: 1892.15
+B-Tree index size: 1897.77
+B-Tree index size: 1902.91
+Executing query: 44
+B-Tree index size: 1907.50
+B-Tree index size: 1910.66
+B-Tree index size: 1914.33
+B-Tree index size: 1919.65
+B-Tree index size: 1921.71
+Current time: 2022-10-14T15:08:56.531065169Z, Query ID: 41, Source: SeriesId(501), Duration: 35000000, From now: 7, Total Latency: 34.231998944, Data Latency: 33.223213727, Execution Latency: 1.008785217, Sink: 307966, Blocks seen: 324, 
+B-Tree index size: 1926.32
+B-Tree index size: 1930.57
+B-Tree index size: 1935.35
+B-Tree index size: 1939.65
+B-Tree index size: 1977.47
+Executing query: 45
+B-Tree index size: 2016.47
+B-Tree index size: 2033.38
+B-Tree index size: 2038.78
+B-Tree index size: 2055.51
+B-Tree index size: 2062.11
+B-Tree index size: 2065.87
+Current time: 2022-10-14T15:09:06.531188476Z, Query ID: 42, Source: SeriesId(953), Duration: 41000000, From now: 9, Total Latency: 36.031835892, Data Latency: 34.823588009, Execution Latency: 1.208247883, Sink: 359367, Blocks seen: 368, 
+B-Tree index size: 2070.25
+B-Tree index size: 2074.50
+B-Tree index size: 2078.56
+B-Tree index size: 2082.67
+Executing query: 46
+B-Tree index size: 2085.31
+B-Tree index size: 2088.88
+B-Tree index size: 2093.32
+B-Tree index size: 2097.73
+B-Tree index size: 2105.99
+B-Tree index size: 2142.96
+B-Tree index size: 2180.87
+B-Tree index size: 2196.64
+B-Tree index size: 2202.80
+B-Tree index size: 2219.54
+Executing query: 47
+B-Tree index size: 2224.69
+B-Tree index size: 2228.30
+B-Tree index size: 2232.80
+B-Tree index size: 2236.95
+B-Tree index size: 2239.52
+Current time: 2022-10-14T15:09:16.531371295Z, Query ID: 43, Source: SeriesId(693), Duration: 47000000, From now: 4, Total Latency: 45.175289024, Data Latency: 43.729923621, Execution Latency: 1.445365403, Sink: 413197, Blocks seen: 476, 
+B-Tree index size: 2240.99
+B-Tree index size: 2249.07
+B-Tree index size: 2253.17
+B-Tree index size: 2255.85
+B-Tree index size: 2260.00
+Executing query: 48
+B-Tree index size: 2267.17
+B-Tree index size: 2304.22
+B-Tree index size: 2344.24
+B-Tree index size: 2359.09
+B-Tree index size: 2362.28
+Current time: 2022-10-14T15:09:26.531469811Z, Query ID: 44, Source: SeriesId(763), Duration: 26000000, From now: 7, Total Latency: 44.260188283, Data Latency: 43.530011492, Execution Latency: 0.730176791, Sink: 226797, Blocks seen: 236, 
+B-Tree index size: 2381.75
+B-Tree index size: 2385.50
+B-Tree index size: 2390.54
+B-Tree index size: 2394.58
+B-Tree index size: 2398.74
+Executing query: 49
+B-Tree index size: 2402.84
+B-Tree index size: 2406.40
+B-Tree index size: 2411.45
+B-Tree index size: 2414.00
+B-Tree index size: 2418.65
+B-Tree index size: 2422.84
+Current time: 2022-10-14T15:09:36.531596399Z, Query ID: 45, Source: SeriesId(881), Duration: 30000000, From now: 7, Total Latency: 45.968503581, Data Latency: 45.031226142, Execution Latency: 0.937277439, Sink: 266620, Blocks seen: 285, 
+B-Tree index size: 2426.93
+B-Tree index size: 2465.55
+B-Tree index size: 2498.42
+B-Tree index size: 2520.83
+Executing query: 50
+B-Tree index size: 2525.41
+B-Tree index size: 2544.60
+B-Tree index size: 2547.66
+B-Tree index size: 2552.79
+B-Tree index size: 2556.98
+B-Tree index size: 2562.47
+B-Tree index size: 2565.04
+B-Tree index size: 2568.63
+Current time: 2022-10-14T15:09:46.531725936Z, Query ID: 46, Source: SeriesId(290), Duration: 22000000, From now: 8, Total Latency: 47.995239572, Data Latency: 47.4331604, Execution Latency: 0.562079172, Sink: 193546, Blocks seen: 198, 
+B-Tree index size: 2572.76
+B-Tree index size: 2576.87
+Executing query: 51
+B-Tree index size: 2581.14
+B-Tree index size: 2585.38
+B-Tree index size: 2589.45
+B-Tree index size: 2622.35
+B-Tree index size: 2666.53
+B-Tree index size: 2683.95
+B-Tree index size: 2687.54
+B-Tree index size: 2706.15
+B-Tree index size: 2711.49
+B-Tree index size: 2715.62
+Executing query: 52
+B-Tree index size: 2719.22
+B-Tree index size: 2723.24
+B-Tree index size: 2727.79
+B-Tree index size: 2731.37
+B-Tree index size: 2736.09
+B-Tree index size: 2739.86
+B-Tree index size: 2743.76
+Current time: 2022-10-14T15:09:56.531884756Z, Query ID: 47, Source: SeriesId(730), Duration: 39000000, From now: 3, Total Latency: 56.794875124, Data Latency: 55.736708049, Execution Latency: 1.058167075, Sink: 344863, Blocks seen: 365, 
+B-Tree index size: 2747.40
+B-Tree index size: 2752.11
+B-Tree index size: 2789.12
+Executing query: 53
+B-Tree index size: 2828.20
+B-Tree index size: 2846.07
+B-Tree index size: 2851.08
+B-Tree index size: 2870.02
+B-Tree index size: 2874.58
+B-Tree index size: 2879.16
+B-Tree index size: 2881.67
+B-Tree index size: 2885.83
+B-Tree index size: 2890.39
+Current time: 2022-10-14T15:10:06.531997176Z, Query ID: 48, Source: SeriesId(229), Duration: 16000000, From now: 4, Total Latency: 58.781648757, Data Latency: 58.339253766, Execution Latency: 0.442394991, Sink: 140798, Blocks seen: 141, 
+B-Tree index size: 2894.99
+Executing query: 54
+B-Tree index size: 2897.53
+B-Tree index size: 2901.61
+B-Tree index size: 2905.87
+B-Tree index size: 2910.03
+B-Tree index size: 2914.21
+B-Tree index size: 2950.36
+B-Tree index size: 2991.50
+B-Tree index size: 3008.95
+B-Tree index size: 3014.19
+B-Tree index size: 3031.15
+Executing query: 55
+B-Tree index size: 3036.49
+Current time: 2022-10-14T15:10:16.532108116Z, Query ID: 49, Source: SeriesId(856), Duration: 30000000, From now: 6, Total Latency: 60.898639217, Data Latency: 60.040490997, Execution Latency: 0.85814822, Sink: 263227, Blocks seen: 283, 
+B-Tree index size: 3040.68
+B-Tree index size: 3044.76
+B-Tree index size: 3048.82
+B-Tree index size: 3052.88
+B-Tree index size: 3056.83
+B-Tree index size: 3060.87
+B-Tree index size: 3063.89
+B-Tree index size: 3068.59
+B-Tree index size: 3072.19
+Executing query: 56
+B-Tree index size: 3076.92
+B-Tree index size: 3107.29
+Current time: 2022-10-14T15:10:26.532238609Z, Query ID: 50, Source: SeriesId(839), Duration: 45000000, From now: 6, Total Latency: 61.882935291, Data Latency: 60.538952072, Execution Latency: 1.343983219, Sink: 397130, Blocks seen: 432, 
+B-Tree index size: 3148.31
+B-Tree index size: 3170.81
+B-Tree index size: 3175.34
+B-Tree index size: 3193.10
+B-Tree index size: 3199.89
+B-Tree index size: 3202.58
+B-Tree index size: 3206.23
+B-Tree index size: 3210.40
+Executing query: 57
+B-Tree index size: 3215.10
+B-Tree index size: 3218.65
+B-Tree index size: 3222.73
+B-Tree index size: 3226.79
+B-Tree index size: 3231.06
+B-Tree index size: 3235.23
+B-Tree index size: 3239.32
+B-Tree index size: 3270.81
+B-Tree index size: 3308.74
+B-Tree index size: 3333.89
+Executing query: 58
+B-Tree index size: 3336.51
+Current time: 2022-10-14T15:10:36.532352806Z, Query ID: 51, Source: SeriesId(691), Duration: 51000000, From now: 3, Total Latency: 70.894493475, Data Latency: 69.444725964, Execution Latency: 1.4497675110000001, Sink: 447534, Blocks seen: 469, 
+B-Tree index size: 3356.09
+B-Tree index size: 3360.63
+B-Tree index size: 3364.79
+B-Tree index size: 3368.89
+B-Tree index size: 3373.13
+B-Tree index size: 3377.26
+B-Tree index size: 3381.56
+B-Tree index size: 3384.86
+Current time: 2022-10-14T15:10:46.532518766Z, Query ID: 52, Source: SeriesId(675), Duration: 53000000, From now: 6, Total Latency: 69.019579306, Data Latency: 67.444479309, Execution Latency: 1.5750999970000001, Sink: 468849, Blocks seen: 494, 
+B-Tree index size: 3389.83
+Executing query: 59
+B-Tree index size: 3394.16
+B-Tree index size: 3398.40
+B-Tree index size: 3402.62
+B-Tree index size: 3435.53
+B-Tree index size: 3479.74
+B-Tree index size: 3497.16
+B-Tree index size: 3501.25
+B-Tree index size: 3520.00
+B-Tree index size: 3524.08
+B-Tree index size: 3528.30
+Executing query: 60
+B-Tree index size: 3532.37
+B-Tree index size: 3537.04
+Current time: 2022-10-14T15:10:56.532627536Z, Query ID: 53, Source: SeriesId(786), Duration: 41000000, From now: 6, Total Latency: 71.810221801, Data Latency: 70.747631971, Execution Latency: 1.06258983, Sink: 362489, Blocks seen: 368, 
+B-Tree index size: 3541.18
+B-Tree index size: 3544.29
+B-Tree index size: 3547.83
+B-Tree index size: 3552.53
+B-Tree index size: 3556.84
+B-Tree index size: 3560.69
+B-Tree index size: 3567.13
+B-Tree index size: 3607.34
+Executing query: 61
+B-Tree index size: 3645.40
+B-Tree index size: 3660.19
+B-Tree index size: 3670.18
+B-Tree index size: 3682.76
+B-Tree index size: 3686.91
+B-Tree index size: 3691.63
+B-Tree index size: 3695.75
+B-Tree index size: 3700.57
+B-Tree index size: 3702.16
+Current time: 2022-10-14T15:11:06.532746685Z, Query ID: 54, Source: SeriesId(723), Duration: 45000000, From now: 3, Total Latency: 78.555303079, Data Latency: 77.249556804, Execution Latency: 1.305746275, Sink: 395510, Blocks seen: 416, 
+B-Tree index size: 3707.76
+Executing query: 62
+B-Tree index size: 3712.40
+B-Tree index size: 3716.04
+B-Tree index size: 3719.90
+B-Tree index size: 3724.99
+B-Tree index size: 3737.88
+B-Tree index size: 3779.17
+B-Tree index size: 3812.03
+B-Tree index size: 3823.71
+B-Tree index size: 3837.87
+B-Tree index size: 3845.68
+Executing query: 63
+B-Tree index size: 3846.83
+Current time: 2022-10-14T15:11:16.532912074Z, Query ID: 55, Source: SeriesId(458), Duration: 54000000, From now: 5, Total Latency: 80.503563519, Data Latency: 78.952082026, Execution Latency: 1.551481493, Sink: 474441, Blocks seen: 544, 
+B-Tree index size: 3854.65
+B-Tree index size: 3858.81
+B-Tree index size: 3863.02
+B-Tree index size: 3867.21
+B-Tree index size: 3871.34
+B-Tree index size: 3875.41
+B-Tree index size: 3879.66
+B-Tree index size: 3883.79
+B-Tree index size: 3883.89
+Current time: 2022-10-14T15:11:26.533022306Z, Query ID: 56, Source: SeriesId(498), Duration: 48000000, From now: 6, Total Latency: 79.337108531, Data Latency: 78.050571102, Execution Latency: 1.286537429, Sink: 424461, Blocks seen: 443, 
+Executing query: 64
+B-Tree index size: 3906.54
+B-Tree index size: 3941.51
+B-Tree index size: 3980.58
+B-Tree index size: 3986.65
+B-Tree index size: 4003.03
+B-Tree index size: 4009.49
+B-Tree index size: 4014.70
+B-Tree index size: 4018.31
+B-Tree index size: 4021.90
+B-Tree index size: 4026.78
+Executing query: 65
+B-Tree index size: 4028.96
+Current time: 2022-10-14T15:11:36.533143883Z, Query ID: 57, Source: SeriesId(237), Duration: 35000000, From now: 8, Total Latency: 80.529908969, Data Latency: 79.456976452, Execution Latency: 1.072932517, Sink: 308777, Blocks seen: 334, 
+B-Tree index size: 4034.17
+B-Tree index size: 4038.35
+B-Tree index size: 4041.93
+B-Tree index size: 4046.21
+B-Tree index size: 4050.43
+B-Tree index size: 4073.56
+B-Tree index size: 4107.43
+B-Tree index size: 4142.30
+B-Tree index size: 4149.35
+Executing query: 66
+B-Tree index size: 4167.18
+B-Tree index size: 4172.29
+B-Tree index size: 4177.43
+B-Tree index size: 4209.33
+B-Tree index size: 4243.26
+B-Tree index size: 4271.46
+B-Tree index size: 4273.60
+Current time: 2022-10-14T15:11:56.533393771Z, Query ID: 59, Source: SeriesId(661), Duration: 49000000, From now: 3, Total Latency: 76.377539445, Data Latency: 75.348344675, Execution Latency: 1.02919477, Sink: 302685, Blocks seen: 327, 
+Current time: 2022-10-14T15:12:06.533501290Z, Query ID: 60, Source: SeriesId(618), Duration: 54000000, From now: 6, Total Latency: 66.566335653, Data Latency: 65.642337594, Execution Latency: 0.923998059, Sink: 285057, Blocks seen: 308, 
+Current time: 2022-10-14T15:11:46.533300484Z, Query ID: 58, Source: SeriesId(423), Duration: 50000000, From now: 8, Total Latency: 86.674876097, Data Latency: 85.1613144, Execution Latency: 1.513561697, Sink: 440920, Blocks seen: 457, 
+Current time: 2022-10-14T15:12:16.533607096Z, Query ID: 61, Source: SeriesId(697), Duration: 44000000, From now: 6, Total Latency: 56.801389999, Data Latency: 56.437515595, Execution Latency: 0.363874404, Sink: 113575, Blocks seen: 117, 
+Current time: 2022-10-14T15:12:36.533880632Z, Query ID: 63, Source: SeriesId(271), Duration: 53000000, From now: 9, Total Latency: 37.132392489, Data Latency: 37.024354733, Execution Latency: 0.108037756, Sink: 47005, Blocks seen: 31, 
+Current time: 2022-10-14T15:12:26.533731794Z, Query ID: 62, Source: SeriesId(691), Duration: 52000000, From now: 8, Total Latency: 47.210447289, Data Latency: 46.831719847, Execution Latency: 0.378727442, Sink: 117334, Blocks seen: 115, 
+B-Tree index size: 4290.82
+Current time: 2022-10-14T15:12:46.533981945Z, Query ID: 64, Source: SeriesId(626), Duration: 10000000, From now: 7, Total Latency: 27.325562218, Data Latency: 27.319245347, Execution Latency: 0.006316871, Sink: 3174, Blocks seen: 2, 
+Current time: 2022-10-14T15:12:56.534101383Z, Query ID: 65, Source: SeriesId(693), Duration: 18000000, From now: 8, Total Latency: 18.033476815, Data Latency: 18.01233923, Execution Latency: 0.021137585, Sink: 6309, Blocks seen: 7, 
+B-Tree index size: 4297.69
+Current time: 2022-10-14T15:13:06.534231433Z, Query ID: 66, Source: SeriesId(379), Duration: 25000000, From now: 8, Total Latency: 8.226713374, Data Latency: 8.20594797, Execution Latency: 0.020765404, Sink: 8036, Blocks seen: 6, 
+B-Tree index size: 4298.78
+Executing query: 67
+B-Tree index size: 4298.78
+Current time: 2022-10-14T15:13:16.534355374Z, Query ID: 67, Source: SeriesId(362), Duration: 45000000, From now: 5, Total Latency: 1.130851628, Data Latency: 1.100822961, Execution Latency: 0.030028667, Sink: 13638, Blocks seen: 11, 
+B-Tree index size: 4301.07
+B-Tree index size: 4301.07
+B-Tree index size: 4301.34
+B-Tree index size: 4301.43
+B-Tree index size: 4301.43
+B-Tree index size: 4301.70
+B-Tree index size: 4301.79
+B-Tree index size: 4302.11
+B-Tree index size: 4302.11
+Executing query: 68
+Current time: 2022-10-14T15:13:26.534481963Z, Query ID: 68, Source: SeriesId(763), Duration: 56000000, From now: 9, Total Latency: 0.036788385, Data Latency: 0.000003182, Execution Latency: 0.036785203, Sink: 16668, Blocks seen: 12, 
+B-Tree index size: 4302.11
+B-Tree index size: 4302.49
+B-Tree index size: 4302.49
+B-Tree index size: 4302.75
+B-Tree index size: 4302.84
+B-Tree index size: 4302.84
+B-Tree index size: 4303.10
+B-Tree index size: 4303.20
+B-Tree index size: 4303.56
+B-Tree index size: 4303.56
+Executing query: 69
+Current time: 2022-10-14T15:13:36.534592867Z, Query ID: 69, Source: SeriesId(843), Duration: 33000000, From now: 8, Total Latency: 0.025214827, Data Latency: 0.000003462, Execution Latency: 0.025211365, Sink: 8897, Blocks seen: 8, 
+B-Tree index size: 4303.56
+B-Tree index size: 4303.90
+B-Tree index size: 4303.91
+B-Tree index size: 4304.16
+B-Tree index size: 4304.27
+B-Tree index size: 4304.27
+B-Tree index size: 4304.61
+B-Tree index size: 4304.61
+B-Tree index size: 4304.98
+B-Tree index size: 4304.98
+Executing query: 70
+B-Tree index size: 4304.98
+Current time: 2022-10-14T15:13:46.534712969Z, Query ID: 70, Source: SeriesId(697), Duration: 44000000, From now: 6, Total Latency: 1.138681047, Data Latency: 1.100815645, Execution Latency: 0.037865402, Sink: 12969, Blocks seen: 12, 
+B-Tree index size: 4305.33
+B-Tree index size: 4305.33
+B-Tree index size: 4305.60
+B-Tree index size: 4305.69
+B-Tree index size: 4305.69
+B-Tree index size: 4305.97
+B-Tree index size: 4306.06
+B-Tree index size: 4306.41
+B-Tree index size: 4306.41
+Executing query: 71
+Current time: 2022-10-14T15:13:56.534840897Z, Query ID: 71, Source: SeriesId(880), Duration: 42000000, From now: 9, Total Latency: 0.032333339, Data Latency: 0.000004369, Execution Latency: 0.03232897, Sink: 10307, Blocks seen: 10, 
+B-Tree index size: 4306.41
+B-Tree index size: 4306.76
+B-Tree index size: 4306.76
+B-Tree index size: 4307.03
+B-Tree index size: 4307.13
+B-Tree index size: 4307.13
+B-Tree index size: 4307.47
+B-Tree index size: 4307.47
+B-Tree index size: 4307.83
+B-Tree index size: 4307.83
+Executing query: 72
+Current time: 2022-10-14T15:14:06.534964558Z, Query ID: 72, Source: SeriesId(229), Duration: 26000000, From now: 7, Total Latency: 0.023171195, Data Latency: 0.000003205, Execution Latency: 0.02316799, Sink: 7695, Blocks seen: 7, 
+B-Tree index size: 4307.83
+B-Tree index size: 4308.20
+B-Tree index size: 4308.20
+B-Tree index size: 4308.57
+B-Tree index size: 4308.57
+B-Tree index size: 4308.57
+B-Tree index size: 4308.91
+B-Tree index size: 4308.91
+B-Tree index size: 4309.29
+B-Tree index size: 4309.29
+Executing query: 73
+Current time: 2022-10-14T15:14:16.535085476Z, Query ID: 73, Source: SeriesId(869), Duration: 41000000, From now: 7, Total Latency: 0.036439509, Data Latency: 0.000003793, Execution Latency: 0.036435716, Sink: 12475, Blocks seen: 11, 
+B-Tree index size: 4309.29
+B-Tree index size: 4309.63
+B-Tree index size: 4309.63
+B-Tree index size: 4310.00
+B-Tree index size: 4310.00
+B-Tree index size: 4310.00
+B-Tree index size: 4310.30
+B-Tree index size: 4310.40
+B-Tree index size: 4310.75
+B-Tree index size: 4310.75
+Executing query: 74
+Current time: 2022-10-14T15:14:26.535203156Z, Query ID: 74, Source: SeriesId(447), Duration: 15000000, From now: 5, Total Latency: 0.020682633, Data Latency: 0.000003364, Execution Latency: 0.020679269, Sink: 4947, Blocks seen: 6, 
+B-Tree index size: 4310.75
+B-Tree index size: 4311.15
+B-Tree index size: 4311.15
+B-Tree index size: 4311.43
+B-Tree index size: 4311.51
+B-Tree index size: 4311.51
+B-Tree index size: 4311.89
+B-Tree index size: 4311.89
+B-Tree index size: 4312.24
+B-Tree index size: 4312.24
+Executing query: 75
+Current time: 2022-10-14T15:14:36.535322006Z, Query ID: 75, Source: SeriesId(881), Duration: 56000000, From now: 7, Total Latency: 0.064383675, Data Latency: 0.000003413, Execution Latency: 0.064380262, Sink: 18441, Blocks seen: 19, 
+B-Tree index size: 4312.24
+B-Tree index size: 4312.57
+B-Tree index size: 4312.57
+B-Tree index size: 4312.85
+B-Tree index size: 4312.94
+B-Tree index size: 4312.94
+B-Tree index size: 4313.28
+B-Tree index size: 4313.28
+B-Tree index size: 4313.64
+B-Tree index size: 4313.64
+Executing query: 76
+Current time: 2022-10-14T15:14:46.535464581Z, Query ID: 76, Source: SeriesId(697), Duration: 59000000, From now: 7, Total Latency: 0.056657195, Data Latency: 0.000003532, Execution Latency: 0.056653663, Sink: 17272, Blocks seen: 18, 
+B-Tree index size: 4313.64
+B-Tree index size: 4314.00
+B-Tree index size: 4314.00
+B-Tree index size: 4314.38
+B-Tree index size: 4314.38
+B-Tree index size: 4314.38
+B-Tree index size: 4314.71
+B-Tree index size: 4314.71
+B-Tree index size: 4315.07
+B-Tree index size: 4315.07
+Executing query: 77
+Current time: 2022-10-14T15:14:56.535582242Z, Query ID: 77, Source: SeriesId(420), Duration: 36000000, From now: 9, Total Latency: 0.03969744, Data Latency: 0.000003831, Execution Latency: 0.039693609, Sink: 11102, Blocks seen: 12, 
+B-Tree index size: 4315.07
+B-Tree index size: 4315.43
+B-Tree index size: 4315.43
+B-Tree index size: 4315.80
+B-Tree index size: 4315.80
+B-Tree index size: 4315.80
+B-Tree index size: 4316.16
+B-Tree index size: 4316.16
+B-Tree index size: 4316.52
+B-Tree index size: 4316.52
+Executing query: 78
+B-Tree index size: 4316.52
+B-Tree index size: 4316.86
+B-Tree index size: 4316.86
+B-Tree index size: 4317.24
+Current time: 2022-10-14T15:15:06.535707807Z, Query ID: 78, Source: SeriesId(267), Duration: 46000000, From now: 5, Total Latency: 3.256175945, Data Latency: 3.202365511, Execution Latency: 0.053810434, Sink: 14661, Blocks seen: 16, 
+B-Tree index size: 4317.24
+B-Tree index size: 4317.24
+B-Tree index size: 4317.58
+B-Tree index size: 4317.58
+B-Tree index size: 4317.96
+B-Tree index size: 4317.96
+Executing query: 79
+B-Tree index size: 4317.96
+Current time: 2022-10-14T15:15:16.535822662Z, Query ID: 79, Source: SeriesId(838), Duration: 35000000, From now: 5, Total Latency: 1.127851257, Data Latency: 1.100813318, Execution Latency: 0.027037939, Sink: 10664, Blocks seen: 9, 
+B-Tree index size: 4318.32
+B-Tree index size: 4318.32
+B-Tree index size: 4318.57
+B-Tree index size: 4318.67
+B-Tree index size: 4318.67
+B-Tree index size: 4319.03
+B-Tree index size: 4319.03
+B-Tree index size: 4319.40
+B-Tree index size: 4319.40
+Executing query: 80
+Current time: 2022-10-14T15:15:26.535954895Z, Query ID: 80, Source: SeriesId(456), Duration: 44000000, From now: 7, Total Latency: 0.038680599, Data Latency: 0.000003826, Execution Latency: 0.038676773, Sink: 12776, Blocks seen: 12, 
+B-Tree index size: 4319.40
+B-Tree index size: 4319.64
+B-Tree index size: 4319.73
+B-Tree index size: 4320.09
+B-Tree index size: 4320.09
+B-Tree index size: 4320.09
+B-Tree index size: 4320.45
+B-Tree index size: 4320.45
+B-Tree index size: 4320.82
+B-Tree index size: 4320.82
+Executing query: 81
+B-Tree index size: 4320.82
+B-Tree index size: 4321.16
+B-Tree index size: 4321.16
+Current time: 2022-10-14T15:15:36.536081865Z, Query ID: 81, Source: SeriesId(989), Duration: 30000000, From now: 4, Total Latency: 3.130244378, Data Latency: 3.102297304, Execution Latency: 0.027947074, Sink: 8629, Blocks seen: 8, 
+B-Tree index size: 4321.54
+B-Tree index size: 4321.54
+B-Tree index size: 4321.54
+B-Tree index size: 4321.88
+B-Tree index size: 4321.88
+B-Tree index size: 4322.24
+B-Tree index size: 4322.24
+Executing query: 82
+B-Tree index size: 4322.24
+B-Tree index size: 4322.51
+Current time: 2022-10-14T15:15:46.536200103Z, Query ID: 82, Source: SeriesId(693), Duration: 49000000, From now: 4, Total Latency: 1.249701975, Data Latency: 1.200888766, Execution Latency: 0.048813209, Sink: 14315, Blocks seen: 16, 
+B-Tree index size: 4322.61
+B-Tree index size: 4322.96
+B-Tree index size: 4322.96
+B-Tree index size: 4322.96
+B-Tree index size: 4323.33
+B-Tree index size: 4323.33
+B-Tree index size: 4323.71
+B-Tree index size: 4323.71
+Executing query: 83
+Current time: 2022-10-14T15:15:56.536322341Z, Query ID: 83, Source: SeriesId(734), Duration: 56000000, From now: 6, Total Latency: 0.043992459, Data Latency: 0.000003752, Execution Latency: 0.043988707, Sink: 16093, Blocks seen: 15, 
+B-Tree index size: 4323.71
+B-Tree index size: 4324.04
+B-Tree index size: 4324.04
+B-Tree index size: 4324.42
+B-Tree index size: 4324.42
+B-Tree index size: 4324.42
+B-Tree index size: 4324.69
+B-Tree index size: 4324.78
+B-Tree index size: 4325.15
+B-Tree index size: 4325.15
+Executing query: 84
+Current time: 2022-10-14T15:16:06.536446657Z, Query ID: 84, Source: SeriesId(580), Duration: 26000000, From now: 6, Total Latency: 0.021623515, Data Latency: 0.000003308, Execution Latency: 0.021620207, Sink: 7027, Blocks seen: 7, 
+B-Tree index size: 4325.15
+B-Tree index size: 4325.47
+B-Tree index size: 4325.47
+B-Tree index size: 4325.85
+B-Tree index size: 4325.85
+B-Tree index size: 4325.85
+B-Tree index size: 4326.21
+B-Tree index size: 4326.21
+B-Tree index size: 4326.47
+B-Tree index size: 4326.57
+Executing query: 85
+B-Tree index size: 4326.57
+Current time: 2022-10-14T15:16:16.536565111Z, Query ID: 85, Source: SeriesId(746), Duration: 12000000, From now: 3, Total Latency: 1.216563399, Data Latency: 1.20088989, Execution Latency: 0.015673509, Sink: 3323, Blocks seen: 5, 
+B-Tree index size: 4326.94
+B-Tree index size: 4326.94
+B-Tree index size: 4327.30
+B-Tree index size: 4327.30
+B-Tree index size: 4327.30
+B-Tree index size: 4327.66
+B-Tree index size: 4327.66
+B-Tree index size: 4327.92
+B-Tree index size: 4328.02
+Executing query: 86
+B-Tree index size: 4328.02
+B-Tree index size: 4328.38
+Current time: 2022-10-14T15:16:26.536696626Z, Query ID: 86, Source: SeriesId(734), Duration: 41000000, From now: 4, Total Latency: 1.242511102, Data Latency: 1.200872025, Execution Latency: 0.041639077, Sink: 12444, Blocks seen: 14, 
+B-Tree index size: 4328.38
+B-Tree index size: 4328.74
+B-Tree index size: 4328.74
+B-Tree index size: 4328.74
+B-Tree index size: 4329.17
+B-Tree index size: 4329.17
+B-Tree index size: 4329.53
+B-Tree index size: 4329.53
+Executing query: 87
+Current time: 2022-10-14T15:16:36.536820568Z, Query ID: 87, Source: SeriesId(481), Duration: 47000000, From now: 6, Total Latency: 0.055215988, Data Latency: 0.000003869, Execution Latency: 0.055212119, Sink: 13981, Blocks seen: 18, 
+B-Tree index size: 4329.53
+B-Tree index size: 4329.90
+B-Tree index size: 4329.90
+B-Tree index size: 4330.27
+B-Tree index size: 4330.27
+B-Tree index size: 4330.27
+B-Tree index size: 4330.65
+B-Tree index size: 4330.65
+B-Tree index size: 4331.04
+B-Tree index size: 4331.04
+Executing query: 88
+Current time: 2022-10-14T15:16:46.536949184Z, Query ID: 88, Source: SeriesId(697), Duration: 47000000, From now: 6, Total Latency: 0.066063997, Data Latency: 0.000003078, Execution Latency: 0.066060919, Sink: 14476, Blocks seen: 21, 
+B-Tree index size: 4331.04
+B-Tree index size: 4331.44
+B-Tree index size: 4331.44
+B-Tree index size: 4331.80
+B-Tree index size: 4331.80
+B-Tree index size: 4331.80
+B-Tree index size: 4332.17
+B-Tree index size: 4332.17
+B-Tree index size: 4332.52
+B-Tree index size: 4332.52
+Executing query: 89
+Current time: 2022-10-14T15:16:56.537064095Z, Query ID: 89, Source: SeriesId(379), Duration: 35000000, From now: 8, Total Latency: 0.059366879, Data Latency: 0.000003401, Execution Latency: 0.059363478, Sink: 11382, Blocks seen: 18, 
+B-Tree index size: 4332.52
+B-Tree index size: 4332.87
+B-Tree index size: 4332.87
+B-Tree index size: 4333.23
+B-Tree index size: 4333.23
+B-Tree index size: 4333.23
+B-Tree index size: 4333.59
+B-Tree index size: 4333.59
+B-Tree index size: 4333.98
+B-Tree index size: 4333.98
+Executing query: 90
+B-Tree index size: 4333.98
+Current time: 2022-10-14T15:17:06.537187402Z, Query ID: 90, Source: SeriesId(425), Duration: 10000000, From now: 6, Total Latency: 1.110748128, Data Latency: 1.100790266, Execution Latency: 0.009957862, Sink: 3521, Blocks seen: 3, 
+B-Tree index size: 4334.33
+B-Tree index size: 4334.33
+B-Tree index size: 4334.69
+B-Tree index size: 4334.69
+B-Tree index size: 4334.69
+B-Tree index size: 4335.11
+B-Tree index size: 4335.11
+B-Tree index size: 4335.49
+B-Tree index size: 4335.49
+Executing query: 91
+B-Tree index size: 4335.49
+Current time: 2022-10-14T15:17:16.537309242Z, Query ID: 91, Source: SeriesId(871), Duration: 57000000, From now: 5, Total Latency: 1.183305249, Data Latency: 1.100804223, Execution Latency: 0.082501026, Sink: 17391, Blocks seen: 26, 
+B-Tree index size: 4335.85
+B-Tree index size: 4335.85
+B-Tree index size: 4336.21
+B-Tree index size: 4336.21
+B-Tree index size: 4336.21
+B-Tree index size: 4336.57
+B-Tree index size: 4336.57
+B-Tree index size: 4336.93
+B-Tree index size: 4336.93
+Executing query: 92
+Current time: 2022-10-14T15:17:26.537435432Z, Query ID: 92, Source: SeriesId(271), Duration: 15000000, From now: 8, Total Latency: 0.020397437, Data Latency: 0.000004191, Execution Latency: 0.020393246, Sink: 3422, Blocks seen: 6, 
+B-Tree index size: 4336.93
+B-Tree index size: 4337.29
+B-Tree index size: 4337.29
+B-Tree index size: 4337.64
+B-Tree index size: 4337.64
+B-Tree index size: 4337.64
+B-Tree index size: 4338.01
+B-Tree index size: 4338.01
+B-Tree index size: 4338.39
+B-Tree index size: 4338.39
+Executing query: 93
+Current time: 2022-10-14T15:17:36.537565189Z, Query ID: 93, Source: SeriesId(428), Duration: 36000000, From now: 7, Total Latency: 0.04004267, Data Latency: 0.000003088, Execution Latency: 0.040039582, Sink: 9799, Blocks seen: 12, 
+B-Tree index size: 4338.39
+B-Tree index size: 4338.74
+B-Tree index size: 4338.74
+B-Tree index size: 4339.00
+B-Tree index size: 4339.08
+B-Tree index size: 4339.08
+B-Tree index size: 4339.46
+B-Tree index size: 4339.46
+B-Tree index size: 4339.84
+B-Tree index size: 4339.84
+Executing query: 94
+Current time: 2022-10-14T15:17:46.537686923Z, Query ID: 94, Source: SeriesId(526), Duration: 26000000, From now: 7, Total Latency: 0.026881283, Data Latency: 0.000003163, Execution Latency: 0.02687812, Sink: 6993, Blocks seen: 9, 
+B-Tree index size: 4339.84
+B-Tree index size: 4340.23
+B-Tree index size: 4340.23
+B-Tree index size: 4340.61
+B-Tree index size: 4340.61
+B-Tree index size: 4340.61
+B-Tree index size: 4343.08
+B-Tree index size: 4365.70
+B-Tree index size: 4373.07
+B-Tree index size: 4401.91
+Executing query: 95
+B-Tree index size: 4401.91
+B-Tree index size: 4407.55
+B-Tree index size: 4431.11
+Current time: 2022-10-14T15:17:56.537807361Z, Query ID: 95, Source: SeriesId(354), Duration: 27000000, From now: 6, Total Latency: 3.138655873, Data Latency: 3.102288866, Execution Latency: 0.036367007, Sink: 6509, Blocks seen: 12, 
+B-Tree index size: 4432.47
+B-Tree index size: 4433.34
+B-Tree index size: 4433.34
+B-Tree index size: 4433.70
+B-Tree index size: 4433.70
+B-Tree index size: 4433.97
+B-Tree index size: 4434.07
+Executing query: 96
+B-Tree index size: 4434.07
+Current time: 2022-10-14T15:18:06.537952386Z, Query ID: 96, Source: SeriesId(428), Duration: 35000000, From now: 5, Total Latency: 1.137193196, Data Latency: 1.10081096, Execution Latency: 0.036382236, Sink: 7769, Blocks seen: 11, 
+B-Tree index size: 4434.43
+B-Tree index size: 4434.43
+B-Tree index size: 4434.76
+B-Tree index size: 4434.76
+B-Tree index size: 4434.76
+B-Tree index size: 4435.08
+B-Tree index size: 4435.08
+B-Tree index size: 4435.46
+B-Tree index size: 4435.46
+Executing query: 97
+Current time: 2022-10-14T15:18:16.538072803Z, Query ID: 97, Source: SeriesId(729), Duration: 12000000, From now: 6, Total Latency: 0.007001509, Data Latency: 0.000003423, Execution Latency: 0.006998086, Sink: 1823, Blocks seen: 2, 
+B-Tree index size: 4435.46
+B-Tree index size: 4435.81
+B-Tree index size: 4435.81
+B-Tree index size: 4436.16
+B-Tree index size: 4436.16
+B-Tree index size: 4436.16
+B-Tree index size: 4436.50
+B-Tree index size: 4436.50
+B-Tree index size: 4436.88
+B-Tree index size: 4436.88
+Executing query: 98
+B-Tree index size: 4436.88
+B-Tree index size: 4437.20
+B-Tree index size: 4437.20
+B-Tree index size: 4437.56
+B-Tree index size: 4437.56
+B-Tree index size: 4437.56
+Current time: 2022-10-14T15:18:26.538192631Z, Query ID: 98, Source: SeriesId(693), Duration: 11000000, From now: 3, Total Latency: 6.210835746, Data Latency: 6.2045222429999995, Execution Latency: 0.006313503, Sink: 3246, Blocks seen: 2, 
+B-Tree index size: 4437.83
+B-Tree index size: 4437.93
+B-Tree index size: 4438.28
+B-Tree index size: 4438.28
+Executing query: 99
+B-Tree index size: 4438.28
+Current time: 2022-10-14T15:18:36.538301387Z, Query ID: 99, Source: SeriesId(374), Duration: 18000000, From now: 8, Total Latency: 1.110065441, Data Latency: 1.100838163, Execution Latency: 0.009227278, Sink: 5206, Blocks seen: 3, 
