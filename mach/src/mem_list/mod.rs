@@ -1,6 +1,6 @@
 mod source_block_list;
 pub use source_block_list::{
-    SourceBlockList, SourceBlocks2, SourceBlocks3, PENDING_UNFLUSHED_BLOCKLISTS,
+    SourceBlockList, SourceBlocks2, SourceBlocks3,
 };
 
 use crate::constants::*;
@@ -39,12 +39,22 @@ static BLOCK_LIST_ENTRY_ID: AtomicUsize = AtomicUsize::new(0);
 static CHUNK_ID: AtomicUsize = AtomicUsize::new(0);
 
 lazy_static! {
+    //pub static ref BLOCKLIST_ENTRIES: Arc<AtomicUsize> = {
+    //    let x = Arc::new(AtomicUsize::new(0));
+    //    let x2 = x.clone();
+    //    thread::spawn(move || loop {
+    //        let x = x2.load(SeqCst);
+    //        println!("Block Entries {}", x);
+    //        thread::sleep(Duration::from_secs(1));
+    //    });
+    //    x
+    //};
     pub static ref PENDING_UNFLUSHED_BYTES: Arc<AtomicUsize> = {
         let x = Arc::new(AtomicUsize::new(0));
         let x2 = x.clone();
         thread::spawn(move || loop {
             let x = x2.load(SeqCst);
-            println!("Snap Pending unflushed data bytes: {}", x);
+            println!("Pending unflushed data bytes: {}", x);
             thread::sleep(Duration::from_secs(1));
         });
         x
@@ -72,7 +82,8 @@ lazy_static! {
         x
     };
     static ref N_FLUSHERS: AtomicUsize = AtomicUsize::new(INIT_FLUSHERS);
-    static ref FLUSH_WORKERS: DashMap<usize, crossbeam::channel::Sender<Arc<BlockListEntry>>> = {
+
+    static ref FLUSH_WORKERS: DashMap<usize, crossbeam::channel::Sender<(Arc<BlockListEntry>, usize)>> = {
         let flushers = DashMap::new();
         for idx in 0..N_FLUSHERS.load(SeqCst) {
             let (tx, rx) = crossbeam::channel::unbounded();
@@ -100,10 +111,13 @@ pub enum Error {
 //    println!("ADDED FLUSH WORKER: {}", idx);
 //}
 
-fn flush_worker(id: usize, chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
+fn flush_worker(id: usize, chan: crossbeam::channel::Receiver<(Arc<BlockListEntry>, usize)>) {
     let mut producer = kafka::Producer::new();
-    while let Ok(block) = chan.recv() {
-        block.flush(id as i32, &mut producer);
+    while let Ok((block, sz)) = chan.recv() {
+        println!("FLUSHING AT WORKER {}", sz);
+        block.flush(id as i32 % PARTITIONS, &mut producer);
+        PENDING_UNFLUSHED_BYTES.fetch_sub(sz, SeqCst);
+        TOTAL_BYTES_FLUSHED.fetch_add(sz, SeqCst);
     }
     println!("FLUSHER EXITING");
 }
@@ -221,7 +235,7 @@ impl BlockList {
                 .get(&thread_rng().gen_range(0..n_flushers))
                 .unwrap()
                 .value()
-                .send(copy)
+                .send((copy, num_bytes))
                 .unwrap();
             //// Mark current block as cleared
             self.head_block.protected_write().reset();
@@ -320,8 +334,9 @@ impl Block {
         let mut bytes: Vec<u8> = self.bytes[..len].into();
         bincode::serialize_into(&mut bytes, &self.offsets[..item_count]).unwrap();
         bytes.extend_from_slice(&len.to_be_bytes());
+        let inner = InnerBlockListEntry::new_bytes(bytes.into());
         BlockListEntry {
-            inner: Mutex::new(InnerBlockListEntry::Bytes(bytes.into())),
+            inner: RwLock::new(inner),
             _id: BLOCK_LIST_ENTRY_ID.fetch_add(1, SeqCst),
         }
     }
@@ -469,9 +484,9 @@ pub enum ReadOnlyBlock {
 
 impl std::convert::From<InnerBlockListEntry> for ReadOnlyBlock {
     fn from(item: InnerBlockListEntry) -> Self {
-        match item {
+        match &item {
             InnerBlockListEntry::Bytes(x) => ReadOnlyBlock::Bytes(x[..].into()),
-            InnerBlockListEntry::Offset(entry) => ReadOnlyBlock::Offset(entry),
+            InnerBlockListEntry::Offset(entry) => ReadOnlyBlock::Offset(entry.clone()),
         }
     }
 }
@@ -565,31 +580,59 @@ enum InnerBlockListEntry {
     Offset(kafka::KafkaEntry),
 }
 
+impl InnerBlockListEntry {
+    fn new_bytes(data: Arc<[u8]>) -> Self {
+        //BLOCKLIST_ENTRIES.fetch_add(1, SeqCst);
+        InnerBlockListEntry::Bytes(data)
+    }
+}
+
+//impl Drop for InnerBlockListEntry {
+//    fn drop(&mut self) {
+//        match self {
+//            Self::Bytes(_) => {BLOCKLIST_ENTRIES.fetch_sub(1, SeqCst);},
+//            _ => {},
+//        };
+//    }
+//}
+
 pub struct BlockListEntry {
-    inner: Mutex<InnerBlockListEntry>,
+    inner: RwLock<InnerBlockListEntry>,
     _id: usize,
 }
 
 impl BlockListEntry {
+    fn set_partition_offset(&self, entry: kafka::KafkaEntry) {
+        let mut guard = self.inner.write().unwrap();
+        match &mut *guard {
+            InnerBlockListEntry::Bytes(_x) => {
+                let _x = std::mem::replace(&mut *guard, InnerBlockListEntry::Offset(entry));
+            }
+            InnerBlockListEntry::Offset(..) => {
+                println!("Double flushed");
+            }
+        }
+    }
+
     fn inner(&self) -> InnerBlockListEntry {
-        self.inner.lock().unwrap().clone()
+        self.inner.read().unwrap().clone()
     }
 
     fn flush(&self, partition: i32, producer: &mut kafka::Producer) {
-        let mut guard = self.inner.lock().unwrap();
+        let guard = self.inner.read().unwrap();
         match &*guard {
             InnerBlockListEntry::Bytes(bytes) => {
+                let num_bytes = bytes.len();
                 let kafka_entry = producer.send(partition, bytes);
-                TOTAL_BYTES_FLUSHED.fetch_add(bytes.len(), SeqCst);
-                PENDING_UNFLUSHED_BYTES.fetch_sub(bytes.len(), SeqCst);
-                let _x = std::mem::replace(&mut *guard, InnerBlockListEntry::Offset(kafka_entry));
+                drop(guard);
+                self.set_partition_offset(kafka_entry);
             }
             InnerBlockListEntry::Offset(_) => {} // already flushed
         }
     }
 
     fn partition_offset(&self) -> kafka::KafkaEntry {
-        match &*self.inner.lock().unwrap() {
+        match &*self.inner.read().unwrap() {
             InnerBlockListEntry::Bytes(_) => unimplemented!(),
             InnerBlockListEntry::Offset(entry) => entry.clone(),
         }

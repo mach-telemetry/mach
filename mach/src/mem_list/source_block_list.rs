@@ -18,9 +18,19 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc, RwLock,
 };
+use std::thread;
 
 lazy_static::lazy_static! {
-    pub static ref PENDING_UNFLUSHED_BLOCKLISTS: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    static ref PENDING_UNFLUSHED_BLOCKLISTS: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || loop {
+            let x = x2.load(SeqCst);
+            println!("Pending unflushed blocklists: {}", x);
+            thread::sleep(Duration::from_secs(1));
+        });
+        x
+    };
     static ref LIST_ITEM_FLUSHER: Sender<(SeriesId, Arc<RwLock<ListItem>>)> = {
         let producer = kafka::Producer::new();
         let (tx, rx) = unbounded();
@@ -63,9 +73,6 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
             idx: 0,
             data: v,
             next: last,
-            //prefetch: HISTORICAL_BLOCKS.snapshot(id),
-            //cached_messages_read: 0,
-            //messages_read: 0,
         };
         let bytes = bincode::serialize(&to_serialize).unwrap();
         let partition = thread_rng().gen_range(0..PARTITIONS);
@@ -147,51 +154,6 @@ impl InnerBuffer {
             PENDING_UNFLUSHED_BLOCKLISTS.fetch_add(1, SeqCst);
         }
     }
-
-    //fn chunks_for_id(&self, id: u64, last_chunk_id: usize) {
-    //    let mut result = Vec::new();
-    //    // Get components to read
-    //    let guard = self.data.protected_read();
-    //    let len = guard.offset.load(SeqCst) % 256;
-    //    //println!("Snapshot len: {}", len);
-    //    let copy: Vec<InnerListEntry> =
-    //        unsafe { MaybeUninit::slice_assume_init_ref(&guard.data[..len]).to_vec() };
-    //    let current = self.next.read().unwrap().clone();
-    //    if guard.release().is_err() {
-    //        return Err(Error::Snapshot);
-    //    }
-
-    //    let mut chunks: Vec<SourceBlockSnapshot> = Vec::with_capacity(256);
-
-    //    // Traverse list
-    //    for item in copy.iter().rev() {
-    //        let item = match item.block.inner() {
-    //            ReadOnlyBlock::Offset(k) => chunks.push(SourceBlockSnapshot::Kafka(k.clone())),
-    //            ReadOnlyBlock::Bytes(block) => {
-    //                let mut bytes = block.as_bytes().chunks_for_id(serid.0);
-    //                bytes.sort_by(|x, y| y.0.cmp(&x.0)); // sort chunks
-    //                let mut v = Vec::new();
-    //                for (id, chunk) in bytes {
-    //                    if id > last_compressed_block_id {
-    //                        if last_id == usize::MAX {
-    //                            last_id = id;
-    //                        }
-    //                        v.push(chunk);
-    //                    } else {
-    //                        return Snapshot2 {
-    //                            segment,
-    //                            chunks,
-    //                            last_id,
-    //                            next: NextItem::Snapshot(prev_snapshot.unwrap()),
-    //                        };
-    //                    }
-    //                }
-    //                chunks.push(SourceBlockSnapshot::Bytes(v));
-    //            };
-    //        }
-
-    //    Ok(result)
-    //}
 
     fn snapshot(&self) -> Result<SourceBlocks2, Error> {
         // Get components to read

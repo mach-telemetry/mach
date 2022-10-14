@@ -1,0 +1,2331 @@
+MADE TOPIC kafka-completeness-bench
+Read data for 464 sources
+		Sources,	Samples,	Bytes
+Metrics,	311,	33585593,	268684744
+Logs + Traces,	153,	686135,	897249338
+Expanding data based on source_count = 1000
+Sorting by time
+Setting up final samples
+Samples stats:
+Total number of unique samples: 74030031
+Number of sources: 1000, Number of metrics: 671
+Max source length: 108788
+Average source length: 74030
+Min source length: 4
+Total samples: 74030031
+Workloads: [Workload { samples_per_second: 200000, duration: 300s }, Workload { samples_per_second: 8000000, duration: 300s }, Workload { samples_per_second: 200000, duration: 3600s }]
+You've got 30 seconds!
+Queue length: 0
+Pending unflushed data blocks: 1
+unflushed bytes: 59598
+Queue length: 0
+Pending unflushed data blocks: 17
+unflushed bytes: 794540
+Pending unflushed data blocks: 35
+unflushed bytes: 1531844
+Pending unflushed data blocks: 35
+unflushed bytes: 1531844
+Pending unflushed data blocks: 35
+unflushed bytes: 1531844
+Queue length: 0
+Pending unflushed data blocks: 38
+unflushed bytes: 1706924
+Queue length: 0
+Pending unflushed data blocks: 43
+unflushed bytes: 1730794
+Pending unflushed data blocks: 51
+unflushed bytes: 1537245
+Pending unflushed data blocks: 51
+unflushed bytes: 1537245
+Pending unflushed data blocks: 51
+unflushed bytes: 1537245
+Queue length: 0
+Pending unflushed data blocks: 52
+unflushed bytes: 1553576
+Queue length: 0
+Pending unflushed data blocks: 40
+unflushed bytes: 717796
+Pending unflushed data blocks: 49
+unflushed bytes: 689428
+Pending unflushed data blocks: 49
+unflushed bytes: 689428
+Pending unflushed data blocks: 49
+unflushed bytes: 689428
+Queue length: 0
+Pending unflushed data blocks: 37
+unflushed bytes: 511172
+Queue length: 0
+Pending unflushed data blocks: 23
+unflushed bytes: 346769
+Pending unflushed data blocks: 45
+unflushed bytes: 659313
+Pending unflushed data blocks: 45
+unflushed bytes: 659313
+Pending unflushed data blocks: 45
+unflushed bytes: 659313
+Queue length: 0
+Pending unflushed data blocks: 23
+unflushed bytes: 339711
+Queue length: 0
+Pending unflushed data blocks: 36
+unflushed bytes: 494317
+Pending unflushed data blocks: 47
+unflushed bytes: 637513
+Pending unflushed data blocks: 47
+unflushed bytes: 637513
+Pending unflushed data blocks: 47
+unflushed bytes: 637513
+Queue length: 0
+Pending unflushed data blocks: 26
+unflushed bytes: 353663
+Queue length: 0
+Pending unflushed data blocks: 50
+unflushed bytes: 690601
+Pending unflushed data blocks: 48
+unflushed bytes: 677568
+Pending unflushed data blocks: 48
+unflushed bytes: 677568
+Pending unflushed data blocks: 48
+unflushed bytes: 677568
+Queue length: 0
+Pending unflushed data blocks: 26
+unflushed bytes: 369586
+Queue length: 0
+Pending unflushed data blocks: 48
+unflushed bytes: 691350
+Pending unflushed data blocks: 48
+unflushed bytes: 684355
+Pending unflushed data blocks: 48
+unflushed bytes: 684355
+Pending unflushed data blocks: 48
+unflushed bytes: 684355
+Queue length: 0
+Pending unflushed data blocks: 27
+unflushed bytes: 380854
+Queue length: 0
+Pending unflushed data blocks: 51
+unflushed bytes: 720804
+Pending unflushed data blocks: 49
+unflushed bytes: 685736
+Pending unflushed data blocks: 49
+unflushed bytes: 685736
+Pending unflushed data blocks: 49
+unflushed bytes: 685736
+Queue length: 0
+Pending unflushed data blocks: 45
+unflushed bytes: 651972
+Current time: 2022-10-13T18:35:22.544364156Z, Current workload rate: 200000, Samples generated: 8500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 45
+unflushed bytes: 651972
+Queue length: 0
+Pending unflushed data blocks: 25
+unflushed bytes: 383285
+Pending unflushed data blocks: 47
+unflushed bytes: 682347
+Queue length: 0
+Pending unflushed data blocks: 49
+unflushed bytes: 712135
+Pending unflushed data blocks: 50
+unflushed bytes: 685873
+Current time: 2022-10-13T18:35:27.544729515Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Pending unflushed data blocks: 52
+unflushed bytes: 717090
+Pending unflushed data blocks: 38
+unflushed bytes: 930976
+Pending unflushed data blocks: 38
+unflushed bytes: 930976
+Pending unflushed data blocks: 38
+Queue length: 0
+unflushed bytes: 930976
+Pending unflushed data blocks: 42
+unflushed bytes: 1421209
+Current time: 2022-10-13T18:35:32.545094174Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 42
+unflushed bytes: 1421209
+Queue length: 0
+Pending unflushed data blocks: 32
+unflushed bytes: 869998
+Pending unflushed data blocks: 52
+unflushed bytes: 1166217
+Queue length: 0
+Pending unflushed data blocks: 54
+unflushed bytes: 1090358
+Pending unflushed data blocks: 48
+unflushed bytes: 706071
+Current time: 2022-10-13T18:35:37.545463769Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 48
+unflushed bytes: 706071
+Queue length: 0
+Pending unflushed data blocks: 28
+unflushed bytes: 398400
+Pending unflushed data blocks: 48
+unflushed bytes: 681564
+Queue length: 0
+Pending unflushed data blocks: 39
+unflushed bytes: 342219
+Pending unflushed data blocks: 48
+unflushed bytes: 656134
+Current time: 2022-10-13T18:35:42.545832707Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 48
+unflushed bytes: 656134
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 379470
+Pending unflushed data blocks: 50
+unflushed bytes: 676836
+Queue length: 0
+Pending unflushed data blocks: 39
+unflushed bytes: 544463
+Pending unflushed data blocks: 49
+unflushed bytes: 679477
+Current time: 2022-10-13T18:35:47.546198729Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 49
+unflushed bytes: 679477
+Queue length: 0
+Pending unflushed data blocks: 25
+unflushed bytes: 374924
+Pending unflushed data blocks: 47
+unflushed bytes: 666240
+Queue length: 0
+Pending unflushed data blocks: 38
+unflushed bytes: 359447
+Pending unflushed data blocks: 47
+unflushed bytes: 655172
+Current time: 2022-10-13T18:35:52.546584127Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 655172
+Queue length: 0
+Pending unflushed data blocks: 25
+unflushed bytes: 350271
+Pending unflushed data blocks: 47
+unflushed bytes: 653608
+Queue length: 0
+Pending unflushed data blocks: 27
+unflushed bytes: 372659
+Pending unflushed data blocks: 48
+unflushed bytes: 665395
+Current time: 2022-10-13T18:35:57.546972278Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 48
+unflushed bytes: 665395
+Queue length: 0
+Pending unflushed data blocks: 26
+unflushed bytes: 372847
+Pending unflushed data blocks: 50
+unflushed bytes: 674784
+Queue length: 0
+Pending unflushed data blocks: 28
+unflushed bytes: 386148
+Pending unflushed data blocks: 49
+unflushed bytes: 668047
+Current time: 2022-10-13T18:36:02.547363673Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 49
+unflushed bytes: 668047
+Queue length: 0
+Pending unflushed data blocks: 53
+unflushed bytes: 726847
+Pending unflushed data blocks: 47
+unflushed bytes: 655758
+Queue length: 0
+Pending unflushed data blocks: 27
+unflushed bytes: 387653
+Pending unflushed data blocks: 47
+unflushed bytes: 653480
+Current time: 2022-10-13T18:36:07.547741166Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 653480
+Queue length: 0
+Pending unflushed data blocks: 25
+unflushed bytes: 353041
+Pending unflushed data blocks: 56
+unflushed bytes: 1213605
+Queue length: 0
+Pending unflushed data blocks: 37
+unflushed bytes: 955237
+Pending unflushed data blocks: 66
+unflushed bytes: 1818965
+Current time: 2022-10-13T18:36:12.548115599Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 66
+unflushed bytes: 1818965
+Queue length: 0
+Pending unflushed data blocks: 55
+unflushed bytes: 1655419
+Pending unflushed data blocks: 55
+unflushed bytes: 1232052
+Queue length: 0
+Pending unflushed data blocks: 26
+unflushed bytes: 368794
+Pending unflushed data blocks: 45
+unflushed bytes: 625779
+Current time: 2022-10-13T18:36:17.548506681Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 45
+unflushed bytes: 625779
+Queue length: 0
+Pending unflushed data blocks: 25
+unflushed bytes: 352140
+Pending unflushed data blocks: 47
+unflushed bytes: 653946
+Queue length: 0
+Pending unflushed data blocks: 30
+unflushed bytes: 407421
+Pending unflushed data blocks: 47
+unflushed bytes: 658886
+Current time: 2022-10-13T18:36:22.548885607Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 658886
+Pending unflushed data blocks: 47
+unflushed bytes: 658886
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 5
+unflushed bytes: 86641
+Pending unflushed data blocks: 49
+unflushed bytes: 678225
+Pending unflushed data blocks: 49
+unflushed bytes: 678225
+Current time: 2022-10-13T18:36:27.549257081Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 49
+unflushed bytes: 678225
+Pending unflushed data blocks: 49
+unflushed bytes: 678225
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 4
+unflushed bytes: 76168
+Pending unflushed data blocks: 47
+unflushed bytes: 692346
+Pending unflushed data blocks: 47
+unflushed bytes: 692346
+Current time: 2022-10-13T18:36:32.549624769Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 692346
+Pending unflushed data blocks: 47
+unflushed bytes: 692346
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 5
+unflushed bytes: 72490
+Pending unflushed data blocks: 48
+unflushed bytes: 675033
+Pending unflushed data blocks: 48
+unflushed bytes: 675033
+Current time: 2022-10-13T18:36:37.550006745Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 48
+unflushed bytes: 675033
+Pending unflushed data blocks: 48
+unflushed bytes: 675033
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 5
+unflushed bytes: 87966
+Pending unflushed data blocks: 47
+unflushed bytes: 674523
+Pending unflushed data blocks: 47
+unflushed bytes: 674523
+Current time: 2022-10-13T18:36:42.550374929Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 674523
+Pending unflushed data blocks: 47
+unflushed bytes: 674523
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 5
+unflushed bytes: 72818
+Pending unflushed data blocks: 47
+unflushed bytes: 668099
+Pending unflushed data blocks: 47
+unflushed bytes: 668099
+Current time: 2022-10-13T18:36:47.550745605Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 668099
+Pending unflushed data blocks: 47
+unflushed bytes: 668099
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 9
+unflushed bytes: 100558
+Pending unflushed data blocks: 49
+unflushed bytes: 686012
+Pending unflushed data blocks: 49
+unflushed bytes: 686012
+Current time: 2022-10-13T18:36:52.551104256Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 49
+unflushed bytes: 686012
+Pending unflushed data blocks: 49
+unflushed bytes: 686012
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 6
+unflushed bytes: 78437
+Pending unflushed data blocks: 48
+unflushed bytes: 690998
+Pending unflushed data blocks: 48
+unflushed bytes: 690998
+Current time: 2022-10-13T18:36:57.551470241Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 48
+unflushed bytes: 690998
+Pending unflushed data blocks: 48
+unflushed bytes: 690998
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 6
+unflushed bytes: 89154
+Pending unflushed data blocks: 47
+unflushed bytes: 675582
+Pending unflushed data blocks: 47
+unflushed bytes: 675582
+Current time: 2022-10-13T18:37:02.551828576Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 675582
+Pending unflushed data blocks: 47
+unflushed bytes: 675582
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 6
+unflushed bytes: 88829
+Pending unflushed data blocks: 48
+unflushed bytes: 677431
+Pending unflushed data blocks: 48
+unflushed bytes: 677431
+Current time: 2022-10-13T18:37:07.552185780Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 48
+unflushed bytes: 677431
+Pending unflushed data blocks: 48
+unflushed bytes: 677431
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 7
+unflushed bytes: 114050
+Pending unflushed data blocks: 47
+unflushed bytes: 679589
+Pending unflushed data blocks: 47
+unflushed bytes: 679589
+Current time: 2022-10-13T18:37:12.552558586Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 679589
+Pending unflushed data blocks: 47
+unflushed bytes: 679589
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 8
+unflushed bytes: 117427
+Pending unflushed data blocks: 47
+unflushed bytes: 678223
+Pending unflushed data blocks: 47
+unflushed bytes: 678223
+Current time: 2022-10-13T18:37:17.552926266Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 678223
+Queue length: 0
+Pending unflushed data blocks: 26
+unflushed bytes: 367584
+Pending unflushed data blocks: 47
+unflushed bytes: 695565
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 447840
+Pending unflushed data blocks: 47
+unflushed bytes: 714067
+Current time: 2022-10-13T18:37:22.553296234Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 714067
+Queue length: 0
+Pending unflushed data blocks: 27
+unflushed bytes: 398859
+Pending unflushed data blocks: 49
+unflushed bytes: 714954
+Queue length: 0
+Pending unflushed data blocks: 31
+unflushed bytes: 436426
+Pending unflushed data blocks: 49
+unflushed bytes: 704827
+Current time: 2022-10-13T18:37:27.553667642Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 49
+unflushed bytes: 704827
+Queue length: 0
+Pending unflushed data blocks: 27
+unflushed bytes: 387084
+Pending unflushed data blocks: 47
+unflushed bytes: 660510
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 393226
+Pending unflushed data blocks: 48
+unflushed bytes: 652437
+Current time: 2022-10-13T18:37:32.554023850Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 48
+unflushed bytes: 652437
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 407159
+Pending unflushed data blocks: 49
+unflushed bytes: 666481
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 403327
+Pending unflushed data blocks: 49
+unflushed bytes: 664155
+Current time: 2022-10-13T18:37:37.554382417Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 49
+unflushed bytes: 664155
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 390823
+Pending unflushed data blocks: 48
+unflushed bytes: 643323
+Queue length: 0
+Pending unflushed data blocks: 27
+unflushed bytes: 374625
+Pending unflushed data blocks: 47
+unflushed bytes: 627143
+Current time: 2022-10-13T18:37:42.554738376Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 627143
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 391533
+Pending unflushed data blocks: 47
+unflushed bytes: 638012
+Queue length: 0
+Pending unflushed data blocks: 27
+unflushed bytes: 394653
+Pending unflushed data blocks: 48
+unflushed bytes: 662625
+Current time: 2022-10-13T18:37:47.555104229Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 48
+unflushed bytes: 662625
+Queue length: 0
+Pending unflushed data blocks: 30
+unflushed bytes: 416126
+Pending unflushed data blocks: 48
+unflushed bytes: 673571
+Queue length: 0
+Pending unflushed data blocks: 27
+unflushed bytes: 390055
+Pending unflushed data blocks: 47
+unflushed bytes: 657951
+Current time: 2022-10-13T18:37:52.555460692Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 657951
+Queue length: 0
+Pending unflushed data blocks: 30
+unflushed bytes: 412869
+Pending unflushed data blocks: 48
+unflushed bytes: 661354
+Queue length: 0
+Pending unflushed data blocks: 28
+unflushed bytes: 386310
+Pending unflushed data blocks: 48
+unflushed bytes: 663288
+Current time: 2022-10-13T18:37:57.555818362Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 48
+unflushed bytes: 663288
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 417117
+Pending unflushed data blocks: 47
+unflushed bytes: 656745
+Queue length: 0
+Pending unflushed data blocks: 27
+unflushed bytes: 380179
+Pending unflushed data blocks: 47
+unflushed bytes: 657350
+Current time: 2022-10-13T18:38:02.556173881Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 657350
+Queue length: 0
+Pending unflushed data blocks: 31
+unflushed bytes: 423989
+Pending unflushed data blocks: 46
+unflushed bytes: 649204
+Queue length: 0
+Pending unflushed data blocks: 26
+unflushed bytes: 379360
+Pending unflushed data blocks: 46
+unflushed bytes: 655141
+Current time: 2022-10-13T18:38:07.556532157Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 46
+unflushed bytes: 655141
+Queue length: 0
+Pending unflushed data blocks: 32
+unflushed bytes: 437878
+Pending unflushed data blocks: 49
+unflushed bytes: 671386
+Pending unflushed data blocks: 49
+unflushed bytes: 671386
+Queue length: 0
+Pending unflushed data blocks: 33
+unflushed bytes: 438590
+Queue length: 0
+Current time: 2022-10-13T18:38:12.556877253Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 28
+unflushed bytes: 385673
+Pending unflushed data blocks: 47
+unflushed bytes: 653997
+Pending unflushed data blocks: 47
+unflushed bytes: 653997
+Pending unflushed data blocks: 47
+unflushed bytes: 653997
+Queue length: 0
+Pending unflushed data blocks: 31
+unflushed bytes: 427261
+Queue length: 0
+Current time: 2022-10-13T18:38:17.557220829Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 30
+unflushed bytes: 421128
+Pending unflushed data blocks: 49
+unflushed bytes: 669417
+Pending unflushed data blocks: 49
+unflushed bytes: 669417
+Pending unflushed data blocks: 49
+unflushed bytes: 669417
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 405559
+Queue length: 0
+Current time: 2022-10-13T18:38:22.557556262Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 30
+unflushed bytes: 393438
+Pending unflushed data blocks: 48
+unflushed bytes: 654507
+Pending unflushed data blocks: 48
+unflushed bytes: 654507
+Pending unflushed data blocks: 48
+unflushed bytes: 654507
+Queue length: 0
+Pending unflushed data blocks: 30
+unflushed bytes: 422630
+Queue length: 0
+Current time: 2022-10-13T18:38:27.557906523Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 29
+unflushed bytes: 402406
+Pending unflushed data blocks: 46
+unflushed bytes: 644800
+Pending unflushed data blocks: 46
+unflushed bytes: 644800
+Pending unflushed data blocks: 46
+unflushed bytes: 644800
+Queue length: 0
+Pending unflushed data blocks: 30
+unflushed bytes: 414618
+Queue length: 0
+Current time: 2022-10-13T18:38:32.558248767Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 29
+unflushed bytes: 408699
+Pending unflushed data blocks: 48
+unflushed bytes: 676987
+Pending unflushed data blocks: 48
+unflushed bytes: 676987
+Pending unflushed data blocks: 48
+unflushed bytes: 676987
+Queue length: 0
+Pending unflushed data blocks: 31
+unflushed bytes: 433158
+Queue length: 0
+Current time: 2022-10-13T18:38:37.558588618Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 30
+unflushed bytes: 423305
+Pending unflushed data blocks: 48
+unflushed bytes: 678333
+Pending unflushed data blocks: 48
+unflushed bytes: 678333
+Pending unflushed data blocks: 48
+unflushed bytes: 678333
+Queue length: 0
+Pending unflushed data blocks: 28
+unflushed bytes: 431992
+Queue length: 0
+Current time: 2022-10-13T18:38:42.558932211Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 29
+unflushed bytes: 443642
+Pending unflushed data blocks: 47
+unflushed bytes: 683970
+Pending unflushed data blocks: 47
+unflushed bytes: 683970
+Pending unflushed data blocks: 47
+unflushed bytes: 683970
+Queue length: 0
+Pending unflushed data blocks: 28
+unflushed bytes: 407735
+Queue length: 0
+Current time: 2022-10-13T18:38:47.559286305Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 32
+unflushed bytes: 441745
+Pending unflushed data blocks: 48
+unflushed bytes: 682945
+Pending unflushed data blocks: 48
+unflushed bytes: 682945
+Pending unflushed data blocks: 48
+unflushed bytes: 682945
+Queue length: 0
+Pending unflushed data blocks: 27
+unflushed bytes: 403551
+Queue length: 0
+Current time: 2022-10-13T18:38:52.559638358Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 30
+unflushed bytes: 453089
+Pending unflushed data blocks: 47
+unflushed bytes: 694633
+Pending unflushed data blocks: 47
+unflushed bytes: 694633
+Pending unflushed data blocks: 47
+unflushed bytes: 694633
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 403434
+Queue length: 0
+Current time: 2022-10-13T18:38:57.559989655Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 32
+unflushed bytes: 434359
+Pending unflushed data blocks: 48
+unflushed bytes: 673569
+Pending unflushed data blocks: 48
+unflushed bytes: 673569
+Pending unflushed data blocks: 48
+unflushed bytes: 673569
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 408036
+Queue length: 0
+Current time: 2022-10-13T18:39:02.560347760Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 31
+unflushed bytes: 464861
+Pending unflushed data blocks: 47
+unflushed bytes: 687434
+Pending unflushed data blocks: 47
+unflushed bytes: 687434
+Pending unflushed data blocks: 47
+unflushed bytes: 687434
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 424022
+Queue length: 0
+Current time: 2022-10-13T18:39:07.560704270Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 32
+unflushed bytes: 471398
+Pending unflushed data blocks: 48
+unflushed bytes: 701395
+Pending unflushed data blocks: 48
+unflushed bytes: 701395
+Pending unflushed data blocks: 48
+unflushed bytes: 701395
+Queue length: 0
+Pending unflushed data blocks: 29
+unflushed bytes: 419403
+Queue length: 0
+Current time: 2022-10-13T18:39:12.561054897Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 31
+unflushed bytes: 419744
+Pending unflushed data blocks: 48
+unflushed bytes: 666275
+Pending unflushed data blocks: 48
+unflushed bytes: 666275
+Pending unflushed data blocks: 48
+unflushed bytes: 666275
+Queue length: 0
+Pending unflushed data blocks: 30
+unflushed bytes: 456171
+Queue length: 0
+Current time: 2022-10-13T18:39:17.561407424Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 30
+unflushed bytes: 451610
+Pending unflushed data blocks: 46
+unflushed bytes: 669676
+Pending unflushed data blocks: 46
+unflushed bytes: 669676
+Pending unflushed data blocks: 46
+unflushed bytes: 669676
+Queue length: 0
+Pending unflushed data blocks: 30
+unflushed bytes: 414504
+Queue length: 0
+Current time: 2022-10-13T18:39:22.561766014Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 32
+unflushed bytes: 446902
+Pending unflushed data blocks: 50
+unflushed bytes: 702687
+Pending unflushed data blocks: 50
+unflushed bytes: 702687
+Pending unflushed data blocks: 50
+unflushed bytes: 702687
+Queue length: 0
+Pending unflushed data blocks: 32
+unflushed bytes: 486319
+Queue length: 0
+Current time: 2022-10-13T18:39:27.562120744Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 29
+unflushed bytes: 455581
+Pending unflushed data blocks: 47
+unflushed bytes: 713422
+Pending unflushed data blocks: 47
+unflushed bytes: 713422
+Pending unflushed data blocks: 47
+unflushed bytes: 713422
+Queue length: 0
+Pending unflushed data blocks: 31
+unflushed bytes: 470401
+Queue length: 0
+Current time: 2022-10-13T18:39:32.562477675Z, Current workload rate: 200000, Samples generated: 2000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 30
+unflushed bytes: 438876
+Pending unflushed data blocks: 48
+unflushed bytes: 701431
+Pending unflushed data blocks: 48
+unflushed bytes: 701431
+Pending unflushed data blocks: 48
+unflushed bytes: 701431
+Queue length: 0
+Pending unflushed data blocks: 32
+unflushed bytes: 476810
+Current time: 2022-10-13T18:39:37.562840635Z, Current workload rate: 200000, Samples generated: 1500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 47
+unflushed bytes: 703753
+Pending unflushed data blocks: 47
+unflushed bytes: 703753
+Workload expected rate: 200000, Actual rate: 199999.96522400604, Mbps: 12.575688204578283
+Pending unflushed data blocks: 47
+unflushed bytes: 703753
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 4
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Pending unflushed data blocks: 71
+unflushed bytes: 3808497
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 8
+Queue length: 10
+Queue length: 8
+Queue length: 10
+Queue length: 9
+Queue length: 10
+Queue length: 9
+Queue length: 10
+Queue length: 5
+Pending unflushed data blocks: 229
+Queue length: 6
+unflushed bytes: 4185973
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 9
+Queue length: 9
+Queue length: 9
+Queue length: 9
+Queue length: 10
+Queue length: 9
+Queue length: 10
+Current time: 2022-10-13T18:39:42.563206971Z, Current workload rate: 8000000, Samples generated: 24000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 4
+Queue length: 5
+Pending unflushed data blocks: 100
+unflushed bytes: 2142160
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 1
+Queue length: 1
+Pending unflushed data blocks: 156
+unflushed bytes: 2199196
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 0
+Pending unflushed data blocks: 86
+unflushed bytes: 1219155
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 158
+unflushed bytes: 2199722
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 78
+unflushed bytes: 1118819
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Current time: 2022-10-13T18:39:47.563528775Z, Current workload rate: 8000000, Samples generated: 64000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 169
+unflushed bytes: 1897986
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 88
+unflushed bytes: 1266297
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 4
+Queue length: 4
+Queue length: 4
+Queue length: 4
+Pending unflushed data blocks: 87
+unflushed bytes: 2977734
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 8
+Queue length: 10
+Queue length: 8
+Queue length: 10
+Queue length: 9
+Queue length: 6
+Pending unflushed data blocks: 139
+Queue length: 5
+unflushed bytes: 1969297
+Queue length: 6
+Queue length: 5
+Queue length: 7
+Queue length: 5
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 9
+Queue length: 10
+Queue length: 9
+Queue length: 4
+Pending unflushed data blocks: 169
+unflushed bytes: 2336086
+Queue length: 4
+Queue length: 5
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 2
+Current time: 2022-10-13T18:39:52.563881687Z, Current workload rate: 8000000, Samples generated: 72500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 160
+unflushed bytes: 2232730
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 3
+Queue length: 2
+Queue length: 3
+Queue length: 2
+Queue length: 4
+Queue length: 3
+Queue length: 4
+Queue length: 3
+Queue length: 4
+Queue length: 3
+Queue length: 5
+Queue length: 0
+Pending unflushed data blocks: 106
+unflushed bytes: 1479591
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 136
+unflushed bytes: 1905692
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 108
+unflushed bytes: 1549773
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 84
+unflushed bytes: 1235999
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Current time: 2022-10-13T18:39:57.564242208Z, Current workload rate: 8000000, Samples generated: 72500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 72
+unflushed bytes: 1011853
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Pending unflushed data blocks: 93
+unflushed bytes: 4883818
+Queue length: 2
+Queue length: 3
+Queue length: 4
+Queue length: 3
+Queue length: 5
+Queue length: 4
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 4
+Pending unflushed data blocks: 151
+unflushed bytes: 2157395
+Queue length: 6
+Queue length: 4
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 7
+Queue length: 5
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 7
+Queue length: 8
+Queue length: 4
+Pending unflushed data blocks: 138
+unflushed bytes: 2168659
+Queue length: 5
+Queue length: 4
+Queue length: 5
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 1
+Queue length: 2
+Pending unflushed data blocks: 84
+unflushed bytes: 1172921
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 2
+Queue length: 3
+Queue length: 2
+Queue length: 3
+Queue length: 4
+Queue length: 2
+Queue length: 4
+Queue length: 3
+Current time: 2022-10-13T18:40:02.564584987Z, Current workload rate: 8000000, Samples generated: 71500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 147
+unflushed bytes: 2067806
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 176
+unflushed bytes: 921110
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 85
+unflushed bytes: 1181837
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 116
+unflushed bytes: 1715208
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 94
+unflushed bytes: 1382903
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Current time: 2022-10-13T18:40:07.564944811Z, Current workload rate: 8000000, Samples generated: 71500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 1
+Pending unflushed data blocks: 52
+unflushed bytes: 3422280
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 4
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 4
+Queue length: 6
+Pending unflushed data blocks: 119
+unflushed bytes: 2391351
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 7
+Queue length: 7
+Queue length: 5
+Queue length: 7
+Queue length: 6
+Queue length: 8
+Queue length: 6
+Queue length: 8
+Queue length: 6
+Queue length: 8
+Queue length: 6
+Queue length: 5
+Queue length: 4
+Pending unflushed data blocks: 86
+unflushed bytes: 1403072
+Queue length: 5
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 2
+Pending unflushed data blocks: 111
+unflushed bytes: 1555016
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 2
+Queue length: 3
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 4
+Queue length: 3
+Queue length: 0
+Pending unflushed data blocks: 45
+unflushed bytes: 648483
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 0
+Current time: 2022-10-13T18:40:12.565303893Z, Current workload rate: 8000000, Samples generated: 72000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 125
+unflushed bytes: 1750395
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 131
+unflushed bytes: 1832856
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 105
+unflushed bytes: 1467928
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 100
+unflushed bytes: 1401055
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 91
+unflushed bytes: 1310742
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 4
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Current time: 2022-10-13T18:40:17.565654746Z, Current workload rate: 8000000, Samples generated: 72500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 94
+unflushed bytes: 4993719
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 8
+Queue length: 10
+Queue length: 8
+Queue length: 10
+Queue length: 8
+Queue length: 10
+Queue length: 9
+Queue length: 6
+Pending unflushed data blocks: 234
+unflushed bytes: 4328588
+Queue length: 5
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 8
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 8
+Queue length: 10
+Queue length: 9
+Queue length: 10
+Queue length: 9
+Queue length: 10
+Queue length: 4
+Pending unflushed data blocks: 125
+unflushed bytes: 2404232
+Queue length: 5
+Queue length: 4
+Queue length: 6
+Queue length: 4
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 1
+Queue length: 2
+Pending unflushed data blocks: 167
+unflushed bytes: 2325101
+Queue length: 1
+Queue length: 3
+Queue length: 2
+Queue length: 3
+Queue length: 2
+Queue length: 3
+Queue length: 2
+Queue length: 4
+Queue length: 3
+Queue length: 4
+Queue length: 3
+Queue length: 4
+Queue length: 3
+Queue length: 5
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 110
+unflushed bytes: 1548599
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Current time: 2022-10-13T18:40:22.566018952Z, Current workload rate: 8000000, Samples generated: 71500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 72
+unflushed bytes: 986966
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 86
+unflushed bytes: 1225671
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 74
+unflushed bytes: 1032428
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 106
+unflushed bytes: 1540854
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 4
+Queue length: 4
+Queue length: 4
+Pending unflushed data blocks: 104
+unflushed bytes: 4606871
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 8
+Queue length: 10
+Queue length: 8
+Queue length: 10
+Current time: 2022-10-13T18:40:27.566375128Z, Current workload rate: 8000000, Samples generated: 71500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 4
+Queue length: 6
+Pending unflushed data blocks: 143
+unflushed bytes: 1984552
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 9
+Queue length: 10
+Queue length: 9
+Queue length: 4
+Queue length: 4
+Pending unflushed data blocks: 160
+unflushed bytes: 2218929
+Queue length: 5
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 2
+Queue length: 1
+Pending unflushed data blocks: 153
+unflushed bytes: 2133873
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 2
+Queue length: 3
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 4
+Queue length: 3
+Queue length: 0
+Pending unflushed data blocks: 85
+unflushed bytes: 1158084
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 148
+unflushed bytes: 2043006
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 0
+Current time: 2022-10-13T18:40:32.566731384Z, Current workload rate: 8000000, Samples generated: 72000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 117
+unflushed bytes: 1639964
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 109
+unflushed bytes: 1596555
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 79
+unflushed bytes: 1123027
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Pending unflushed data blocks: 68
+unflushed bytes: 3476451
+Queue length: 3
+Queue length: 3
+Queue length: 4
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 9
+Queue length: 6
+Queue length: 5
+Pending unflushed data blocks: 170
+unflushed bytes: 2538187
+Queue length: 6
+Queue length: 5
+Queue length: 7
+Queue length: 5
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 8
+Queue length: 6
+Queue length: 8
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 5
+Current time: 2022-10-13T18:40:37.567080173Z, Current workload rate: 8000000, Samples generated: 72500000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 125
+unflushed bytes: 1757368
+Queue length: 4
+Queue length: 5
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 1
+Pending unflushed data blocks: 125
+unflushed bytes: 1753598
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 2
+Queue length: 3
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 4
+Queue length: 3
+Queue length: 4
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 59
+unflushed bytes: 812124
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 114
+unflushed bytes: 1628033
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 126
+unflushed bytes: 1779399
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Current time: 2022-10-13T18:40:42.567446003Z, Current workload rate: 8000000, Samples generated: 72000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Pending unflushed data blocks: 110
+unflushed bytes: 1612813
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 101
+unflushed bytes: 1489582
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 67
+unflushed bytes: 4283445
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 4
+Queue length: 3
+Queue length: 4
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 4
+Pending unflushed data blocks: 127
+unflushed bytes: 2412478
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 8
+Queue length: 6
+Queue length: 8
+Queue length: 4
+Queue length: 4
+Pending unflushed data blocks: 133
+unflushed bytes: 2465267
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 6
+Queue length: 6
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Current time: 2022-10-13T18:40:47.567795268Z, Current workload rate: 8000000, Samples generated: 71500000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 1
+Queue length: 1
+Pending unflushed data blocks: 102
+unflushed bytes: 1441427
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 98
+unflushed bytes: 1396202
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 98
+unflushed bytes: 1377957
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 90
+unflushed bytes: 1247419
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Pending unflushed data blocks: 114
+unflushed bytes: 1592998
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Current time: 2022-10-13T18:40:52.568163202Z, Current workload rate: 8000000, Samples generated: 72000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Pending unflushed data blocks: 92
+unflushed bytes: 1294383
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 84
+unflushed bytes: 1235996
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 4
+Queue length: 3
+Queue length: 4
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Pending unflushed data blocks: 84
+unflushed bytes: 4938922
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 8
+Queue length: 7
+Queue length: 9
+Queue length: 8
+Queue length: 9
+Queue length: 8
+Queue length: 10
+Queue length: 9
+Queue length: 10
+Queue length: 9
+Queue length: 10
+Queue length: 9
+Queue length: 6
+Queue length: 5
+Pending unflushed data blocks: 202
+unflushed bytes: 3281271
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 9
+Queue length: 9
+Queue length: 9
+Queue length: 10
+Queue length: 9
+Queue length: 10
+Queue length: 10
+Queue length: 4
+Pending unflushed data blocks: 113
+unflushed bytes: 2063457
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 6
+Queue length: 1
+Current time: 2022-10-13T18:40:57.568542421Z, Current workload rate: 8000000, Samples generated: 72000000, Samples dropped: 0, Samples completeness: 1.00, 
+Pending unflushed data blocks: 208
+unflushed bytes: 2905336
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 3
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 139
+unflushed bytes: 1925970
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 58
+unflushed bytes: 801470
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 169
+unflushed bytes: 2409012
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Queue length: 0
+Pending unflushed data blocks: 64
+unflushed bytes: 876107
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 0
+Current time: 2022-10-13T18:41:02.568914975Z, Current workload rate: 8000000, Samples generated: 72000000, Samples dropped: 0, Samples completeness: 1.00, 
+Queue length: 0
+Pending unflushed data blocks: 57
+unflushed bytes: 824314
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 0
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 1
+Queue length: 2
+Queue length: 2
+Queue length: 2
+Queue length: 3
+Queue length: 3
+Queue length: 4
+Queue length: 4
+Pending unflushed data blocks: 77
+unflushed bytes: 2280136
+Queue length: 4
+Queue length: 5
+Queue length: 5
+Queue length: 5
+Queue length: 6
+Queue length: 6
+Queue length: 7
+Queue length: 7
+Queue length: 8
+Queue length: 8
+Queue length: 9
+Queue length: 8
+Queue length: 10
+Queue length: 8
+Queue length: 11

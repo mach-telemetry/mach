@@ -69,7 +69,7 @@ struct SnapshotWorkerData {
     time_out: Duration,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum SnapshotEntry {
     Id(SnapshotId),
     Bytes(Box<[u8]>)
@@ -138,7 +138,7 @@ impl Snapshotter {
             }));
 
             SNAPSHOT_TABLE.insert(worker_id, snapshot_worker_data);
-            thread::spawn(move || snapshot_worker(worker_id));
+            //thread::spawn(move || snapshot_worker(worker_id));
 
             worker_id
         })
@@ -147,19 +147,38 @@ impl Snapshotter {
     pub fn get(&self, id: SnapshotterId) -> Option<SnapshotId> {
         let entry = SNAPSHOT_TABLE.get(&id)?.value().clone();
         let mut guard = entry.lock().unwrap();
-        match &mut guard.snapshot_id {
-            SnapshotEntry::Id(x) => {},
-            SnapshotEntry::Bytes(x) => {
-                guard.last_request = Instant::now();
-                let new_entry = guard.snapshot_id.flush(&mut Producer::new());
-                guard.snapshot_id = new_entry;
-            },
-        }
-        guard.last_request = Instant::now();
-        match &guard.snapshot_id {
+
+        let now = Instant::now();
+        let mut producer = Producer::new();
+        let snapshot = guard.series.snapshot();
+        let d = now.elapsed();
+        let now = Instant::now();
+        let compressed_bytes = compress_snapshot(snapshot);
+        let d2 = now.elapsed();
+        println!("Snapshot creation: {:?}, compression: {:?}", d, d2);
+        let snapshot_entry = SnapshotEntry::Bytes(compressed_bytes).flush(&mut producer);
+        match snapshot_entry {
             SnapshotEntry::Id(x) => Some(x.clone()),
             _ => unreachable!(),
         }
+
+
+        //match &mut guard.snapshot_id {
+        //    SnapshotEntry::Id(x) => {},
+        //    SnapshotEntry::Bytes(x) => {
+        //        guard.last_request = Instant::now();
+        //        let new_entry = guard.snapshot_id.flush(&mut Producer::new());
+        //        guard.snapshot_id = new_entry;
+        //    },
+        //}
+        //guard.last_request = Instant::now();
+        //match &guard.snapshot_id {
+        //    SnapshotEntry::Id(x) => {
+        //        println!("SENDING {:?}", x);
+        //        Some(x.clone())
+        //    },
+        //    _ => unreachable!(),
+        //}
     }
 }
 
@@ -210,6 +229,7 @@ fn compress_snapshot(snapshot: Snapshot) -> Box<[u8]> {
     compressed_bytes.extend_from_slice(&og_sz.to_be_bytes());
     compress_to_vec(bytes.as_slice(), &mut compressed_bytes, ACC_LEVEL_DEFAULT).unwrap();
     println!("Snapshot compression result: {} -> {}", og_sz, compressed_bytes.len());
+    assert_eq!(og_sz, usize::from_be_bytes(compressed_bytes[..8].try_into().unwrap()));
     compressed_bytes.into_boxed_slice()
 }
 
