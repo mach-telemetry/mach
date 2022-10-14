@@ -31,7 +31,7 @@ use constants::*;
 use dashmap::DashMap;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage}; //, Message};
 use lazy_static::*;
-use lzzzz::lz4f::decompress_to_vec;
+use lzzzz::lz4;
 use mach;
 use mach::id::SeriesId;
 //use mach::utils::random_id;
@@ -135,7 +135,7 @@ enum Entry {
 }
 
 fn consumer() {
-    let mut decompressed = vec![0u8; 1_000_000];
+    let mut decompressed = vec![0u8; 10_000_000];
 
     let index = INDEX.clone();
     let mut consumer = Consumer::from_hosts(HOSTS.clone())
@@ -149,7 +149,7 @@ fn consumer() {
     loop {
         for ms in consumer.poll().unwrap().iter() {
             for m in ms.messages() {
-                decompress_to_vec(m.value, &mut decompressed).unwrap();
+                lz4::decompress(m.value, &mut decompressed).unwrap();
                 let batches: Vec<Box<[u8]>> =
                     bincode::deserialize(decompressed.as_slice()).unwrap();
                 for batch in batches {
