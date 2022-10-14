@@ -31,6 +31,7 @@ use constants::*;
 use dashmap::DashMap;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage}; //, Message};
 use lazy_static::*;
+use lzzzz::lz4f::decompress_to_vec;
 use mach;
 use mach::id::SeriesId;
 //use mach::utils::random_id;
@@ -42,14 +43,17 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use std::collections::BTreeMap;
 use std::ops::Bound::Included;
-use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering::SeqCst}};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc, Mutex,
+};
 use std::thread;
 use std::time::{Duration, Instant};
 use utils::NotificationReceiver;
 
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
-use query_utils::SimpleQuery;
 use num::NumCast;
+use query_utils::SimpleQuery;
 
 lazy_static! {
     static ref HOSTS: Vec<String> = {
@@ -64,7 +68,10 @@ lazy_static! {
         let x2 = x.clone();
         thread::spawn(move || loop {
             let x = x2.load(SeqCst);
-            println!("B-Tree index size: {:.2}", <f64 as NumCast>::from(x).unwrap()/1_000_000.);
+            println!(
+                "B-Tree index size: {:.2}",
+                <f64 as NumCast>::from(x).unwrap() / 1_000_000.
+            );
             thread::sleep(Duration::from_secs(1));
         });
         x
@@ -128,6 +135,8 @@ enum Entry {
 }
 
 fn consumer() {
+    let mut decompressed = vec![0u8; 1_000_000];
+
     let index = INDEX.clone();
     let mut consumer = Consumer::from_hosts(HOSTS.clone())
         .with_topic(PARAMETERS.kafka_topic.clone())
@@ -140,7 +149,9 @@ fn consumer() {
     loop {
         for ms in consumer.poll().unwrap().iter() {
             for m in ms.messages() {
-                let batches: Vec<Box<[u8]>> = bincode::deserialize(m.value).unwrap();
+                decompress_to_vec(m.value, &mut decompressed).unwrap();
+                let batches: Vec<Box<[u8]>> =
+                    bincode::deserialize(decompressed.as_slice()).unwrap();
                 for batch in batches {
                     INDEX_SIZE.fetch_add(batch.len(), SeqCst);
                     let batch = batching::BytesBatch::new(batch.into());
