@@ -13,6 +13,9 @@ KAFKA_BOOTSTRAPS=b-3.k2.aaozun.c17.kafka.us-east-1.amazonaws.com:9092,b-2.k2.aao
 
 SNAPSHOT_SERVER_PORT=https://172.31.22.116:50051
 
+MACH_FILE=${OUTPUT}/mach_simple_query_$(date +"%Y%m%d%H%M%S")
+MACH_FILE=${OUTPUT}/mach_query_tmp
+
 cargo run --release --bin simple-mach-query -- \
 	--query-count 100 \
 	--file-path $FILE_PATH \
@@ -21,7 +24,10 @@ cargo run --release --bin simple-mach-query -- \
 	--query-max-delay $QUERY_MAX_DELAY \
 	--query-min-duration $QUERY_MIN_DURATION \
 	--query-max-duration $QUERY_MAX_DURATION \
-	> ${OUTPUT}/mach_simple_query_$(date +"%Y%m%d%H%M%S")
+	> ${MACH_FILE}
+
+KAFKA_FILE=${OUTPUT}/mach_simple_query_$(date +"%Y%m%d%H%M%S")
+KAFKA_FILE=${OUTPUT}/mach_query_tmp
 
 #cargo run --release --bin simple-kafka-query -- \
 #	--query-count 100 \
@@ -31,5 +37,5 @@ cargo run --release --bin simple-mach-query -- \
 #	--query-max-delay $QUERY_MAX_DELAY \
 #	--query-min-duration $QUERY_MIN_DURATION \
 #	--query-max-duration $QUERY_MAX_DURATION \
-#	> ${OUTPUT}/kafka_simple_query_$(date +"%Y%m%d%H%M%S")
+#	> ${KAFKA_FILE}
 
