@@ -32,6 +32,8 @@ lazy_static! {
         thread::spawn(move || snapshots_to_kafka(rx));
         tx
     };
+
+    static ref PRODUCER: Arc<Mutex<Producer>> = Arc::new(Mutex::new(Producer::new()));
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, serde::Serialize, serde::Deserialize)]
@@ -149,14 +151,14 @@ impl Snapshotter {
         let mut guard = entry.lock().unwrap();
 
         let now = Instant::now();
-        let mut producer = Producer::new();
         let snapshot = guard.series.snapshot();
         let d = now.elapsed();
         let now = Instant::now();
         let compressed_bytes = compress_snapshot(snapshot);
         let d2 = now.elapsed();
         println!("Snapshot creation: {:?}, compression: {:?}", d, d2);
-        let snapshot_entry = SnapshotEntry::Bytes(compressed_bytes).flush(&mut producer);
+        let mut guard = PRODUCER.lock().unwrap();
+        let snapshot_entry = SnapshotEntry::Bytes(compressed_bytes).flush(&mut *guard);
         match snapshot_entry {
             SnapshotEntry::Id(x) => Some(x.clone()),
             _ => unreachable!(),
