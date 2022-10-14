@@ -25,6 +25,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 use utils::RemoteNotifier;
 
+const NUM_FLUSHERS: usize = 4;
+
 lazy_static! {
     static ref PENDING_UNFLUSHED_BLOCKS: Arc<AtomicUsize> = {
         let x = Arc::new(AtomicUsize::new(0));
@@ -45,11 +47,11 @@ lazy_static! {
         });
         c
     };
-    static ref PARTITION_WRITERS: Vec<Sender<(Box<[u8]>, u64)>> = {
-        (0..PARAMETERS.kafka_partitions)
-            .map(|partition| {
+    static ref FLUSHERS: Vec<Sender<(i32, Box<[u8]>, u64)>> = {
+        (0..NUM_FLUSHERS)
+            .map(|_| {
                 let (tx, rx) = unbounded();
-                thread::spawn(move || partition_writer(partition, rx));
+                thread::spawn(move || kafka_flusher(rx));
                 tx
             })
             .collect()
@@ -76,38 +78,45 @@ struct ClosedBatch {
 
 type Batch = Vec<(SeriesId, u64, &'static [SampleType], usize)>;
 
-fn partition_writer(partition: i32, rx: Receiver<(Box<[u8]>, u64)>) {
+fn kafka_flusher(rx: Receiver<(i32, Box<[u8]>, u64)>) {
     let mut producer = kafka_utils::Producer::new(PARAMETERS.kafka_bootstraps.as_str());
     let mut last_batch_writer = u64::MAX;
-    let mut data: Vec<Box<[u8]>> = Vec::new();
-    let mut total_bytes = 0;
-    let mut total_blocks = 0;
-    let mut last_flush = Instant::now();
-    while let Ok((bytes, batch_writer)) = rx.recv() {
+
+    let slots = (PARAMETERS.kafka_partitions as f64 / NUM_FLUSHERS as f64).ceil() as usize;
+    let mut messages: Vec<Vec<Box<[u8]>>> = vec![Vec::new(); slots];
+    let mut total_bytes = vec![0; slots];
+    let mut total_blocks = vec![0; slots];
+    let mut last_flushed = vec![Instant::now(); slots];
+
+    while let Ok((partition, bytes, batch_writer)) = rx.recv() {
         if last_batch_writer == u64::MAX {
             last_batch_writer = batch_writer;
         } else {
             assert_eq!(last_batch_writer, batch_writer);
         }
-        total_blocks += 1;
-        total_bytes += bytes.len();
-        data.push(bytes);
 
-        if total_bytes > 1_000_000 || last_flush.elapsed() > Duration::from_secs_f64(0.5) {
-            let bytes = bincode::serialize(&data).unwrap();
+        let slot = partition as usize % slots;
+        total_blocks[slot] += 1;
+        total_bytes[slot] += bytes.len();
+        messages[slot].push(bytes);
+
+        if total_bytes[slot] > 1_000_000
+            || last_flushed[slot].elapsed() > Duration::from_millis(500)
+        {
+            let bytes = bincode::serialize(&messages[slot]).unwrap();
             let mut compressed = Vec::new();
             compress_to_vec(bytes.as_slice(), &mut compressed, ACC_LEVEL_DEFAULT).unwrap();
             producer.send(PARAMETERS.kafka_topic.as_str(), partition, &compressed);
 
             COUNTERS.add_bytes_written_to_kafka(bytes.len());
             COUNTERS.add_messages_written_to_kafka(1);
-            PENDING_UNFLUSHED_BLOCKS.fetch_sub(total_blocks, SeqCst);
-            PENDING_UNFLUSHED_BYTES.fetch_sub(total_bytes, SeqCst);
+            PENDING_UNFLUSHED_BLOCKS.fetch_sub(total_blocks[slot], SeqCst);
+            PENDING_UNFLUSHED_BYTES.fetch_sub(total_bytes[slot], SeqCst);
 
-            data.clear();
-            total_bytes = 0;
-            total_blocks = 0;
-            last_flush = Instant::now();
+            messages[slot].clear();
+            total_bytes[slot] = 0;
+            total_blocks[slot] = 0;
+            last_flushed[slot] = Instant::now();
         }
     }
 }
@@ -122,6 +131,7 @@ fn kafka_batcher(i: u64, receiver: Receiver<(Batch, u64)>) {
             let batch_len = batch.len();
             for item in batch {
                 let partition = (*item.0) as usize % PARAMETERS.kafka_partitions as usize;
+                let flusher = partition % NUM_FLUSHERS;
                 let batcher = &mut batchers[partition];
                 if batcher.insert(*item.0, item.1, item.2).is_err() {
                     let old_batch = mem::replace(
@@ -130,7 +140,9 @@ fn kafka_batcher(i: u64, receiver: Receiver<(Batch, u64)>) {
                     );
                     let bytes = old_batch.close();
                     let bytes_len = bytes.len();
-                    PARTITION_WRITERS[partition].send((bytes, i)).unwrap();
+                    FLUSHERS[flusher]
+                        .send((partition.try_into().unwrap(), bytes, i))
+                        .unwrap();
                     PENDING_UNFLUSHED_BLOCKS.fetch_add(1, SeqCst);
                     PENDING_UNFLUSHED_BYTES.fetch_add(bytes_len, SeqCst);
                 }
@@ -205,7 +217,7 @@ fn run_workload(
             println!("Queue length: {}", BATCHER_WRITERS[writer_id].len());
             COUNTERS.add_samples_generated(batch_count);
             match BATCHER_WRITERS[writer_id].try_send((
-                //partition_id as i32,
+                // partition_id as i32,
                 closed_batch.batch,
                 data_generator,
             )) {
@@ -270,6 +282,11 @@ fn validate_parameters() {
 }
 
 fn main() {
+    println!(
+        "Starting kafka workload with {} batchers, {} flushers, {} partitions",
+        PARAMETERS.kafka_writers, NUM_FLUSHERS, PARAMETERS.kafka_partitions
+    );
+
     let querier_addr = format!("{}:{}", PARAMETERS.querier_ip, PARAMETERS.querier_port);
     let mut query_start_notifier = RemoteNotifier::new(querier_addr);
 
