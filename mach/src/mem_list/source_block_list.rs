@@ -19,6 +19,7 @@ use std::sync::{
     Arc, RwLock,
 };
 use std::thread;
+use std::time::{Instant, Duration};
 
 lazy_static::lazy_static! {
     static ref PENDING_UNFLUSHED_BLOCKLISTS: Arc<AtomicUsize> = {
@@ -32,14 +33,16 @@ lazy_static::lazy_static! {
         x
     };
     static ref LIST_ITEM_FLUSHER: Sender<(SeriesId, Arc<RwLock<ListItem>>)> = {
-        let producer = kafka::Producer::new();
-        let (tx, rx) = unbounded();
-        std::thread::spawn(move || flusher(rx, producer));
-        tx
+            let producer = kafka::Producer::new();
+            let (tx, rx) = unbounded();
+            std::thread::spawn(move || flusher(0, rx, producer));
+            tx
     };
 }
 
-fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
+fn flusher(partition: i32, channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
+    let mut partition: i32= thread_rng().gen_range(0..PARTITIONS);
+    let mut counter = 0;
     while let Ok((_id, list_item)) = channel.recv() {
         let (data, next): (Arc<[InnerListEntry]>, Arc<RwLock<ListItem>>) = {
             let guard = list_item.read().unwrap();
@@ -59,8 +62,8 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
         };
         let mut v = Vec::new();
         for item in data.iter().rev() {
-            let partition = thread_rng().gen_range(0..PARTITIONS);
             item.block.flush(partition, &mut producer);
+            counter += 1;
             let x = item.block.partition_offset();
             let (min_ts, max_ts) = (item.min_ts, item.max_ts);
             let block = ReadOnlyBlock::Offset(x);
@@ -76,15 +79,18 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
             next: last,
         };
         let bytes = bincode::serialize(&to_serialize).unwrap();
-        let partition = thread_rng().gen_range(0..PARTITIONS);
         let kafka_entry = producer.send(partition, &bytes);
+        counter += 1;
         //HISTORICAL_BLOCKS.insert(id, kafka_entry.clone());
         //drop(guard);
         *list_item.write().unwrap() = ListItem::Kafka(kafka_entry);
         PENDING_UNFLUSHED_BLOCKLISTS.fetch_sub(1, SeqCst);
         PENDING_UNFLUSHED_BYTES.fetch_sub(size_to_flush, SeqCst);
-    }
 
+        if counter % 1000 == 0 {
+            partition = thread_rng().gen_range(0..PARTITIONS);
+        }
+    }
     println!("BLOCKLIST FLUSHER EXIT");
 }
 
@@ -102,7 +108,7 @@ struct InnerListEntry {
 }
 
 struct InnerData {
-    data: Box<[MaybeUninit<InnerListEntry>; 256]>,
+    data: Box<[MaybeUninit<InnerListEntry>; 1024]>,
     offset: AtomicUsize,
 }
 
@@ -119,8 +125,7 @@ impl InnerData {
 
         self.offset.fetch_add(1, SeqCst);
 
-        // return if full
-        (offset + 1) % 256 == 0
+        (offset + 1) % 1024 == 0
     }
 }
 
@@ -161,7 +166,7 @@ impl InnerBuffer {
     fn snapshot(&self) -> Result<SourceBlocks2, Error> {
         // Get components to read
         let guard = self.data.protected_read();
-        let len = guard.offset.load(SeqCst) % 256;
+        let len = guard.offset.load(SeqCst) % 1024;
         //println!("Snapshot len: {}", len);
         let copy: Vec<InnerListEntry> =
             unsafe { MaybeUninit::slice_assume_init_ref(&guard.data[..len]).to_vec() };
@@ -171,7 +176,7 @@ impl InnerBuffer {
         }
 
         // Traverse list
-        let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(256);
+        let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(1024);
         for item in copy.iter().rev() {
             v.push(ReadOnlyBlock2 {
                 min_ts: item.min_ts,

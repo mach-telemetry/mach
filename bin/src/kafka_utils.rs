@@ -117,9 +117,9 @@ impl Producer {
                     let p = partition.partition;
                     let o = match partition.offset {
                         Ok(o) => o,
-                        Err(_) => {
+                        Err(e) => {
                             erred = true;
-                            eprintln!("Retrying");
+                            eprintln!("Retrying, {:?}", e);
                             break;
                         }
                     };
