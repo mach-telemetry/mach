@@ -47,7 +47,7 @@ fn random_topic() -> String {
 
 fn kafka_writer(rx: Receiver<()>) {
     let mut rng = thread_rng();
-    let mut producer = Producer::new(ARGS.bootstrap_servers.as_str());
+    let mut producer = Producer::new(ARGS.bootstrap_servers.as_str(), false);
     let payload = &BYTES[..];
     loop {
         if let Ok(x) = rx.try_recv() {

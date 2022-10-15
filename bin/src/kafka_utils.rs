@@ -90,11 +90,15 @@ impl DerefMut for Producer {
 }
 
 impl Producer {
-    pub fn new(bootstraps: &str) -> Self {
+    pub fn new(bootstraps: &str, acks_all: bool) -> Self {
         let bootstraps = bootstraps.clone().split(',').map(String::from).collect();
+        let acks = match acks_all {
+            true => RequiredAcks::All,
+            false => RequiredAcks::One,
+        };
         let client = OgProducer::from_hosts(bootstraps)
             .with_ack_timeout(Duration::from_millis(10_000))
-            .with_required_acks(RequiredAcks::All)
+            .with_required_acks(acks)
             .create()
             .unwrap();
         Self(client)

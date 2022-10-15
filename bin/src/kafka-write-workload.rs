@@ -79,7 +79,7 @@ struct ClosedBatch {
 type Batch = Vec<(SeriesId, u64, &'static [SampleType], usize)>;
 
 fn kafka_flusher(rx: Receiver<(i32, Box<[u8]>, u64)>) {
-    let mut producer = kafka_utils::Producer::new(PARAMETERS.kafka_bootstraps.as_str());
+    let mut producer = kafka_utils::Producer::new(PARAMETERS.kafka_bootstraps.as_str(), true);
     let mut last_batch_writer = u64::MAX;
 
     let slots = (PARAMETERS.kafka_partitions as f64 / NUM_FLUSHERS as f64).ceil() as usize;
