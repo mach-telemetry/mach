@@ -72,7 +72,7 @@ fn init_kafka_loader() -> Sender<()> {
 fn main() {
     let opts = kafka_utils::KafkaTopicOptions {
         num_partitions: ARGS.kafka_partitions,
-        num_replicas: 3,
+        num_replicas: 1,
     };
 
     for topic in TOPIC_NAMES.iter() {
