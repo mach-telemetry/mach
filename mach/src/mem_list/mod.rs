@@ -115,6 +115,7 @@ pub enum Error {
 fn flush_worker(id: usize, chan: crossbeam::channel::Receiver<Arc<BlockListEntry>>) {
     let mut producer = kafka::Producer::new();
     while let Ok(block) = chan.recv() {
+        println!("Flushing at flush worker: {}", id);
         let block_len = block.len;
         block.flush(id as i32 % PARTITIONS, &mut producer);
         PENDING_UNFLUSHED_BYTES.fetch_sub(block_len, SeqCst);
@@ -340,6 +341,7 @@ impl Block {
         v.extend_from_slice(&bytes.len().to_be_bytes());
         lz4::compress_to_vec(bytes.as_slice(), &mut v, 1).unwrap();
         let compressed_len = v.len();
+        println!("BlockListEntry compressed {} -> {}", len, compressed_len);
 
         let inner = InnerBlockListEntry::new_bytes(v.into());
         BlockListEntry {

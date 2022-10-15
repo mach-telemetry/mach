@@ -61,6 +61,8 @@ fn flusher(partition: i32, channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>,
             _ => panic!("Expected offset, got unflushed data"),
         };
         let mut v = Vec::new();
+        println!("Flushing a source block's items");
+        let now = Instant::now();
         for item in data.iter().rev() {
             item.block.flush(partition, &mut producer);
             counter += 1;
@@ -73,6 +75,7 @@ fn flusher(partition: i32, channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>,
                 block,
             });
         }
+        println!("Flushing a source block's items {:?}", now.elapsed());
         let to_serialize = SourceBlocks2 {
             idx: 0,
             data: v,
@@ -108,7 +111,7 @@ struct InnerListEntry {
 }
 
 struct InnerData {
-    data: Box<[MaybeUninit<InnerListEntry>; 1024]>,
+    data: Box<[MaybeUninit<InnerListEntry>; 256]>,
     offset: AtomicUsize,
 }
 
@@ -125,7 +128,7 @@ impl InnerData {
 
         self.offset.fetch_add(1, SeqCst);
 
-        (offset + 1) % 1024 == 0
+        (offset + 1) % 256 == 0
     }
 }
 
@@ -166,7 +169,7 @@ impl InnerBuffer {
     fn snapshot(&self) -> Result<SourceBlocks2, Error> {
         // Get components to read
         let guard = self.data.protected_read();
-        let len = guard.offset.load(SeqCst) % 1024;
+        let len = guard.offset.load(SeqCst) % 256;
         //println!("Snapshot len: {}", len);
         let copy: Vec<InnerListEntry> =
             unsafe { MaybeUninit::slice_assume_init_ref(&guard.data[..len]).to_vec() };
@@ -176,7 +179,7 @@ impl InnerBuffer {
         }
 
         // Traverse list
-        let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(1024);
+        let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(256);
         for item in copy.iter().rev() {
             v.push(ReadOnlyBlock2 {
                 min_ts: item.min_ts,

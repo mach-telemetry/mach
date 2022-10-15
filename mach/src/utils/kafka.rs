@@ -273,10 +273,13 @@ impl Producer {
                 }
             }
         }
+        let elapsed = t.elapsed();
+        let flush_rate = <f64 as num::NumCast>::from(item.len()).unwrap() / elapsed.as_secs_f64();
         println!(
-            "Flush: {} bytes, {} secs, iters {}, retries: {}",
+            "Flush: {} bytes, {} secs, {} rate, iters {}, retries: {}",
             item.len(),
             t.elapsed().as_secs_f64(),
+            flush_rate,
             num_iters,
             num_retries
         );
