@@ -1,4 +1,4 @@
-FILE = "kafka_simple_query_20221014150011"
+FILE = "kafka_simple_query_20221015161946"
 
 def parse_line(line):
     parts = line.split(",")
