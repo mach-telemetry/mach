@@ -84,16 +84,18 @@ lazy_static! {
     };
     static ref N_FLUSHERS: AtomicUsize = AtomicUsize::new(INIT_FLUSHERS);
 
-    static ref FLUSH_WORKERS: DashMap<usize, crossbeam::channel::Sender<Arc<BlockListEntry>>> = {
-        let flushers = DashMap::new();
+    static ref FLUSH_WORKERS: crossbeam::channel::Sender<Arc<BlockListEntry>> = {
+        //let flushers = DashMap::new();
+        let (tx, rx) = crossbeam::channel::unbounded();
         for idx in 0..N_FLUSHERS.load(SeqCst) {
-            let (tx, rx) = crossbeam::channel::unbounded();
+            let rx = rx.clone();
             std::thread::Builder::new().name(format!("Kafka Flusher {}", idx)).spawn(move || {
                 flush_worker(idx, rx);
             }).unwrap();
-            flushers.insert(idx, tx);
+            //flushers.insert(idx, tx);
         }
-        flushers
+        tx
+        //flushers
     };
 }
 
@@ -232,13 +234,8 @@ impl BlockList {
                     .push(min_ts, max_ts, copy.clone());
             }
             PENDING_UNFLUSHED_BYTES.fetch_add(copy.len, SeqCst);
-            let n_flushers = N_FLUSHERS.load(SeqCst);
-            FLUSH_WORKERS
-                .get(&thread_rng().gen_range(0..n_flushers))
-                .unwrap()
-                .value()
-                .send(copy)
-                .unwrap();
+            //let n_flushers = N_FLUSHERS.load(SeqCst);
+            FLUSH_WORKERS.send(copy).unwrap();
             //// Mark current block as cleared
             self.head_block.protected_write().reset();
         }
