@@ -32,16 +32,18 @@ lazy_static::lazy_static! {
         });
         x
     };
-    static ref LIST_ITEM_FLUSHER: Sender<(SeriesId, Arc<RwLock<ListItem>>)> = {
-        let producer = kafka::Producer::new();
-        let (tx, rx) = unbounded();
-        std::thread::spawn(move || flusher(0, rx, producer));
-        tx
+    static ref LIST_ITEM_FLUSHER: Vec<Sender<(SeriesId, Arc<RwLock<ListItem>>)>> = {
+        (0..PARTITIONS).map(|_| {
+            let producer = kafka::Producer::new();
+            let (tx, rx) = unbounded();
+            std::thread::spawn(move || flusher(0, rx, producer));
+            tx
+        }).collect()
     };
 }
 
 fn flusher(partition: i32, channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
-    let mut partition = 0;
+    let mut partition: i32= thread_rng().gen_range(0..PARTITIONS);
     let mut counter = 0;
     while let Ok((_id, list_item)) = channel.recv() {
         let (data, next): (Arc<[InnerListEntry]>, Arc<RwLock<ListItem>>) = {
@@ -88,7 +90,7 @@ fn flusher(partition: i32, channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>,
         PENDING_UNFLUSHED_BYTES.fetch_sub(size_to_flush, SeqCst);
 
         if counter % 1000 == 0 {
-            partition = (partition + 1) % 4;
+            partition = thread_rng().gen_range(0..PARTITIONS);
         }
     }
     println!("BLOCKLIST FLUSHER EXIT");
@@ -153,7 +155,7 @@ impl InnerBuffer {
                     copy,
                     guard.clone(),
                 )))));
-                LIST_ITEM_FLUSHER
+                LIST_ITEM_FLUSHER[self.id.0 as usize % PARTITIONS as usize]
                     .send((self.id, list_item.clone()))
                     .unwrap();
                 *guard = list_item;
