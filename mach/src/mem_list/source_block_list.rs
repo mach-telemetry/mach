@@ -19,6 +19,7 @@ use std::sync::{
     Arc, RwLock,
 };
 use std::thread;
+use std::time::{Instant, Duration};
 
 lazy_static::lazy_static! {
     static ref PENDING_UNFLUSHED_BLOCKLISTS: Arc<AtomicUsize> = {
@@ -34,12 +35,14 @@ lazy_static::lazy_static! {
     static ref LIST_ITEM_FLUSHER: Sender<(SeriesId, Arc<RwLock<ListItem>>)> = {
         let producer = kafka::Producer::new();
         let (tx, rx) = unbounded();
-        std::thread::spawn(move || flusher(rx, producer));
+        std::thread::spawn(move || flusher(0, rx, producer));
         tx
     };
 }
 
-fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
+fn flusher(partition: i32, channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
+    let mut partition = 0;
+    let mut counter = 0;
     while let Ok((_id, list_item)) = channel.recv() {
         let (data, next): (Arc<[InnerListEntry]>, Arc<RwLock<ListItem>>) = {
             let guard = list_item.read().unwrap();
@@ -59,8 +62,8 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
         };
         let mut v = Vec::new();
         for item in data.iter().rev() {
-            let partition = thread_rng().gen_range(0..PARTITIONS);
             item.block.flush(partition, &mut producer);
+            counter += 1;
             let x = item.block.partition_offset();
             let (min_ts, max_ts) = (item.min_ts, item.max_ts);
             let block = ReadOnlyBlock::Offset(x);
@@ -76,15 +79,18 @@ fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: k
             next: last,
         };
         let bytes = bincode::serialize(&to_serialize).unwrap();
-        let partition = thread_rng().gen_range(0..PARTITIONS);
         let kafka_entry = producer.send(partition, &bytes);
+        counter += 1;
         //HISTORICAL_BLOCKS.insert(id, kafka_entry.clone());
         //drop(guard);
         *list_item.write().unwrap() = ListItem::Kafka(kafka_entry);
         PENDING_UNFLUSHED_BLOCKLISTS.fetch_sub(1, SeqCst);
         PENDING_UNFLUSHED_BYTES.fetch_sub(size_to_flush, SeqCst);
-    }
 
+        if counter % 1000 == 0 {
+            partition = (partition + 1) % 4;
+        }
+    }
     println!("BLOCKLIST FLUSHER EXIT");
 }
 
@@ -119,7 +125,6 @@ impl InnerData {
 
         self.offset.fetch_add(1, SeqCst);
 
-        // return if full
         (offset + 1) % 256 == 0
     }
 }
