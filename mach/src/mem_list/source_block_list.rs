@@ -32,13 +32,11 @@ lazy_static::lazy_static! {
         });
         x
     };
-    static ref LIST_ITEM_FLUSHER: Vec<Sender<(SeriesId, Arc<RwLock<ListItem>>)>> = {
-        (0..PARTITIONS).map(|_| {
+    static ref LIST_ITEM_FLUSHER: Sender<(SeriesId, Arc<RwLock<ListItem>>)> = {
             let producer = kafka::Producer::new();
             let (tx, rx) = unbounded();
             std::thread::spawn(move || flusher(0, rx, producer));
             tx
-        }).collect()
     };
 }
 
@@ -110,7 +108,7 @@ struct InnerListEntry {
 }
 
 struct InnerData {
-    data: Box<[MaybeUninit<InnerListEntry>; 256]>,
+    data: Box<[MaybeUninit<InnerListEntry>; 1024]>,
     offset: AtomicUsize,
 }
 
@@ -127,7 +125,7 @@ impl InnerData {
 
         self.offset.fetch_add(1, SeqCst);
 
-        (offset + 1) % 256 == 0
+        (offset + 1) % 1024 == 0
     }
 }
 
@@ -155,7 +153,7 @@ impl InnerBuffer {
                     copy,
                     guard.clone(),
                 )))));
-                LIST_ITEM_FLUSHER[self.id.0 as usize % PARTITIONS as usize]
+                LIST_ITEM_FLUSHER
                     .send((self.id, list_item.clone()))
                     .unwrap();
                 *guard = list_item;
@@ -168,7 +166,7 @@ impl InnerBuffer {
     fn snapshot(&self) -> Result<SourceBlocks2, Error> {
         // Get components to read
         let guard = self.data.protected_read();
-        let len = guard.offset.load(SeqCst) % 256;
+        let len = guard.offset.load(SeqCst) % 1024;
         //println!("Snapshot len: {}", len);
         let copy: Vec<InnerListEntry> =
             unsafe { MaybeUninit::slice_assume_init_ref(&guard.data[..len]).to_vec() };
@@ -178,7 +176,7 @@ impl InnerBuffer {
         }
 
         // Traverse list
-        let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(256);
+        let mut v: Vec<ReadOnlyBlock2> = Vec::with_capacity(1024);
         for item in copy.iter().rev() {
             v.push(ReadOnlyBlock2 {
                 min_ts: item.min_ts,
