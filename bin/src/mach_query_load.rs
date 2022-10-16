@@ -14,6 +14,7 @@ mod utils;
 #[allow(dead_code)]
 mod data_generator;
 
+use crossbeam_channel::bounded;
 use dashmap::DashMap;
 use mach;
 use mach::id::SeriesId;
@@ -41,82 +42,62 @@ lazy_static::lazy_static! {
     static ref SNAPSHOTTER_MAP: Arc<DashMap<SeriesId, SnapshotterId>> = Arc::new(DashMap::new());
 }
 
-async fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
-    println!("Executing query: {}", i);
-    let source = query.source;
-    let start = query.start;
-    let end = query.end;
-    let interval = *SNAPSHOT_INTERVAL;
-    let timeout = *SNAPSHOT_TIMEOUT;
+fn execute_query(id: usize, rx: Receiver<(usize, SimpleQuery)>) {
+    println!("Starting thread {id}");
 
-    let mut client =
-        snapshotter::SnapshotClient::new(PARAMETERS.snapshot_server_port.as_str()).await;
+    while let Ok((i, query)) = rx.recv() {
+        println!("Executing query {i}");
+        let source = query.source;
+        let start = query.start;
+        let end = query.end;
+        let interval = *SNAPSHOT_INTERVAL;
+        let timeout = *SNAPSHOT_TIMEOUT;
 
-    let now = chrono::prelude::Utc::now();
-    let timer = Instant::now();
-    let snapshotter_id = *SNAPSHOTTER_MAP
-        .entry(source)
-        .or_insert(client.initialize(source, interval, timeout).await.unwrap())
-        .value();
-    let init_latency = timer.elapsed();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let mut client = runtime.block_on(snapshotter::SnapshotClient::new(
+            PARAMETERS.snapshot_server_port.as_str(),
+        ));
 
-    // Wait for timestamp to be available
-    loop {
-        let now = Instant::now();
-        let snapshot_id = client.get(snapshotter_id).await.unwrap();
-        let mut snapshot = snapshot_id.load().into_iterator();
-        snapshot.next_segment().unwrap();
-        let seg = snapshot.get_segment();
-        let mut timestamps = seg.timestamps().iterator();
-        let ts = timestamps.next().unwrap();
-        if ts > start {
-            break;
-        }
-        tokio::time::sleep(interval * 3).await;
+        let now = chrono::prelude::Utc::now();
+        let timer = Instant::now();
+        let snapshotter_id = *SNAPSHOTTER_MAP
+            .entry(source)
+            .or_insert(
+                runtime
+                    .block_on(client.initialize(source, interval, timeout))
+                    .unwrap(),
+            )
+            .value();
+        let init_latency = timer.elapsed();
+
+        let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
+
+        let data_latency = timer.elapsed();
+
+        let result_count = { 0 };
+        let total_latency = timer.elapsed();
+        let execution_latency = total_latency - data_latency;
+
+        print!("Current time: {:?}, ", now);
+        print!("Query ID: {}, ", i);
+        print!("Source: {:?}, ", source);
+        print!("Duration: {}, ", start - end);
+        print!("From now: {}, ", query.from_now);
+        print!("Total Latency: {}, ", total_latency.as_secs_f64());
+        print!("Data Latency: {}, ", data_latency.as_secs_f64());
+        print!("Execution Latency: {}, ", execution_latency.as_secs_f64());
+        print!("Init, Latency: {}, ", init_latency.as_secs_f64());
+        print!("Sink: {}, ", result_count);
+        println!("");
     }
 
-    let data_latency = timer.elapsed();
-
-    let result_count = {
-        // let snapshot_id = client.get(snapshotter_id).await.unwrap();
-        // let mut snapshot = snapshot_id.load().into_iterator();
-        // let mut count = 0;
-        // 'outer: loop {
-        //     if snapshot.next_segment_at_timestamp(start).is_none() {
-        //         break;
-        //     }
-        //     let seg = snapshot.get_segment();
-        //     let mut timestamps = seg.timestamps().iterator();
-        //     for (i, ts) in timestamps.enumerate() {
-        //         count += 1;
-        //         if ts < end {
-        //             break 'outer;
-        //         }
-        //     }
-        // }
-        // count
-        0
-    };
-    let total_latency = timer.elapsed();
-    let execution_latency = total_latency - data_latency;
-
-    print!("Current time: {:?}, ", now);
-    print!("Query ID: {}, ", i);
-    print!("Source: {:?}, ", source);
-    print!("Duration: {}, ", start - end);
-    print!("From now: {}, ", query.from_now);
-    print!("Total Latency: {}, ", total_latency.as_secs_f64());
-    print!("Data Latency: {}, ", data_latency.as_secs_f64());
-    print!("Execution Latency: {}, ", execution_latency.as_secs_f64());
-    print!("Init, Latency: {}, ", init_latency.as_secs_f64());
-    print!("Sink: {}, ", result_count);
-    println!("");
-
-    done_notifier.send(()).unwrap();
+    println!("thread ended");
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
     let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
     let sources = data_generator::HOT_SOURCES.as_slice();
@@ -126,35 +107,44 @@ async fn main() {
     start_notif.wait();
     println!("Workload started");
 
-    // Sleeping to make sure there's enough data
-    let initial_sleep_secs = PARAMETERS.query_max_delay + PARAMETERS.query_max_duration;
-    println!("Sleep for {initial_sleep_secs} seconds to wait for data arrival");
-    std::thread::sleep(Duration::from_secs(initial_sleep_secs));
-    println!("Done Sleeping");
+    let (tx, rx) = unbounded();
+
+    let mut handles = Vec::new();
+    for id in 0..64 {
+        let rx = rx.clone();
+        handles.push(thread::spawn(move || {
+            execute_query(id, rx);
+        }));
+    }
 
     let start = Instant::now();
     let run_dur = Duration::from_secs(60);
-
-    let (notification_channel, wait_notification_channel) = unbounded();
-
     let mut i = 0;
+    let query_per_sec = 10000;
     while start.elapsed() < run_dur {
-        thread::sleep(Duration::from_millis(10));
-        let now: u64 = utils::timestamp_now_micros().try_into().unwrap();
-        let query = {
-            let mut q = SimpleQuery::new_relative_to(now);
-            let source_idx = rng.gen_range(0..sources.len());
-            q.source = sources[source_idx];
-            q
-        };
-
-        let tx = notification_channel.clone();
-        tokio::spawn(async move {
-            execute_query(i, query, tx).await;
-        });
-        i += 1;
+        for _ in 0..query_per_sec {
+            let now: u64 = utils::timestamp_now_micros().try_into().unwrap();
+            let query = {
+                let mut q = SimpleQuery::new_relative_to(now);
+                let source_idx = rng.gen_range(0..sources.len());
+                q.source = sources[source_idx];
+                q
+            };
+            tx.send((i, query));
+            // match tx.try_send((i, query)) {
+            //     Ok(_) => {}
+            //     Err(e) => {
+            //         eprintln!("send error: {:?}", e);
+            //     }
+            // }
+            i += 1;
+        }
+        thread::sleep(Duration::from_secs(1));
     }
 
-    drop(notification_channel);
-    while let Ok(_) = wait_notification_channel.recv() {}
+    drop(tx);
+    println!("FINISHED ISSUING REQUESTS");
+    for h in handles {
+        h.join().unwrap();
+    }
 }
