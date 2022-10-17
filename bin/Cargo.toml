@@ -131,6 +131,14 @@ path = "src/simple-bytes-server.rs"
 name = "kafka-load-generator"
 path = "src/kafka-load-generator.rs"
 
+[[bin]]
+name = "mach-compression"
+path = "src/mach_compression.rs"
+
+[[bin]]
+name = "mach-query-load"
+path = "src/mach_query_load.rs"
+
 #[[bin]]
 #name = "convert-otlp-data"
 #path = "src/convert-otlp-data.rs"
