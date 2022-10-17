@@ -60,6 +60,16 @@ lazy_static! {
         });
         x
     };
+    pub static ref PENDING_UNFLUSHED_BLOCKS: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || loop {
+            let x = x2.load(SeqCst);
+            println!("Pending unflushed data blocks: {}", x);
+            thread::sleep(Duration::from_secs(1));
+        });
+        x
+    };
 
     //static ref TOPIC: String = random_id();
     pub static ref TOTAL_BYTES_FLUSHED: Arc<AtomicUsize> = {
@@ -121,6 +131,7 @@ fn flush_worker(id: usize, chan: crossbeam::channel::Receiver<Arc<BlockListEntry
         let block_len = block.len;
         block.flush(id as i32 % PARTITIONS, &mut producer);
         PENDING_UNFLUSHED_BYTES.fetch_sub(block_len, SeqCst);
+        PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
         TOTAL_BYTES_FLUSHED.fetch_add(block_len, SeqCst);
     }
     println!("FLUSHER EXITING");
@@ -234,6 +245,7 @@ impl BlockList {
                     .push(min_ts, max_ts, copy.clone());
             }
             PENDING_UNFLUSHED_BYTES.fetch_add(copy.len, SeqCst);
+            PENDING_UNFLUSHED_BLOCKS.fetch_add(1, SeqCst);
             //let n_flushers = N_FLUSHERS.load(SeqCst);
             FLUSH_WORKERS.send(copy).unwrap();
             //// Mark current block as cleared

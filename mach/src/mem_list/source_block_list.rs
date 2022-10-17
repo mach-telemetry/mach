@@ -27,7 +27,17 @@ lazy_static::lazy_static! {
         let x2 = x.clone();
         thread::spawn(move || loop {
             let x = x2.load(SeqCst);
-            println!("Pending unflushed blocklists: {}", x);
+            println!("Pending unflushed metata blocks: {}", x);
+            thread::sleep(Duration::from_secs(1));
+        });
+        x
+    };
+    static ref PENDING_UNFLUSHED_META_BYTES: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || loop {
+            let x = x2.load(SeqCst);
+            println!("Pending unflushed metadata bytes: {}", x);
             thread::sleep(Duration::from_secs(1));
         });
         x
@@ -88,7 +98,7 @@ fn flusher(partition: i32, channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>,
         //drop(guard);
         *list_item.write().unwrap() = ListItem::Kafka(kafka_entry);
         PENDING_UNFLUSHED_BLOCKLISTS.fetch_sub(1, SeqCst);
-        PENDING_UNFLUSHED_BYTES.fetch_sub(size_to_flush, SeqCst);
+        PENDING_UNFLUSHED_META_BYTES.fetch_sub(size_to_flush, SeqCst);
 
         if counter % 1000 == 0 {
             partition = thread_rng().gen_range(0..PARTITIONS);
@@ -150,7 +160,7 @@ impl InnerBuffer {
                 MaybeUninit::slice_assume_init_ref(&guard.data[..]).into()
             };
             {
-                PENDING_UNFLUSHED_BYTES.fetch_add(copy.len() * std::mem::size_of::<InnerListEntry>(), SeqCst);
+                PENDING_UNFLUSHED_META_BYTES.fetch_add(copy.len() * std::mem::size_of::<InnerListEntry>(), SeqCst);
                 let mut guard = self.next.write().unwrap();
                 let list_item = Arc::new(RwLock::new(ListItem::Block(Arc::new((
                     copy,
