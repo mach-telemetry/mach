@@ -157,7 +157,7 @@ impl Snapshotter {
         let mut guard = PRODUCER.lock().unwrap();
         let snapshot_entry = SnapshotEntry::Bytes(compressed_bytes).flush(&mut *guard);
         match snapshot_entry {
-            SnapshotEntry::Id(x) => Some(x.clone()),
+            SnapshotEntry::Id(x) => Some(x),
             _ => unreachable!(),
         }
 

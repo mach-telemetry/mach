@@ -400,18 +400,17 @@ impl SnapshotIterator {
             State::Blocks => {
                 let _timer_2 = ThreadLocalTimer::new("SnapshotIterator::next_segment blocks");
                 match self.block_reader.next_segment() {
-                    None => loop {
+                    None => 
                         match self.source_blocks.next_block() {
                             Some(block) => {
                                 ThreadLocalCounter::new("loading block").increment(1);
                                 let bytes = block.clone();
                                 let block_reader = ReadOnlyBlockReader::new(bytes.block.to_bytes(self.id.0));
                                 self.block_reader = block_reader;
-                                return self.next_segment();
+                                self.next_segment()
                             }
-                            None => return None,
+                            None => None,
                         }
-                    }
                     Some(_) => Some(()),
                 }
             }
