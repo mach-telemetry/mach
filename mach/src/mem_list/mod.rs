@@ -16,13 +16,11 @@ use crate::{
 };
 use dashmap::DashMap;
 use lazy_static::lazy_static;
-use rand::{thread_rng, Rng};
 use serde::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::mem;
-use std::sync::Mutex;
 use std::sync::{
     atomic::{AtomicU64, AtomicUsize, Ordering::SeqCst},
     Arc, RwLock,
@@ -445,7 +443,7 @@ impl ReadOnlyBlockBytes {
 
         let bytes = &self.0[offset..];
         let magic = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
-        let chunk_id = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
+        //let chunk_id = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
         let _series_id = u64::from_be_bytes(bytes[16..24].try_into().unwrap()) as usize;
         let chunk_size = u64::from_be_bytes(bytes[24..32].try_into().unwrap()) as usize;
 
@@ -650,7 +648,7 @@ impl BlockListEntry {
         let guard = self.inner.read().unwrap();
         match &*guard {
             InnerBlockListEntry::Bytes(bytes) => {
-                let num_bytes = bytes.len();
+                //let num_bytes = bytes.len();
                 let kafka_entry = producer.send(partition, bytes);
                 drop(guard);
                 self.set_partition_offset(kafka_entry);

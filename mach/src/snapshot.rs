@@ -1,6 +1,6 @@
 use crate::{
     id::SeriesId,
-    mem_list::{ReadOnlyBlock, ReadOnlyBlock3, ReadOnlyBlockBytes, SourceBlocks2, SourceBlocks3, ChunkBytesOrKafka},
+    mem_list::{ReadOnlyBlock, SourceBlocks3, ChunkBytesOrKafka},
     sample::SampleType,
     series::FieldType,
     utils::{counter::*, timer::*},

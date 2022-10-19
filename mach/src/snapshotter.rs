@@ -1,13 +1,10 @@
 use crate::{
-    constants::*,
     id::SeriesId,
     series::Series,
     snapshot::Snapshot,
     utils::kafka::{KafkaEntry, Producer},
 };
 use dashmap::DashMap;
-use kafka::producer::Partitioner;
-use rand::{thread_rng, Rng};
 use std::{
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
@@ -66,9 +63,9 @@ fn snapshots_to_kafka(rx: Receiver<SnapshotterId>) {
 struct SnapshotWorkerData {
     snapshot_id: SnapshotEntry,
     series: Series,
-    last_request: Instant,
-    interval: Duration,
-    time_out: Duration,
+    //last_request: Instant,
+    //interval: Duration,
+    //time_out: Duration,
 }
 
 #[derive(Clone, Debug)]
@@ -94,7 +91,7 @@ impl SnapshotEntry {
 
 pub struct Snapshotter {
     series_table: Arc<DashMap<SeriesId, Series>>, // Same series table as in tsdb
-    id_map: Arc<DashMap<(SeriesId, Duration, Duration), SnapshotterId>>,
+    id_map: Arc<DashMap<SeriesId, SnapshotterId>>,
     worker_id: AtomicUsize,
 }
 
@@ -110,15 +107,15 @@ impl Snapshotter {
     pub fn initialize_snapshotter(
         &self,
         series_id: SeriesId,
-        interval: Duration,
-        time_out: Duration,
+        _interval: Duration,
+        _time_out: Duration,
     ) -> SnapshotterId {
-        let triple = (series_id, interval, time_out);
-        *self.id_map.entry(triple).or_insert_with(|| {
+        //let triple = (series_id, interval, time_out);
+        *self.id_map.entry(series_id).or_insert_with(|| {
             let worker_id = SnapshotterId(self.worker_id.fetch_add(1, SeqCst));
 
             let series = self.series_table.get(&series_id).unwrap().clone();
-            let last_request = Instant::now();
+            //let last_request = Instant::now();
 
             println!("Initial snapshotting");
             let now = Instant::now();
@@ -134,9 +131,9 @@ impl Snapshotter {
             let snapshot_worker_data = Arc::new(Mutex::new(SnapshotWorkerData {
                 snapshot_id: snapshot_entry,
                 series,
-                last_request,
-                interval,
-                time_out,
+                //last_request,
+                //interval,
+                //time_out,
             }));
 
             SNAPSHOT_TABLE.insert(worker_id, snapshot_worker_data);
@@ -148,7 +145,7 @@ impl Snapshotter {
 
     pub fn get(&self, id: SnapshotterId) -> Option<SnapshotId> {
         let entry = SNAPSHOT_TABLE.get(&id)?.value().clone();
-        let mut guard = entry.lock().unwrap();
+        let guard = entry.lock().unwrap();
 
         let now = Instant::now();
         let snapshot = guard.series.snapshot();
@@ -184,45 +181,45 @@ impl Snapshotter {
     }
 }
 
-fn snapshot_worker(worker_id: SnapshotterId) {
-    println!("INITING Snapshot*****************");
-    let snapshot_table = SNAPSHOT_TABLE.clone();
-    let data = snapshot_table.get(&worker_id).unwrap().clone();
-    let guard = data.lock().unwrap();
-    let time_out = guard.time_out;
-    let series = guard.series.clone();
-    let interval = guard.interval;
-    drop(guard);
-
-    //let mut producer = Producer::new();
-
-    loop {
-        {
-            let guard = data.lock().unwrap();
-            let last = guard.last_request;
-            if Instant::now() - last > time_out {
-                snapshot_table.remove(&worker_id);
-                break;
-            }
-        }
-        {
-            let now = Instant::now();
-            let snapshot = series.snapshot();
-            let snapshot_time = now.elapsed();
-
-            let now = Instant::now();
-            let compressed = compress_snapshot(snapshot);
-            let compress_time = now.elapsed();
-
-            let snapshot_entry = SnapshotEntry::Bytes(compressed);
-
-            println!("Snapshot creation: {:?}, compression: {:?}", snapshot_time, compress_time);
-            let mut guard = data.lock().unwrap();
-            guard.snapshot_id = snapshot_entry;
-        }
-        thread::sleep(interval);
-    }
-}
+//fn snapshot_worker(worker_id: SnapshotterId) {
+//    println!("INITING Snapshot*****************");
+//    let snapshot_table = SNAPSHOT_TABLE.clone();
+//    let data = snapshot_table.get(&worker_id).unwrap().clone();
+//    let guard = data.lock().unwrap();
+//    let time_out = guard.time_out;
+//    let series = guard.series.clone();
+//    let interval = guard.interval;
+//    drop(guard);
+//
+//    //let mut producer = Producer::new();
+//
+//    loop {
+//        {
+//            let guard = data.lock().unwrap();
+//            let last = guard.last_request;
+//            if Instant::now() - last > time_out {
+//                snapshot_table.remove(&worker_id);
+//                break;
+//            }
+//        }
+//        {
+//            let now = Instant::now();
+//            let snapshot = series.snapshot();
+//            let snapshot_time = now.elapsed();
+//
+//            let now = Instant::now();
+//            let compressed = compress_snapshot(snapshot);
+//            let compress_time = now.elapsed();
+//
+//            let snapshot_entry = SnapshotEntry::Bytes(compressed);
+//
+//            println!("Snapshot creation: {:?}, compression: {:?}", snapshot_time, compress_time);
+//            let mut guard = data.lock().unwrap();
+//            guard.snapshot_id = snapshot_entry;
+//        }
+//        thread::sleep(interval);
+//    }
+//}
 
 fn compress_snapshot(snapshot: Snapshot) -> Box<[u8]> {
     let bytes = bincode::serialize(&snapshot).unwrap();

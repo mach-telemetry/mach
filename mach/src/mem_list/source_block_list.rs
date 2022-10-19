@@ -2,8 +2,8 @@ use crate::{
     constants::*,
     id::SeriesId,
     mem_list::{
-        BlockListEntry, ChunkBytes, ChunkBytesOrKafka, Error, ReadOnlyBlock, ReadOnlyBlock2,
-        ReadOnlyBlock3, PENDING_UNFLUSHED_BYTES,
+        BlockListEntry, Error, ReadOnlyBlock, ReadOnlyBlock2,
+        ReadOnlyBlock3
     },
     utils::{
         kafka,
@@ -43,14 +43,14 @@ lazy_static::lazy_static! {
         x
     };
     static ref LIST_ITEM_FLUSHER: Sender<(SeriesId, Arc<RwLock<ListItem>>)> = {
-            let producer = kafka::Producer::new();
-            let (tx, rx) = unbounded();
-            std::thread::spawn(move || flusher(0, rx, producer));
-            tx
+        let producer = kafka::Producer::new();
+        let (tx, rx) = unbounded();
+        std::thread::spawn(move || flusher(rx, producer));
+        tx
     };
 }
 
-fn flusher(partition: i32, channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
+fn flusher(channel: Receiver<(SeriesId, Arc<RwLock<ListItem>>)>, mut producer: kafka::Producer) {
     let mut partition: i32= thread_rng().gen_range(0..PARTITIONS);
     let mut counter = 0;
     while let Ok((_id, list_item)) = channel.recv() {

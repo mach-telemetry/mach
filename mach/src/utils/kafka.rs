@@ -18,7 +18,7 @@ use crate::utils::counter::*;
 use crate::utils::timer::*;
 use lazy_static::*;
 use num::NumCast;
-use ref_thread_local::{ref_thread_local, RefThreadLocal};
+use ref_thread_local::{ref_thread_local};
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
@@ -227,11 +227,11 @@ impl Producer {
 
     pub fn send(&mut self, partition: i32, item: &[u8]) -> KafkaEntry {
         let mut start = 0;
-        let mut t = Instant::now();
+        let t = Instant::now();
 
         let producer: &mut OgProducer = &mut self.0;
 
-        let mut rng = thread_rng();
+        //let mut rng = thread_rng();
         let mut items = Vec::with_capacity(5);
 
         let mut num_iters = 0;

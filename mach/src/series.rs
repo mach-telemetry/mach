@@ -1,5 +1,4 @@
 use crate::{
-    constants::*,
     compression::Compression,
     id::SeriesId,
     //durable_queue::QueueConfig,
@@ -11,7 +10,7 @@ use crate::{
     snapshot::Snapshot,
 };
 use serde::*;
-use std::sync::{atomic::Ordering::SeqCst, Arc};
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum Error {
