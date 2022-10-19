@@ -3,9 +3,5 @@
 members = [
     "mach",
     "bin",
-    "bench",
-    "instrumentation",
-    "otlp",
-    "mach-otlp",
 ]
 
