@@ -24,9 +24,3 @@ pub const MULTIVARIATE: &str = "bench1_multivariate_small.json";
 pub const LOGS: &str = "SSH.log";
 pub const MIN_SAMPLES: usize = 30_000;
 
-use std::sync::atomic::AtomicUsize;
-pub static COUNTER1: AtomicUsize = AtomicUsize::new(0);
-pub static COUNTER2: AtomicUsize = AtomicUsize::new(0);
-pub static COUNTER3: AtomicUsize = AtomicUsize::new(0);
-pub static COUNTER4: AtomicUsize = AtomicUsize::new(0);
-pub static COUNTER5: AtomicUsize = AtomicUsize::new(0);

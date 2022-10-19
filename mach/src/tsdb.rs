@@ -7,11 +7,10 @@ use crate::{
     //durable_queue::QueueConfig,
     snapshotter::Snapshotter,
     writer::{Writer, WriterConfig, WriterMetadata},
-    constants::*,
 };
 use dashmap::DashMap;
 use rand::seq::SliceRandom;
-use std::sync::{Arc, atomic::Ordering::SeqCst};
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub enum Error {
@@ -76,11 +75,8 @@ impl Mach {
         let writer_meta = self.writer_table.get(&writer).unwrap();
         let series_id = config.id;
         let block_list = writer_meta.block_list.clone();
-        COUNTER1.fetch_add(procinfo::pid::statm_self().unwrap().size, SeqCst);
         let source_block_list = block_list.add_source(series_id);
-        COUNTER2.fetch_add(procinfo::pid::statm_self().unwrap().size, SeqCst);
         let series = Series::new(config, block_list, source_block_list);
-        COUNTER3.fetch_add(procinfo::pid::statm_self().unwrap().size, SeqCst);
         self.series_table.insert(series_id, series);
         Ok(series_id)
     }
