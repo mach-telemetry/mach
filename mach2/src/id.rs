@@ -12,33 +12,33 @@ impl Deref for WriterId {
 }
 
 #[derive(Copy, Clone, Eq, Debug, PartialEq, Hash, Serialize, Deserialize)]
-pub struct SeriesId(pub u64);
+pub struct SourceId(pub u64);
 
-impl Deref for SeriesId {
+impl Deref for SourceId {
     type Target = u64;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<u64> for SeriesId {
+impl From<u64> for SourceId {
     fn from(id: u64) -> Self {
-        SeriesId(id as u64)
+        SourceId(id as u64)
     }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct SeriesRef(pub u64);
+pub struct SourceRef(pub u64);
 
-impl Deref for SeriesRef {
+impl Deref for SourceRef {
     type Target = u64;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl From<u64> for SeriesRef {
+impl From<u64> for SourceRef {
     fn from(id: u64) -> Self {
-        SeriesRef(id)
+        SourceRef(id)
     }
 }

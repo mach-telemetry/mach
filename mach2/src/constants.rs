@@ -16,7 +16,7 @@ pub const MAX_FETCH_BYTES: i32 = 1_750_000;
 // Segment / Initial Buffer params
 pub const HEAP_SZ: usize = 1_000_000;
 pub const HEAP_TH: usize = 3 * (HEAP_SZ / 4);
-pub const SEGSZ: usize = 256;
+pub const SEG_SZ: usize = 256;
 
 // Test utils constants
 pub const UNIVARIATE: &str = "bench1_univariate_small.json";
