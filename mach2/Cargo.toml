@@ -10,3 +10,4 @@ serde = { version = "1.0.145", features = ["derive"] }
 serde-big-array = "0.4.1"
 rand = "0.8.5"
 lzzzz = "1.0.3"
+bitpacking = "0.8.4"
