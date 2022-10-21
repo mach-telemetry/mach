@@ -9,4 +9,5 @@ pub mod id;
 pub mod constants;
 pub mod source;
 pub mod active_segment;
+pub mod compression;
 //pub mod utils;
