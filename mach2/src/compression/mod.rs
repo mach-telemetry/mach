@@ -1,6 +1,7 @@
 pub mod compression_scheme;
 pub mod lz4;
 pub mod timestamps;
+pub mod delta_of_delta;
 
 use crate::constants::SEG_SZ;
 
