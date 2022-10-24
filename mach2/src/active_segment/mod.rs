@@ -127,6 +127,7 @@ impl Inner {
 
     fn as_active_segment_ref(&self) -> ActiveSegmentRef {
         let len = self.atomic_len.load(SeqCst);
+        let heap_len = self.heap_len;
         let data: Vec<&SegmentArray> = (0..self.types.len()).map(|i| {
             let (s, e) = self.field_offsets(i);
             let slice = unsafe { self.data[s..e].as_chunks_unchecked::<8>() };
@@ -135,8 +136,9 @@ impl Inner {
         let heap = &self.data[8 * self.types.len() * SEG_SZ..];
         ActiveSegmentRef {
             len,
+            heap_len,
             ts: &self.ts,
-            heap: &heap[..self.heap_len],
+            heap: heap[..HEAP_SZ].try_into().unwrap(),
             data,
             types: self.types.as_slice(),
         }
@@ -249,22 +251,24 @@ impl ActiveSegment {
 }
 
 pub struct ActiveSegmentRef<'a> {
-    len: usize,
-    ts: &'a [u64; 256],
-    heap: &'a [u8],
-    data: Vec<&'a [[u8; 8]; 256]>,
-    types: &'a [FieldType],
+    pub len: usize,
+    pub heap_len: usize,
+    pub ts: &'a [u64; SEG_SZ],
+    pub heap: &'a [u8; HEAP_SZ],
+    pub data: Vec<&'a [[u8; 8]; SEG_SZ]>,
+    pub types: &'a [FieldType],
 }
 
 impl<'a> ActiveSegmentRef<'a> {
     pub fn to_segment(&self) -> Segment {
-        Segment::new(self.ts, self.data.as_slice(), self.heap, self.types)
+        Segment::new(self.ts, self.data.as_slice(), &self.heap[..self.heap_len], self.types)
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+
     use rand::{Rng, thread_rng, distributions::{Alphanumeric, DistString}};
 
     #[test]

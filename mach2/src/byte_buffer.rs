@@ -1,4 +1,5 @@
 use std::ops::{Deref, DerefMut};
+use std::io::{self, Write};
 
 pub struct ByteBuffer<'a> {
     len: usize,
@@ -60,5 +61,16 @@ impl<'a> ByteBuffer<'a> {
             self.source[self.len..new_len].fill(item);
             self.len = new_len;
         }
+    }
+}
+
+impl<'a> Write for ByteBuffer<'a> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        unimplemented!();
     }
 }

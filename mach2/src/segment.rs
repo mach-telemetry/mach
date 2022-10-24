@@ -9,6 +9,11 @@ use serde_big_array::BigArray;
 
 pub type SegmentArray = [[u8; 8]; SEG_SZ];
 
+#[inline]
+pub fn zero_segment_array() -> SegmentArray {
+    [[0u8; 8]; SEG_SZ]
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Column {
     #[serde(with = "BigArray")]
