@@ -2,6 +2,7 @@ pub mod compression_scheme;
 pub mod lz4;
 pub mod timestamps;
 pub mod delta_of_delta;
+pub mod heap;
 
 use compression_scheme::CompressionScheme;
 
@@ -62,6 +63,14 @@ impl Compression {
             let sz = end - start;
             buffer.as_mut_slice()[offset..start].copy_from_slice(&sz.to_be_bytes());
         }
+
+        let heap_offset = buffer.len();
+        buffer.extend_from_slice(&0usize.to_be_bytes());
+        let heap_start = buffer.len();
+        heap::compress_heap(heap, buffer);
+        let heap_end = buffer.len();
+        let sz = heap_end - heap_start;
+        buffer.as_mut_slice()[heap_offset..heap_start].copy_from_slice(&sz.to_be_bytes());
     }
 }
 
