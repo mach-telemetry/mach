@@ -1,6 +1,7 @@
 use crate::constants::SEG_SZ;
 use bitpacking::{BitPacker8x, BitPacker};
 use std::mem::size_of;
+use crate::byte_buffer::ByteBuffer;
 
 fn to_zigzag(v: i64) -> u64 {
     ((v << 1) ^ (v >> 63)) as u64
@@ -10,7 +11,7 @@ fn from_zigzag(v: u64) -> i64 {
     (v >> 1) as i64 ^ (-((v & 1) as i64))
 }
 
-fn bitpack_256_compress(buffer: &mut Vec<u8>, data: &[u32; 256]) {
+fn bitpack_256_compress(buffer: &mut ByteBuffer, data: &[u32; 256]) {
 
     let bitpacker = BitPacker8x::new();
     let num_bits: u8 = bitpacker.num_bits(&data[..]);
@@ -20,7 +21,8 @@ fn bitpack_256_compress(buffer: &mut Vec<u8>, data: &[u32; 256]) {
 
     let start = buffer.len();
     buffer.resize(start + compressed_sz, 0);
-    let size = bitpacker.compress(&data[..], &mut buffer[start..start+compressed_sz], num_bits);
+    let dst = &mut buffer.as_mut_slice()[start..start+compressed_sz];
+    let size = bitpacker.compress(&data[..], dst, num_bits);
     assert_eq!(size, compressed_sz);
 }
 
@@ -31,7 +33,7 @@ fn bitpack_256_decompress(out: &mut [u32; 256], data: &[u8]) {
     bitpacker.decompress(&data[9..compressed_sz + 9], &mut out[..], num_bits);
 }
 
-pub fn compress(len: usize, data: &[u64; SEG_SZ], buffer: &mut Vec<u8>) {
+pub fn compress(len: usize, data: &[u64; SEG_SZ], buffer: &mut ByteBuffer) {
     assert!(len <= SEG_SZ);
 
     // Some scratch pad and locations to remember items too big too store in u32
@@ -89,7 +91,7 @@ pub fn compress(len: usize, data: &[u64; SEG_SZ], buffer: &mut Vec<u8>) {
     let old_size = buffer.len();
     bitpack_256_compress(buffer, &to_compress);
     let new_size = buffer.len();
-    buffer[size_offset..size_offset + 8].copy_from_slice(&(new_size - old_size).to_be_bytes());
+    buffer.as_mut_slice()[size_offset..size_offset + 8].copy_from_slice(&(new_size - old_size).to_be_bytes());
 
     // Write the zigzag values too big for u32
 
@@ -169,6 +171,7 @@ pub fn decompress(data: &[u8], data_len: &mut usize, buffer: &mut [u64; SEG_SZ])
 mod test {
     use super::*;
     use rand::{Rng, thread_rng};
+    use std::time::SystemTime;
 
     #[test]
     fn compress_decompress() {
@@ -176,21 +179,27 @@ mod test {
 
         let increments: Vec<u64> = (0..256).map(|_| rng.gen::<u64>() % 100).collect();
         let mut integers: Vec<u64> = Vec::new();
-        let mut sum: u64 = rng.gen();
+        let mut sum: u64 = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_micros()
+            .try_into()
+            .unwrap();
         for x in increments {
             integers.push(sum);
             sum += x;
         }
 
         assert_eq!(integers.len(), 256);
-        let mut compressed_bytes = Vec::new();
+        let mut compressed_bytes = vec![0u8; 1_000_000];
+        let mut byte_buffer = ByteBuffer::new(0, compressed_bytes.as_mut_slice());
         let to_compress: &[u64; SEG_SZ] = integers.as_slice().try_into().unwrap();
-        compress(256, to_compress, &mut compressed_bytes);
+        compress(256, to_compress, &mut byte_buffer);
 
         let mut len = 0;
         let mut decompressed: Vec<u64> = vec![0u64; 256];
         let decompress_buffer: &mut[u64; 256] = decompressed.as_mut_slice().try_into().unwrap();
-        decompress(&compressed_bytes, &mut len, decompress_buffer);
+        decompress(byte_buffer.as_slice(), &mut len, decompress_buffer);
 
         assert_eq!(len, 256);
         assert_eq!(integers.as_slice(), &decompress_buffer[..]);

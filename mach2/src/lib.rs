@@ -10,4 +10,5 @@ pub mod constants;
 pub mod source;
 pub mod active_segment;
 pub mod compression;
+mod byte_buffer;
 //pub mod utils;

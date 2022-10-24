@@ -1,4 +1,5 @@
 use serde::{Serialize, Deserialize};
+use std::convert::From;
 
 #[derive(PartialEq, Eq, Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum FieldType {
@@ -9,20 +10,20 @@ pub enum FieldType {
     Timestamp = 4,
 }
 
-impl FieldType {
-    pub fn to_u8(self) -> u8 {
-        self as u8
-    }
+#[derive(Debug)]
+struct Number {
+    value: i32,
+}
 
-    pub fn from_u8(v: u8) -> Self {
+impl From<u8> for FieldType {
+    fn from(v: u8) -> Self {
         match v {
             0 => Self::I64,
             1 => Self::U64,
             2 => Self::F64,
             3 => Self::Bytes,
             4 => Self::Timestamp,
-            //5 => Self::U32,
-            _ => unimplemented!(),
+            _ => unreachable!(),
         }
     }
 }

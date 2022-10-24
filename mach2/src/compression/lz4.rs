@@ -1,6 +1,8 @@
 use crate::{
     constants::SEG_SZ,
     compression::CompressDecompress,
+    segment::SegmentArray,
+    byte_buffer::ByteBuffer,
 };
 use lzzzz::lz4;
 use std::convert::TryInto;
@@ -11,16 +13,16 @@ use serde::*;
 pub struct LZ4 {}
 
 impl CompressDecompress for LZ4 {
-    fn compress(&self, data_len: usize, data: &[[u8; 8]; SEG_SZ], buffer: &mut Vec<u8>) {
+    fn compress(&self, data_len: usize, data: &SegmentArray, buffer: &mut ByteBuffer) {
         compress(data_len, data, buffer);
     }
 
-    fn decompress(&self, data: &[u8], data_len: &mut usize, buffer: &mut [[u8; 8]; SEG_SZ]) {
+    fn decompress(&self, data: &[u8], data_len: &mut usize, buffer: &mut SegmentArray) {
         decompress(data, data_len, buffer);
     }
 }
 
-fn compress(data_len: usize, data: &[[u8; 8]; SEG_SZ], buffer: &mut Vec<u8>) {
+fn compress(data_len: usize, data: &SegmentArray, buffer: &mut ByteBuffer) {
 
     // unnest from chunks
     let data: &[u8] = unsafe {
@@ -37,14 +39,14 @@ fn compress(data_len: usize, data: &[[u8; 8]; SEG_SZ], buffer: &mut Vec<u8>) {
 
     // compress
     let compress_begin = size_offset + 8;
-    let sz = lz4::compress_to_vec(data, buffer, lz4::ACC_LEVEL_DEFAULT).unwrap();
-    assert_eq!(buffer.len() - compress_begin, sz);
+    let sz = lz4::compress(data, buffer.remaining(), lz4::ACC_LEVEL_DEFAULT).unwrap();
+    buffer.set_len(buffer.len() + sz);
 
     // write size
-    buffer[size_offset..size_offset + 8].copy_from_slice(&sz.to_be_bytes());
+    buffer.as_mut_slice()[size_offset..size_offset + 8].copy_from_slice(&sz.to_be_bytes());
 }
 
-fn decompress(data: &[u8], data_len: &mut usize, buffer: &mut [[u8; 8]; SEG_SZ]) {
+fn decompress(data: &[u8], data_len: &mut usize, buffer: &mut SegmentArray) {
 
     // read raw data length
     let dl = usize::from_be_bytes(data[..8].try_into().unwrap());
@@ -77,14 +79,15 @@ mod test {
             (0..SEG_SZ)
             .map(|_| rng.gen::<usize>().to_be_bytes())
             .collect();
-        let mut compressed: Vec<u8> = Vec::new();
+        let mut compressed: Vec<u8> = vec![0u8; 1_000_000];
+        let mut byte_buffer = ByteBuffer::new(0, &mut compressed[..]);
 
-        compress(SEG_SZ, data.as_slice().try_into().unwrap(), &mut compressed);
+        compress(SEG_SZ, data.as_slice().try_into().unwrap(), &mut byte_buffer);
 
         let mut decompressed: Vec<[u8; 8]> = vec![[0u8; 8]; 256];
         let buf: &mut[[u8;8]] = &mut decompressed[..];
         let mut len: usize = 0;
-        decompress(&compressed, &mut len, buf.try_into().unwrap());
+        decompress(byte_buffer.as_slice(), &mut len, buf.try_into().unwrap());
         assert_eq!(len, SEG_SZ);
         assert_eq!(data, decompressed);
     }

@@ -2,7 +2,7 @@ use crate::{
     constants::{SEG_SZ, HEAP_SZ, HEAP_TH},
     field_type::FieldType,
     sample::SampleType,
-    segment::Segment,
+    segment::{Segment, SegmentArray},
 };
 use std::sync::{
     Arc,
@@ -127,13 +127,15 @@ impl Inner {
 
     fn as_active_segment_ref(&self) -> ActiveSegmentRef {
         let len = self.atomic_len.load(SeqCst);
-        let data: Vec<&[[u8; 8]]> = (0..self.types.len()).map(|i| {
+        let data: Vec<&SegmentArray> = (0..self.types.len()).map(|i| {
             let (s, e) = self.field_offsets(i);
-            unsafe { self.data[s..e].as_chunks_unchecked::<8>() }
+            let slice = unsafe { self.data[s..e].as_chunks_unchecked::<8>() };
+            slice.try_into().unwrap()
         }).collect();
         let heap = &self.data[8 * self.types.len() * SEG_SZ..];
         ActiveSegmentRef {
-            ts: &self.ts[..len],
+            len,
+            ts: &self.ts,
             heap: &heap[..self.heap_len],
             data,
             types: self.types.as_slice(),
@@ -247,9 +249,10 @@ impl ActiveSegment {
 }
 
 pub struct ActiveSegmentRef<'a> {
-    ts: &'a [u64],
+    len: usize,
+    ts: &'a [u64; 256],
     heap: &'a [u8],
-    data: Vec<&'a [[u8; 8]]>,
+    data: Vec<&'a [[u8; 8]; 256]>,
     types: &'a [FieldType],
 }
 

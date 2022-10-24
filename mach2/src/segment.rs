@@ -7,10 +7,12 @@ use std::ops::{Deref, DerefMut};
 use serde::{Serialize, Deserialize};
 use serde_big_array::BigArray;
 
+pub type SegmentArray = [[u8; 8]; SEG_SZ];
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Column {
     #[serde(with = "BigArray")]
-    data: [[u8; 8]; SEG_SZ]
+    data: SegmentArray
 }
 
 impl Deref for Column {
@@ -60,7 +62,7 @@ impl Segment {
         }
     }
 
-    pub fn new(ts: &[u64], data: &[&[[u8; 8]]], heap: &[u8], types: &[FieldType]) -> Self {
+    pub fn new(ts: &[u64], data: &[&SegmentArray], heap: &[u8], types: &[FieldType]) -> Self {
 
         let len = ts.len();
         let nvars = types.len();
@@ -77,10 +79,8 @@ impl Segment {
         s.types.extend_from_slice(types);
         s.ts[..len].copy_from_slice(ts);
         for d in data.iter() {
-            let mut data = [[0u8; 8]; 256];
-            data.copy_from_slice(d);
             s.data.push(Column {
-                data
+                data: **d
             });
         }
         s.heap[..heap_len].copy_from_slice(heap);
