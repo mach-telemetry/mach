@@ -10,5 +10,7 @@ pub mod constants;
 pub mod source;
 pub mod active_segment;
 pub mod compression;
+pub mod mem_list;
 mod byte_buffer;
+mod kafka;
 //pub mod utils;

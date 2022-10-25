@@ -268,16 +268,6 @@ mod test {
             assert_eq!(&a, b);
         }
         assert_eq!(types, segment_reference.types);
-
-    //pub fn compress(&self,
-    //    len: usize,
-    //    heap_len: usize,
-    //    timestamps: &[u64; SEG_SZ],
-    //    heap: &[u8; HEAP_SZ],
-    //    data: &[&SegmentArray],
-    //    types: &[FieldType],
-    //    buffer: &mut ByteBuffer,
-    //) {
     }
 }
 
