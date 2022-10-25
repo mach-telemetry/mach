@@ -1,6 +1,7 @@
 mod producer;
 mod kafka_entry;
 pub use kafka_entry::KafkaEntry;
+pub use producer::Producer;
 
 use crate::constants::*;
 use kafka::{
