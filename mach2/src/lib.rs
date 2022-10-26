@@ -13,6 +13,6 @@ pub mod source;
 pub mod active_segment;
 pub mod compression;
 pub mod mem_list;
-mod byte_buffer;
-mod kafka;
+pub mod byte_buffer;
+pub mod kafka;
 //pub mod utils;

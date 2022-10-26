@@ -4,11 +4,6 @@ pub use kafka_entry::KafkaEntry;
 pub use producer::Producer;
 
 use crate::constants::*;
-use kafka::{
-    client::{fetch::Response, FetchPartition, KafkaClient, RequiredAcks},
-    consumer::GroupOffsetStorage,
-    producer::{Producer as OgProducer, Record},
-};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,

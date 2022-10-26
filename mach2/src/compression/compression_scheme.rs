@@ -1,5 +1,4 @@
 use crate:: {
-    constants::SEG_SZ,
     compression::{
         CompressDecompress,
         lz4::LZ4,

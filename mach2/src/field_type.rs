@@ -10,11 +10,6 @@ pub enum FieldType {
     Timestamp = 4,
 }
 
-#[derive(Debug)]
-struct Number {
-    value: i32,
-}
-
 impl From<u8> for FieldType {
     fn from(v: u8) -> Self {
         match v {

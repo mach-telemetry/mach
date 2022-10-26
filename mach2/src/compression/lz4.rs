@@ -1,5 +1,4 @@
 use crate::{
-    constants::SEG_SZ,
     compression::CompressDecompress,
     segment::SegmentArray,
     byte_buffer::ByteBuffer,
@@ -38,7 +37,6 @@ fn compress(data_len: usize, data: &SegmentArray, buffer: &mut ByteBuffer) {
     buffer.extend_from_slice(&0usize.to_be_bytes());
 
     // compress
-    let compress_begin = size_offset + 8;
     let sz = lz4::compress(data, buffer.remaining(), lz4::ACC_LEVEL_DEFAULT).unwrap();
     buffer.set_len(buffer.len() + sz);
 
@@ -70,6 +68,7 @@ fn decompress(data: &[u8], data_len: &mut usize, buffer: &mut SegmentArray) {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::constants::SEG_SZ;
     use rand::{thread_rng, Rng};
 
     #[test]

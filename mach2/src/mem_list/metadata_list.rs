@@ -5,7 +5,7 @@ use crate::{
 };
 
 use std::{
-    sync::{Arc, RwLock, atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst}},
+    sync::{Arc, RwLock, atomic::{AtomicUsize, Ordering::SeqCst}},
     cell::UnsafeCell,
     mem::MaybeUninit,
 };
@@ -15,7 +15,9 @@ pub struct MetadataListWriter {
 }
 
 impl MetadataListWriter {
-    pub fn push(&self, data_block: DataBlock, time_range: TimeRange) {
+    pub fn push(&self, data_block: DataBlock, min: u64, max: u64) {
+        assert!(min <= max);
+        let time_range = TimeRange {min, max};
         match self.inner.push(data_block, time_range) {
             PushStatus::Full => self.inner.reset(),
             PushStatus::Ok => {}
@@ -185,7 +187,7 @@ impl Inner {
     }
 }
 
-struct ReadOnlyMetadataList {
+pub struct ReadOnlyMetadataList {
     block: Box<[Entry]>,
     len: usize,
     previous: MetadataBlock,

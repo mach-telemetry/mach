@@ -11,7 +11,6 @@ pub fn compress(data: &[u8], buffer: &mut ByteBuffer) {
     buffer.extend_from_slice(&0usize.to_be_bytes());
 
     // compress
-    let compress_begin = size_offset + 8;
     let sz = lz4::compress(data, buffer.remaining(), lz4::ACC_LEVEL_DEFAULT).unwrap();
     buffer.set_len(buffer.len() + sz);
 
@@ -31,12 +30,13 @@ pub fn decompress(data: &[u8], data_len: &mut usize, dst: &mut [u8]) {
 
     // decompress
     let sz = lz4::decompress(src, dst).unwrap();
+    assert_eq!(sz, dl)
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use rand::{Rng, thread_rng, distributions::{Alphanumeric, DistString}};
+    use rand::{thread_rng, distributions::{Alphanumeric, DistString}};
     use crate::byte_buffer::ByteBuffer;
 
     #[test]

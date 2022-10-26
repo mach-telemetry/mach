@@ -1,14 +1,13 @@
 use crate::constants::*;
 use kafka::{
-    client::{fetch::Response, FetchPartition, KafkaClient, RequiredAcks},
+    client::{fetch::Response, FetchPartition, KafkaClient},
     consumer::GroupOffsetStorage,
-    producer::{Producer as OgProducer, Record},
 };
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
-use rand::{Rng, thread_rng, distributions::{Alphanumeric, DistString}};
+use rand::{thread_rng, distributions::{Alphanumeric, DistString}};
 
 fn new_client(size: i32) -> KafkaClient {
     let mut client = KafkaClient::new(BOOTSTRAPS.split(',').map(String::from).collect());

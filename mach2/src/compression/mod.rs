@@ -100,9 +100,8 @@ impl Compression {
         out_types: &mut Vec<FieldType>,
     ) {
 
-        let mut offset = 0;
         assert_eq!(&bytes[..MAGIC.len()], MAGIC);
-        offset = MAGIC.len();
+        let mut offset = MAGIC.len();
 
         let len = {
             let end = offset + 8;

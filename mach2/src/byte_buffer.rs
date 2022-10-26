@@ -1,4 +1,3 @@
-use std::ops::{Deref, DerefMut};
 use std::io::{self, Write};
 
 pub struct ByteBuffer<'a> {

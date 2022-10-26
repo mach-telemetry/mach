@@ -31,6 +31,7 @@ fn flush_worker(chan: Receiver<DataBlock>) {
         if counter % 1_000 == 0 && counter > 0 {
             partition = rng.gen_range(0i32..PARTITIONS as i32);
         }
+        counter += 1;
     }
 }
 
@@ -40,6 +41,12 @@ pub struct DataBlock {
 }
 
 impl DataBlock {
+    pub fn new(data: &[u8]) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(InnerDataBlock::Data(data.into())))
+        }
+    }
+
     pub fn async_flush(&self) {
         let x = self.clone();
         DATA_BLOCK_WRITER.try_send(x).unwrap();

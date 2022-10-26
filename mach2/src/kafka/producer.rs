@@ -3,12 +3,11 @@ use crate::{
     kafka::KafkaEntry,
 };
 use std::{
-    time::{Duration, Instant},
+    time::Duration,
     ops::{Deref, DerefMut},
 };
 use kafka::{
-    client::{fetch::Response, FetchPartition, KafkaClient, RequiredAcks},
-    consumer::GroupOffsetStorage,
+    client::RequiredAcks,
     producer::{Producer as OgProducer, Record},
 };
 
@@ -44,14 +43,9 @@ impl Producer {
 
         let producer: &mut OgProducer = &mut self.0;
 
-        //let mut rng = thread_rng();
         let mut items = Vec::with_capacity(5);
 
-        let mut num_iters = 0;
-        let mut num_retries = 0;
-
         while start < item.len() {
-            num_iters += 1;
 
             let end = item.len().min(start + MAX_MSG_SZ);
 
@@ -69,7 +63,6 @@ impl Producer {
                         let o = match partition.offset {
                             Ok(o) => o,
                             Err(_) => {
-                                num_retries += 1;
                                 erred = true;
                                 std::thread::sleep(Duration::from_millis(500));
                                 eprintln!("Retrying");
