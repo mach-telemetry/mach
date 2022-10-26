@@ -1,7 +1,7 @@
 use crate::{
     mem_list::{
         data_block::DataBlock,
-        read_only::{ReadOnlyMetadataBlock}
+        read_only::{ReadOnlyMetadataBlock, ReadOnlyMetadataEntry, ReadOnlyDataBlock}
     },
     kafka::KafkaEntry,
     constants::METADATA_BLOCK_SZ,
@@ -196,6 +196,34 @@ struct TimeRange {
 #[derive(Clone)]
 pub struct MetadataBlock {
     inner: Arc<RwLock<InnerMetadataBlock>>
+}
+
+impl MetadataBlock {
+    fn read_only(&self, mut blocks: Vec<ReadOnlyMetadataEntry>) -> ReadOnlyMetadataBlock {
+        let read_guard = self.inner.read().unwrap();
+        match &*read_guard {
+
+            // Reached the end of the list. Create a new readonly metadata block
+            InnerMetadataBlock::Kafka(x) => {
+                ReadOnlyMetadataBlock::new(blocks, x.block.clone(), x.time_range.min, x.time_range.max)
+            },
+
+            // Somewhere in the middle of the list, take all the entries and push into the vector,
+            // then continue traversing to next metadata block via recursion
+            // This will terminate because the first Metadata block was initialized as a kafka
+            // entry
+            InnerMetadataBlock::Data(x) => {
+                for entry in x.block.iter() {
+                    let data_block = ReadOnlyDataBlock::from(&entry.data_block);
+                    let entry = ReadOnlyMetadataEntry::new(data_block, entry.time_range.min, entry.time_range.max);
+                    blocks.push(entry);
+                }
+                let previous_cloned = x.previous.clone();
+                drop(read_guard); // need to drop guard here because traversal would lock out all accessors
+                previous_cloned.read_only(blocks)
+            },
+        }
+    }
 }
 
 struct KafkaMetadataBlock {

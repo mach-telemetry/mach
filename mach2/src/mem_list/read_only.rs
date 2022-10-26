@@ -54,7 +54,38 @@ impl From<&DataBlock> for ReadOnlyDataBlock {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct ReadOnlyMetadataEntry {
+    block: ReadOnlyDataBlock,
+    min: u64,
+    max: u64,
+}
+
+impl ReadOnlyMetadataEntry {
+    pub fn new(block: ReadOnlyDataBlock, min: u64, max: u64) -> Self {
+        assert!(min <= max);
+        Self {
+            block,
+            min,
+            max
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct ReadOnlyMetadataBlock {
-    data_blocks: Vec<ReadOnlyDataBlock>,
+    data_blocks: Vec<ReadOnlyMetadataEntry>,
+    kafka_min: u64,
+    kafka_max: u64,
     kafka: KafkaEntry
+}
+
+impl ReadOnlyMetadataBlock {
+    pub fn new(data_blocks: Vec<ReadOnlyMetadataEntry>, kafka: KafkaEntry, kafka_min: u64, kafka_max: u64) -> Self {
+        Self {
+            data_blocks,
+            kafka_min,
+            kafka_max,
+            kafka
+        }
+    }
 }
