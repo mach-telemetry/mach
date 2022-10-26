@@ -37,8 +37,9 @@ fn data_size(types: &[FieldType]) -> usize {
 
 struct Inner {
     len: usize,
-    atomic_len: AtomicUsize,
     heap_len: usize,
+    atomic_len: AtomicUsize,
+    atomic_heap_len: AtomicUsize,
     ts: [u64; SEG_SZ],
     data: Box<[u8]>,
     types: Vec<FieldType>,
@@ -50,8 +51,9 @@ impl Inner {
         let types: Vec<FieldType> = types.into();
         Inner {
             len: 0,
-            atomic_len: AtomicUsize::new(0),
             heap_len: 0,
+            atomic_len: AtomicUsize::new(0),
+            atomic_heap_len: AtomicUsize::new(0),
             ts: [0u64; SEG_SZ],
             data,
             types,
@@ -61,6 +63,7 @@ impl Inner {
     fn reset(&mut self) {
         self.len = 0;
         self.heap_len = 0;
+        self.atomic_len.store(0, SeqCst);
     }
 
     #[inline]
@@ -109,6 +112,7 @@ impl Inner {
                     heap_off += bytes_len;
 
                     self.heap_len = heap_off;
+                    self.atomic_heap_len.fetch_add(heap_off, SeqCst);
                     self.data[offset..offset_end].copy_from_slice(&heap_start.to_be_bytes());
                 }
             }
@@ -146,14 +150,14 @@ impl Inner {
 }
 
 struct InnerActiveSegment {
-    access_counter: AtomicUsize,
+    version: AtomicUsize,
     inner: UnsafeCell<Inner>,
 }
 
 impl InnerActiveSegment {
     fn new(types: &[FieldType]) -> Self {
         InnerActiveSegment {
-            access_counter: AtomicUsize::new(0),
+            version: AtomicUsize::new(0),
             inner: UnsafeCell::new(Inner::new(types)),
         }
     }
@@ -170,22 +174,22 @@ impl InnerActiveSegment {
     }
 
     fn reset(&self) {
-        self.access_counter.fetch_add(1, SeqCst);
+        self.version.fetch_add(1, SeqCst);
         unsafe {
             (*self.inner.get()).reset()
         }
-        self.access_counter.fetch_add(1, SeqCst);
+        self.version.fetch_add(1, SeqCst);
     }
 
     fn snapshot(&self) -> Result<Segment, &'static str> {
-        let access_counter = self.access_counter.load(SeqCst);
+        let version = self.version.load(SeqCst);
         // Safety: This is safe because if the counter cannot be compared, data in the segment is
         // potentially erroneous and return an error
         let seg = unsafe {
             self.as_active_segment_ref()
         }.to_segment();
-        if access_counter != self.access_counter.load(SeqCst) {
-            Err("Failed to make segment")
+        if version != self.version.load(SeqCst) {
+            Err("Failed to make segment snapshot")
         } else {
             Ok(seg)
         }

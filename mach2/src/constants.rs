@@ -1,6 +1,7 @@
 // mem list parameters
 pub const N_FLUSHERS: usize = 4;
 pub const BLOCK_SZ: usize = 1_000_000;
+pub const METADATA_BLOCK_SZ: usize = 256;
 
 // Kafka specification
 pub const PARTITIONS: i32 = 4;

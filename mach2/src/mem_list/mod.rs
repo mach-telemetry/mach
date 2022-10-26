@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 use crate::kafka::KafkaEntry;
 mod data_block;
+mod metadata_list;
 
 pub struct ActiveBlock {}
 

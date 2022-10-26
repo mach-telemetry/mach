@@ -13,7 +13,7 @@ lazy_static! {
         let (tx, rx) = unbounded();
         for idx in 0..N_FLUSHERS {
             let rx = rx.clone();
-            std::thread::Builder::new().name(format!("Kafka Flusher {}", idx)).spawn(move || {
+            std::thread::Builder::new().name(format!("Mach: Data Block Kafka Flusher {}", idx)).spawn(move || {
                 flush_worker(rx);
             }).unwrap();
         }

@@ -1,5 +1,7 @@
 #![feature(box_syntax)]
 #![feature(slice_as_chunks)]
+#![feature(maybe_uninit_slice)]
+#![feature(maybe_uninit_uninit_array)]
 
 
 pub mod sample;
