@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 use crate::{
     kafka::{Producer, KafkaEntry},
     constants::*,
+    mem_list::read_only::{ReadOnlyDataBlock},
 };
 use lazy_static::*;
 use crossbeam::channel::{Sender, Receiver, unbounded};
@@ -67,16 +68,13 @@ impl DataBlock {
 
     pub fn read_only(&self) -> ReadOnlyDataBlock {
         let read_guard = self.inner.read().unwrap();
-        let inner = match &*read_guard {
-            InnerDataBlock::Offset(x) => InnerReadOnlyDataBlock::Offset(x.clone()),
+        match &*read_guard {
+            InnerDataBlock::Offset(x) => ReadOnlyDataBlock::from(x),
             InnerDataBlock::Data(block) => {
                 let block = block.clone();
                 drop(read_guard);
-                InnerReadOnlyDataBlock::Data(block[..].into())
+                ReadOnlyDataBlock::from(&block[..])
             }
-        };
-        ReadOnlyDataBlock {
-            inner
         }
     }
 }
@@ -85,15 +83,3 @@ enum InnerDataBlock {
     Offset(KafkaEntry),
     Data(Arc<[u8]>),
 }
-
-#[derive(Serialize, Deserialize)]
-enum InnerReadOnlyDataBlock {
-    Offset(KafkaEntry),
-    Data(Box<[u8]>),
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ReadOnlyDataBlock {
-    inner: InnerReadOnlyDataBlock
-}
-
