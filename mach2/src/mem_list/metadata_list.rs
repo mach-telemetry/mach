@@ -150,6 +150,23 @@ impl Inner {
     }
 
     fn reset(&mut self) {
+        // Make a copy of the current data
+        let block: [Entry; METADATA_BLOCK_SZ] = unsafe {
+            let x: &[Entry; METADATA_BLOCK_SZ]= MaybeUninit::slice_assume_init_ref(&self.block[..]).try_into().unwrap();
+            x.clone()
+        };
+
+        // Make current data previous and setup metadata block
+        let previous = Arc::new(self.previous.read().unwrap().clone());
+        let data_metadata_block = DataMetadataBlock { block, previous };
+        let inner_block = InnerMetadataBlock::Data(data_metadata_block);
+        let metadata_block = MetadataBlock { inner: Arc::new(RwLock::new(inner_block)) };
+
+        // Write metadata block into previous
+        let mut write_guard = self.previous.write().unwrap();
+        *write_guard = metadata_block;
+
+        // reset to zero
         self.len.store(0, SeqCst);
     }
 
@@ -191,7 +208,7 @@ struct KafkaMetadataBlock {
 }
 
 struct DataMetadataBlock {
-    block: [Entry; 256],
+    block: [Entry; METADATA_BLOCK_SZ],
     previous: Arc<MetadataBlock>
 }
 
