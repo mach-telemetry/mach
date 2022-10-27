@@ -1,7 +1,4 @@
-use crate::{
-    kafka::KafkaEntry,
-    mem_list::data_block::DataBlock,
-};
+use crate::{kafka::KafkaEntry, mem_list::data_block::DataBlock};
 use serde::*;
 use std::convert::From;
 

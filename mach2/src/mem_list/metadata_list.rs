@@ -188,18 +188,14 @@ impl Inner {
 
     fn read(&self) -> ReadOnlyMetadataBlock {
         let len = self.len.load(SeqCst);
-        let blocks: &[MetadataEntry] = unsafe {
-            MaybeUninit::slice_assume_init_ref(&self.block[..len])
-        };
+        let blocks: &[MetadataEntry] =
+            unsafe { MaybeUninit::slice_assume_init_ref(&self.block[..len]) };
 
         let mut block_vec = Vec::new();
         for entry in blocks.iter() {
             let data_block = ReadOnlyDataBlock::from(&entry.data_block);
-            let entry = ReadOnlyMetadataEntry::new(
-                data_block,
-                entry.time_range.min,
-                entry.time_range.max,
-            );
+            let entry =
+                ReadOnlyMetadataEntry::new(data_block, entry.time_range.min, entry.time_range.max);
             block_vec.push(entry);
         }
         let previous = self.previous.read().unwrap().clone();

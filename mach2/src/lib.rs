@@ -5,6 +5,7 @@
 #![allow(clippy::len_without_is_empty)]
 #![allow(clippy::new_without_default)]
 
+pub mod active_block;
 pub mod active_segment;
 pub mod byte_buffer;
 pub mod compression;
