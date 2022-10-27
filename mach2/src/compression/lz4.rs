@@ -1,12 +1,8 @@
-use crate::{
-    compression::CompressDecompress,
-    segment::SegmentArray,
-    byte_buffer::ByteBuffer,
-};
+use crate::{byte_buffer::ByteBuffer, compression::CompressDecompress, segment::SegmentArray};
 use lzzzz::lz4;
+use serde::*;
 use std::convert::TryInto;
 use std::slice;
-use serde::*;
 
 #[derive(Serialize, Deserialize)]
 pub struct LZ4 {}
@@ -22,7 +18,6 @@ impl CompressDecompress for LZ4 {
 }
 
 fn compress(data_len: usize, data: &SegmentArray, buffer: &mut ByteBuffer) {
-
     // unnest from chunks
     let data: &[u8] = unsafe {
         let ptr = data.as_ptr() as *const u8;
@@ -45,7 +40,6 @@ fn compress(data_len: usize, data: &SegmentArray, buffer: &mut ByteBuffer) {
 }
 
 fn decompress(data: &[u8], data_len: &mut usize, buffer: &mut SegmentArray) {
-
     // read raw data length
     let dl = usize::from_be_bytes(data[..8].try_into().unwrap());
     *data_len = dl;
@@ -74,22 +68,23 @@ mod test {
     #[test]
     fn test() {
         let mut rng = thread_rng();
-        let data: Vec<[u8; 8]> =
-            (0..SEG_SZ)
+        let data: Vec<[u8; 8]> = (0..SEG_SZ)
             .map(|_| rng.gen::<usize>().to_be_bytes())
             .collect();
         let mut compressed: Vec<u8> = vec![0u8; 1_000_000];
         let mut byte_buffer = ByteBuffer::new(0, &mut compressed[..]);
 
-        compress(SEG_SZ, data.as_slice().try_into().unwrap(), &mut byte_buffer);
+        compress(
+            SEG_SZ,
+            data.as_slice().try_into().unwrap(),
+            &mut byte_buffer,
+        );
 
         let mut decompressed: Vec<[u8; 8]> = vec![[0u8; 8]; 256];
-        let buf: &mut[[u8;8]] = &mut decompressed[..];
+        let buf: &mut [[u8; 8]] = &mut decompressed[..];
         let mut len: usize = 0;
         decompress(byte_buffer.as_slice(), &mut len, buf.try_into().unwrap());
         assert_eq!(len, SEG_SZ);
         assert_eq!(data, decompressed);
     }
 }
-
-

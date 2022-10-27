@@ -1,12 +1,12 @@
+use crate::byte_buffer::ByteBuffer;
 use crate::compression::timestamps;
 use crate::compression::CompressDecompress;
 use crate::constants::SEG_SZ;
 use crate::segment::SegmentArray;
-use crate::byte_buffer::ByteBuffer;
 use serde::*;
 
 #[derive(Serialize, Deserialize)]
-pub struct DeltaOfDelta { }
+pub struct DeltaOfDelta {}
 
 impl CompressDecompress for DeltaOfDelta {
     fn compress(&self, len: usize, data: &SegmentArray, buffer: &mut ByteBuffer) {
@@ -29,7 +29,7 @@ impl CompressDecompress for DeltaOfDelta {
 #[cfg(test)]
 mod test {
     use super::*;
-    use rand::{Rng, thread_rng};
+    use rand::{thread_rng, Rng};
 
     #[test]
     fn compress_decompress() {
@@ -47,17 +47,16 @@ mod test {
         let mut compressed_bytes = vec![0u8; 1_000_000];
         let mut byte_buffer = ByteBuffer::new(0, compressed_bytes.as_mut_slice());
         let to_compress: &SegmentArray = integers.as_slice().try_into().unwrap();
-        let dod = DeltaOfDelta{};
+        let dod = DeltaOfDelta {};
         dod.compress(256, to_compress, &mut byte_buffer);
 
         let mut len = 0;
         let mut decompressed: Vec<[u8; 8]> = vec![[0u8; 8]; 256];
-        let decompress_buffer: &mut[[u8; 8]; 256] = decompressed.as_mut_slice().try_into().unwrap();
+        let decompress_buffer: &mut [[u8; 8]; 256] =
+            decompressed.as_mut_slice().try_into().unwrap();
         dod.decompress(byte_buffer.as_slice(), &mut len, decompress_buffer);
 
         assert_eq!(len, 256);
         assert_eq!(integers.as_slice(), &decompress_buffer[..]);
     }
 }
-
-

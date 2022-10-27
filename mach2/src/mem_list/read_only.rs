@@ -1,14 +1,9 @@
 use crate::{
-    mem_list::{
-        data_block::DataBlock,
-        metadata_list::{MetadataEntry, MetadataBlock}
-    },
     kafka::KafkaEntry,
-    constants::*,
+    mem_list::data_block::DataBlock,
 };
 use serde::*;
 use std::convert::From;
-use serde_big_array::BigArray;
 
 #[derive(Serialize, Deserialize)]
 enum InnerReadOnlyDataBlock {
@@ -18,7 +13,7 @@ enum InnerReadOnlyDataBlock {
 
 #[derive(Serialize, Deserialize)]
 pub struct ReadOnlyDataBlock {
-    inner: InnerReadOnlyDataBlock
+    inner: InnerReadOnlyDataBlock,
 }
 
 impl ReadOnlyDataBlock {
@@ -30,7 +25,7 @@ impl ReadOnlyDataBlock {
 
     fn new_kafka_entry(entry: &KafkaEntry) -> Self {
         Self {
-            inner: InnerReadOnlyDataBlock::Offset(entry.clone())
+            inner: InnerReadOnlyDataBlock::Offset(entry.clone()),
         }
     }
 }
@@ -63,11 +58,7 @@ pub struct ReadOnlyMetadataEntry {
 impl ReadOnlyMetadataEntry {
     pub fn new(block: ReadOnlyDataBlock, min: u64, max: u64) -> Self {
         assert!(min <= max);
-        Self {
-            block,
-            min,
-            max
-        }
+        Self { block, min, max }
     }
 }
 
@@ -76,16 +67,21 @@ pub struct ReadOnlyMetadataBlock {
     data_blocks: Vec<ReadOnlyMetadataEntry>,
     kafka_min: u64,
     kafka_max: u64,
-    kafka: KafkaEntry
+    kafka: KafkaEntry,
 }
 
 impl ReadOnlyMetadataBlock {
-    pub fn new(data_blocks: Vec<ReadOnlyMetadataEntry>, kafka: KafkaEntry, kafka_min: u64, kafka_max: u64) -> Self {
+    pub fn new(
+        data_blocks: Vec<ReadOnlyMetadataEntry>,
+        kafka: KafkaEntry,
+        kafka_min: u64,
+        kafka_max: u64,
+    ) -> Self {
         Self {
             data_blocks,
             kafka_min,
             kafka_max,
-            kafka
+            kafka,
         }
     }
 }

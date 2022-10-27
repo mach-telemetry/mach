@@ -6,11 +6,8 @@ pub struct ByteBuffer<'a> {
 }
 
 impl<'a> ByteBuffer<'a> {
-    pub fn new(len: usize, source: &'a mut[u8]) -> Self {
-        ByteBuffer {
-            len,
-            source,
-        }
+    pub fn new(len: usize, source: &'a mut [u8]) -> Self {
+        ByteBuffer { len, source }
     }
 
     pub fn extend_from_slice(&mut self, src: &[u8]) {
@@ -42,7 +39,7 @@ impl<'a> ByteBuffer<'a> {
     }
 
     pub fn all_slice(&self) -> &[u8] {
-        &self.source[..]
+        self.source
     }
 
     pub fn all_mut_slice(&mut self) -> &mut [u8] {

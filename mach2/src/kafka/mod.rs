@@ -1,5 +1,5 @@
-mod producer;
 mod kafka_entry;
+mod producer;
 pub use kafka_entry::KafkaEntry;
 pub use producer::Producer;
 

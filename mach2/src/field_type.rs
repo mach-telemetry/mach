@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::convert::From;
 
 #[derive(PartialEq, Eq, Copy, Clone, Serialize, Deserialize, Debug)]

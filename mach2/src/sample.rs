@@ -1,6 +1,6 @@
 pub use crate::field_type::FieldType;
 //pub use crate::utils::bytes::*;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]

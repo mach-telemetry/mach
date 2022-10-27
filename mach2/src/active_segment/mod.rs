@@ -1,14 +1,14 @@
 use crate::{
-    constants::{SEG_SZ, HEAP_SZ, HEAP_TH},
+    constants::{HEAP_SZ, HEAP_TH, SEG_SZ},
     field_type::FieldType,
     sample::SampleType,
     segment::{Segment, SegmentArray},
 };
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst}
-};
 use std::cell::UnsafeCell;
+use std::sync::{
+    atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum PushStatus {
@@ -29,8 +29,7 @@ fn data_size(types: &[FieldType]) -> usize {
 
     if has_heap {
         data + HEAP_SZ
-    }
-    else {
+    } else {
         data
     }
 }
@@ -82,7 +81,7 @@ impl Inner {
 
     fn push(&mut self, ts: u64, items: &[SampleType]) -> PushStatus {
         if self.len == SEG_SZ {
-            return PushStatus::ErrorFull
+            return PushStatus::ErrorFull;
         }
 
         let len = self.len;
@@ -95,13 +94,21 @@ impl Inner {
                 (s, e)
             };
             match item {
-                SampleType::F64(x) => self.data[offset..offset_end].copy_from_slice(&x.to_be_bytes()),
-                SampleType::I64(x) => self.data[offset..offset_end].copy_from_slice(&x.to_be_bytes()),
-                SampleType::U64(x) => self.data[offset..offset_end].copy_from_slice(&x.to_be_bytes()),
-                SampleType::Timestamp(x) => self.data[offset..offset_end].copy_from_slice(&x.to_be_bytes()),
+                SampleType::F64(x) => {
+                    self.data[offset..offset_end].copy_from_slice(&x.to_be_bytes())
+                }
+                SampleType::I64(x) => {
+                    self.data[offset..offset_end].copy_from_slice(&x.to_be_bytes())
+                }
+                SampleType::U64(x) => {
+                    self.data[offset..offset_end].copy_from_slice(&x.to_be_bytes())
+                }
+                SampleType::Timestamp(x) => {
+                    self.data[offset..offset_end].copy_from_slice(&x.to_be_bytes())
+                }
                 SampleType::Bytes(b) => {
                     let heap_start = self.heap_offset();
-                    let heap: &mut[u8] = &mut self.data[heap_start..];
+                    let heap: &mut [u8] = &mut self.data[heap_start..];
                     let heap_start = self.heap_len;
                     let mut heap_off = self.heap_len;
 
@@ -132,11 +139,13 @@ impl Inner {
     fn as_active_segment_ref(&self) -> ActiveSegmentRef {
         let len = self.atomic_len.load(SeqCst);
         let heap_len = self.heap_len;
-        let data: Vec<&SegmentArray> = (0..self.types.len()).map(|i| {
-            let (s, e) = self.field_offsets(i);
-            let slice = unsafe { self.data[s..e].as_chunks_unchecked::<8>() };
-            slice.try_into().unwrap()
-        }).collect();
+        let data: Vec<&SegmentArray> = (0..self.types.len())
+            .map(|i| {
+                let (s, e) = self.field_offsets(i);
+                let slice = unsafe { self.data[s..e].as_chunks_unchecked::<8>() };
+                slice.try_into().unwrap()
+            })
+            .collect();
         let heap = &self.data[8 * self.types.len() * SEG_SZ..];
         ActiveSegmentRef {
             len,
@@ -168,16 +177,12 @@ impl InnerActiveSegment {
     }
 
     fn push(&self, ts: u64, items: &[SampleType]) -> PushStatus {
-        unsafe {
-            (*self.inner.get()).push(ts, items)
-        }
+        unsafe { (*self.inner.get()).push(ts, items) }
     }
 
     fn reset(&self) {
         self.version.fetch_add(1, SeqCst);
-        unsafe {
-            (*self.inner.get()).reset()
-        }
+        unsafe { (*self.inner.get()).reset() }
         self.version.fetch_add(1, SeqCst);
     }
 
@@ -185,9 +190,7 @@ impl InnerActiveSegment {
         let version = self.version.load(SeqCst);
         // Safety: This is safe because if the counter cannot be compared, data in the segment is
         // potentially erroneous and return an error
-        let seg = unsafe {
-            self.as_active_segment_ref()
-        }.to_segment();
+        let seg = unsafe { self.as_active_segment_ref() }.to_segment();
         if version != self.version.load(SeqCst) {
             Err("Failed to make segment snapshot")
         } else {
@@ -213,15 +216,15 @@ impl WriteActiveSegment {
 
     pub fn as_active_segment_ref(&self) -> ActiveSegmentRef {
         // Safety: Because there is only ever one writer, this is safe
-        unsafe {
-            self.segment.as_active_segment_ref()
-        }
+        unsafe { self.segment.as_active_segment_ref() }
     }
 }
 
 impl Drop for WriteActiveSegment {
     fn drop(&mut self) {
-        self.has_writer.compare_exchange(true, false, SeqCst, SeqCst).unwrap();
+        self.has_writer
+            .compare_exchange(true, false, SeqCst, SeqCst)
+            .unwrap();
     }
 }
 
@@ -233,10 +236,12 @@ pub struct ActiveSegment {
 
 impl ActiveSegment {
     pub fn writer(&self) -> WriteActiveSegment {
-        self.has_writer.compare_exchange(false, true, SeqCst, SeqCst).unwrap();
+        self.has_writer
+            .compare_exchange(false, true, SeqCst, SeqCst)
+            .unwrap();
         WriteActiveSegment {
             has_writer: self.has_writer.clone(),
-            segment: self.segment.clone()
+            segment: self.segment.clone(),
         }
     }
 
@@ -245,7 +250,7 @@ impl ActiveSegment {
         let has_writer = Arc::new(AtomicBool::new(false));
         Self {
             segment,
-            has_writer
+            has_writer,
         }
     }
 
@@ -265,7 +270,12 @@ pub struct ActiveSegmentRef<'a> {
 
 impl<'a> ActiveSegmentRef<'a> {
     pub fn to_segment(&self) -> Segment {
-        Segment::new(self.ts, self.data.as_slice(), &self.heap[..self.heap_len], self.types)
+        Segment::new(
+            self.ts,
+            self.data.as_slice(),
+            &self.heap[..self.heap_len],
+            self.types,
+        )
     }
 }
 
@@ -273,26 +283,29 @@ impl<'a> ActiveSegmentRef<'a> {
 mod test {
     use super::*;
 
-    use rand::{Rng, thread_rng, distributions::{Alphanumeric, DistString}};
+    use rand::{
+        distributions::{Alphanumeric, DistString},
+        thread_rng, Rng,
+    };
 
     #[test]
     fn test() {
         let mut rng = thread_rng();
         let expected_floats: Vec<SampleType> =
             (0..SEG_SZ).map(|_| SampleType::F64(rng.gen())).collect();
-        let expected_strings: Vec<SampleType> =
-            (0..SEG_SZ).map(|_| {
+        let expected_strings: Vec<SampleType> = (0..SEG_SZ)
+            .map(|_| {
                 let string = Alphanumeric.sample_string(&mut rng, 16);
                 SampleType::Bytes(string.into_bytes())
-            }).collect();
-
+            })
+            .collect();
 
         let types = &[FieldType::Bytes, FieldType::F64];
         let active_segment = ActiveSegment::new(types);
         let mut writer = active_segment.writer();
 
         let mut values = Vec::new();
-        for i in 0..SEG_SZ-1 {
+        for i in 0..SEG_SZ - 1 {
             let a = expected_strings[i].clone();
             let b = expected_floats[i].clone();
             values.push(a);
@@ -300,12 +313,18 @@ mod test {
             assert_eq!(writer.push(i as u64, values.as_slice()), PushStatus::Ok);
             values.clear();
         }
-        let a = expected_strings[SEG_SZ-1].clone();
-        let b = expected_floats[SEG_SZ-1].clone();
+        let a = expected_strings[SEG_SZ - 1].clone();
+        let b = expected_floats[SEG_SZ - 1].clone();
         values.push(a);
         values.push(b);
-        assert_eq!(writer.push(SEG_SZ as u64, values.as_slice()), PushStatus::IsFull);
-        assert_eq!(writer.push(SEG_SZ as u64 + 1, values.as_slice()), PushStatus::ErrorFull);
+        assert_eq!(
+            writer.push(SEG_SZ as u64, values.as_slice()),
+            PushStatus::IsFull
+        );
+        assert_eq!(
+            writer.push(SEG_SZ as u64 + 1, values.as_slice()),
+            PushStatus::ErrorFull
+        );
 
         let seg = active_segment.snapshot().unwrap();
 

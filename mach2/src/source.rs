@@ -1,8 +1,4 @@
-use crate::{
-    id::SourceId,
-    field_type::FieldType,
-    active_segment::ActiveSegment,
-};
+use crate::{active_segment::ActiveSegment, field_type::FieldType, id::SourceId};
 
 #[derive(Clone)]
 pub struct SourceConfig {
@@ -18,5 +14,3 @@ pub struct Source {
     //pub block_list: Arc<BlockList>,
     //pub source_block_list: Arc<SourceBlockList>,
 }
-
-

@@ -24,4 +24,3 @@ pub const UNIVARIATE: &str = "bench1_univariate_small.json";
 pub const MULTIVARIATE: &str = "bench1_multivariate_small.json";
 pub const LOGS: &str = "SSH.log";
 pub const MIN_SAMPLES: usize = 30_000;
-

@@ -1,7 +1,7 @@
-use crate::constants::SEG_SZ;
-use bitpacking::{BitPacker8x, BitPacker};
-use std::mem::size_of;
 use crate::byte_buffer::ByteBuffer;
+use crate::constants::SEG_SZ;
+use bitpacking::{BitPacker, BitPacker8x};
+use std::mem::size_of;
 
 fn to_zigzag(v: i64) -> u64 {
     ((v << 1) ^ (v >> 63)) as u64
@@ -12,7 +12,6 @@ fn from_zigzag(v: u64) -> i64 {
 }
 
 fn bitpack_256_compress(buffer: &mut ByteBuffer, data: &[u32; 256]) {
-
     let bitpacker = BitPacker8x::new();
     let num_bits: u8 = bitpacker.num_bits(&data[..]);
     let compressed_sz = BitPacker8x::compressed_block_size(num_bits);
@@ -21,7 +20,7 @@ fn bitpack_256_compress(buffer: &mut ByteBuffer, data: &[u32; 256]) {
 
     let start = buffer.len();
     buffer.resize(start + compressed_sz, 0);
-    let dst = &mut buffer.as_mut_slice()[start..start+compressed_sz];
+    let dst = &mut buffer.as_mut_slice()[start..start + compressed_sz];
     let size = bitpacker.compress(&data[..], dst, num_bits);
     assert_eq!(size, compressed_sz);
 }
@@ -91,7 +90,8 @@ pub fn compress(len: usize, data: &[u64; SEG_SZ], buffer: &mut ByteBuffer) {
     let old_size = buffer.len();
     bitpack_256_compress(buffer, &to_compress);
     let new_size = buffer.len();
-    buffer.as_mut_slice()[size_offset..size_offset + 8].copy_from_slice(&(new_size - old_size).to_be_bytes());
+    buffer.as_mut_slice()[size_offset..size_offset + 8]
+        .copy_from_slice(&(new_size - old_size).to_be_bytes());
 
     // Write the zigzag values too big for u32
 
@@ -170,7 +170,7 @@ pub fn decompress(data: &[u8], data_len: &mut usize, buffer: &mut [u64; SEG_SZ])
 #[cfg(test)]
 mod test {
     use super::*;
-    use rand::{Rng, thread_rng};
+    use rand::{thread_rng, Rng};
     use std::time::SystemTime;
 
     #[test]
@@ -198,11 +198,10 @@ mod test {
 
         let mut len = 0;
         let mut decompressed: Vec<u64> = vec![0u64; 256];
-        let decompress_buffer: &mut[u64; 256] = decompressed.as_mut_slice().try_into().unwrap();
+        let decompress_buffer: &mut [u64; 256] = decompressed.as_mut_slice().try_into().unwrap();
         decompress(byte_buffer.as_slice(), &mut len, decompress_buffer);
 
         assert_eq!(len, 256);
         assert_eq!(integers.as_slice(), &decompress_buffer[..]);
     }
 }
-

@@ -1,11 +1,11 @@
 use crate::{
-    constants::{SEG_SZ, HEAP_SZ},
-    sample::SampleType,
+    constants::{HEAP_SZ, SEG_SZ},
     field_type::FieldType,
+    sample::SampleType,
 };
-use std::ops::{Deref, DerefMut};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+use std::ops::{Deref, DerefMut};
 
 pub type SegmentArray = [[u8; 8]; SEG_SZ];
 
@@ -17,7 +17,7 @@ pub fn zero_segment_array() -> SegmentArray {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Column {
     #[serde(with = "BigArray")]
-    data: SegmentArray
+    data: SegmentArray,
 }
 
 impl Deref for Column {
@@ -51,8 +51,8 @@ impl Segment {
         match field_type {
             FieldType::Bytes => {
                 SampleType::from_field_item(field_type, value, Some(&self.heap[..]))
-            },
-            _ => SampleType::from_field_item(field_type, value, None)
+            }
+            _ => SampleType::from_field_item(field_type, value, None),
         }
     }
 
@@ -68,7 +68,6 @@ impl Segment {
     }
 
     pub fn new(ts: &[u64], data: &[&SegmentArray], heap: &[u8], types: &[FieldType]) -> Self {
-
         let len = ts.len();
         let nvars = types.len();
         let heap_len = heap.len();
@@ -84,9 +83,7 @@ impl Segment {
         s.types.extend_from_slice(types);
         s.ts[..len].copy_from_slice(ts);
         for d in data.iter() {
-            s.data.push(Column {
-                data: **d
-            });
+            s.data.push(Column { data: **d });
         }
         s.heap[..heap_len].copy_from_slice(heap);
         s.len = len;
@@ -94,5 +91,3 @@ impl Segment {
         s
     }
 }
-
-

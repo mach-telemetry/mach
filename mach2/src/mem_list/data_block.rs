@@ -1,22 +1,24 @@
-use std::sync::{Arc, RwLock};
 use crate::{
-    kafka::{Producer, KafkaEntry},
     constants::*,
-    mem_list::read_only::{ReadOnlyDataBlock},
+    kafka::{KafkaEntry, Producer},
+    mem_list::read_only::ReadOnlyDataBlock,
 };
+use crossbeam::channel::{unbounded, Receiver, Sender};
 use lazy_static::*;
-use crossbeam::channel::{Sender, Receiver, unbounded};
 use rand::{thread_rng, Rng};
-use serde::{Serialize, Deserialize};
+use std::sync::{Arc, RwLock};
 
 lazy_static! {
     static ref DATA_BLOCK_WRITER: Sender<DataBlock> = {
         let (tx, rx) = unbounded();
         for idx in 0..N_FLUSHERS {
             let rx = rx.clone();
-            std::thread::Builder::new().name(format!("Mach: Data Block Kafka Flusher {}", idx)).spawn(move || {
-                flush_worker(rx);
-            }).unwrap();
+            std::thread::Builder::new()
+                .name(format!("Mach: Data Block Kafka Flusher {}", idx))
+                .spawn(move || {
+                    flush_worker(rx);
+                })
+                .unwrap();
         }
         tx
     };
@@ -38,13 +40,13 @@ fn flush_worker(chan: Receiver<DataBlock>) {
 
 #[derive(Clone)]
 pub struct DataBlock {
-    inner: Arc<RwLock<InnerDataBlock>>
+    inner: Arc<RwLock<InnerDataBlock>>,
 }
 
 impl DataBlock {
     pub fn new(data: &[u8]) -> Self {
         Self {
-            inner: Arc::new(RwLock::new(InnerDataBlock::Data(data.into())))
+            inner: Arc::new(RwLock::new(InnerDataBlock::Data(data.into()))),
         }
     }
 
@@ -56,7 +58,7 @@ impl DataBlock {
     pub fn flush(&self, partition: i32, producer: &mut Producer) {
         let read_guard = self.inner.read().unwrap();
         match &*read_guard {
-            InnerDataBlock::Offset(_) => {},
+            InnerDataBlock::Offset(_) => {}
             InnerDataBlock::Data(block) => {
                 let block = block.clone();
                 drop(read_guard);

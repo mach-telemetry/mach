@@ -3,11 +3,14 @@ use kafka::{
     client::{fetch::Response, FetchPartition, KafkaClient},
     consumer::GroupOffsetStorage,
 };
+use rand::{
+    distributions::{Alphanumeric, DistString},
+    thread_rng,
+};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
 };
-use rand::{thread_rng, distributions::{Alphanumeric, DistString}};
 
 fn new_client(size: i32) -> KafkaClient {
     let mut client = KafkaClient::new(BOOTSTRAPS.split(',').map(String::from).collect());
@@ -22,7 +25,6 @@ fn new_client(size: i32) -> KafkaClient {
     client
 }
 
-
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct KafkaEntry {
     items: Vec<(i32, i64)>,
@@ -30,9 +32,7 @@ pub struct KafkaEntry {
 
 impl From<Vec<(i32, i64)>> for KafkaEntry {
     fn from(items: Vec<(i32, i64)>) -> Self {
-        Self {
-            items
-        }
+        Self { items }
     }
 }
 
@@ -46,7 +46,6 @@ impl KafkaEntry {
     }
 
     fn fetch(&self) -> HashMap<(i32, i64), Arc<[u8]>> {
-
         //let mut tmp_block_store = THREAD_LOCAL_KAFKA_MESSAGES.borrow_mut();
 
         let mut hashmap = HashMap::new();
@@ -120,5 +119,3 @@ fn make_requests(set: &HashSet<(i32, i64)>, buffer: &mut Vec<FetchPartition>) {
         buffer.push(FetchPartition::new(TOPIC, item.0, item.1));
     }
 }
-
-

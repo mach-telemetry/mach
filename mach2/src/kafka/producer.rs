@@ -1,14 +1,11 @@
-use crate::{
-    constants::*,
-    kafka::KafkaEntry,
-};
-use std::{
-    time::Duration,
-    ops::{Deref, DerefMut},
-};
+use crate::{constants::*, kafka::KafkaEntry};
 use kafka::{
     client::RequiredAcks,
     producer::{Producer as OgProducer, Record},
+};
+use std::{
+    ops::{Deref, DerefMut},
+    time::Duration,
 };
 
 pub struct Producer(OgProducer);
@@ -46,7 +43,6 @@ impl Producer {
         let mut items = Vec::with_capacity(5);
 
         while start < item.len() {
-
             let end = item.len().min(start + MAX_MSG_SZ);
 
             loop {
@@ -94,6 +90,3 @@ impl Producer {
         KafkaEntry::from(items)
     }
 }
-
-
-

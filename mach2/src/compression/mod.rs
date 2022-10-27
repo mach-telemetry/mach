@@ -1,16 +1,16 @@
 pub mod compression_scheme;
-pub mod lz4;
-pub mod timestamps;
 pub mod delta_of_delta;
 pub mod heap;
+pub mod lz4;
+pub mod timestamps;
 
 use compression_scheme::CompressionScheme;
 
 use crate::{
-    constants::{HEAP_SZ, SEG_SZ},
-    segment::{zero_segment_array, SegmentArray},
-    field_type::FieldType,
     byte_buffer::ByteBuffer,
+    constants::{HEAP_SZ, SEG_SZ},
+    field_type::FieldType,
+    segment::{zero_segment_array, SegmentArray},
 };
 
 const MAGIC: &[u8] = "COMPRESSION".as_bytes();
@@ -21,11 +21,13 @@ pub trait CompressDecompress {
 }
 
 pub struct Compression {
-    schemes: Vec<CompressionScheme>
+    schemes: Vec<CompressionScheme>,
 }
 
 impl Compression {
-    pub fn compress(&self,
+    #[allow(clippy::too_many_arguments)]
+    pub fn compress(
+        &self,
         len: usize,
         heap_len: usize,
         timestamps: &[u64; SEG_SZ],
@@ -34,7 +36,6 @@ impl Compression {
         types: &[FieldType],
         buffer: &mut ByteBuffer,
     ) {
-
         let nvars = types.len();
         assert_eq!(self.schemes.len(), nvars);
 
@@ -46,7 +47,6 @@ impl Compression {
         for t in types {
             buffer.push(*t as u8);
         }
-
 
         {
             // Write schemes
@@ -99,7 +99,6 @@ impl Compression {
         out_data: &mut Vec<SegmentArray>,
         out_types: &mut Vec<FieldType>,
     ) {
-
         assert_eq!(&bytes[..MAGIC.len()], MAGIC);
         let mut offset = MAGIC.len();
 
@@ -150,9 +149,8 @@ impl Compression {
 
             let end = offset + sz;
             let mut ts_len = 0;
-            let schemes = timestamps::decompress(&bytes[offset..end], &mut ts_len, out_timestamps);
+            timestamps::decompress(&bytes[offset..end], &mut ts_len, out_timestamps);
             offset = end;
-            schemes
         }
 
         out_data.clear();
@@ -189,26 +187,29 @@ mod test {
     use crate::active_segment::{ActiveSegment, PushStatus};
     use crate::field_type::FieldType;
     use crate::sample::SampleType;
-    use rand::{Rng, thread_rng, distributions::{Alphanumeric, DistString}};
+    use rand::{
+        distributions::{Alphanumeric, DistString},
+        thread_rng, Rng,
+    };
 
     #[test]
     fn test() {
         let mut rng = thread_rng();
         let expected_floats: Vec<SampleType> =
             (0..SEG_SZ).map(|_| SampleType::F64(rng.gen())).collect();
-        let expected_strings: Vec<SampleType> =
-            (0..SEG_SZ).map(|_| {
+        let expected_strings: Vec<SampleType> = (0..SEG_SZ)
+            .map(|_| {
                 let string = Alphanumeric.sample_string(&mut rng, 16);
                 SampleType::Bytes(string.into_bytes())
-            }).collect();
-
+            })
+            .collect();
 
         let types = &[FieldType::Bytes, FieldType::F64];
         let active_segment = ActiveSegment::new(types);
         let mut writer = active_segment.writer();
 
         let mut values = Vec::new();
-        for i in 0..SEG_SZ-1 {
+        for i in 0..SEG_SZ - 1 {
             let a = expected_strings[i].clone();
             let b = expected_floats[i].clone();
             values.push(a);
@@ -216,12 +217,18 @@ mod test {
             assert_eq!(writer.push(i as u64, values.as_slice()), PushStatus::Ok);
             values.clear();
         }
-        let a = expected_strings[SEG_SZ-1].clone();
-        let b = expected_floats[SEG_SZ-1].clone();
+        let a = expected_strings[SEG_SZ - 1].clone();
+        let b = expected_floats[SEG_SZ - 1].clone();
         values.push(a);
         values.push(b);
-        assert_eq!(writer.push(SEG_SZ as u64, values.as_slice()), PushStatus::IsFull);
-        assert_eq!(writer.push(SEG_SZ as u64 + 1, values.as_slice()), PushStatus::ErrorFull);
+        assert_eq!(
+            writer.push(SEG_SZ as u64, values.as_slice()),
+            PushStatus::IsFull
+        );
+        assert_eq!(
+            writer.push(SEG_SZ as u64 + 1, values.as_slice()),
+            PushStatus::ErrorFull
+        );
 
         let segment_reference = writer.as_active_segment_ref();
 
@@ -257,7 +264,7 @@ mod test {
             &mut ts,
             heap.as_mut_slice().try_into().unwrap(),
             &mut data,
-            &mut types
+            &mut types,
         );
         assert_eq!(len, segment_reference.len);
         assert_eq!(heap_len, segment_reference.heap_len);
@@ -269,4 +276,3 @@ mod test {
         assert_eq!(types, segment_reference.types);
     }
 }
-

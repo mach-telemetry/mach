@@ -2,7 +2,6 @@ use crate::byte_buffer::ByteBuffer;
 use lzzzz::lz4;
 
 pub fn compress(data: &[u8], buffer: &mut ByteBuffer) {
-
     // write raw data length
     buffer.extend_from_slice(&data.len().to_be_bytes());
 
@@ -19,7 +18,6 @@ pub fn compress(data: &[u8], buffer: &mut ByteBuffer) {
 }
 
 pub fn decompress(data: &[u8], data_len: &mut usize, dst: &mut [u8]) {
-
     // read raw data length
     let dl = usize::from_be_bytes(data[..8].try_into().unwrap());
     *data_len = dl;
@@ -36,12 +34,14 @@ pub fn decompress(data: &[u8], data_len: &mut usize, dst: &mut [u8]) {
 #[cfg(test)]
 mod test {
     use super::*;
-    use rand::{thread_rng, distributions::{Alphanumeric, DistString}};
     use crate::byte_buffer::ByteBuffer;
+    use rand::{
+        distributions::{Alphanumeric, DistString},
+        thread_rng,
+    };
 
     #[test]
     fn test() {
-
         let mut rng = thread_rng();
         let expected_string: String = Alphanumeric.sample_string(&mut rng, 750_000);
         let mut buf = vec![0u8; 1_000_000];
@@ -53,7 +53,5 @@ mod test {
         decompress(byte_buf.as_slice(), &mut len, result_string.as_mut_slice());
         assert_eq!(len, expected_string.as_bytes().len());
         assert_eq!(expected_string.as_bytes(), &result_string[..len]);
-
     }
 }
-

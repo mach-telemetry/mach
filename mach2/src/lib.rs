@@ -2,17 +2,18 @@
 #![feature(slice_as_chunks)]
 #![feature(maybe_uninit_slice)]
 #![feature(maybe_uninit_uninit_array)]
+#![allow(clippy::len_without_is_empty)]
+#![allow(clippy::new_without_default)]
 
-
-pub mod sample;
-pub mod field_type;
-pub mod segment;
-pub mod id;
-pub mod constants;
-pub mod source;
 pub mod active_segment;
-pub mod compression;
-pub mod mem_list;
 pub mod byte_buffer;
+pub mod compression;
+pub mod constants;
+pub mod field_type;
+pub mod id;
 pub mod kafka;
+pub mod mem_list;
+pub mod sample;
+pub mod segment;
+pub mod source;
 //pub mod utils;
