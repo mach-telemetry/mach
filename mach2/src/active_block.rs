@@ -1,10 +1,11 @@
 use crate::{
     active_segment::ActiveSegmentRef, byte_buffer::ByteBuffer, compression::Compression,
-    constants::*, id::SourceId, mem_list::data_block::DataBlock,
+    constants::*, id::SourceId, mem_list::{data_block::DataBlock, metadata_list::MetadataListWriter}
 };
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
 use serde::*;
 use std::cell::UnsafeCell;
+use std::collections::HashMap;
 
 enum PushStatus {
     Ok,
@@ -30,27 +31,54 @@ impl BlockMetadata {
     }
 }
 
-
 pub struct ReadOnlyBlock {
     data: Vec<u8>,
     offsets: Vec<BlockMetadata>
 }
 
 pub struct ActiveBlockWriter {
+    metadata_lists: HashMap<SourceId, MetadataListWriter>,
     inner: Arc<InnerActiveBlock>
 }
 
 impl ActiveBlockWriter {
-    //pub fn push(
-    //    &mut self,
-    //    source_id: SourceId,
-    //    active_segment: ActiveSegmentRef,
-    //    compression: &Compression
-    //) -> {
-    //}
+    pub fn push(
+        &mut self,
+        source_id: SourceId,
+        active_segment: ActiveSegmentRef,
+        compression: &Compression
+    ) {
+        match self.inner.push(source_id, active_segment, compression) {
+            PushStatus::Ok => {},
+            PushStatus::Full => {
+
+                // Close the block first to get the data block and metadata for this block
+                let (block, meta) = self.inner.close();
+
+                // Get the sources and their respsective time ranges
+                let mut map: HashMap<SourceId, (u64, u64)> = HashMap::new();
+                meta.iter().for_each(|x| {
+                    let key = x.source_id;
+                    let min_ts = x.min_ts;
+                    let max_ts = x.max_ts;
+                    let range = map.entry(key).or_insert((min_ts, max_ts));
+                    range.1 = max_ts;
+                });
+
+                // Insert the block into individual metadata lists
+                for (k, v) in map.drain() {
+                    self.metadata_lists.get(&k).unwrap().push(block.clone(), v.0, v.1);
+                }
+
+                // Now that the blocks are queriable, can reset the active block
+                self.inner.reset();
+            },
+        }
+    }
 }
 
 pub struct ActiveBlock {
+    //metadata_lists: Arc<DashMap<SourceId, MetadataListWriter>>,
     inner: Arc<InnerActiveBlock>
 }
 
@@ -70,6 +98,7 @@ impl ActiveBlock {
             inner: inner.clone()
         };
         let writer = ActiveBlockWriter {
+            metadata_lists: HashMap::new(),
             inner,
         };
         (active_block, writer)
@@ -98,18 +127,19 @@ impl InnerActiveBlock {
         }
     }
 
-    fn reset(&self) -> DataBlock {
+    fn close(&self) -> (DataBlock, Vec<BlockMetadata>) {
+        // Safety This function does not race with any other function
+        unsafe {
+            (*self.inner.get()).close()
+        }
+    }
+
+    fn reset(&self) {
         self.version.fetch_add(1, SeqCst);
-        let ptr = self.inner.get();
-        // Safety: Close does not race with other functions. Reset does (with read_only). Version
-        // makes sure read_only will return an error if they race.
-        let data_block = unsafe {
-            let data_block = (*ptr).close();
-            (*ptr).reset();
-            data_block
-        };
+        unsafe {
+            (*self.inner.get()).reset();
+        }
         self.version.fetch_add(1, SeqCst);
-        data_block
     }
 
     fn read_only(&self) -> Result<ReadOnlyBlock, &'static str> {
@@ -189,15 +219,16 @@ impl Inner {
         }
     }
 
-    fn close(&mut self) -> DataBlock {
+    fn close(&mut self) -> (DataBlock, Vec<BlockMetadata>) {
         let data_len = self.data_len.load(SeqCst);
         let offsets_len = self.offsets_len.load(SeqCst);
+        let block_metadata: Vec<BlockMetadata> = self.offsets[..offsets_len].into();
         let new_len = {
             let mut byte_buffer = ByteBuffer::new(data_len, &mut self.data);
 
             // Write in offsets
             let offsets_start = byte_buffer.len();
-            bincode::serialize_into(&mut byte_buffer, &self.offsets[..offsets_len]).unwrap();
+            bincode::serialize_into(&mut byte_buffer, &block_metadata).unwrap();
             let offsets_sz = byte_buffer.len() - offsets_start;
 
             // Write in sz of offsets
@@ -205,7 +236,7 @@ impl Inner {
             byte_buffer.len()
         };
 
-        DataBlock::new(&self.data[..new_len])
+        (DataBlock::new(&self.data[..new_len]), block_metadata)
     }
 
     fn reset(&mut self) {

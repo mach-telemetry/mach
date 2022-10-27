@@ -17,3 +17,4 @@ kafka = "0.9.0"
 tokio = { version = "1.14.0", features = ["full"] }
 lazy_static = "1.4.0"
 crossbeam = "0.8.2"
+dashmap = "5.4.0"
