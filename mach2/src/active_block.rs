@@ -77,6 +77,7 @@ impl ActiveBlockWriter {
     }
 }
 
+#[derive(Clone)]
 pub struct ActiveBlock {
     //metadata_lists: Arc<DashMap<SourceId, MetadataListWriter>>,
     inner: Arc<InnerActiveBlock>

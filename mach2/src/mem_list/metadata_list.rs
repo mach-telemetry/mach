@@ -31,6 +31,7 @@ impl MetadataListWriter {
     }
 }
 
+#[derive(Clone)]
 pub struct MetadataList {
     inner: Arc<InnerMetadataList>,
 }
