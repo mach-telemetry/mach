@@ -25,6 +25,24 @@ impl ReadOnlyDataBlock {
             inner: InnerReadOnlyDataBlock::Offset(entry.clone()),
         }
     }
+
+    pub fn load(&mut self) {
+        match &self.inner {
+            InnerReadOnlyDataBlock::Data(_) => {},
+            InnerReadOnlyDataBlock::Offset(x) => {
+                let mut v = Vec::new();
+                x.load(&mut v);
+                self.inner = InnerReadOnlyDataBlock::Data(v.into_boxed_slice());
+            }
+        }
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        match &self.inner {
+            InnerReadOnlyDataBlock::Data(x) => &x[..],
+            _ => panic!("load first"),
+        }
+    }
 }
 
 impl From<&[u8]> for ReadOnlyDataBlock {

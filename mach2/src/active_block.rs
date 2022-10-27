@@ -36,6 +36,21 @@ pub struct ReadOnlyBlock {
     offsets: Vec<BlockMetadata>
 }
 
+impl ReadOnlyBlock {
+    pub fn from_closed_bytes(bytes: &[u8]) -> Self {
+        let l = bytes.len();
+        let offsets_len = usize::from_be_bytes(bytes[l-8..l].try_into().unwrap());
+        let offsets_start = l - 8 - offsets_len;
+        let offsets = bincode::deserialize(&bytes[offsets_start..offsets_start + offsets_len]).unwrap();
+        let data = bytes[..offsets_start].into();
+
+        Self {
+            data,
+            offsets,
+        }
+    }
+}
+
 pub struct ActiveBlockWriter {
     metadata_lists: HashMap<SourceId, MetadataListWriter>,
     inner: Arc<InnerActiveBlock>
