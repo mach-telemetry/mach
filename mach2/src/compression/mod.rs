@@ -10,7 +10,7 @@ use crate::{
     byte_buffer::ByteBuffer,
     constants::{HEAP_SZ, SEG_SZ},
     field_type::FieldType,
-    segment::{zero_segment_array, SegmentArray},
+    segment::{SegmentRef, SegmentArray, Segment},
 };
 
 const MAGIC: &[u8] = "COMPRESSION".as_bytes();
@@ -25,6 +25,19 @@ pub struct Compression {
 }
 
 impl Compression {
+
+    pub fn compress_segment(&self, segment: &SegmentRef, buffer: &mut ByteBuffer) {
+        self.compress(
+            segment.len,
+            segment.heap_len,
+            segment.timestamps,
+            segment.heap,
+            segment.columns(),
+            segment.types,
+            buffer
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn compress(
         &self,
@@ -32,7 +45,7 @@ impl Compression {
         heap_len: usize,
         timestamps: &[u64; SEG_SZ],
         heap: &[u8; HEAP_SZ],
-        data: &[&SegmentArray],
+        data: &[SegmentArray],
         types: &[FieldType],
         buffer: &mut ByteBuffer,
     ) {
@@ -71,6 +84,7 @@ impl Compression {
 
         // Compress each column
         for (scheme, column) in self.schemes.iter().zip(data.iter()) {
+            //let column: &SegmentArray = (*column).try_into().unwrap();
             let offset = buffer.len();
             buffer.extend_from_slice(&0usize.to_be_bytes());
             let start = buffer.len();
@@ -90,14 +104,102 @@ impl Compression {
         }
     }
 
+    pub fn decompress_segment(
+        bytes: &[u8],
+        segment: &mut Segment,
+    ) {
+        assert_eq!(&bytes[..MAGIC.len()], MAGIC);
+        let mut offset = MAGIC.len();
+
+        let len = {
+            let end = offset + 8;
+            let len = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
+            offset = end;
+            segment.len = len;
+            len
+        };
+
+        let heap_len = {
+            let end = offset + 8;
+            let heap_len = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
+            offset = end;
+            segment.heap_len = heap_len;
+            heap_len
+        };
+
+        let nvars = {
+            let end = offset + 8;
+            let nvars = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
+            offset = end;
+            nvars
+        };
+
+        segment.clear_fields();
+        for i in 0..nvars {
+            segment.add_field(FieldType::from(bytes[offset]));
+            offset += 1;
+        }
+
+        let schemes: Vec<CompressionScheme> = {
+            let end = offset + 8;
+            let schema_sz = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
+            offset = end;
+
+            let end = offset + schema_sz;
+            let schemes = bincode::deserialize(&bytes[offset..end]).unwrap();
+            offset = end;
+            schemes
+        };
+        assert_eq!(schemes.len(), nvars);
+
+        {
+            let end = offset + 8;
+            let sz = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
+            offset = end;
+            let timestamps = (&mut segment.timestamps[..]).try_into().unwrap();
+
+            let end = offset + sz;
+            let mut ts_len = 0;
+            timestamps::decompress(&bytes[offset..end], &mut ts_len, timestamps);
+            offset = end;
+        }
+
+        let data: &mut [SegmentArray] = segment.columns_mut();
+        println!("DATA LEN: {}", data.len());
+        println!("SCHEMES_LEN: {}", schemes.len());
+        for (i, scheme) in schemes.iter().enumerate() {
+            let end = offset + 8;
+            let sz = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
+            offset = end;
+
+            let end = offset + sz;
+            let mut col_len = 0;
+            scheme.decompress(&bytes[offset..end], &mut col_len, &mut data[i]);
+            println!("Decompressed {:?}", data[i]);
+            offset = end;
+            assert_eq!(len, col_len);
+        }
+
+        {
+            let end = offset + 8;
+            let sz = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
+            offset = end;
+
+            let end = offset + sz;
+            let mut l = 0;
+            heap::decompress(&bytes[offset..end], &mut l, &mut segment.heap[..]);
+            assert_eq!(l, heap_len);
+        }
+    }
+
     pub fn decompress(
         bytes: &[u8],
         out_len: &mut usize,
         out_heap_len: &mut usize,
         out_timestamps: &mut [u64; SEG_SZ],
         out_heap: &mut [u8; HEAP_SZ],
-        out_data: &mut Vec<SegmentArray>,
-        out_types: &mut Vec<FieldType>,
+        out_data: &mut [SegmentArray],
+        out_types: &mut [FieldType],
     ) {
         assert_eq!(&bytes[..MAGIC.len()], MAGIC);
         let mut offset = MAGIC.len();
@@ -125,8 +227,8 @@ impl Compression {
             nvars
         };
 
-        for _ in 0..nvars {
-            out_types.push(FieldType::from(bytes[offset]));
+        for i in 0..nvars {
+            out_types[i] = FieldType::from(bytes[offset]);
             offset += 1;
         }
 
@@ -153,19 +255,16 @@ impl Compression {
             offset = end;
         }
 
-        out_data.clear();
-        for scheme in schemes.iter() {
+        for (i, scheme) in schemes.iter().enumerate() {
             let end = offset + 8;
             let sz = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
             offset = end;
 
             let end = offset + sz;
             let mut col_len = 0;
-            let mut buffer = zero_segment_array();
-            scheme.decompress(&bytes[offset..end], &mut col_len, &mut buffer);
+            scheme.decompress(&bytes[offset..end], &mut col_len, &mut out_data[i]);
             offset = end;
             assert_eq!(len, col_len);
-            out_data.push(buffer);
         }
 
         {
@@ -230,7 +329,7 @@ mod test {
             PushStatus::ErrorFull
         );
 
-        let segment_reference = writer.as_active_segment_ref();
+        let segment_reference = writer.as_segment_ref();
 
         let compression = Compression {
             schemes: vec![
@@ -241,38 +340,23 @@ mod test {
 
         let mut buffer = vec![0u8; 1_000_000];
         let mut byte_buffer = ByteBuffer::new(0, buffer.as_mut_slice());
-        compression.compress(
-            segment_reference.len,
-            segment_reference.heap_len,
-            segment_reference.ts,
-            segment_reference.heap,
-            segment_reference.data.as_slice(),
-            segment_reference.types,
+        compression.compress_segment(
+            &segment_reference,
             &mut byte_buffer,
         );
 
-        let mut len = 0;
-        let mut heap_len = 0;
-        let mut ts = [0u64; SEG_SZ];
-        let mut heap = vec![0u8; HEAP_SZ];
-        let mut data = Vec::new();
-        let mut types = Vec::new();
-        Compression::decompress(
+        let mut segment = Segment::new_empty();
+        Compression::decompress_segment(
             byte_buffer.as_slice(),
-            &mut len,
-            &mut heap_len,
-            &mut ts,
-            heap.as_mut_slice().try_into().unwrap(),
-            &mut data,
-            &mut types,
+            &mut segment
         );
-        assert_eq!(len, segment_reference.len);
-        assert_eq!(heap_len, segment_reference.heap_len);
-        assert_eq!(&ts, segment_reference.ts);
-        assert_eq!(&heap[..heap_len], &segment_reference.heap[..heap_len]);
-        for (a, b) in data.iter().zip(segment_reference.data.iter()) {
-            assert_eq!(&a, b);
+        assert_eq!(segment.len, segment_reference.len);
+        assert_eq!(segment.heap_len, segment_reference.heap_len);
+        assert_eq!(&segment.timestamps[..], &segment_reference.timestamps[..]);
+        assert_eq!(&segment.heap[..segment.heap_len], &segment_reference.heap[..segment_reference.heap_len]);
+        for (a, b) in segment.columns().iter().zip(segment_reference.columns().iter()) {
+            assert_eq!(a, b);
         }
-        assert_eq!(types, segment_reference.types);
+        assert_eq!(segment.types, segment_reference.types);
     }
 }

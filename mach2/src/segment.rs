@@ -9,44 +9,139 @@ use std::ops::{Deref, DerefMut};
 
 pub type SegmentArray = [[u8; 8]; SEG_SZ];
 
-#[inline]
-pub fn zero_segment_array() -> SegmentArray {
-    [[0u8; 8]; SEG_SZ]
-}
+//#[inline]
+//pub fn zero_segment_array() -> SegmentArray {
+//    [[0u8; 8]; SEG_SZ]
+//}
+//
+//#[derive(Serialize, Deserialize, Clone)]
+//pub struct Column {
+//    #[serde(with = "BigArray")]
+//    data: SegmentArray,
+//}
+//
+//impl Deref for Column {
+//    type Target = [[u8; 8]];
+//    fn deref(&self) -> &Self::Target {
+//        &self.data[..]
+//    }
+//}
+//
+//impl DerefMut for Column {
+//    fn deref_mut(&mut self) -> &mut Self::Target {
+//        &mut self.data[..]
+//    }
+//}
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Column {
-    #[serde(with = "BigArray")]
-    data: SegmentArray,
-}
+pub fn bytes_to_columns(bytes: &[u8]) -> &[SegmentArray] {
+    let len = bytes.len();
+    let ptr = bytes.as_ptr() as *const SegmentArray;
 
-impl Deref for Column {
-    type Target = [[u8; 8]];
-    fn deref(&self) -> &Self::Target {
-        &self.data[..]
+    assert_eq!(len % (8 * 256), 0);
+
+    unsafe {
+        std::slice::from_raw_parts(ptr, len / (8 * 256))
     }
 }
 
-impl DerefMut for Column {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.data[..]
+pub fn bytes_to_columns_mut(bytes: &mut [u8]) -> &mut [SegmentArray] {
+    let len = bytes.len();
+    let ptr = bytes.as_ptr() as *mut SegmentArray;
+
+    assert_eq!(len % (8 * 256), 0);
+
+    unsafe {
+        std::slice::from_raw_parts_mut(ptr, len / (8 * 256))
     }
 }
+
+
+pub struct SegmentRef<'a> {
+    pub len: usize,
+    pub heap_len: usize,
+    pub timestamps: &'a [u64; SEG_SZ],
+    pub heap: &'a [u8; HEAP_SZ],
+    pub data: &'a [u8],
+    pub types: &'a [FieldType],
+}
+
+impl<'a> SegmentRef<'a> {
+    pub fn to_segment(&self) -> Segment {
+        let len = self.len;
+        let heap_len = self.heap_len;
+        let timestamps: Box<[u64]> = self.timestamps[..].into();
+        let heap: Box<[u8]> = self.heap[..].into();
+        let data: Vec<u8> = self.data.into();
+        let types: Vec<FieldType> = self.types.into();
+        Segment {
+            len,
+            heap_len,
+            timestamps,
+            heap,
+            data,
+            types
+        }
+    }
+
+    pub fn columns(&self) -> &[SegmentArray] {
+        bytes_to_columns(self.data)
+    }
+}
+
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Segment {
     pub len: usize,
     pub heap_len: usize,
-    #[serde(with = "BigArray")]
-    pub ts: [u64; SEG_SZ],
+    pub timestamps: Box<[u64]>,
     pub heap: Box<[u8]>,
-    pub data: Vec<Column>,
+    pub data: Vec<u8>,
     pub types: Vec<FieldType>,
 }
 
 impl Segment {
+    pub fn new_empty() -> Self {
+        Segment {
+            len: 0,
+            heap_len: 0,
+            timestamps: box [0; SEG_SZ],
+            heap: box [0; HEAP_SZ],
+            data: Vec::new(),
+            types: Vec::new(),
+        }
+    }
+
+    pub fn columns(&self) -> &[SegmentArray] {
+        bytes_to_columns(self.data.as_slice())
+    }
+
+    pub fn columns_mut(&mut self) -> &mut [SegmentArray] {
+        bytes_to_columns_mut(self.data.as_mut_slice())
+    }
+
+    pub fn set_fields(&mut self, types: &mut [FieldType]) {
+        let data_len = types.len() * 8 * 256;
+        self.data.clear();
+        self.data.resize(types.len() * 8 * 256, 0);
+        self.types.clear();
+        self.types.extend_from_slice(types);
+    }
+
+    pub fn clear_fields(&mut self) {
+        self.data.clear();
+        self.types.clear();
+    }
+
+    pub fn add_field(&mut self, field: FieldType) {
+        let l = self.data.len();
+        self.data.resize(l + 8 * 256, 0);
+        self.types.push(field);
+    }
+
+
     pub fn field_idx(&self, field: usize, idx: usize) -> SampleType {
-        let value = self.data[field][idx];
+        let cols = self.columns();
+        let value = cols[field][idx];
         let field_type = self.types[field];
         match field_type {
             FieldType::Bytes => {
@@ -56,38 +151,14 @@ impl Segment {
         }
     }
 
-    pub fn new_empty() -> Self {
-        Self {
-            len: 0,
-            heap_len: 0,
-            ts: [0u64; 256],
-            data: Vec::new(),
-            heap: vec![0u8; HEAP_SZ].into_boxed_slice(),
-            types: Vec::new(),
-        }
-    }
-
-    pub fn new(ts: &[u64], data: &[&SegmentArray], heap: &[u8], types: &[FieldType]) -> Self {
-        let len = ts.len();
-        let nvars = types.len();
-        let heap_len = heap.len();
-
-        assert!(len <= SEG_SZ);
-        assert!(heap_len <= HEAP_SZ);
-        assert_eq!(data.len(), nvars);
-        for d in data.iter() {
-            assert_eq!(d.len(), len);
-        }
-
-        let mut s = Self::new_empty();
-        s.types.extend_from_slice(types);
-        s.ts[..len].copy_from_slice(ts);
-        for d in data.iter() {
-            s.data.push(Column { data: **d });
-        }
-        s.heap[..heap_len].copy_from_slice(heap);
-        s.len = len;
-        s.heap_len = heap_len;
-        s
-    }
+    //pub fn new_empty() -> Self {
+    //    Self {
+    //        len: 0,
+    //        heap_len: 0,
+    //        ts: vec![0u64; 256].into_boxed_slice(),
+    //        data: Vec::new(),
+    //        heap: vec![0u8; HEAP_SZ].into_boxed_slice(),
+    //        types: Vec::new(),
+    //    }
+    //}
 }

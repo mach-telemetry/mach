@@ -2,7 +2,7 @@ use crate::{
     constants::{HEAP_SZ, HEAP_TH, SEG_SZ},
     field_type::FieldType,
     sample::SampleType,
-    segment::{Segment, SegmentArray},
+    segment::{Segment, SegmentRef},
 };
 use std::cell::UnsafeCell;
 use std::sync::{
@@ -68,7 +68,7 @@ impl Inner {
     #[inline]
     fn field_offsets(&self, idx: usize) -> (usize, usize) {
         let colsz = 8 * SEG_SZ;
-        let start = 8 * colsz * idx;
+        let start = colsz * idx;
         let end = start + colsz;
         (start, end)
     }
@@ -136,25 +136,21 @@ impl Inner {
         }
     }
 
-    fn as_active_segment_ref(&self) -> ActiveSegmentRef {
+    fn as_segment_ref(&self) -> SegmentRef {
         let len = self.atomic_len.load(SeqCst);
         let heap_len = self.heap_len;
-        let data: Vec<&SegmentArray> = (0..self.types.len())
-            .map(|i| {
-                let (s, e) = self.field_offsets(i);
-                let slice = unsafe { self.data[s..e].as_chunks_unchecked::<8>() };
-                slice.try_into().unwrap()
-            })
-            .collect();
+        let data = &self.data[..8 * self.types.len() * SEG_SZ];
         let heap = &self.data[8 * self.types.len() * SEG_SZ..];
-        ActiveSegmentRef {
+        let s = SegmentRef {
             len,
             heap_len,
-            ts: &self.ts,
-            heap: heap[..HEAP_SZ].try_into().unwrap(),
+            timestamps: &self.ts,
+            heap: heap.try_into().unwrap(),
             data,
             types: self.types.as_slice(),
-        }
+        };
+        s
+
     }
 }
 
@@ -172,8 +168,8 @@ impl InnerActiveSegment {
     }
 
     /// Safety: This method is unsafe if there are exists a concurrent writer (e.g., push, reset)
-    unsafe fn as_active_segment_ref(&self) -> ActiveSegmentRef {
-        (*self.inner.get()).as_active_segment_ref()
+    unsafe fn as_segment_ref(&self) -> SegmentRef {
+        (*self.inner.get()).as_segment_ref()
     }
 
     fn push(&self, ts: u64, items: &[SampleType]) -> PushStatus {
@@ -190,7 +186,7 @@ impl InnerActiveSegment {
         let version = self.version.load(SeqCst);
         // Safety: This is safe because if the counter cannot be compared, data in the segment is
         // potentially erroneous and return an error
-        let seg = unsafe { self.as_active_segment_ref() }.to_segment();
+        let seg = unsafe { self.as_segment_ref() }.to_segment();
         if version != self.version.load(SeqCst) {
             Err("Failed to make segment snapshot")
         } else {
@@ -214,9 +210,9 @@ impl WriteActiveSegment {
         self.segment.reset();
     }
 
-    pub fn as_active_segment_ref(&self) -> ActiveSegmentRef {
+    pub fn as_segment_ref(&self) -> SegmentRef {
         // Safety: Because there is only ever one writer, this is safe
-        unsafe { self.segment.as_active_segment_ref() }
+        unsafe { self.segment.as_segment_ref() }
     }
 }
 
@@ -256,26 +252,6 @@ impl ActiveSegment {
 
     pub fn snapshot(&self) -> Result<Segment, &'static str> {
         self.segment.snapshot()
-    }
-}
-
-pub struct ActiveSegmentRef<'a> {
-    pub len: usize,
-    pub heap_len: usize,
-    pub ts: &'a [u64; SEG_SZ],
-    pub heap: &'a [u8; HEAP_SZ],
-    pub data: Vec<&'a [[u8; 8]; SEG_SZ]>,
-    pub types: &'a [FieldType],
-}
-
-impl<'a> ActiveSegmentRef<'a> {
-    pub fn to_segment(&self) -> Segment {
-        Segment::new(
-            self.ts,
-            self.data.as_slice(),
-            &self.heap[..self.heap_len],
-            self.types,
-        )
     }
 }
 

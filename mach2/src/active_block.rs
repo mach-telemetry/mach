@@ -1,6 +1,7 @@
 use crate::{
-    active_segment::ActiveSegmentRef, byte_buffer::ByteBuffer, compression::Compression,
-    constants::*, id::SourceId, mem_list::{data_block::DataBlock, metadata_list::MetadataListWriter}
+    segment::SegmentRef, byte_buffer::ByteBuffer, compression::Compression,
+    constants::*, id::SourceId, mem_list::{data_block::DataBlock, metadata_list::MetadataListWriter},
+    segment::Segment,
 };
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
 use serde::*;
@@ -18,6 +19,16 @@ pub struct BlockMetadata {
     offset: usize,
     min_ts: u64,
     max_ts: u64,
+}
+
+impl BlockMetadata {
+    fn source_id(&self) -> SourceId {
+        self.source_id
+    }
+
+    fn time_range(&self) -> (u64, u64) {
+        (self.min_ts, self.max_ts)
+    }
 }
 
 impl BlockMetadata {
@@ -43,11 +54,66 @@ impl ReadOnlyBlock {
         let offsets_start = l - 8 - offsets_len;
         let offsets = bincode::deserialize(&bytes[offsets_start..offsets_start + offsets_len]).unwrap();
         let data = bytes[..offsets_start].into();
-
         Self {
             data,
             offsets,
         }
+    }
+
+    pub fn get_metadata(&self) -> &[BlockMetadata] {
+        self.offsets.as_slice()
+    }
+
+    pub fn get_segment(&self,
+        id: usize,
+        segment: &mut Segment,
+    ) -> Segment {
+        let meta = self.offsets[id];
+        let mut o = meta.offset;
+
+        let e = o + 8;
+        let source_id = u64::from_be_bytes(self.data[o..e].try_into().unwrap());
+        o = e;
+
+        let e = o + 8;
+        let min_ts = u64::from_be_bytes(self.data[o..e].try_into().unwrap());
+        o = e;
+
+        let e = o + 8;
+        let max_ts = u64::from_be_bytes(self.data[o..e].try_into().unwrap());
+        o = e;
+
+        let e = o + 8;
+        let compressed_sz = usize::from_be_bytes(self.data[o..e].try_into().unwrap());
+        o = e;
+
+        // Compress and record size of compressed chunk
+        let e = o + compressed_sz;
+        //Compression::decompress(
+        //    &self.data[o..e]
+        //    &mut segment.len,
+        //    &mut segment.heap_len,
+        //    &mut segment.timestamps,
+        //    out_len: &mut usize,
+        //    out_heap_len: &mut usize,
+        //    out_timestamps: &mut [u64; SEG_SZ],
+        //    out_heap: &mut [u8; HEAP_SZ],
+        //    out_data: &mut Vec<SegmentArray>,
+        //    out_types: &mut Vec<FieldType>,
+        //);
+        //compression.compress(
+        //    active_segment.len,
+        //    active_segment.heap_len,
+        //    active_segment.ts,
+        //    active_segment.heap,
+        //    active_segment.data.as_slice(),
+        //    active_segment.types,
+        //    &mut byte_buffer,
+        //);
+        //let chunk_sz = byte_buffer.len() - compress_start;
+        //byte_buffer.as_mut_slice()[chunk_sz_offset..chunk_sz_offset + 8]
+        //    .copy_from_slice(&chunk_sz.to_be_bytes());
+        unimplemented!()
     }
 }
 
@@ -60,7 +126,7 @@ impl ActiveBlockWriter {
     pub fn push(
         &mut self,
         source_id: SourceId,
-        active_segment: ActiveSegmentRef,
+        active_segment: SegmentRef,
         compression: &Compression
     ) {
         match self.inner.push(source_id, active_segment, compression) {
@@ -133,7 +199,7 @@ struct InnerActiveBlock {
 impl InnerActiveBlock {
     fn push(&self,
         source_id: SourceId,
-        active_segment: ActiveSegmentRef,
+        active_segment: SegmentRef,
         compression: &Compression
     ) -> PushStatus {
 
@@ -183,14 +249,14 @@ impl Inner {
     fn push(
         &mut self,
         source_id: SourceId,
-        active_segment: ActiveSegmentRef,
+        active_segment: SegmentRef,
         compression: &Compression,
     ) -> PushStatus {
         let offset = self.data_len.load(SeqCst);
         let mut byte_buffer = ByteBuffer::new(offset, &mut self.data);
 
-        let min_ts = active_segment.ts[0];
-        let max_ts = *active_segment.ts.last().unwrap();
+        let min_ts = active_segment.timestamps[0];
+        let max_ts = *active_segment.timestamps.last().unwrap();
 
         byte_buffer.extend_from_slice(&source_id.0.to_be_bytes());
         byte_buffer.extend_from_slice(&min_ts.to_be_bytes());
@@ -202,15 +268,16 @@ impl Inner {
 
         // Compress and record size of compressed chunk
         let compress_start = byte_buffer.len();
-        compression.compress(
-            active_segment.len,
-            active_segment.heap_len,
-            active_segment.ts,
-            active_segment.heap,
-            active_segment.data.as_slice(),
-            active_segment.types,
-            &mut byte_buffer,
-        );
+        //let data: = active_segment.data.
+        //compression.compress(
+        //    active_segment.len,
+        //    active_segment.heap_len,
+        //    active_segment.ts,
+        //    active_segment.heap,
+        //    active_segment.data.as_slice(),
+        //    active_segment.types,
+        //    &mut byte_buffer,
+        //);
         let chunk_sz = byte_buffer.len() - compress_start;
         byte_buffer.as_mut_slice()[chunk_sz_offset..chunk_sz_offset + 8]
             .copy_from_slice(&chunk_sz.to_be_bytes());
