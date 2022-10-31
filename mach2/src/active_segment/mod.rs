@@ -6,7 +6,7 @@ use crate::{
 };
 use std::cell::UnsafeCell;
 use std::sync::{
-    atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
+    atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
 };
 
@@ -196,12 +196,11 @@ impl InnerActiveSegment {
 }
 
 // This should never be Clone - there can only exist one writer for each segment ever
-pub struct WriteActiveSegment {
-    has_writer: Arc<AtomicBool>,
+pub struct ActiveSegmentWriter {
     segment: Arc<InnerActiveSegment>,
 }
 
-impl WriteActiveSegment {
+impl ActiveSegmentWriter {
     pub fn push(&mut self, ts: u64, items: &[SampleType]) -> PushStatus {
         self.segment.push(ts, items)
     }
@@ -216,38 +215,21 @@ impl WriteActiveSegment {
     }
 }
 
-impl Drop for WriteActiveSegment {
-    fn drop(&mut self) {
-        self.has_writer
-            .compare_exchange(true, false, SeqCst, SeqCst)
-            .unwrap();
-    }
-}
-
 #[derive(Clone)]
 pub struct ActiveSegment {
-    has_writer: Arc<AtomicBool>,
     segment: Arc<InnerActiveSegment>,
 }
 
 impl ActiveSegment {
-    pub fn writer(&self) -> WriteActiveSegment {
-        self.has_writer
-            .compare_exchange(false, true, SeqCst, SeqCst)
-            .unwrap();
-        WriteActiveSegment {
-            has_writer: self.has_writer.clone(),
-            segment: self.segment.clone(),
-        }
-    }
-
-    pub fn new(types: &[FieldType]) -> Self {
+    pub fn new(types: &[FieldType]) -> (Self, ActiveSegmentWriter) {
         let segment = Arc::new(InnerActiveSegment::new(types));
-        let has_writer = Arc::new(AtomicBool::new(false));
-        Self {
+        let this = Self {
+            segment: segment.clone(),
+        };
+        let writer = ActiveSegmentWriter {
             segment,
-            has_writer,
-        }
+        };
+        (this, writer)
     }
 
     pub fn snapshot(&self) -> Result<Segment, &'static str> {
@@ -258,27 +240,16 @@ impl ActiveSegment {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    use rand::{
-        distributions::{Alphanumeric, DistString},
-        thread_rng, Rng,
-    };
+    use crate::test_utils::*;
 
     #[test]
     fn test() {
-        let mut rng = thread_rng();
-        let expected_floats: Vec<SampleType> =
-            (0..SEG_SZ).map(|_| SampleType::F64(rng.gen())).collect();
-        let expected_strings: Vec<SampleType> = (0..SEG_SZ)
-            .map(|_| {
-                let string = Alphanumeric.sample_string(&mut rng, 16);
-                SampleType::Bytes(string.into_bytes())
-            })
-            .collect();
-
         let types = &[FieldType::Bytes, FieldType::F64];
-        let active_segment = ActiveSegment::new(types);
-        let mut writer = active_segment.writer();
+        let samples = random_samples(types, SEG_SZ);
+        let expected_floats = &samples[1];
+        let expected_strings = &samples[0];
+
+        let (active_segment, mut writer) = ActiveSegment::new(types);
 
         let mut values = Vec::new();
         for i in 0..SEG_SZ - 1 {
@@ -306,7 +277,7 @@ mod test {
 
         let strings: Vec<SampleType> = (0..SEG_SZ).map(|x| seg.field_idx(0, x)).collect();
         let floats: Vec<SampleType> = (0..SEG_SZ).map(|x| seg.field_idx(1, x)).collect();
-        assert_eq!(floats, expected_floats);
-        assert_eq!(strings, expected_strings);
+        assert_eq!(floats.as_slice(), expected_floats.as_slice());
+        assert_eq!(strings.as_slice(), expected_strings.as_slice());
     }
 }

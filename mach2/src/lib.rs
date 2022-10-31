@@ -17,4 +17,6 @@ pub mod mem_list;
 pub mod sample;
 pub mod segment;
 pub mod source;
+#[cfg(test)]
+pub mod test_utils;
 //pub mod utils;

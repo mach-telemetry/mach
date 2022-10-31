@@ -22,13 +22,13 @@ pub struct BlockMetadata {
 }
 
 impl BlockMetadata {
-    fn source_id(&self) -> SourceId {
-        self.source_id
-    }
+    //fn source_id(&self) -> SourceId {
+    //    self.source_id
+    //}
 
-    fn time_range(&self) -> (u64, u64) {
-        (self.min_ts, self.max_ts)
-    }
+    //fn time_range(&self) -> (u64, u64) {
+    //    (self.min_ts, self.max_ts)
+    //}
 }
 
 impl BlockMetadata {
@@ -304,4 +304,10 @@ impl Inner {
             offsets
         }
     }
+}
+
+#[cfg(test)]
+mod test {
+    //use super::*;
+    //use crate::active_segment::ActiveSegment;
 }

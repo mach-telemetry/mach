@@ -135,7 +135,7 @@ impl Compression {
         };
 
         segment.clear_fields();
-        for i in 0..nvars {
+        for _ in 0..nvars {
             segment.add_field(FieldType::from(bytes[offset]));
             offset += 1;
         }
@@ -195,27 +195,15 @@ mod test {
     use super::*;
     use crate::active_segment::{ActiveSegment, PushStatus};
     use crate::field_type::FieldType;
-    use crate::sample::SampleType;
-    use rand::{
-        distributions::{Alphanumeric, DistString},
-        thread_rng, Rng,
-    };
+    use crate::test_utils::*;
 
     #[test]
     fn test() {
-        let mut rng = thread_rng();
-        let expected_floats: Vec<SampleType> =
-            (0..SEG_SZ).map(|_| SampleType::F64(rng.gen())).collect();
-        let expected_strings: Vec<SampleType> = (0..SEG_SZ)
-            .map(|_| {
-                let string = Alphanumeric.sample_string(&mut rng, 16);
-                SampleType::Bytes(string.into_bytes())
-            })
-            .collect();
-
         let types = &[FieldType::Bytes, FieldType::F64];
-        let active_segment = ActiveSegment::new(types);
-        let mut writer = active_segment.writer();
+        let samples = random_samples(types, SEG_SZ);
+        let expected_floats = &samples[1];
+        let expected_strings = &samples[0];
+        let (_active_segment, mut writer) = ActiveSegment::new(types);
 
         let mut values = Vec::new();
         for i in 0..SEG_SZ - 1 {

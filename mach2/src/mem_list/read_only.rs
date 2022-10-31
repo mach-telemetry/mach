@@ -31,7 +31,7 @@ impl ReadOnlyDataBlock {
             InnerReadOnlyDataBlock::Data(_) => {},
             InnerReadOnlyDataBlock::Offset(x) => {
                 let mut v = Vec::new();
-                x.load(&mut v);
+                x.load(&mut v).unwrap();
                 self.inner = InnerReadOnlyDataBlock::Data(v.into_boxed_slice());
             }
         }

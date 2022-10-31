@@ -118,7 +118,6 @@ impl Segment {
     }
 
     pub fn set_fields(&mut self, types: &mut [FieldType]) {
-        let data_len = types.len() * 8 * 256;
         self.data.clear();
         self.data.resize(types.len() * 8 * 256, 0);
         self.types.clear();
