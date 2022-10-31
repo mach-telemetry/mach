@@ -13,7 +13,7 @@ enum PushStatus {
     Full,
 }
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct BlockMetadata {
     source_id: SourceId,
     offset: usize,
@@ -313,13 +313,13 @@ mod test {
     use super::*;
     use crate::active_segment::ActiveSegment;
     use crate::field_type::FieldType;
+    use crate::sample::SampleType;
     use crate::test_utils::*;
     use crate::id::SourceId;
     use crate::compression::*;
 
     #[test]
     fn test() {
-        let id = SourceId(1234);
         let types = &[FieldType::Bytes, FieldType::F64];
         let compression = Compression::new(
             vec![
@@ -330,9 +330,43 @@ mod test {
 
         let samples = random_samples(types, SEG_SZ);
         let (_active_segment, mut active_segment_writer) = ActiveSegment::new(types);
-        let (_active_block, mut active_block_writer) = ActiveBlock::new();
+        let (active_block, mut active_block_writer) = ActiveBlock::new();
 
         assert_eq!(fill_active_segment(&samples, &mut active_segment_writer), SEG_SZ);
-        let segment_reference = active_segment_writer.as_segment_ref();
+        {
+            let segment_reference = active_segment_writer.as_segment_ref();
+            active_block_writer.push(SourceId(1234), segment_reference, &compression);
+        }
+
+        active_segment_writer.reset();
+
+        assert_eq!(fill_active_segment(&samples, &mut active_segment_writer), SEG_SZ);
+        {
+            let segment_reference = active_segment_writer.as_segment_ref();
+            active_block_writer.push(SourceId(5678), segment_reference, &compression);
+        }
+
+        active_segment_writer.reset();
+
+        assert_eq!(fill_active_segment(&samples, &mut active_segment_writer), SEG_SZ);
+        {
+            let segment_reference = active_segment_writer.as_segment_ref();
+            active_block_writer.push(SourceId(1234), segment_reference, &compression);
+        }
+
+        let read_only_block = active_block.read_only().unwrap();
+        let meta = read_only_block.get_metadata();
+        println!("META: {:?}", read_only_block.get_metadata());
+
+        let mut segment = Segment::new_empty();
+        read_only_block.get_segment(2, &mut segment);
+        assert_eq!(segment.timestamps[0], meta[2].min_ts);
+        assert_eq!(*segment.timestamps.last().unwrap(), meta[2].max_ts);
+        let strings: Vec<SampleType> = (0..SEG_SZ).map(|x| segment.field_idx(0, x)).collect();
+        assert_eq!(&strings[..], samples[0].as_slice());
+        let strings: Vec<SampleType> = (0..SEG_SZ).map(|x| segment.field_idx(0, x)).collect();
+        assert_eq!(&strings[..], samples[0].as_slice());
+        let floats: Vec<SampleType> = (0..SEG_SZ).map(|x| segment.field_idx(1, x)).collect();
+        assert_eq!(&floats[..], samples[1].as_slice());
     }
 }

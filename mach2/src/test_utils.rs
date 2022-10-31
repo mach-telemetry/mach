@@ -1,6 +1,7 @@
 use crate::field_type::*;
 use crate::sample::SampleType;
 use crate::active_segment::{ActiveSegmentWriter, PushStatus};
+use crate::utils;
 use rand::{
     distributions::{Alphanumeric, DistString},
     thread_rng, Rng,
@@ -57,12 +58,11 @@ pub fn fill_active_segment(samples: &Samples, w: &mut ActiveSegmentWriter) -> us
             values.push(col[i].clone());
         }
         counter += 1;
-        match w.push(i as u64, values.as_slice()) {
+        match w.push(utils::now_in_micros(), values.as_slice()) {
             PushStatus::Ok => {},
             PushStatus::Full => break,
             PushStatus::ErrorFull => unreachable!(),
         }
-        println!("fill counter: {}", counter);
         values.clear();
     }
     counter
