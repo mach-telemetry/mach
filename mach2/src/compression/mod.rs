@@ -39,7 +39,7 @@ impl Compression {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn compress(
+    fn compress(
         &self,
         len: usize,
         heap_len: usize,
@@ -165,8 +165,6 @@ impl Compression {
         }
 
         let data: &mut [SegmentArray] = segment.columns_mut();
-        println!("DATA LEN: {}", data.len());
-        println!("SCHEMES_LEN: {}", schemes.len());
         for (i, scheme) in schemes.iter().enumerate() {
             let end = offset + 8;
             let sz = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
@@ -175,7 +173,6 @@ impl Compression {
             let end = offset + sz;
             let mut col_len = 0;
             scheme.decompress(&bytes[offset..end], &mut col_len, &mut data[i]);
-            println!("Decompressed {:?}", data[i]);
             offset = end;
             assert_eq!(len, col_len);
         }
@@ -188,93 +185,6 @@ impl Compression {
             let end = offset + sz;
             let mut l = 0;
             heap::decompress(&bytes[offset..end], &mut l, &mut segment.heap[..]);
-            assert_eq!(l, heap_len);
-        }
-    }
-
-    pub fn decompress(
-        bytes: &[u8],
-        out_len: &mut usize,
-        out_heap_len: &mut usize,
-        out_timestamps: &mut [u64; SEG_SZ],
-        out_heap: &mut [u8; HEAP_SZ],
-        out_data: &mut [SegmentArray],
-        out_types: &mut [FieldType],
-    ) {
-        assert_eq!(&bytes[..MAGIC.len()], MAGIC);
-        let mut offset = MAGIC.len();
-
-        let len = {
-            let end = offset + 8;
-            let len = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
-            offset = end;
-            *out_len = len;
-            len
-        };
-
-        let heap_len = {
-            let end = offset + 8;
-            let heap_len = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
-            offset = end;
-            *out_heap_len = heap_len;
-            heap_len
-        };
-
-        let nvars = {
-            let end = offset + 8;
-            let nvars = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
-            offset = end;
-            nvars
-        };
-
-        for i in 0..nvars {
-            out_types[i] = FieldType::from(bytes[offset]);
-            offset += 1;
-        }
-
-        let schemes: Vec<CompressionScheme> = {
-            let end = offset + 8;
-            let schema_sz = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
-            offset = end;
-
-            let end = offset + schema_sz;
-            let schemes = bincode::deserialize(&bytes[offset..end]).unwrap();
-            offset = end;
-            schemes
-        };
-        assert_eq!(schemes.len(), nvars);
-
-        {
-            let end = offset + 8;
-            let sz = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
-            offset = end;
-
-            let end = offset + sz;
-            let mut ts_len = 0;
-            timestamps::decompress(&bytes[offset..end], &mut ts_len, out_timestamps);
-            offset = end;
-        }
-
-        for (i, scheme) in schemes.iter().enumerate() {
-            let end = offset + 8;
-            let sz = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
-            offset = end;
-
-            let end = offset + sz;
-            let mut col_len = 0;
-            scheme.decompress(&bytes[offset..end], &mut col_len, &mut out_data[i]);
-            offset = end;
-            assert_eq!(len, col_len);
-        }
-
-        {
-            let end = offset + 8;
-            let sz = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
-            offset = end;
-
-            let end = offset + sz;
-            let mut l = 0;
-            heap::decompress(&bytes[offset..end], &mut l, out_heap.as_mut_slice());
             assert_eq!(l, heap_len);
         }
     }

@@ -67,20 +67,20 @@ impl ReadOnlyBlock {
     pub fn get_segment(&self,
         id: usize,
         segment: &mut Segment,
-    ) -> Segment {
+    ) {
         let meta = self.offsets[id];
         let mut o = meta.offset;
 
         let e = o + 8;
-        let source_id = u64::from_be_bytes(self.data[o..e].try_into().unwrap());
+        let _source_id = u64::from_be_bytes(self.data[o..e].try_into().unwrap());
         o = e;
 
         let e = o + 8;
-        let min_ts = u64::from_be_bytes(self.data[o..e].try_into().unwrap());
+        let _min_ts = u64::from_be_bytes(self.data[o..e].try_into().unwrap());
         o = e;
 
         let e = o + 8;
-        let max_ts = u64::from_be_bytes(self.data[o..e].try_into().unwrap());
+        let _max_ts = u64::from_be_bytes(self.data[o..e].try_into().unwrap());
         o = e;
 
         let e = o + 8;
@@ -89,31 +89,7 @@ impl ReadOnlyBlock {
 
         // Compress and record size of compressed chunk
         let e = o + compressed_sz;
-        //Compression::decompress(
-        //    &self.data[o..e]
-        //    &mut segment.len,
-        //    &mut segment.heap_len,
-        //    &mut segment.timestamps,
-        //    out_len: &mut usize,
-        //    out_heap_len: &mut usize,
-        //    out_timestamps: &mut [u64; SEG_SZ],
-        //    out_heap: &mut [u8; HEAP_SZ],
-        //    out_data: &mut Vec<SegmentArray>,
-        //    out_types: &mut Vec<FieldType>,
-        //);
-        //compression.compress(
-        //    active_segment.len,
-        //    active_segment.heap_len,
-        //    active_segment.ts,
-        //    active_segment.heap,
-        //    active_segment.data.as_slice(),
-        //    active_segment.types,
-        //    &mut byte_buffer,
-        //);
-        //let chunk_sz = byte_buffer.len() - compress_start;
-        //byte_buffer.as_mut_slice()[chunk_sz_offset..chunk_sz_offset + 8]
-        //    .copy_from_slice(&chunk_sz.to_be_bytes());
-        unimplemented!()
+        Compression::decompress_segment(&self.data[o..e], segment);
     }
 }
 
@@ -268,16 +244,7 @@ impl Inner {
 
         // Compress and record size of compressed chunk
         let compress_start = byte_buffer.len();
-        //let data: = active_segment.data.
-        //compression.compress(
-        //    active_segment.len,
-        //    active_segment.heap_len,
-        //    active_segment.ts,
-        //    active_segment.heap,
-        //    active_segment.data.as_slice(),
-        //    active_segment.types,
-        //    &mut byte_buffer,
-        //);
+        compression.compress_segment(&active_segment, &mut byte_buffer);
         let chunk_sz = byte_buffer.len() - compress_start;
         byte_buffer.as_mut_slice()[chunk_sz_offset..chunk_sz_offset + 8]
             .copy_from_slice(&chunk_sz.to_be_bytes());

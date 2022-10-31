@@ -4,8 +4,6 @@ use crate::{
     sample::SampleType,
 };
 use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
-use std::ops::{Deref, DerefMut};
 
 pub type SegmentArray = [[u8; 8]; SEG_SZ];
 
