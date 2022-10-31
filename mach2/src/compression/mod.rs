@@ -193,7 +193,7 @@ impl Compression {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::active_segment::{ActiveSegment, PushStatus};
+    use crate::active_segment::ActiveSegment;
     use crate::field_type::FieldType;
     use crate::test_utils::*;
 
@@ -201,31 +201,9 @@ mod test {
     fn test() {
         let types = &[FieldType::Bytes, FieldType::F64];
         let samples = random_samples(types, SEG_SZ);
-        let expected_floats = &samples[1];
-        let expected_strings = &samples[0];
         let (_active_segment, mut writer) = ActiveSegment::new(types);
 
-        let mut values = Vec::new();
-        for i in 0..SEG_SZ - 1 {
-            let a = expected_strings[i].clone();
-            let b = expected_floats[i].clone();
-            values.push(a);
-            values.push(b);
-            assert_eq!(writer.push(i as u64, values.as_slice()), PushStatus::Ok);
-            values.clear();
-        }
-        let a = expected_strings[SEG_SZ - 1].clone();
-        let b = expected_floats[SEG_SZ - 1].clone();
-        values.push(a);
-        values.push(b);
-        assert_eq!(
-            writer.push(SEG_SZ as u64, values.as_slice()),
-            PushStatus::IsFull
-        );
-        assert_eq!(
-            writer.push(SEG_SZ as u64 + 1, values.as_slice()),
-            PushStatus::ErrorFull
-        );
+        assert_eq!(fill_active_segment(&samples, &mut writer), SEG_SZ);
 
         let segment_reference = writer.as_segment_ref();
 

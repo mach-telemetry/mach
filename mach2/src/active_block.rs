@@ -308,6 +308,16 @@ impl Inner {
 
 #[cfg(test)]
 mod test {
-    //use super::*;
-    //use crate::active_segment::ActiveSegment;
+    use super::*;
+    use crate::active_segment::ActiveSegment;
+    use crate::field_type::FieldType;
+    use crate::test_utils::*;
+
+    #[test]
+    fn test() {
+        let types = &[FieldType::Bytes, FieldType::F64];
+        let samples = random_samples(types, SEG_SZ);
+        let (_active_segment, mut writer) = ActiveSegment::new(types);
+        assert_eq!(fill_active_segment(&samples, &mut writer), SEG_SZ);
+    }
 }

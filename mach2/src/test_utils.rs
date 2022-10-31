@@ -1,11 +1,25 @@
 use crate::field_type::*;
 use crate::sample::SampleType;
+use crate::active_segment::{ActiveSegmentWriter, PushStatus};
 use rand::{
     distributions::{Alphanumeric, DistString},
     thread_rng, Rng,
 };
+use std::ops::Deref;
+use std::sync::Arc;
 
-pub fn random_samples(types: &[FieldType], n_samples: usize) -> Vec<Vec<SampleType>> {
+pub struct Samples {
+    data: Arc<Vec<Vec<SampleType>>>
+}
+
+impl Deref for Samples {
+    type Target = [Vec<SampleType>];
+    fn deref(&self) -> &Self::Target {
+        self.data.as_slice()
+    }
+}
+
+pub fn random_samples(types: &[FieldType], n_samples: usize) -> Samples {
     let mut rng = thread_rng();
     let mut v = Vec::new();
     for field_type in types {
@@ -18,7 +32,8 @@ pub fn random_samples(types: &[FieldType], n_samples: usize) -> Vec<Vec<SampleTy
             FieldType::Bytes => {
                 let expected_strings: Vec<SampleType> = (0..n_samples)
                     .map(|_| {
-                        let string = Alphanumeric.sample_string(&mut rng, 16);
+                        let str_len = rng.gen_range(16..1024);
+                        let string = Alphanumeric.sample_string(&mut rng, str_len);
                         SampleType::Bytes(string.into_bytes())
                     })
                     .collect();
@@ -27,6 +42,29 @@ pub fn random_samples(types: &[FieldType], n_samples: usize) -> Vec<Vec<SampleTy
             _ => unimplemented!(),
         }
     }
-    v
+
+    Samples {
+        data: Arc::new(v)
+    }
+}
+
+pub fn fill_active_segment(samples: &Samples, w: &mut ActiveSegmentWriter) -> usize {
+    let mut values = Vec::new();
+    let mut counter = 0;
+    loop {
+        let i = counter;
+        for col in samples.iter() {
+            values.push(col[i].clone());
+        }
+        counter += 1;
+        match w.push(i as u64, values.as_slice()) {
+            PushStatus::Ok => {},
+            PushStatus::Full => break,
+            PushStatus::ErrorFull => unreachable!(),
+        }
+        println!("fill counter: {}", counter);
+        values.clear();
+    }
+    counter
 }
 

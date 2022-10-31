@@ -12,7 +12,7 @@ use std::sync::{
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum PushStatus {
-    IsFull,
+    Full,
     Ok,
     ErrorFull,
 }
@@ -129,8 +129,8 @@ impl Inner {
         // Linearize at this point
         self.atomic_len.fetch_add(1, SeqCst);
 
-        if self.len == SEG_SZ || self.heap_len == HEAP_TH {
-            PushStatus::IsFull
+        if self.len == SEG_SZ || self.heap_len > HEAP_TH {
+            PushStatus::Full
         } else {
             PushStatus::Ok
         }
@@ -266,7 +266,7 @@ mod test {
         values.push(b);
         assert_eq!(
             writer.push(SEG_SZ as u64, values.as_slice()),
-            PushStatus::IsFull
+            PushStatus::Full
         );
         assert_eq!(
             writer.push(SEG_SZ as u64 + 1, values.as_slice()),
