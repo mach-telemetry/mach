@@ -3,8 +3,7 @@ pub mod delta_of_delta;
 pub mod heap;
 pub mod lz4;
 pub mod timestamps;
-
-use compression_scheme::CompressionScheme;
+pub use compression_scheme::CompressionScheme;
 
 use crate::{
     byte_buffer::ByteBuffer,
@@ -25,6 +24,12 @@ pub struct Compression {
 }
 
 impl Compression {
+
+    pub fn new(schemes: Vec<CompressionScheme>) -> Self {
+        Self {
+            schemes
+        }
+    }
 
     pub fn compress_segment(&self, segment: &SegmentRef, buffer: &mut ByteBuffer) {
         self.compress(
@@ -209,8 +214,8 @@ mod test {
 
         let compression = Compression {
             schemes: vec![
-                CompressionScheme::DeltaOfDelta(delta_of_delta::DeltaOfDelta {}),
-                CompressionScheme::LZ4(lz4::LZ4 {}),
+                CompressionScheme::delta_of_delta(),
+                CompressionScheme::lz4(),
             ],
         };
 

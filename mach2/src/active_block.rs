@@ -142,16 +142,10 @@ pub struct ActiveBlock {
 
 impl ActiveBlock {
     pub fn new() -> (ActiveBlock, ActiveBlockWriter) {
-        let boxed = box InnerActiveBlock {
-            inner: UnsafeCell::new(Inner {
-                data: [0u8; BLOCK_SZ * 2],
-                data_len: AtomicUsize::new(0),
-                offsets: [BlockMetadata::new(); BLOCK_SZ],
-                offsets_len: AtomicUsize::new(0),
-            }),
+        let inner = Arc::new(InnerActiveBlock {
+            inner: UnsafeCell::new(Inner::new()),
             version: AtomicUsize::new(0)
-        };
-        let inner: Arc<InnerActiveBlock> = boxed.into();
+        });
         let active_block = Self {
             inner: inner.clone()
         };
@@ -215,13 +209,21 @@ impl InnerActiveBlock {
 }
 
 struct Inner {
-    data: [u8; BLOCK_SZ * 2],
+    data: Box<[u8; BLOCK_SZ * 2]>,
     data_len: AtomicUsize,
-    offsets: [BlockMetadata; BLOCK_SZ],
+    offsets: Box<[BlockMetadata; BLOCK_SZ]>,
     offsets_len: AtomicUsize,
 }
 
 impl Inner {
+    fn new() -> Self {
+        Inner {
+            data: box [0u8; BLOCK_SZ * 2],
+            data_len: AtomicUsize::new(0),
+            offsets: box [BlockMetadata::new(); BLOCK_SZ],
+            offsets_len: AtomicUsize::new(0),
+        }
+    }
     fn push(
         &mut self,
         source_id: SourceId,
@@ -229,7 +231,7 @@ impl Inner {
         compression: &Compression,
     ) -> PushStatus {
         let offset = self.data_len.load(SeqCst);
-        let mut byte_buffer = ByteBuffer::new(offset, &mut self.data);
+        let mut byte_buffer = ByteBuffer::new(offset, &mut self.data[..]);
 
         let min_ts = active_segment.timestamps[0];
         let max_ts = *active_segment.timestamps.last().unwrap();
@@ -274,7 +276,7 @@ impl Inner {
         let offsets_len = self.offsets_len.load(SeqCst);
         let block_metadata: Vec<BlockMetadata> = self.offsets[..offsets_len].into();
         let new_len = {
-            let mut byte_buffer = ByteBuffer::new(data_len, &mut self.data);
+            let mut byte_buffer = ByteBuffer::new(data_len, &mut self.data[..]);
 
             // Write in offsets
             let offsets_start = byte_buffer.len();
@@ -312,12 +314,25 @@ mod test {
     use crate::active_segment::ActiveSegment;
     use crate::field_type::FieldType;
     use crate::test_utils::*;
+    use crate::id::SourceId;
+    use crate::compression::*;
 
     #[test]
     fn test() {
+        let id = SourceId(1234);
         let types = &[FieldType::Bytes, FieldType::F64];
+        let compression = Compression::new(
+            vec![
+                CompressionScheme::delta_of_delta(),
+                CompressionScheme::lz4(),
+            ],
+        );
+
         let samples = random_samples(types, SEG_SZ);
-        let (_active_segment, mut writer) = ActiveSegment::new(types);
-        assert_eq!(fill_active_segment(&samples, &mut writer), SEG_SZ);
+        let (_active_segment, mut active_segment_writer) = ActiveSegment::new(types);
+        let (_active_block, mut active_block_writer) = ActiveBlock::new();
+
+        assert_eq!(fill_active_segment(&samples, &mut active_segment_writer), SEG_SZ);
+        let segment_reference = active_segment_writer.as_segment_ref();
     }
 }

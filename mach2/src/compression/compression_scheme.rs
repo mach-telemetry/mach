@@ -25,6 +25,12 @@ impl CompressionScheme {
             Self::DeltaOfDelta(l) => l.decompress(data, len, buffer),
         };
     }
-}
 
-//pub struct Compress
+    pub fn lz4() -> Self {
+            Self::LZ4(LZ4 {})
+    }
+
+    pub fn delta_of_delta() -> Self {
+            Self::DeltaOfDelta(DeltaOfDelta {})
+    }
+}
