@@ -1,6 +1,6 @@
+use crate::active_segment::{ActiveSegmentWriter, PushStatus};
 use crate::field_type::*;
 use crate::sample::SampleType;
-use crate::active_segment::{ActiveSegmentWriter, PushStatus};
 use crate::utils;
 use rand::{
     distributions::{Alphanumeric, DistString},
@@ -10,7 +10,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 pub struct Samples {
-    data: Arc<Vec<Vec<SampleType>>>
+    data: Arc<Vec<Vec<SampleType>>>,
 }
 
 impl Deref for Samples {
@@ -29,7 +29,7 @@ pub fn random_samples(types: &[FieldType], n_samples: usize) -> Samples {
                 let expected_floats: Vec<SampleType> =
                     (0..n_samples).map(|_| SampleType::F64(rng.gen())).collect();
                 v.push(expected_floats);
-            },
+            }
             FieldType::Bytes => {
                 let expected_strings: Vec<SampleType> = (0..n_samples)
                     .map(|_| {
@@ -44,9 +44,7 @@ pub fn random_samples(types: &[FieldType], n_samples: usize) -> Samples {
         }
     }
 
-    Samples {
-        data: Arc::new(v)
-    }
+    Samples { data: Arc::new(v) }
 }
 
 pub fn fill_active_segment(samples: &Samples, w: &mut ActiveSegmentWriter) -> usize {
@@ -59,7 +57,7 @@ pub fn fill_active_segment(samples: &Samples, w: &mut ActiveSegmentWriter) -> us
         }
         counter += 1;
         match w.push(utils::now_in_micros(), values.as_slice()) {
-            PushStatus::Ok => {},
+            PushStatus::Ok => {}
             PushStatus::Full => break,
             PushStatus::ErrorFull => unreachable!(),
         }
@@ -67,4 +65,3 @@ pub fn fill_active_segment(samples: &Samples, w: &mut ActiveSegmentWriter) -> us
     }
     counter
 }
-

@@ -5,7 +5,7 @@ use crate::constants::SEG_SZ;
 use crate::segment::SegmentArray;
 use serde::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct DeltaOfDelta {}
 
 impl CompressDecompress for DeltaOfDelta {

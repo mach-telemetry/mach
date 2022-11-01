@@ -1,12 +1,20 @@
 use crate::{
-    segment::SegmentRef, byte_buffer::ByteBuffer, compression::Compression,
-    constants::*, id::SourceId, mem_list::{data_block::DataBlock, metadata_list::MetadataListWriter},
+    byte_buffer::ByteBuffer,
+    compression::Compression,
+    constants::*,
+    id::SourceId,
+    mem_list::{data_block::DataBlock, metadata_list::MetadataListWriter},
     segment::Segment,
+    segment::SegmentRef,
 };
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering::SeqCst}};
+use dashmap::DashMap;
 use serde::*;
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
+};
 
 enum PushStatus {
     Ok,
@@ -15,10 +23,10 @@ enum PushStatus {
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct BlockMetadata {
-    source_id: SourceId,
+    pub source_id: SourceId,
     offset: usize,
-    min_ts: u64,
-    max_ts: u64,
+    pub min_ts: u64,
+    pub max_ts: u64,
 }
 
 impl BlockMetadata {
@@ -44,30 +52,25 @@ impl BlockMetadata {
 
 pub struct ReadOnlyBlock {
     data: Vec<u8>,
-    offsets: Vec<BlockMetadata>
+    offsets: Vec<BlockMetadata>,
 }
 
 impl ReadOnlyBlock {
     pub fn from_closed_bytes(bytes: &[u8]) -> Self {
         let l = bytes.len();
-        let offsets_len = usize::from_be_bytes(bytes[l-8..l].try_into().unwrap());
+        let offsets_len = usize::from_be_bytes(bytes[l - 8..l].try_into().unwrap());
         let offsets_start = l - 8 - offsets_len;
-        let offsets = bincode::deserialize(&bytes[offsets_start..offsets_start + offsets_len]).unwrap();
+        let offsets =
+            bincode::deserialize(&bytes[offsets_start..offsets_start + offsets_len]).unwrap();
         let data = bytes[..offsets_start].into();
-        Self {
-            data,
-            offsets,
-        }
+        Self { data, offsets }
     }
 
     pub fn get_metadata(&self) -> &[BlockMetadata] {
         self.offsets.as_slice()
     }
 
-    pub fn get_segment(&self,
-        id: usize,
-        segment: &mut Segment,
-    ) {
+    pub fn get_segment(&self, id: usize, segment: &mut Segment) {
         let meta = self.offsets[id];
         let mut o = meta.offset;
 
@@ -94,8 +97,8 @@ impl ReadOnlyBlock {
 }
 
 pub struct ActiveBlockWriter {
-    metadata_lists: HashMap<SourceId, MetadataListWriter>,
-    inner: Arc<InnerActiveBlock>
+    metadata_lists: Arc<DashMap<SourceId, MetadataListWriter>>,
+    inner: Arc<InnerActiveBlock>,
 }
 
 impl ActiveBlockWriter {
@@ -103,12 +106,11 @@ impl ActiveBlockWriter {
         &mut self,
         source_id: SourceId,
         active_segment: SegmentRef,
-        compression: &Compression
+        compression: &Compression,
     ) {
         match self.inner.push(source_id, active_segment, compression) {
-            PushStatus::Ok => {},
+            PushStatus::Ok => {}
             PushStatus::Full => {
-
                 // Close the block first to get the data block and metadata for this block
                 let (block, meta) = self.inner.close();
 
@@ -124,33 +126,42 @@ impl ActiveBlockWriter {
 
                 // Insert the block into individual metadata lists
                 for (k, v) in map.drain() {
-                    self.metadata_lists.get(&k).unwrap().push(block.clone(), v.0, v.1);
+                    self.metadata_lists
+                        .get(&k)
+                        .unwrap()
+                        .push(block.clone(), v.0, v.1);
                 }
 
                 // Now that the blocks are queriable, can reset the active block
                 self.inner.reset();
-            },
+            }
         }
     }
 }
 
 #[derive(Clone)]
 pub struct ActiveBlock {
-    //metadata_lists: Arc<DashMap<SourceId, MetadataListWriter>>,
-    inner: Arc<InnerActiveBlock>
+    metadata_lists: Arc<DashMap<SourceId, MetadataListWriter>>,
+    inner: Arc<InnerActiveBlock>,
 }
 
 impl ActiveBlock {
+    pub fn add_source(&self, source: SourceId, metadata_list: MetadataListWriter) {
+        self.metadata_lists.insert(source, metadata_list);
+    }
+
     pub fn new() -> (ActiveBlock, ActiveBlockWriter) {
         let inner = Arc::new(InnerActiveBlock {
             inner: UnsafeCell::new(Inner::new()),
-            version: AtomicUsize::new(0)
+            version: AtomicUsize::new(0),
         });
+        let metadata_lists = Arc::new(DashMap::new());
         let active_block = Self {
-            inner: inner.clone()
+            metadata_lists: metadata_lists.clone(),
+            inner: inner.clone(),
         };
         let writer = ActiveBlockWriter {
-            metadata_lists: HashMap::new(),
+            metadata_lists,
             inner,
         };
         (active_block, writer)
@@ -163,27 +174,23 @@ impl ActiveBlock {
 
 struct InnerActiveBlock {
     version: AtomicUsize,
-    inner: UnsafeCell<Inner>
+    inner: UnsafeCell<Inner>,
 }
 
 impl InnerActiveBlock {
-    fn push(&self,
+    fn push(
+        &self,
         source_id: SourceId,
         active_segment: SegmentRef,
-        compression: &Compression
+        compression: &Compression,
     ) -> PushStatus {
-
         // Safety This function does not race with any other function
-        unsafe {
-            (*self.inner.get()).push(source_id, active_segment, compression)
-        }
+        unsafe { (*self.inner.get()).push(source_id, active_segment, compression) }
     }
 
     fn close(&self) -> (DataBlock, Vec<BlockMetadata>) {
         // Safety This function does not race with any other function
-        unsafe {
-            (*self.inner.get()).close()
-        }
+        unsafe { (*self.inner.get()).close() }
     }
 
     fn reset(&self) {
@@ -197,9 +204,7 @@ impl InnerActiveBlock {
     fn read_only(&self) -> Result<ReadOnlyBlock, &'static str> {
         let version = self.version.load(SeqCst);
         // Safety: versioning ensures that if read_only races with reset, will return error
-        let result = unsafe {
-            (*self.inner.get()).read_only()
-        };
+        let result = unsafe { (*self.inner.get()).read_only() };
         if version != self.version.load(SeqCst) {
             Err("Failed to snapshot active block")
         } else {
@@ -258,7 +263,7 @@ impl Inner {
             source_id,
             offset,
             min_ts,
-            max_ts
+            max_ts,
         };
         self.offsets[offsets_len] = metadata;
         self.data_len.store(new_len, SeqCst);
@@ -301,10 +306,7 @@ impl Inner {
         let offsets_len = self.offsets_len.load(SeqCst);
         let data = self.data[..data_len].into();
         let offsets = self.offsets[..offsets_len].into();
-        ReadOnlyBlock {
-            data,
-            offsets
-        }
+        ReadOnlyBlock { data, offsets }
     }
 }
 
@@ -312,27 +314,28 @@ impl Inner {
 mod test {
     use super::*;
     use crate::active_segment::ActiveSegment;
+    use crate::compression::*;
     use crate::field_type::FieldType;
+    use crate::id::SourceId;
     use crate::sample::SampleType;
     use crate::test_utils::*;
-    use crate::id::SourceId;
-    use crate::compression::*;
 
     #[test]
-    fn test() {
+    fn test_active_block() {
         let types = &[FieldType::Bytes, FieldType::F64];
-        let compression = Compression::new(
-            vec![
-                CompressionScheme::delta_of_delta(),
-                CompressionScheme::lz4(),
-            ],
-        );
+        let compression = Compression::new(vec![
+            CompressionScheme::delta_of_delta(),
+            CompressionScheme::lz4(),
+        ]);
 
         let samples = random_samples(types, SEG_SZ);
         let (_active_segment, mut active_segment_writer) = ActiveSegment::new(types);
         let (active_block, mut active_block_writer) = ActiveBlock::new();
 
-        assert_eq!(fill_active_segment(&samples, &mut active_segment_writer), SEG_SZ);
+        assert_eq!(
+            fill_active_segment(&samples, &mut active_segment_writer),
+            SEG_SZ
+        );
         {
             let segment_reference = active_segment_writer.as_segment_ref();
             active_block_writer.push(SourceId(1234), segment_reference, &compression);
@@ -340,7 +343,10 @@ mod test {
 
         active_segment_writer.reset();
 
-        assert_eq!(fill_active_segment(&samples, &mut active_segment_writer), SEG_SZ);
+        assert_eq!(
+            fill_active_segment(&samples, &mut active_segment_writer),
+            SEG_SZ
+        );
         {
             let segment_reference = active_segment_writer.as_segment_ref();
             active_block_writer.push(SourceId(5678), segment_reference, &compression);
@@ -348,7 +354,10 @@ mod test {
 
         active_segment_writer.reset();
 
-        assert_eq!(fill_active_segment(&samples, &mut active_segment_writer), SEG_SZ);
+        assert_eq!(
+            fill_active_segment(&samples, &mut active_segment_writer),
+            SEG_SZ
+        );
         {
             let segment_reference = active_segment_writer.as_segment_ref();
             active_block_writer.push(SourceId(1234), segment_reference, &compression);
@@ -369,4 +378,7 @@ mod test {
         let floats: Vec<SampleType> = (0..SEG_SZ).map(|x| segment.field_idx(1, x)).collect();
         assert_eq!(&floats[..], samples[1].as_slice());
     }
+
+    #[test]
+    fn test_list() {}
 }

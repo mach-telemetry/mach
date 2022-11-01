@@ -9,26 +9,25 @@ use crate::{
     byte_buffer::ByteBuffer,
     constants::{HEAP_SZ, SEG_SZ},
     field_type::FieldType,
-    segment::{SegmentRef, SegmentArray, Segment},
+    segment::{Segment, SegmentArray, SegmentRef},
 };
+use serde::*;
 
 const MAGIC: &[u8] = "COMPRESSION".as_bytes();
 
-pub trait CompressDecompress {
+pub trait CompressDecompress: Clone {
     fn compress(&self, data_len: usize, data: &SegmentArray, buffer: &mut ByteBuffer);
     fn decompress(&self, data: &[u8], data_len: &mut usize, buffer: &mut SegmentArray);
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Compression {
     schemes: Vec<CompressionScheme>,
 }
 
 impl Compression {
-
     pub fn new(schemes: Vec<CompressionScheme>) -> Self {
-        Self {
-            schemes
-        }
+        Self { schemes }
     }
 
     pub fn compress_segment(&self, segment: &SegmentRef, buffer: &mut ByteBuffer) {
@@ -39,7 +38,7 @@ impl Compression {
             segment.heap,
             segment.columns(),
             segment.types,
-            buffer
+            buffer,
         )
     }
 
@@ -109,10 +108,7 @@ impl Compression {
         }
     }
 
-    pub fn decompress_segment(
-        bytes: &[u8],
-        segment: &mut Segment,
-    ) {
+    pub fn decompress_segment(bytes: &[u8], segment: &mut Segment) {
         assert_eq!(&bytes[..MAGIC.len()], MAGIC);
         let mut offset = MAGIC.len();
 
@@ -221,21 +217,22 @@ mod test {
 
         let mut buffer = vec![0u8; 1_000_000];
         let mut byte_buffer = ByteBuffer::new(0, buffer.as_mut_slice());
-        compression.compress_segment(
-            &segment_reference,
-            &mut byte_buffer,
-        );
+        compression.compress_segment(&segment_reference, &mut byte_buffer);
 
         let mut segment = Segment::new_empty();
-        Compression::decompress_segment(
-            byte_buffer.as_slice(),
-            &mut segment
-        );
+        Compression::decompress_segment(byte_buffer.as_slice(), &mut segment);
         assert_eq!(segment.len, segment_reference.len);
         assert_eq!(segment.heap_len, segment_reference.heap_len);
         assert_eq!(&segment.timestamps[..], &segment_reference.timestamps[..]);
-        assert_eq!(&segment.heap[..segment.heap_len], &segment_reference.heap[..segment_reference.heap_len]);
-        for (a, b) in segment.columns().iter().zip(segment_reference.columns().iter()) {
+        assert_eq!(
+            &segment.heap[..segment.heap_len],
+            &segment_reference.heap[..segment_reference.heap_len]
+        );
+        for (a, b) in segment
+            .columns()
+            .iter()
+            .zip(segment_reference.columns().iter())
+        {
             assert_eq!(a, b);
         }
         assert_eq!(segment.types, segment_reference.types);

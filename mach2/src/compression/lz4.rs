@@ -4,7 +4,7 @@ use serde::*;
 use std::convert::TryInto;
 use std::slice;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct LZ4 {}
 
 impl CompressDecompress for LZ4 {

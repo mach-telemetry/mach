@@ -28,7 +28,7 @@ impl ReadOnlyDataBlock {
 
     pub fn load(&mut self) {
         match &self.inner {
-            InnerReadOnlyDataBlock::Data(_) => {},
+            InnerReadOnlyDataBlock::Data(_) => {}
             InnerReadOnlyDataBlock::Offset(x) => {
                 let mut v = Vec::new();
                 x.load(&mut v).unwrap();

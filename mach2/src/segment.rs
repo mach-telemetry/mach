@@ -37,9 +37,7 @@ pub fn bytes_to_columns(bytes: &[u8]) -> &[SegmentArray] {
 
     assert_eq!(len % (8 * 256), 0);
 
-    unsafe {
-        std::slice::from_raw_parts(ptr, len / (8 * 256))
-    }
+    unsafe { std::slice::from_raw_parts(ptr, len / (8 * 256)) }
 }
 
 pub fn bytes_to_columns_mut(bytes: &mut [u8]) -> &mut [SegmentArray] {
@@ -48,11 +46,8 @@ pub fn bytes_to_columns_mut(bytes: &mut [u8]) -> &mut [SegmentArray] {
 
     assert_eq!(len % (8 * 256), 0);
 
-    unsafe {
-        std::slice::from_raw_parts_mut(ptr, len / (8 * 256))
-    }
+    unsafe { std::slice::from_raw_parts_mut(ptr, len / (8 * 256)) }
 }
-
 
 pub struct SegmentRef<'a> {
     pub len: usize,
@@ -77,7 +72,7 @@ impl<'a> SegmentRef<'a> {
             timestamps,
             heap,
             data,
-            types
+            types,
         }
     }
 
@@ -85,7 +80,6 @@ impl<'a> SegmentRef<'a> {
         bytes_to_columns(self.data)
     }
 }
-
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Segment {
@@ -134,7 +128,6 @@ impl Segment {
         self.data.resize(l + 8 * 256, 0);
         self.types.push(field);
     }
-
 
     pub fn field_idx(&self, field: usize, idx: usize) -> SampleType {
         let cols = self.columns();

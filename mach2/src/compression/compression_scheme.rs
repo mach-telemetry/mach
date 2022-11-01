@@ -5,7 +5,7 @@ use crate::{
 };
 use serde::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum CompressionScheme {
     LZ4(LZ4),
     DeltaOfDelta(DeltaOfDelta),
@@ -27,10 +27,10 @@ impl CompressionScheme {
     }
 
     pub fn lz4() -> Self {
-            Self::LZ4(LZ4 {})
+        Self::LZ4(LZ4 {})
     }
 
     pub fn delta_of_delta() -> Self {
-            Self::DeltaOfDelta(DeltaOfDelta {})
+        Self::DeltaOfDelta(DeltaOfDelta {})
     }
 }

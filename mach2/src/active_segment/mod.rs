@@ -150,7 +150,6 @@ impl Inner {
             types: self.types.as_slice(),
         };
         s
-
     }
 }
 
@@ -226,9 +225,7 @@ impl ActiveSegment {
         let this = Self {
             segment: segment.clone(),
         };
-        let writer = ActiveSegmentWriter {
-            segment,
-        };
+        let writer = ActiveSegmentWriter { segment };
         (this, writer)
     }
 
