@@ -17,6 +17,18 @@ pub enum PushStatus {
     ErrorFull,
 }
 
+impl PushStatus {
+    #[inline]
+    pub fn is_full(self) -> bool {
+        self == PushStatus::Full
+    }
+
+    #[inline]
+    pub fn is_ok(self) -> bool {
+        self == PushStatus::Ok
+    }
+}
+
 fn data_size(types: &[FieldType]) -> usize {
     let data = 8 * SEG_SZ * types.len();
     let mut has_heap = false;

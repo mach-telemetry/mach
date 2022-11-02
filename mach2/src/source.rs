@@ -1,14 +1,9 @@
 use crate::{
-    active_block::ActiveBlock,
-    active_segment::ActiveSegment,
-    compression::Compression,
-    field_type::FieldType,
-    mem_list::metadata_list::MetadataList,
+    active_block::ActiveBlock, active_segment::ActiveSegment, compression::Compression,
+    field_type::FieldType, mem_list::metadata_list::MetadataList,
 };
 use serde::*;
 use std::ops::Deref;
-use std::sync::Arc;
-use dashmap::DashMap;
 
 #[derive(Copy, Clone, Eq, Debug, PartialEq, Hash, Serialize, Deserialize)]
 pub struct SourceId(pub u64);
@@ -62,4 +57,3 @@ pub struct Source {
     pub active_block: ActiveBlock,
     pub metadata_list: MetadataList,
 }
-

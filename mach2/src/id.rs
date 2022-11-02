@@ -11,4 +11,3 @@ impl Deref for WriterId {
         &self.0
     }
 }
-

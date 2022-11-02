@@ -19,6 +19,6 @@ pub mod segment;
 pub mod source;
 #[cfg(test)]
 pub mod test_utils;
+pub mod tsdb;
 pub mod utils;
 pub mod writer;
-pub mod tsdb;
