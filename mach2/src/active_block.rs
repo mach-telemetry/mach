@@ -7,8 +7,8 @@ use crate::{
     segment::Segment,
     segment::SegmentRef,
 };
-use log::*;
 use dashmap::DashMap;
+use log::*;
 use serde::*;
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
@@ -51,6 +51,7 @@ impl BlockMetadata {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadOnlyBlock {
     data: Vec<u8>,
     offsets: Vec<BlockMetadata>,
@@ -71,8 +72,7 @@ impl ReadOnlyBlock {
         self.offsets.as_slice()
     }
 
-    pub fn get_segment(&self, id: usize, segment: &mut Segment) {
-        let meta = self.offsets[id];
+    pub fn get_segment(&self, meta: BlockMetadata) -> Segment {
         let mut o = meta.offset;
 
         let e = o + 8;
@@ -93,7 +93,9 @@ impl ReadOnlyBlock {
 
         // Compress and record size of compressed chunk
         let e = o + compressed_sz;
-        Compression::decompress_segment(&self.data[o..e], segment);
+        let mut segment = Segment::new_empty();
+        Compression::decompress_segment(&self.data[o..e], &mut segment);
+        segment
     }
 }
 
@@ -369,8 +371,7 @@ mod test {
         let meta = read_only_block.get_metadata();
         println!("META: {:?}", read_only_block.get_metadata());
 
-        let mut segment = Segment::new_empty();
-        read_only_block.get_segment(2, &mut segment);
+        let segment = read_only_block.get_segment(meta[2]);
         assert_eq!(segment.timestamps[0], meta[2].min_ts);
         assert_eq!(*segment.timestamps.last().unwrap(), meta[2].max_ts);
         let strings: Vec<SampleType> = (0..SEG_SZ).map(|x| segment.field_idx(0, x)).collect();

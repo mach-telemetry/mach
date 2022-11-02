@@ -2,13 +2,13 @@ use crate::{kafka::KafkaEntry, mem_list::data_block::DataBlock};
 use serde::*;
 use std::convert::From;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 enum InnerReadOnlyDataBlock {
     Offset(KafkaEntry),
     Data(Box<[u8]>),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ReadOnlyDataBlock {
     inner: InnerReadOnlyDataBlock,
 }
@@ -63,7 +63,7 @@ impl From<&DataBlock> for ReadOnlyDataBlock {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ReadOnlyMetadataEntry {
     block: ReadOnlyDataBlock,
     min: u64,
@@ -77,7 +77,7 @@ impl ReadOnlyMetadataEntry {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ReadOnlyMetadataBlock {
     data_blocks: Vec<ReadOnlyMetadataEntry>,
     kafka_min: u64,
@@ -98,5 +98,25 @@ impl ReadOnlyMetadataBlock {
             kafka_max,
             kafka,
         }
+    }
+
+    pub fn load_next(&self) -> Option<Self> {
+        if self.kafka.is_empty() {
+            None
+        } else {
+            let mut v = Vec::new();
+            self.kafka.load(&mut v).unwrap();
+            Some(bincode::deserialize(v.as_slice()).unwrap())
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.data_blocks.len()
+    }
+
+    pub fn get_data_bytes(&mut self, idx: usize) -> &[u8] {
+        let block = &mut self.data_blocks[idx].block;
+        block.load();
+        block.bytes()
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     active_block::ActiveBlock, active_segment::ActiveSegment, compression::Compression,
-    field_type::FieldType, mem_list::metadata_list::MetadataList,
+    field_type::FieldType, mem_list::metadata_list::MetadataList, snapshot::Snapshot,
 };
 use serde::*;
 use std::ops::Deref;
@@ -56,4 +56,29 @@ pub struct Source {
     pub active_segment: ActiveSegment,
     pub active_block: ActiveBlock,
     pub metadata_list: MetadataList,
+}
+
+impl Source {
+    pub fn snapshot(&self) -> Snapshot {
+        let active_segment = self.active_segment.snapshot().ok();
+        let active_block = self.active_block.read_only().ok();
+        let metadata_list = {
+            let mut metadata_list = self.metadata_list.read();
+            loop {
+                if metadata_list.is_ok() {
+                    break;
+                } else {
+                    metadata_list = self.metadata_list.read();
+                }
+            }
+            metadata_list.unwrap()
+        };
+
+        Snapshot {
+            source_id: self.config.id,
+            active_segment,
+            active_block,
+            metadata_list,
+        }
+    }
 }

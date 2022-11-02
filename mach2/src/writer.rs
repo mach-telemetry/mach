@@ -98,10 +98,10 @@ mod test {
     use crate::compression::{Compression, CompressionScheme};
     use crate::field_type::FieldType;
     use crate::test_utils::*;
-    use rand::{thread_rng, Rng};
-    use std::collections::HashSet;
     use crate::utils::now_in_micros;
     use env_logger;
+    use rand::{thread_rng, Rng};
+    use std::collections::HashSet;
 
     #[test]
     fn test() {

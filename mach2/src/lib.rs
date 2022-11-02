@@ -16,6 +16,7 @@ pub mod kafka;
 pub mod mem_list;
 pub mod sample;
 pub mod segment;
+pub mod snapshot;
 pub mod source;
 #[cfg(test)]
 pub mod test_utils;

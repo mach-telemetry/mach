@@ -7,30 +7,6 @@ use serde::{Deserialize, Serialize};
 
 pub type SegmentArray = [[u8; 8]; SEG_SZ];
 
-//#[inline]
-//pub fn zero_segment_array() -> SegmentArray {
-//    [[0u8; 8]; SEG_SZ]
-//}
-//
-//#[derive(Serialize, Deserialize, Clone)]
-//pub struct Column {
-//    #[serde(with = "BigArray")]
-//    data: SegmentArray,
-//}
-//
-//impl Deref for Column {
-//    type Target = [[u8; 8]];
-//    fn deref(&self) -> &Self::Target {
-//        &self.data[..]
-//    }
-//}
-//
-//impl DerefMut for Column {
-//    fn deref_mut(&mut self) -> &mut Self::Target {
-//        &mut self.data[..]
-//    }
-//}
-
 pub fn bytes_to_columns(bytes: &[u8]) -> &[SegmentArray] {
     let len = bytes.len();
     let ptr = bytes.as_ptr() as *const SegmentArray;
@@ -141,14 +117,9 @@ impl Segment {
         }
     }
 
-    //pub fn new_empty() -> Self {
-    //    Self {
-    //        len: 0,
-    //        heap_len: 0,
-    //        ts: vec![0u64; 256].into_boxed_slice(),
-    //        data: Vec::new(),
-    //        heap: vec![0u8; HEAP_SZ].into_boxed_slice(),
-    //        types: Vec::new(),
-    //    }
-    //}
+    pub fn row(&self, idx: usize, buffer: &mut Vec<SampleType>) {
+        for i in 0..self.types.len() {
+            buffer.push(self.field_idx(i, idx));
+        }
+    }
 }
