@@ -91,3 +91,66 @@ impl Writer {
         SourceRef((self.segments.len() - 1) as u64)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::compression::{Compression, CompressionScheme};
+    use crate::field_type::FieldType;
+    use crate::test_utils::*;
+    use rand::{thread_rng, Rng};
+    use std::collections::HashSet;
+    use crate::utils::now_in_micros;
+    use env_logger;
+
+    #[test]
+    fn test() {
+        env_logger::init();
+        let n_samples = 1_000_000;
+        let n_sources = 100;
+        let source_table = Arc::new(DashMap::new());
+        let field_type: &[FieldType] = &[FieldType::Bytes, FieldType::F64];
+        let mut writer = Writer::new(source_table.clone());
+        for i in 0..n_sources {
+            let source_config = SourceConfig {
+                id: SourceId(i),
+                types: field_type.into(),
+                compression: Compression::new(vec![
+                    CompressionScheme::delta_of_delta(),
+                    CompressionScheme::lz4(),
+                ]),
+            };
+            let source_ref = writer.add_source(source_config);
+        }
+        let samples: Vec<Vec<SampleType>> = {
+            let samples = random_samples(field_type, n_samples);
+            let mut samples_transposed = Vec::new();
+            for i in 0..n_samples {
+                let mut s = Vec::new();
+                s.push(samples[0][i].clone());
+                s.push(samples[1][i].clone());
+                samples_transposed.push(s);
+            }
+            samples_transposed
+        };
+
+        assert_eq!(samples.len(), n_samples);
+        let mut idx = vec![0; n_sources as usize];
+        let mut set = HashSet::new();
+
+        let mut rng = thread_rng();
+        while set.len() < n_sources as usize {
+            let i = rng.gen_range(0..n_sources) as usize;
+            if idx[i] < n_samples {
+                let sample_idx = idx[i];
+                writer.push(SourceRef(i as u64), now_in_micros(), &samples[sample_idx]);
+                idx[i] += 1;
+            } else {
+                set.insert(i);
+            }
+        }
+
+        assert_eq!(idx, vec![n_samples; n_sources as usize]);
+        //let source = source_table.get(&SourceId(0)).unwrap().clone();
+    }
+}

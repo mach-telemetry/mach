@@ -7,6 +7,7 @@ use crate::{
     segment::Segment,
     segment::SegmentRef,
 };
+use log::*;
 use dashmap::DashMap;
 use serde::*;
 use std::cell::UnsafeCell;
@@ -111,6 +112,7 @@ impl ActiveBlockWriter {
         match self.inner.push(source_id, active_segment, compression) {
             PushStatus::Ok => {}
             PushStatus::Full => {
+                debug!("Active Block Filled");
                 // Close the block first to get the data block and metadata for this block
                 let (block, meta) = self.inner.close();
 
