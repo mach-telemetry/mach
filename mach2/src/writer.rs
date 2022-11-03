@@ -6,6 +6,7 @@ use crate::{
     source::{Source, SourceConfig, SourceId},
 };
 use dashmap::DashMap;
+use log::*;
 use serde::*;
 use std::convert::From;
 use std::ops::Deref;
@@ -66,10 +67,12 @@ impl Writer {
         let idx = (*id) as usize;
         let seg = &mut self.segments[idx];
         if seg.push(ts, sample).is_full() {
+            debug!("Active segment is full");
             let segment_ref = seg.as_segment_ref();
             let conf = &self.source_configs[idx];
             self.active_block_writer
                 .push(conf.id, segment_ref, &conf.compression);
+            seg.reset();
         }
     }
 
@@ -100,14 +103,15 @@ mod test {
     use crate::test_utils::*;
     use crate::utils::now_in_micros;
     use env_logger;
+    use log::info;
     use rand::{thread_rng, Rng};
     use std::collections::HashSet;
 
     #[test]
     fn test() {
         env_logger::init();
-        let n_samples = 5_000_000;
-        let n_sources = 1000;
+        let n_samples: usize = 1_000_000;
+        let n_sources = 1;
         let source_table = Arc::new(DashMap::new());
         let field_type: &[FieldType] = &[FieldType::Bytes, FieldType::F64];
         let mut writer = Writer::new(source_table.clone());
@@ -123,9 +127,9 @@ mod test {
             let source_ref = writer.add_source(source_config);
         }
         let samples: Vec<Vec<SampleType>> = {
-            let samples = random_samples(field_type, n_samples);
+            let samples = random_samples(field_type, 1_000);
             let mut samples_transposed = Vec::new();
-            for i in 0..n_samples {
+            for i in 0..1_000 {
                 let mut s = Vec::new();
                 s.push(samples[0][i].clone());
                 s.push(samples[1][i].clone());
@@ -134,23 +138,33 @@ mod test {
             samples_transposed
         };
 
-        assert_eq!(samples.len(), n_samples);
         let mut idx = vec![0; n_sources as usize];
         let mut set = HashSet::new();
 
         let mut rng = thread_rng();
+        let mut counter = 0;
+        //loop {
+        //    writer.push(SourceRef(rng.gen_range(0..n_sources)), now_in_micros(), &samples[counter % 1_000]);
+        //    counter += 1;
+        //}
         while set.len() < n_sources as usize {
             let i = rng.gen_range(0..n_sources) as usize;
             if idx[i] < n_samples {
                 let sample_idx = idx[i];
-                writer.push(SourceRef(i as u64), now_in_micros(), &samples[sample_idx]);
+                writer.push(
+                    SourceRef(i as u64),
+                    now_in_micros(),
+                    &samples[sample_idx % 1_000],
+                );
                 idx[i] += 1;
             } else {
                 set.insert(i);
             }
         }
 
-        assert_eq!(idx, vec![n_samples; n_sources as usize]);
+        info!("DONE");
+
+        //assert_eq!(idx, vec![n_samples; n_sources as usize]);
         let source = source_table.get(&SourceId(0)).unwrap().clone();
         let snap = source.snapshot();
     }

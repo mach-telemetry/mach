@@ -48,7 +48,7 @@ impl Compression {
         len: usize,
         heap_len: usize,
         timestamps: &[u64; SEG_SZ],
-        heap: &[u8; HEAP_SZ],
+        heap: &[u8],
         data: &[SegmentArray],
         types: &[FieldType],
         buffer: &mut ByteBuffer,

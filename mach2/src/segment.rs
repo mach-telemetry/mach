@@ -29,7 +29,7 @@ pub struct SegmentRef<'a> {
     pub len: usize,
     pub heap_len: usize,
     pub timestamps: &'a [u64; SEG_SZ],
-    pub heap: &'a [u8; HEAP_SZ],
+    pub heap: &'a [u8],
     pub data: &'a [u8],
     pub types: &'a [FieldType],
 }

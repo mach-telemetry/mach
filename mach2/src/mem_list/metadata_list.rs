@@ -1,6 +1,6 @@
 use crate::{
     constants::{METADATA_BLOCK_SZ, PARTITIONS},
-    kafka::{KafkaEntry, Producer},
+    kafka::{self, KafkaEntry, Producer},
     mem_list::{
         data_block::DataBlock,
         read_only::{ReadOnlyDataBlock, ReadOnlyMetadataBlock, ReadOnlyMetadataEntry},
@@ -9,7 +9,7 @@ use crate::{
 
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use lazy_static::lazy_static;
-use log::info;
+use log::{debug, error, info};
 use rand::{thread_rng, Rng};
 use std::{
     cell::UnsafeCell,
@@ -22,11 +22,11 @@ use std::{
 
 lazy_static! {
     static ref METADATA_BLOCK_WRITER: Sender<MetadataBlock> = {
+        kafka::init();
         let (tx, rx) = unbounded();
         std::thread::Builder::new()
             .name("Mach: Metadata Block Kafka Flusher".to_string())
             .spawn(move || {
-                info!("Initing Mach Metadata Block Kafka Flusher");
                 flush_worker(rx);
             })
             .unwrap();
@@ -35,16 +35,19 @@ lazy_static! {
 }
 
 fn flush_worker(channel: Receiver<MetadataBlock>) {
+    info!("Initing Mach Metadata Block Kafka Flusher");
     let mut partition: i32 = thread_rng().gen_range(0..PARTITIONS);
     let mut counter = 0;
     let mut producer = Producer::new();
     while let Ok(block) = channel.recv() {
+        debug!("Metadata Block flusher received a metadata block");
         block.flush(partition, &mut producer);
         if counter % 1000 == 0 {
             partition = thread_rng().gen_range(0..PARTITIONS);
         }
         counter += 1;
     }
+    error!("Mach Metadata Block Kafka Flusher Exited");
 }
 
 pub struct MetadataListWriter {
@@ -53,7 +56,7 @@ pub struct MetadataListWriter {
 
 impl MetadataListWriter {
     pub fn push(&self, data_block: DataBlock, min: u64, max: u64) {
-        assert!(min <= max);
+        assert!(min <= max, "min: {}, max: {}", min, max);
         let time_range = TimeRange { min, max };
         match self.inner.push(data_block, time_range) {
             PushStatus::Full => self.inner.reset(),
@@ -182,11 +185,13 @@ impl Inner {
             PushStatus::Ok
         };
 
-        self.len.fetch_add(1, SeqCst);
+        let _l = self.len.fetch_add(1, SeqCst);
+        debug!("Pushed data block, metadatalist length: {}", _l);
         result
     }
 
     fn reset(&mut self) {
+        debug!("Resetting metadata list");
         // Make a copy of the current data
         let block: [MetadataEntry; METADATA_BLOCK_SZ] = unsafe {
             let x: &[MetadataEntry; METADATA_BLOCK_SZ] =

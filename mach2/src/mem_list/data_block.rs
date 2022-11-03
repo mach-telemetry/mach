@@ -1,6 +1,6 @@
 use crate::{
     constants::*,
-    kafka::{KafkaEntry, Producer},
+    kafka::{self, KafkaEntry, Producer},
     mem_list::read_only::ReadOnlyDataBlock,
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
@@ -11,13 +11,13 @@ use std::sync::{Arc, RwLock};
 
 lazy_static! {
     static ref DATA_BLOCK_WRITER: Sender<DataBlock> = {
+        kafka::init();
         let (tx, rx) = unbounded();
         for idx in 0..N_FLUSHERS {
             let rx = rx.clone();
             std::thread::Builder::new()
                 .name(format!("Mach: Data Block Kafka Flusher {}", idx))
                 .spawn(move || {
-                    info!("Initing Mach Block Kafka Flusher");
                     flush_worker(rx);
                 })
                 .unwrap();
@@ -27,6 +27,7 @@ lazy_static! {
 }
 
 fn flush_worker(chan: Receiver<DataBlock>) {
+    info!("Initing Mach Block Kafka Flusher");
     let mut producer = Producer::new();
     let mut rng = thread_rng();
     let mut partition = rng.gen_range(0i32..PARTITIONS as i32);
@@ -38,6 +39,7 @@ fn flush_worker(chan: Receiver<DataBlock>) {
         }
         counter += 1;
     }
+    error!("Mach Data Block Kafka Flusher Exited");
 }
 
 #[derive(Clone)]

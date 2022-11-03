@@ -33,7 +33,7 @@ pub fn random_samples(types: &[FieldType], n_samples: usize) -> Samples {
             FieldType::Bytes => {
                 let expected_strings: Vec<SampleType> = (0..n_samples)
                     .map(|_| {
-                        let str_len = rng.gen_range(16..1024);
+                        let str_len = rng.gen_range(1024..1024 * 8);
                         let string = Alphanumeric.sample_string(&mut rng, str_len);
                         SampleType::Bytes(string.into_bytes())
                     })

@@ -125,7 +125,7 @@ impl ActiveBlockWriter {
                     let min_ts = x.min_ts;
                     let max_ts = x.max_ts;
                     let range = map.entry(key).or_insert((min_ts, max_ts));
-                    range.1 = max_ts;
+                    range.1 = range.1.max(max_ts);
                 });
 
                 // Insert the block into individual metadata lists
@@ -203,6 +203,7 @@ impl InnerActiveBlock {
             (*self.inner.get()).reset();
         }
         self.version.fetch_add(1, SeqCst);
+        debug!("Active Block Reset");
     }
 
     fn read_only(&self) -> Result<ReadOnlyBlock, &'static str> {
@@ -242,8 +243,9 @@ impl Inner {
         let offset = self.data_len.load(SeqCst);
         let mut byte_buffer = ByteBuffer::new(offset, &mut self.data[..]);
 
+        let len = active_segment.len;
         let min_ts = active_segment.timestamps[0];
-        let max_ts = *active_segment.timestamps.last().unwrap();
+        let max_ts = active_segment.timestamps[len - 1];
 
         byte_buffer.extend_from_slice(&source_id.0.to_be_bytes());
         byte_buffer.extend_from_slice(&min_ts.to_be_bytes());

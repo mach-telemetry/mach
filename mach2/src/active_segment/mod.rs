@@ -40,7 +40,7 @@ fn data_size(types: &[FieldType]) -> usize {
     }
 
     if has_heap {
-        data + HEAP_SZ
+        data + HEAP_SZ * 2
     } else {
         data
     }
@@ -141,7 +141,7 @@ impl Inner {
         // Linearize at this point
         self.atomic_len.fetch_add(1, SeqCst);
 
-        if self.len == SEG_SZ || self.heap_len > HEAP_TH {
+        if self.len == SEG_SZ || self.heap_len > HEAP_SZ {
             PushStatus::Full
         } else {
             PushStatus::Ok
