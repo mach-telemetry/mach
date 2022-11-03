@@ -5,6 +5,7 @@ use crate::{
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use lazy_static::*;
+use log::*;
 use rand::{thread_rng, Rng};
 use std::sync::{Arc, RwLock};
 
@@ -16,6 +17,7 @@ lazy_static! {
             std::thread::Builder::new()
                 .name(format!("Mach: Data Block Kafka Flusher {}", idx))
                 .spawn(move || {
+                    info!("Initing Mach Block Kafka Flusher");
                     flush_worker(rx);
                 })
                 .unwrap();
@@ -45,9 +47,11 @@ pub struct DataBlock {
 
 impl DataBlock {
     pub fn new(data: &[u8]) -> Self {
-        Self {
+        let s = Self {
             inner: Arc::new(RwLock::new(InnerDataBlock::Data(data.into()))),
-        }
+        };
+        s.async_flush();
+        s
     }
 
     pub fn async_flush(&self) {

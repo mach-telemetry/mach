@@ -106,8 +106,8 @@ mod test {
     #[test]
     fn test() {
         env_logger::init();
-        let n_samples = 1_000_000;
-        let n_sources = 100;
+        let n_samples = 5_000_000;
+        let n_sources = 1000;
         let source_table = Arc::new(DashMap::new());
         let field_type: &[FieldType] = &[FieldType::Bytes, FieldType::F64];
         let mut writer = Writer::new(source_table.clone());
@@ -151,6 +151,7 @@ mod test {
         }
 
         assert_eq!(idx, vec![n_samples; n_sources as usize]);
-        //let source = source_table.get(&SourceId(0)).unwrap().clone();
+        let source = source_table.get(&SourceId(0)).unwrap().clone();
+        let snap = source.snapshot();
     }
 }

@@ -1,12 +1,16 @@
 use crate::{
-    constants::METADATA_BLOCK_SZ,
-    kafka::KafkaEntry,
+    constants::{METADATA_BLOCK_SZ, PARTITIONS},
+    kafka::{KafkaEntry, Producer},
     mem_list::{
         data_block::DataBlock,
         read_only::{ReadOnlyDataBlock, ReadOnlyMetadataBlock, ReadOnlyMetadataEntry},
     },
 };
 
+use crossbeam::channel::{unbounded, Receiver, Sender};
+use lazy_static::lazy_static;
+use log::info;
+use rand::{thread_rng, Rng};
 use std::{
     cell::UnsafeCell,
     mem::MaybeUninit,
@@ -15,6 +19,33 @@ use std::{
         Arc, RwLock,
     },
 };
+
+lazy_static! {
+    static ref METADATA_BLOCK_WRITER: Sender<MetadataBlock> = {
+        let (tx, rx) = unbounded();
+        std::thread::Builder::new()
+            .name("Mach: Metadata Block Kafka Flusher".to_string())
+            .spawn(move || {
+                info!("Initing Mach Metadata Block Kafka Flusher");
+                flush_worker(rx);
+            })
+            .unwrap();
+        tx
+    };
+}
+
+fn flush_worker(channel: Receiver<MetadataBlock>) {
+    let mut partition: i32 = thread_rng().gen_range(0..PARTITIONS);
+    let mut counter = 0;
+    let mut producer = Producer::new();
+    while let Ok(block) = channel.recv() {
+        block.flush(partition, &mut producer);
+        if counter % 1000 == 0 {
+            partition = thread_rng().gen_range(0..PARTITIONS);
+        }
+        counter += 1;
+    }
+}
 
 pub struct MetadataListWriter {
     inner: Arc<InnerMetadataList>,
@@ -97,12 +128,6 @@ enum PushStatus {
     Full,
 }
 
-#[derive(Clone)]
-pub struct MetadataEntry {
-    data_block: DataBlock,
-    time_range: TimeRange,
-}
-
 struct Inner {
     block: [MaybeUninit<MetadataEntry>; METADATA_BLOCK_SZ],
     len: AtomicUsize,
@@ -171,17 +196,32 @@ impl Inner {
             x.clone()
         };
 
+        let time_range = {
+            let min = block[0].time_range.min;
+            let max = block.last().unwrap().time_range.max;
+            TimeRange { min, max }
+        };
+
         // Make current data previous and setup metadata block
         let previous = Arc::new(self.previous.read().unwrap().clone());
-        let data_metadata_block = DataMetadataBlock { block, previous };
+        let data_metadata_block = DataMetadataBlock {
+            block,
+            time_range,
+            previous,
+        };
         let inner_block = InnerMetadataBlock::Data(data_metadata_block);
         let metadata_block = MetadataBlock {
             inner: Arc::new(RwLock::new(inner_block)),
         };
 
         // Write metadata block into previous
-        let mut write_guard = self.previous.write().unwrap();
-        *write_guard = metadata_block;
+        {
+            let mut write_guard = self.previous.write().unwrap();
+            *write_guard = metadata_block.clone();
+        }
+
+        // Send metadatablock to be flushed
+        METADATA_BLOCK_WRITER.try_send(metadata_block).unwrap();
 
         // reset to zero
         self.len.store(0, SeqCst);
@@ -216,6 +256,61 @@ pub struct MetadataBlock {
 }
 
 impl MetadataBlock {
+    fn flush(&self, partition: i32, producer: &mut Producer) {
+        let read_guard = self.inner.read().unwrap();
+
+        // Create an InnerMetadataBlock::Kafka
+        let inner = match &*read_guard {
+            InnerMetadataBlock::Kafka(_) => panic!("MetadataBlock is flushing twice!"),
+            InnerMetadataBlock::Data(x) => {
+                // The previous should have been flushed
+                let (previous_kafka, previous_time_range) = match &*x.previous.inner.read().unwrap()
+                {
+                    InnerMetadataBlock::Kafka(k) => (k.block.clone(), k.time_range),
+                    InnerMetadataBlock::Data(_) => {
+                        panic!("The previous block has not been flushed!")
+                    }
+                };
+
+                // Flush each item in the block
+                for e in x.block.iter() {
+                    e.flush(partition, producer)
+                }
+
+                // build ReadOnlyMetadataBlock
+                let mut blocks = Vec::new();
+                for entry in x.block.iter() {
+                    let data_block = ReadOnlyDataBlock::from(&entry.data_block);
+                    let entry = ReadOnlyMetadataEntry::new(
+                        data_block,
+                        entry.time_range.min,
+                        entry.time_range.max,
+                    );
+                    blocks.push(entry);
+                }
+
+                let readonly = ReadOnlyMetadataBlock::new(
+                    blocks,
+                    previous_kafka,
+                    previous_time_range.min,
+                    previous_time_range.max,
+                );
+                let bytes = bincode::serialize(&readonly).unwrap();
+                let entry = producer.send(partition, bytes.as_slice());
+
+                InnerMetadataBlock::Kafka(KafkaMetadataBlock {
+                    block: entry,
+                    time_range: x.time_range,
+                })
+            }
+        };
+        drop(read_guard);
+
+        // Implicitly, this drops the previous kafka metadata block in the list (along with the
+        // data that was in data block);
+        *self.inner.write().unwrap() = inner;
+    }
+
     fn read_only(&self, mut blocks: Vec<ReadOnlyMetadataEntry>) -> ReadOnlyMetadataBlock {
         let read_guard = self.inner.read().unwrap();
         match &*read_guard {
@@ -250,16 +345,29 @@ impl MetadataBlock {
 }
 
 struct KafkaMetadataBlock {
-    block: KafkaEntry,
+    block: KafkaEntry, // points to a ReadOnlyMetadataBlock
     time_range: TimeRange,
 }
 
 struct DataMetadataBlock {
     block: [MetadataEntry; METADATA_BLOCK_SZ],
+    time_range: TimeRange,
     previous: Arc<MetadataBlock>,
 }
 
 enum InnerMetadataBlock {
     Kafka(KafkaMetadataBlock),
     Data(DataMetadataBlock),
+}
+
+#[derive(Clone)]
+pub struct MetadataEntry {
+    data_block: DataBlock,
+    time_range: TimeRange,
+}
+
+impl MetadataEntry {
+    fn flush(&self, partition: i32, producer: &mut Producer) {
+        self.data_block.flush(partition, producer);
+    }
 }
