@@ -330,14 +330,14 @@ impl MetadataBlock {
                     x.time_range.min,
                     x.time_range.max,
                 )
-            },
+            }
 
             // Somewhere in the middle of the list, take all the entries and push into the vector,
             // then continue traversing to next metadata block via recursion
             // This will terminate because the first Metadata block was initialized as a kafka
             // entry
             InnerMetadataBlock::Data(x) => {
-                    info!("Metadata Block being read from memory");
+                info!("Metadata Block being read from memory");
                 for entry in x.block.iter() {
                     let data_block = ReadOnlyDataBlock::from(&entry.data_block);
                     let entry = ReadOnlyMetadataEntry::new(

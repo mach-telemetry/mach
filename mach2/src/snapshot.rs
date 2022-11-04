@@ -1,7 +1,6 @@
 use crate::active_block::{BlockMetadata, ReadOnlyBlock};
 use crate::mem_list::read_only::ReadOnlyMetadataBlock;
-use crate::segment::{Segment, SegmentIterator};
-use crate::sample::SampleType;
+use crate::segment::Segment;
 use crate::source::SourceId;
 use serde::*;
 

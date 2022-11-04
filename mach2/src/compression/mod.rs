@@ -7,7 +7,7 @@ pub use compression_scheme::CompressionScheme;
 
 use crate::{
     byte_buffer::ByteBuffer,
-    constants::{HEAP_SZ, SEG_SZ},
+    constants::SEG_SZ,
     field_type::FieldType,
     segment::{Segment, SegmentArray, SegmentRef},
 };

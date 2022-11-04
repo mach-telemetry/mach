@@ -1,5 +1,5 @@
 use crate::{
-    constants::{HEAP_SZ, HEAP_TH, SEG_SZ},
+    constants::{HEAP_SZ, SEG_SZ},
     field_type::FieldType,
     sample::SampleType,
     segment::{Segment, SegmentRef},
@@ -9,9 +9,6 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
     Arc,
 };
-use lazy_static::*;
-
-static SEGMENT_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum PushStatus {
@@ -50,7 +47,6 @@ fn data_size(types: &[FieldType]) -> usize {
 }
 
 struct Inner {
-    segment_id: usize,
     len: usize,
     heap_len: usize,
     atomic_len: AtomicUsize,
@@ -65,7 +61,6 @@ impl Inner {
         let data = vec![0u8; data_size(types)].into_boxed_slice();
         let types: Vec<FieldType> = types.into();
         Inner {
-            segment_id: SEGMENT_COUNTER.fetch_add(1, SeqCst),
             len: 0,
             heap_len: 0,
             atomic_len: AtomicUsize::new(0),
@@ -159,11 +154,10 @@ impl Inner {
         let data = &self.data[..8 * self.types.len() * SEG_SZ];
         let heap = &self.data[8 * self.types.len() * SEG_SZ..];
         let s = SegmentRef {
-            segment_id: self.segment_id,
             len,
             heap_len,
             timestamps: &self.ts,
-            heap: heap.try_into().unwrap(),
+            heap,
             data,
             types: self.types.as_slice(),
         };

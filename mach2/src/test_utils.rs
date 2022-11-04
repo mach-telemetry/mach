@@ -7,8 +7,8 @@ use rand::{
     thread_rng, Rng,
 };
 use std::ops::Deref;
-use std::sync::Arc;
 use std::ops::Range;
+use std::sync::Arc;
 
 pub struct Samples {
     data: Arc<Vec<Vec<SampleType>>>,

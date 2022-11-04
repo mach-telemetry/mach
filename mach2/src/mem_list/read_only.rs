@@ -1,7 +1,7 @@
 use crate::{kafka::KafkaEntry, mem_list::data_block::DataBlock};
+use log::*;
 use serde::*;
 use std::convert::From;
-use log::*;
 
 #[derive(Clone, Serialize, Deserialize)]
 enum InnerReadOnlyDataBlock {

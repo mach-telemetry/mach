@@ -100,9 +100,9 @@ mod test {
     use super::*;
     use crate::compression::{Compression, CompressionScheme};
     use crate::field_type::FieldType;
+    use crate::segment::SegmentIterator;
     use crate::test_utils::*;
     use crate::utils::now_in_micros;
-    use crate::segment::SegmentIterator;
     use env_logger;
     use log::info;
     use rand::{thread_rng, Rng};
@@ -128,7 +128,7 @@ mod test {
             let source_ref = writer.add_source(source_config);
         }
         let samples: Vec<Vec<SampleType>> = {
-            let samples = random_samples(field_type, 1_000, 1024..1024*8);
+            let samples = random_samples(field_type, 1_000, 1024..1024 * 8);
             let mut samples_transposed = Vec::new();
             for i in 0..1_000 {
                 let mut s = Vec::new();
@@ -152,11 +152,7 @@ mod test {
             if idx[i] < n_samples {
                 let sample_idx = idx[i];
                 let ts = now_in_micros();
-                writer.push(
-                    SourceRef(i as u64),
-                    ts,
-                    &samples[sample_idx % 1_000],
-                );
+                writer.push(SourceRef(i as u64), ts, &samples[sample_idx % 1_000]);
                 if i == 0 {
                     expected_timestamps.push(ts);
                     expected_samples.push(samples[sample_idx % 1_000].clone());

@@ -26,7 +26,6 @@ pub fn bytes_to_columns_mut(bytes: &mut [u8]) -> &mut [SegmentArray] {
 }
 
 pub struct SegmentRef<'a> {
-    pub segment_id: usize,
     pub len: usize,
     pub heap_len: usize,
     pub timestamps: &'a [u64; SEG_SZ],
@@ -129,19 +128,15 @@ pub struct SegmentIterator<'a> {
     segment: &'a Segment,
     idx: usize,
     sample: Vec<SampleType>,
-    timestamp: u64,
     nvars: usize,
 }
 
 impl<'a> SegmentIterator<'a> {
     pub fn new(segment: &'a Segment) -> Self {
-        let idx = segment.len;
-        let nvars = segment.types.len();
         SegmentIterator {
             segment,
             idx: segment.len,
             sample: Vec::new(),
-            timestamp: 0,
             nvars: segment.types.len(),
         }
     }
