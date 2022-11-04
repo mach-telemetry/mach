@@ -1,4 +1,4 @@
-use crate::{kafka::KafkaEntry, mem_list::data_block::DataBlock};
+use crate::{kafka::KafkaEntry, mem_list::data_block::{DataBlock, decompress_data_block_bytes}};
 use log::*;
 use serde::*;
 use std::convert::From;
@@ -33,6 +33,7 @@ impl ReadOnlyDataBlock {
             InnerReadOnlyDataBlock::Offset(x) => {
                 let mut v = Vec::new();
                 x.load(&mut v).unwrap();
+                let v = decompress_data_block_bytes(v.as_slice());
                 self.inner = InnerReadOnlyDataBlock::Data(v.into_boxed_slice());
             }
         }

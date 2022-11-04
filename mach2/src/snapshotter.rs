@@ -12,9 +12,6 @@ use serde::*;
 use lzzzz::lz4;
 use rand::{thread_rng, Rng};
 
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, Serialize, Deserialize)]
-pub struct SnapshotterId(usize);
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotId(KafkaEntry);
 

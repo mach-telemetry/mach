@@ -8,6 +8,7 @@ use lazy_static::*;
 use log::*;
 use rand::{thread_rng, Rng};
 use std::sync::{Arc, RwLock};
+use lzzzz::lz4;
 
 lazy_static! {
     static ref DATA_BLOCK_WRITER: Sender<DataBlock> = {
@@ -47,10 +48,26 @@ pub struct DataBlock {
     inner: Arc<RwLock<InnerDataBlock>>,
 }
 
+pub fn compress_data_block_bytes(data: &[u8]) -> Vec<u8> {
+    let mut v = Vec::new();
+    v.extend_from_slice(&data.len().to_be_bytes());
+    lz4::compress_to_vec(data, &mut v, lz4::ACC_LEVEL_DEFAULT).unwrap();
+    v
+}
+
+pub fn decompress_data_block_bytes(data: &[u8]) -> Vec<u8> {
+    let sz = usize::from_be_bytes(data[..8].try_into().unwrap());
+    let mut decompressed_block = vec![0u8; sz];
+    lz4::decompress(&data[8..], decompressed_block.as_mut_slice()).unwrap();
+    decompressed_block
+}
+
+
 impl DataBlock {
     pub fn new(data: &[u8]) -> Self {
+        let v = compress_data_block_bytes(data);
         let s = Self {
-            inner: Arc::new(RwLock::new(InnerDataBlock::Data(data.into()))),
+            inner: Arc::new(RwLock::new(InnerDataBlock::Data(v.into()))),
         };
         s.async_flush();
         s
@@ -81,7 +98,8 @@ impl DataBlock {
             InnerDataBlock::Data(block) => {
                 let block = block.clone();
                 drop(read_guard);
-                ReadOnlyDataBlock::from(&block[..])
+                let decompressed_block = decompress_data_block_bytes(&block[..]);
+                ReadOnlyDataBlock::from(&decompressed_block[..])
             }
         }
     }
