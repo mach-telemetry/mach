@@ -73,7 +73,7 @@ impl Segment {
             len: 0,
             heap_len: 0,
             timestamps: box [0; SEG_SZ],
-            heap: box [0; HEAP_SZ],
+            heap: box [0; HEAP_SZ * 2],
             data: Vec::new(),
             types: Vec::new(),
         }
@@ -121,5 +121,24 @@ impl Segment {
         for i in 0..self.types.len() {
             buffer.push(self.field_idx(i, idx));
         }
+    }
+}
+
+pub struct SegmentIterator<'a> {
+    segment: &'a Segment,
+    idx: usize,
+    sample: Vec<SampleType>,
+    timestamp: u64,
+    nvars: usize,
+}
+
+impl<'a> SegmentIterator<'a> {
+    pub fn next_sample(&mut self) -> (u64, &[SampleType]) {
+        self.sample.clear();
+        self.idx -= 1;
+        for i in 0..self.nvars {
+            self.sample.push(self.segment.field_idx(i, self.idx));
+        }
+        (self.segment.timestamps[self.idx], self.sample.as_slice())
     }
 }

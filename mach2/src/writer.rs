@@ -162,10 +162,16 @@ mod test {
             }
         }
 
-        info!("DONE");
+        info!("Querying");
 
         //assert_eq!(idx, vec![n_samples; n_sources as usize]);
         let source = source_table.get(&SourceId(0)).unwrap().clone();
-        let snap = source.snapshot();
+        let mut snap = source.snapshot().into_snapshot_iterator();
+        let mut count = 0;
+        info!("Snapshot made, iterating over snapshot");
+        while let Some(seg) = snap.next_segment() {
+            count += 1;
+        }
+        info!("Iterated over {} segments", count);
     }
 }
