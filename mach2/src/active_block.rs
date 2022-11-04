@@ -334,7 +334,7 @@ mod test {
             CompressionScheme::lz4(),
         ]);
 
-        let samples = random_samples(types, SEG_SZ);
+        let samples = random_samples(types, SEG_SZ, 16..1024);
         let (_active_segment, mut active_segment_writer) = ActiveSegment::new(types);
         let (active_block, mut active_block_writer) = ActiveBlock::new();
 

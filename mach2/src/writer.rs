@@ -102,6 +102,7 @@ mod test {
     use crate::field_type::FieldType;
     use crate::test_utils::*;
     use crate::utils::now_in_micros;
+    use crate::segment::SegmentIterator;
     use env_logger;
     use log::info;
     use rand::{thread_rng, Rng};
@@ -110,7 +111,7 @@ mod test {
     #[test]
     fn test() {
         env_logger::init();
-        let n_samples: usize = 1_000_000;
+        let n_samples: usize = 120_000;
         let n_sources = 1;
         let source_table = Arc::new(DashMap::new());
         let field_type: &[FieldType] = &[FieldType::Bytes, FieldType::F64];
@@ -127,7 +128,7 @@ mod test {
             let source_ref = writer.add_source(source_config);
         }
         let samples: Vec<Vec<SampleType>> = {
-            let samples = random_samples(field_type, 1_000);
+            let samples = random_samples(field_type, 1_000, 1024..1024*8);
             let mut samples_transposed = Vec::new();
             for i in 0..1_000 {
                 let mut s = Vec::new();
@@ -143,35 +144,51 @@ mod test {
 
         let mut rng = thread_rng();
         let mut counter = 0;
-        //loop {
-        //    writer.push(SourceRef(rng.gen_range(0..n_sources)), now_in_micros(), &samples[counter % 1_000]);
-        //    counter += 1;
-        //}
+
+        let mut expected_timestamps = Vec::new();
+        let mut expected_samples: Vec<Vec<SampleType>> = Vec::new();
         while set.len() < n_sources as usize {
             let i = rng.gen_range(0..n_sources) as usize;
             if idx[i] < n_samples {
                 let sample_idx = idx[i];
+                let ts = now_in_micros();
                 writer.push(
                     SourceRef(i as u64),
-                    now_in_micros(),
+                    ts,
                     &samples[sample_idx % 1_000],
                 );
+                if i == 0 {
+                    expected_timestamps.push(ts);
+                    expected_samples.push(samples[sample_idx % 1_000].clone());
+                }
                 idx[i] += 1;
             } else {
                 set.insert(i);
             }
         }
+        expected_timestamps.reverse();
+        expected_samples.reverse();
 
         info!("Querying");
 
         //assert_eq!(idx, vec![n_samples; n_sources as usize]);
         let source = source_table.get(&SourceId(0)).unwrap().clone();
         let mut snap = source.snapshot().into_snapshot_iterator();
-        let mut count = 0;
         info!("Snapshot made, iterating over snapshot");
+        let mut timestamps = Vec::new();
+        let mut samples: Vec<Vec<SampleType>> = Vec::new();
+        let mut counter = 0;
         while let Some(seg) = snap.next_segment() {
-            count += 1;
+            let mut iter = SegmentIterator::new(&seg);
+            while let Some((ts, sample)) = iter.next_sample() {
+                timestamps.push(ts);
+                samples.push(sample.into());
+            }
+            counter += 1;
         }
-        info!("Iterated over {} segments", count);
+        info!("Done iterating over snapshot");
+        assert_eq!(timestamps.len(), expected_timestamps.len());
+        assert_eq!(timestamps, expected_timestamps);
+        assert_eq!(samples, expected_samples);
     }
 }

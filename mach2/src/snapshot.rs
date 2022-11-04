@@ -1,6 +1,7 @@
 use crate::active_block::{BlockMetadata, ReadOnlyBlock};
 use crate::mem_list::read_only::ReadOnlyMetadataBlock;
-use crate::segment::Segment;
+use crate::segment::{Segment, SegmentIterator};
+use crate::sample::SampleType;
 use crate::source::SourceId;
 use serde::*;
 
@@ -37,6 +38,7 @@ impl Snapshot {
                     list_idx,
                 }
             }
+
             None => {
                 let mut list = self.metadata_list;
                 let list_idx = list.len() - 1;

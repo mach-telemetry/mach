@@ -1,6 +1,7 @@
 use crate::{kafka::KafkaEntry, mem_list::data_block::DataBlock};
 use serde::*;
 use std::convert::From;
+use log::*;
 
 #[derive(Clone, Serialize, Deserialize)]
 enum InnerReadOnlyDataBlock {
@@ -65,9 +66,9 @@ impl From<&DataBlock> for ReadOnlyDataBlock {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ReadOnlyMetadataEntry {
-    block: ReadOnlyDataBlock,
-    min: u64,
-    max: u64,
+    pub block: ReadOnlyDataBlock,
+    pub min: u64,
+    pub max: u64,
 }
 
 impl ReadOnlyMetadataEntry {
@@ -105,6 +106,7 @@ impl ReadOnlyMetadataBlock {
             None
         } else {
             let mut v = Vec::new();
+            info!("Reading kafka entry: {:?}", self.kafka);
             self.kafka.load(&mut v).unwrap();
             Some(bincode::deserialize(v.as_slice()).unwrap())
         }

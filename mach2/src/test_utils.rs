@@ -8,6 +8,7 @@ use rand::{
 };
 use std::ops::Deref;
 use std::sync::Arc;
+use std::ops::Range;
 
 pub struct Samples {
     data: Arc<Vec<Vec<SampleType>>>,
@@ -20,7 +21,7 @@ impl Deref for Samples {
     }
 }
 
-pub fn random_samples(types: &[FieldType], n_samples: usize) -> Samples {
+pub fn random_samples(types: &[FieldType], n_samples: usize, str_sz: Range<usize>) -> Samples {
     let mut rng = thread_rng();
     let mut v = Vec::new();
     for field_type in types {
@@ -33,7 +34,7 @@ pub fn random_samples(types: &[FieldType], n_samples: usize) -> Samples {
             FieldType::Bytes => {
                 let expected_strings: Vec<SampleType> = (0..n_samples)
                     .map(|_| {
-                        let str_len = rng.gen_range(1024..1024 * 8);
+                        let str_len = rng.gen_range(str_sz.clone());
                         let string = Alphanumeric.sample_string(&mut rng, str_len);
                         SampleType::Bytes(string.into_bytes())
                     })

@@ -26,6 +26,7 @@ pub fn bytes_to_columns_mut(bytes: &mut [u8]) -> &mut [SegmentArray] {
 }
 
 pub struct SegmentRef<'a> {
+    pub segment_id: usize,
     pub len: usize,
     pub heap_len: usize,
     pub timestamps: &'a [u64; SEG_SZ],
@@ -133,12 +134,28 @@ pub struct SegmentIterator<'a> {
 }
 
 impl<'a> SegmentIterator<'a> {
-    pub fn next_sample(&mut self) -> (u64, &[SampleType]) {
-        self.sample.clear();
-        self.idx -= 1;
-        for i in 0..self.nvars {
-            self.sample.push(self.segment.field_idx(i, self.idx));
+    pub fn new(segment: &'a Segment) -> Self {
+        let idx = segment.len;
+        let nvars = segment.types.len();
+        SegmentIterator {
+            segment,
+            idx: segment.len,
+            sample: Vec::new(),
+            timestamp: 0,
+            nvars: segment.types.len(),
         }
-        (self.segment.timestamps[self.idx], self.sample.as_slice())
+    }
+
+    pub fn next_sample(&mut self) -> Option<(u64, &[SampleType])> {
+        if self.idx == 0 {
+            None
+        } else {
+            self.sample.clear();
+            self.idx -= 1;
+            for i in 0..self.nvars {
+                self.sample.push(self.segment.field_idx(i, self.idx));
+            }
+            Some((self.segment.timestamps[self.idx], self.sample.as_slice()))
+        }
     }
 }

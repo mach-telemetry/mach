@@ -302,6 +302,7 @@ impl MetadataBlock {
                 );
                 let bytes = bincode::serialize(&readonly).unwrap();
                 let entry = producer.send(partition, bytes.as_slice());
+                info!("Kafka flush: {:?}", entry);
 
                 InnerMetadataBlock::Kafka(KafkaMetadataBlock {
                     block: entry,
@@ -320,18 +321,23 @@ impl MetadataBlock {
         let read_guard = self.inner.read().unwrap();
         match &*read_guard {
             // Reached the end of the list. Create a new readonly metadata block
-            InnerMetadataBlock::Kafka(x) => ReadOnlyMetadataBlock::new(
-                blocks,
-                x.block.clone(),
-                x.time_range.min,
-                x.time_range.max,
-            ),
+            InnerMetadataBlock::Kafka(x) => {
+                info!("Metadata Block will be loaded from kafka");
+                blocks.sort_by_key(|x| (x.min, x.max));
+                ReadOnlyMetadataBlock::new(
+                    blocks,
+                    x.block.clone(),
+                    x.time_range.min,
+                    x.time_range.max,
+                )
+            },
 
             // Somewhere in the middle of the list, take all the entries and push into the vector,
             // then continue traversing to next metadata block via recursion
             // This will terminate because the first Metadata block was initialized as a kafka
             // entry
             InnerMetadataBlock::Data(x) => {
+                    info!("Metadata Block being read from memory");
                 for entry in x.block.iter() {
                     let data_block = ReadOnlyDataBlock::from(&entry.data_block);
                     let entry = ReadOnlyMetadataEntry::new(

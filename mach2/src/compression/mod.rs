@@ -201,7 +201,7 @@ mod test {
     #[test]
     fn test() {
         let types = &[FieldType::Bytes, FieldType::F64];
-        let samples = random_samples(types, SEG_SZ);
+        let samples = random_samples(types, SEG_SZ, 16..1024);
         let (_active_segment, mut writer) = ActiveSegment::new(types);
 
         assert_eq!(fill_active_segment(&samples, &mut writer), SEG_SZ);
