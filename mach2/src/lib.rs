@@ -23,3 +23,4 @@ pub mod test_utils;
 pub mod tsdb;
 pub mod utils;
 pub mod writer;
+pub mod snapshotter;

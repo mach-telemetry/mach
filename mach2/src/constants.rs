@@ -19,6 +19,10 @@ pub const HEAP_SZ: usize = 1_000_000;
 pub const HEAP_TH: usize = 3 * (HEAP_SZ / 4);
 pub const SEG_SZ: usize = 256;
 
+// Snapshotter
+pub const SNAPSHOTTER_INTERVAL_SECS: f64 = 0.5;
+pub const SNAPSHOTTER_TIMEOUT_SECS: f64 = 300.;
+
 // Test utils constants
 pub const UNIVARIATE: &str = "bench1_univariate_small.json";
 pub const MULTIVARIATE: &str = "bench1_multivariate_small.json";
