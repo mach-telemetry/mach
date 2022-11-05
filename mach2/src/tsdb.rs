@@ -3,6 +3,7 @@ use crate::source::*;
 use crate::writer::Writer;
 use dashmap::DashMap;
 use std::sync::Arc;
+use crate::snapshotter::Snapshotter;
 
 pub struct Mach {
     source_table: Arc<DashMap<SourceId, Source>>,
@@ -22,5 +23,9 @@ impl Mach {
     pub fn snapshot(&self, id: SourceId) -> Snapshot {
         let source = self.source_table.get(&id).unwrap().clone();
         source.snapshot()
+    }
+
+    pub fn snapshotter(&self) -> Snapshotter {
+        Snapshotter::new(self.source_table.clone())
     }
 }
