@@ -1,24 +1,18 @@
 use crate::bytes_server::{BytesClient, BytesHandler, BytesServer, Status};
-use mach::{
-    id::SeriesId,
-    snapshotter::{SnapshotId, Snapshotter, SnapshotterId},
+use mach2::{
+    id::SourceId,
+    snapshotter::{SnapshotId, Snapshotter},
     tsdb::Mach,
 };
 use std::time::Duration;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum SnapshotRequest {
-    Initialize {
-        series_id: SeriesId,
-        interval: Duration,
-        timeout: Duration,
-    },
-    Get(SnapshotterId),
+    Get(SourceId),
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum SnapshotResponse {
-    SnapshotterId(SnapshotterId),
     SnapshotId(SnapshotId),
 }
 
@@ -28,20 +22,17 @@ impl BytesHandler for SnapshotterHandler {
     fn handle_bytes(&self, bytes: Option<Vec<u8>>) -> Result<Option<Vec<u8>>, Status> {
         let result: Option<SnapshotResponse> =
             match bincode::deserialize(bytes.unwrap().as_slice()).unwrap() {
-                SnapshotRequest::Initialize {
-                    series_id,
-                    interval,
-                    timeout,
-                } => {
-                    let id = self.0.initialize_snapshotter(series_id, interval, timeout);
-                    Some(SnapshotResponse::SnapshotterId(id))
-                }
+                //SnapshotRequest::Initialize {
+                //    series_id,
+                //    interval,
+                //    timeout,
+                //} => {
+                //    let id = self.0.initialize_snapshotter(series_id, interval, timeout);
+                //    Some(SnapshotResponse::SnapshotterId(id))
+                //}
                 SnapshotRequest::Get(id) => {
-                    if let Some(id) = self.0.get(id) {
-                        Some(SnapshotResponse::SnapshotId(id))
-                    } else {
-                        None
-                    }
+                    let id = self.0.get_snapshot(id);
+                    Some(SnapshotResponse::SnapshotId(id))
                 }
             };
 
@@ -55,7 +46,7 @@ impl BytesHandler for SnapshotterHandler {
 
 pub fn initialize_snapshot_server(mach: &Mach) {
     println!("Initing snapshot server");
-    let server = BytesServer::new(SnapshotterHandler(mach.init_snapshotter()));
+    let server = BytesServer::new(SnapshotterHandler(mach.snapshotter()));
     std::thread::spawn(move || server.serve());
     println!("Inited snapshot server");
 }
@@ -67,26 +58,26 @@ impl SnapshotClient {
         Self(BytesClient::new(addr).await)
     }
 
-    pub async fn initialize(
-        &mut self,
-        series_id: SeriesId,
-        interval: Duration,
-        timeout: Duration,
-    ) -> Option<SnapshotterId> {
-        let request = SnapshotRequest::Initialize {
-            series_id,
-            interval,
-            timeout,
-        };
+    //pub async fn initialize(
+    //    &mut self,
+    //    series_id: SeriesId,
+    //    interval: Duration,
+    //    timeout: Duration,
+    //) -> Option<SnapshotterId> {
+    //    let request = SnapshotRequest::Initialize {
+    //        series_id,
+    //        interval,
+    //        timeout,
+    //    };
 
-        match self.request(request).await? {
-            SnapshotResponse::SnapshotterId(x) => Some(x),
-            _ => panic!("Unexpected returned type"),
-        }
-    }
+    //    match self.request(request).await? {
+    //        SnapshotResponse::SnapshotterId(x) => Some(x),
+    //        _ => panic!("Unexpected returned type"),
+    //    }
+    //}
 
-    pub async fn get(&mut self, snapshotter_id: SnapshotterId) -> Option<SnapshotId> {
-        let request = SnapshotRequest::Get(snapshotter_id);
+    pub async fn get(&mut self, source_id: SourceId) -> Option<SnapshotId> {
+        let request = SnapshotRequest::Get(source_id);
         match self.request(request).await? {
             SnapshotResponse::SnapshotId(x) => Some(x),
             _ => panic!("Unexpected returned type"),

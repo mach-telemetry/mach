@@ -2,8 +2,8 @@ use super::*;
 
 use clap::*;
 use lazy_static::*;
-use mach::id::SeriesId;
-use mach::sample::SampleType;
+use mach2::id::SourceId;
+use mach2::sample::SampleType;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
@@ -12,12 +12,12 @@ use std::io::*;
 
 const RNG_SEED: u64 = 1234567890;
 
-type SourceMap = HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>>;
+type SourceMap = HashMap<SourceId, Vec<(u64, Vec<SampleType>)>>;
 
 lazy_static! {
     static ref BASE_DATA: SourceMap = read_intel_data();
-    pub static ref SAMPLES: Vec<(SeriesId, &'static [SampleType], f64)> = generate_samples();
-    pub static ref HOT_SOURCES: Vec<SeriesId> = {
+    pub static ref SAMPLES: Vec<(SourceId, &'static [SampleType], f64)> = generate_samples();
+    pub static ref HOT_SOURCES: Vec<SourceId> = {
         let mut source_lengths = HashMap::new();
         for s in SAMPLES.iter() {
             source_lengths
@@ -36,7 +36,7 @@ lazy_static! {
             y.cmp(&x)
         });
 
-        let result: Vec<SeriesId> = source_length_pairs
+        let result: Vec<SourceId> = source_length_pairs
             .into_iter()
             .map(|(_, source_id)| source_id)
             .collect();
@@ -45,7 +45,7 @@ lazy_static! {
     };
 }
 
-fn generate_samples() -> Vec<(SeriesId, &'static [SampleType], f64)> {
+fn generate_samples() -> Vec<(SourceId, &'static [SampleType], f64)> {
     print_source_data_stats(&BASE_DATA);
 
     let source_count = constants::PARAMETERS.source_count;
@@ -56,7 +56,7 @@ fn generate_samples() -> Vec<(SeriesId, &'static [SampleType], f64)> {
     let mut tmp_samples = Vec::new();
     let mut stats_map: Vec<(bool, usize)> = Vec::new();
     for id in 0..source_count {
-        let ser_id = SeriesId(*keys.choose(&mut rng).unwrap());
+        let ser_id = SourceId(*keys.choose(&mut rng).unwrap());
         let s = BASE_DATA.get(&ser_id).unwrap();
         // count metrics
         let is_metric = match s[0].1[0] {
@@ -65,7 +65,7 @@ fn generate_samples() -> Vec<(SeriesId, &'static [SampleType], f64)> {
         };
         stats_map.push((is_metric, s.len()));
         for item in s.iter() {
-            tmp_samples.push((SeriesId(id), item.0, item.1.as_slice()));
+            tmp_samples.push((SourceId(id), item.0, item.1.as_slice()));
         }
     }
 
@@ -73,7 +73,7 @@ fn generate_samples() -> Vec<(SeriesId, &'static [SampleType], f64)> {
     tmp_samples.sort_by(|a, b| a.1.cmp(&b.1)); // sort by timestamp
 
     println!("Setting up final samples");
-    let samples: Vec<(SeriesId, &[SampleType], f64)> = tmp_samples
+    let samples: Vec<(SourceId, &[SampleType], f64)> = tmp_samples
         .drain(..)
         .map(|x| {
             let size: f64 = {
@@ -111,7 +111,7 @@ fn read_intel_data() -> SourceMap {
     let mut bytes = Vec::new();
     file.read_to_end(&mut bytes).unwrap();
 
-    let data: HashMap<SeriesId, Vec<(u64, Vec<SampleType>)>> =
+    let data: HashMap<SourceId, Vec<(u64, Vec<SampleType>)>> =
         bincode::deserialize(&bytes).unwrap();
     println!("Read data for {} sources", data.len());
     data

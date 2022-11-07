@@ -12,14 +12,16 @@ mod bytes_server;
 use constants::*;
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use lazy_static::*;
-use mach::{
-    compression::{CompressFn, Compression},
-    id::{SeriesId, SeriesRef},
+use mach2::{
+    compression::{compression_scheme::CompressionScheme, Compression},
+    source::SourceId,
     sample::SampleType,
-    series::{FieldType, SeriesConfig},
-    tsdb::{self, Mach},
+    field_type::FieldType,
+    source::SourceConfig,
+    tsdb::Mach,
     writer::Writer,
-    writer::WriterConfig,
+    //writer::WriterConfig,
+    writer::SourceRef,
     constants::*,
 };
 use num::NumCast;
@@ -37,11 +39,8 @@ lazy_static! {
         let mut vec = Vec::new();
 
         for _ in 0..PARAMETERS.mach_writers {
-            let writer_config = WriterConfig {
-                active_block_flush_sz: PARAMETERS.mach_block_sz,
-            };
             let mut guard = mach.lock().unwrap();
-            let writer = guard.add_writer(writer_config).unwrap();
+            let writer = guard.add_writer();
             vec.push(Mutex::new(writer));
         }
         Arc::new(vec)
@@ -73,7 +72,7 @@ lazy_static! {
         //let mut writer_guard = writer.lock().unwrap();
 
         println!("Registering sources to Mach");
-        let mut refmap: HashMap<SeriesId, SeriesRef> = HashMap::new();
+        let mut refmap: HashMap<SourceId, SourceRef> = HashMap::new();
 
         let registered_samples: Vec<DataSample> = samples
             .iter()
@@ -84,10 +83,7 @@ lazy_static! {
                     let conf = get_series_config(*id, &*values);
 
                     let mut writer_guard = writers[writer_idx].lock().unwrap();
-                    let writer_id = writer_guard.id();
-                    let _ = mach_guard.add_series_to_writer(conf, writer_id).unwrap();
-                    let id_ref = writer_guard.get_reference(*id);
-                    id_ref
+                    writer_guard.add_source(conf)
                 });
                 DataSample {
                     series_ref: id_ref,
@@ -102,35 +98,33 @@ lazy_static! {
 
 }
 
-fn get_series_config(id: SeriesId, values: &[SampleType]) -> SeriesConfig {
+fn get_series_config(id: SourceId, values: &[SampleType]) -> SourceConfig {
     let mut types = Vec::new();
     let mut compression = Vec::new();
     values.iter().for_each(|v| {
         let (t, c) = match v {
             //SampleType::U32(_) => (FieldType::U32, CompressFn::IntBitpack),
-            SampleType::U64(_) => (FieldType::U64, CompressFn::LZ4),
-            SampleType::F64(_) => (FieldType::F64, CompressFn::LZ4),
-            SampleType::Bytes(_) => (FieldType::Bytes, CompressFn::BytesLZ4),
+            SampleType::U64(_) => (FieldType::U64, CompressionScheme::lz4()),
+            SampleType::F64(_) => (FieldType::F64, CompressionScheme::lz4()),
+            SampleType::Bytes(_) => (FieldType::Bytes, CompressionScheme::lz4()),
             _ => unimplemented!(),
         };
         types.push(t);
         compression.push(c);
     });
-    let compression = Compression::from(compression);
+    let compression = Compression::new(compression);
     let nvars = types.len();
-    let conf = SeriesConfig {
+    let conf = SourceConfig {
         id,
         types,
         compression,
-        seg_count: 1,
-        nvars,
     };
     conf
 }
 
 #[derive(Copy, Clone)]
 struct DataSample {
-    series_ref: SeriesRef,
+    series_ref: SourceRef,
     data: &'static [SampleType],
     size: f64,
     writer_idx: usize,
@@ -138,7 +132,7 @@ struct DataSample {
 
 #[derive(Copy, Clone)]
 struct Sample {
-    series_ref: SeriesRef,
+    series_ref: SourceRef,
     timestamp: u64,
     data: &'static [SampleType],
     size: f64,
@@ -191,7 +185,7 @@ fn mach_writer(batches: Receiver<Batch>, writer_idx: usize) {
             let batch_len = batch.len();
             let now = Instant::now();
             for item in batch {
-                while writer.push(item.series_ref, item.timestamp, item.data).is_err() {}
+                writer.push(item.series_ref, item.timestamp, item.data);
             }
             let elapsed = now.elapsed();
             println!("Write rate (samples/second): {:?}", <f64 as NumCast>::from(batch_len).unwrap() / elapsed.as_secs_f64());
@@ -302,20 +296,20 @@ fn validate_parameters() {
     assert!(PARAMETERS.data_generator_count <= PARAMETERS.mach_writers);
 }
 
-//fn main() {
-//    let samples = SAMPLES.clone();
-//    assert_eq!(MACH_WRITERS.len(), 1);
-//    let mut writer = MACH_WRITERS[0].lock().unwrap();
-//    let mut ts = 0;
-//    let now = Instant::now();
-//    for sample in SAMPLES.iter() {
-//        //let ts = utils::timestamp_now_micros().try_into().unwrap();
-//        while writer.push(sample.series_ref, ts, sample.data).is_err() {}
-//        ts += 1;
-//    }
-//    let elapsed = now.elapsed();
-//    println!("{}", <f64 as NumCast>::from(SAMPLES.len()).unwrap() / elapsed.as_secs_f64());
-//}
+////fn main() {
+////    let samples = SAMPLES.clone();
+////    assert_eq!(MACH_WRITERS.len(), 1);
+////    let mut writer = MACH_WRITERS[0].lock().unwrap();
+////    let mut ts = 0;
+////    let now = Instant::now();
+////    for sample in SAMPLES.iter() {
+////        //let ts = utils::timestamp_now_micros().try_into().unwrap();
+////        while writer.push(sample.series_ref, ts, sample.data).is_err() {}
+////        ts += 1;
+////    }
+////    let elapsed = now.elapsed();
+////    println!("{}", <f64 as NumCast>::from(SAMPLES.len()).unwrap() / elapsed.as_secs_f64());
+////}
 
 fn main() {
     validate_parameters();
