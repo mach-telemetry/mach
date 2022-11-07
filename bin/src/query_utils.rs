@@ -1,5 +1,5 @@
 use crate::constants::*;
-use crate::mach::id::SeriesId;
+use crate::mach2::source::SourceId;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use ref_thread_local::{ref_thread_local, RefThreadLocal};
@@ -11,7 +11,7 @@ ref_thread_local! {
 const MICROS_IN_SECOND: u64 = 1_000_000;
 
 pub struct SimpleQuery {
-    pub source: SeriesId,
+    pub source: SourceId,
     pub start: u64,
     pub end: u64,
     pub from_now: u64,
@@ -21,7 +21,7 @@ impl SimpleQuery {
     pub fn new_relative_to(relative_to: u64) -> Self {
         let now = relative_to;
         let mut rng = RNG.borrow_mut();
-        let source = SeriesId(rng.gen_range(0..PARAMETERS.source_count));
+        let source = SourceId(rng.gen_range(0..PARAMETERS.source_count));
         let from_now: u64 = rng.gen_range(PARAMETERS.query_min_delay..PARAMETERS.query_max_delay);
         let start = now - from_now * MICROS_IN_SECOND;
         let end = start

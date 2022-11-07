@@ -15,11 +15,14 @@ mod utils;
 mod data_generator;
 
 use dashmap::DashMap;
-use mach;
-use mach::id::SeriesId;
-use mach::snapshotter::SnapshotterId;
-use mach::utils::counter::*;
-use mach::utils::timer::*;
+use mach2;
+use mach2::id::SourceId;
+use mach2::constants::SNAPSHOTTER_INTERVAL_SECS;
+use mach2::segment::SegmentIterator;
+use mach2::sample::SampleType;
+//use mach2::snapshotter::SnapshotterId;
+//use mach2::utils::counter::*;
+//use mach2::utils::timer::*;
 use std::sync::Arc;
 //use mach::utils::kafka::init_thread_local_consumer;
 use rand::prelude::*;
@@ -36,11 +39,11 @@ use rand_chacha::ChaCha8Rng;
 use std::thread;
 use utils::NotificationReceiver;
 
-lazy_static::lazy_static! {
-    static ref SNAPSHOT_INTERVAL: Duration = Duration::from_secs_f64(PARAMETERS.mach_snapshot_interval);
-    static ref SNAPSHOT_TIMEOUT: Duration = Duration::from_secs_f64(PARAMETERS.mach_snapshot_timeout);
-    static ref SNAPSHOTTER_MAP: Arc<DashMap<SeriesId, SnapshotterId>> = Arc::new(DashMap::new());
-}
+//lazy_static::lazy_static! {
+//    static ref SNAPSHOT_INTERVAL: Duration = Duration::from_secs_f64(PARAMETERS.mach_snapshot_interval);
+//    static ref SNAPSHOT_TIMEOUT: Duration = Duration::from_secs_f64(PARAMETERS.mach_snapshot_timeout);
+//    //static ref SNAPSHOTTER_MAP: Arc<DashMap<SourceId, SnapshotterId>> = Arc::new(DashMap::new());
+//}
 
 //const START_MAX_DELAY: u64 = 60;
 //const MIN_QUERY_DURATION: u64 = 10;
@@ -53,38 +56,36 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
     let source = query.source;
     let start = query.start;
     let end = query.end;
-    let interval = *SNAPSHOT_INTERVAL;
-    let timeout = *SNAPSHOT_TIMEOUT;
+    let interval = Duration::from_secs_f64(SNAPSHOTTER_INTERVAL_SECS);
+    //let timeout = *SNAPSHOT_TIMEOUT;
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     let mut client = runtime.block_on(snapshotter::SnapshotClient::new(
-        PARAMETERS.snapshot_server_port.as_str(),
+            PARAMETERS.snapshot_server_port.as_str(),
     ));
 
     let now = chrono::prelude::Utc::now();
-    let timer = Instant::now();
-    let snapshotter_id = *SNAPSHOTTER_MAP
-        .entry(source)
-        .or_insert(
-            runtime
-                .block_on(client.initialize(source, interval, timeout))
-                .unwrap(),
-        )
-        .value();
-    let init_latency = timer.elapsed();
+    //let snapshotter_id = *SNAPSHOTTER_MAP
+    //    .entry(source)
+    //    .or_insert(
+    //        runtime
+    //            .block_on(client.initialize(source, interval, timeout))
+    //            .unwrap(),
+    //    )
+    //    .value();
+    //let init_latency = timer.elapsed();
 
     // Wait for timestamp to be available
+    let timer = Instant::now();
     loop {
         let now = Instant::now();
-        let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
-        let mut snapshot = snapshot_id.load().into_iterator();
-        snapshot.next_segment().unwrap();
-        let seg = snapshot.get_segment();
-        let mut timestamps = seg.timestamps().iterator();
-        let ts = timestamps.next().unwrap();
+        let snapshot_id = runtime.block_on(client.get(source)).unwrap();
+        let mut snapshot = snapshot_id.load().into_snapshot_iterator();
+        let seg = snapshot.next_segment().unwrap();
+        let ts = seg.timestamps[seg.len - 1];
         if ts > start {
             break;
         }
@@ -97,27 +98,26 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
     //println!("Executing query");
     //ThreadLocalTimer::reset();
     //ThreadLocalCounter::reset();
-    let result_count = {
-        //let _timer_1 = ThreadLocalTimer::new("query execution");
-        let snapshot_id = runtime.block_on(client.get(snapshotter_id)).unwrap();
-        let mut snapshot = snapshot_id.load().into_iterator();
-        //println!("Range: {} {}", start, end);
-        let mut count = 0;
-        'outer: loop {
-            if snapshot.next_segment_at_timestamp(start).is_none() {
-                break;
-            }
-            let seg = snapshot.get_segment();
-            let mut timestamps = seg.timestamps().iterator();
-            for (i, ts) in timestamps.enumerate() {
+    let mut timestamps = Vec::new();
+    let mut samples: Vec<Vec<SampleType>> = Vec::new();
+    //let _timer_1 = ThreadLocalTimer::new("query execution");
+    let snapshot_id = runtime.block_on(client.get(source)).unwrap();
+    let mut snapshot = snapshot_id.load().into_snapshot_iterator();
+    let mut count = 0;
+    'outer: while let Some(seg) = snapshot.next_segment() {
+        let mut iter = SegmentIterator::new(&seg);
+        while let Some((ts, sample)) = iter.next_sample() {
+            if ts >= start {
+                continue;
+            } else if ts < end {
+                break 'outer;
+            } else {
+                timestamps.push(ts);
+                samples.push(sample.into());
                 count += 1;
-                if ts < end {
-                    break 'outer;
-                }
             }
         }
-        count
-    };
+    }
     let total_latency = timer.elapsed();
     let execution_latency = total_latency - data_latency;
 
@@ -129,8 +129,8 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
     print!("Total Latency: {}, ", total_latency.as_secs_f64());
     print!("Data Latency: {}, ", data_latency.as_secs_f64());
     print!("Execution Latency: {}, ", execution_latency.as_secs_f64());
-    print!("Init, Latency: {}, ", init_latency.as_secs_f64());
-    print!("Sink: {}, ", result_count);
+    //print!("Init, Latency: {}, ", init_latency.as_secs_f64());
+    print!("Sink: {}, ", count);
     println!("");
 
     done_notifier.send(()).unwrap();
