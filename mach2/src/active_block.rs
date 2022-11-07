@@ -176,6 +176,15 @@ impl ActiveBlock {
     }
 }
 
+// Safety: It is safe to share ActiveBlock with multiple threads because of the sync mechansims
+// implemented in Inner and the restricted methods of ActiveBlock. See Above.
+unsafe impl Sync for ActiveBlock {}
+
+// Safety: It is safe to send ActiveSegment with multiple threads because of the sync mechansims
+// implemented in Inner and the restricted methods of ActiveBlock. See Above.
+unsafe impl Send for ActiveBlock {}
+
+
 struct InnerActiveBlock {
     version: AtomicUsize,
     inner: UnsafeCell<Inner>,

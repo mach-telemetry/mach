@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use dashmap::DashMap;
 use crate::{
     constants::{PARTITIONS, SNAPSHOTTER_INTERVAL_SECS},
@@ -30,8 +30,8 @@ struct SnapshotMetadata {
 
 pub struct Snapshotter {
     source_table: Arc<DashMap<SourceId, Source>>,
-    snapshot_table: HashMap<SourceId, SnapshotMetadata>,
-    producer: Producer,
+    snapshot_table: Arc<DashMap<SourceId, SnapshotMetadata>>,
+    producer: Arc<Mutex<Producer>>,
     interval: Duration,
 }
 
@@ -39,13 +39,13 @@ impl Snapshotter {
     pub fn new(source_table: Arc<DashMap<SourceId, Source>>) -> Self {
         Self {
             source_table,
-            snapshot_table: HashMap::new(),
-            producer: Producer::new(),
+            snapshot_table: Arc::new(DashMap::new()),
+            producer: Arc::new(Mutex::new(Producer::new())),
             interval: Duration::from_secs_f64(SNAPSHOTTER_INTERVAL_SECS),
         }
     }
 
-    pub fn get_snapshot(&mut self, source_id: SourceId) -> SnapshotId {
+    pub fn get_snapshot(&self, source_id: SourceId) -> SnapshotId {
         if let Some(metadata) = self.snapshot_table.get_mut(&source_id) {
                 if metadata.time.elapsed() < self.interval {
                     return metadata.id.clone()
@@ -57,11 +57,11 @@ impl Snapshotter {
         id
     }
 
-    fn make_snapshot(&mut self, source_id: SourceId) -> SnapshotMetadata {
+    fn make_snapshot(&self, source_id: SourceId) -> SnapshotMetadata {
         let source = self.source_table.get(&source_id).unwrap().clone();
         let snapshot = source.snapshot();
         let bytes = compress_snapshot(snapshot);
-        let id = SnapshotId(self.producer.send(thread_rng().gen_range(0..PARTITIONS), &bytes[..]));
+        let id = SnapshotId(self.producer.lock().unwrap().send(thread_rng().gen_range(0..PARTITIONS), &bytes[..]));
         let time = Instant::now();
         SnapshotMetadata { id, time }
     }

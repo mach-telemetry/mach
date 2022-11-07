@@ -50,6 +50,9 @@ pub struct SourceConfig {
 //    }
 //}
 
+//unsafe impl Sync for Source{}
+//unsafe impl Send for Source{}
+
 #[derive(Clone)]
 pub struct Source {
     pub config: SourceConfig,

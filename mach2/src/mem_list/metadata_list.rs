@@ -65,6 +65,14 @@ impl MetadataListWriter {
     }
 }
 
+// Safety: It is safe to share MetadataList with multiple threads because of the sync mechansims
+// implemented in Inner and the restricted methods of MetadataList. See Above.
+unsafe impl Sync for MetadataList {}
+
+// Safety: It is safe to send MetadataList with multiple threads because of the sync mechansims
+// implemented in Inner and the restricted methods of MetadataList. See Above.
+unsafe impl Send for MetadataList {}
+
 #[derive(Clone)]
 pub struct MetadataList {
     inner: Arc<InnerMetadataList>,
