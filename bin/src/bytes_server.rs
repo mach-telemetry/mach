@@ -12,10 +12,9 @@ use tokio::runtime::Runtime;
 struct ResultWrapper(Result<Option<Vec<u8>>, Status>);
 type BytesResponse = Result<Response<BytesMessage>, Status>;
 
-impl std::convert::Into<BytesResponse> for ResultWrapper {
-    fn into(self) -> BytesResponse {
-        let data = self.0?;
-        Ok(Response::new(BytesMessage { data }))
+impl std::convert::From<ResultWrapper> for BytesResponse {
+    fn from(r: ResultWrapper) -> Self {
+        Ok(Response::new(BytesMessage { data: r.0? }))
     }
 }
 

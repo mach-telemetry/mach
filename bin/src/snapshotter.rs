@@ -85,6 +85,7 @@ impl SnapshotClient {
 
     async fn request(&mut self, request: SnapshotRequest) -> Option<SnapshotResponse> {
         let bytes = bincode::serialize(&request).unwrap();
+        #[allow(clippy::manual_map)]
         match self.0.send(Some(bytes)).await {
             None => None,
             Some(result) => Some(bincode::deserialize(&result).unwrap()),

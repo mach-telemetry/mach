@@ -70,9 +70,9 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
             let max_min_delta = |a: &[usize]| -> usize {
                 let mut min = usize::MAX;
                 let mut max = 0;
-                for idx in 0..a.len() {
-                    min = min.min(a[idx]);
-                    max = max.max(a[idx]);
+                for item in a {
+                    min = min.min(*item);
+                    max = max.max(*item);
                 }
                 max - min
             };
@@ -112,7 +112,7 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
             print!("Samples completeness: {:.2}, ", samples_completeness);
             //print!("mbps to kafka: {:.2}, ", mbps);
             //print!("average bytes per msg: {:.2}, ", bytes_per_msg);
-            println!("");
+            println!();
         }
     }
 }
@@ -176,7 +176,7 @@ pub struct ExponentialBackoff {
 
 impl ExponentialBackoff {
     pub fn new(initial_interval: Duration, max_interval: Duration) -> Self {
-        let curr_interval = initial_interval.clone();
+        let curr_interval = initial_interval;
         Self {
             initial_interval,
             curr_interval,

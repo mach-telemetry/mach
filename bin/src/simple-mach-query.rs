@@ -14,24 +14,14 @@ mod utils;
 #[allow(dead_code)]
 mod data_generator;
 
-use dashmap::DashMap;
-use mach2;
-use mach2::id::SourceId;
+//use mach2;
 use mach2::constants::SNAPSHOTTER_INTERVAL_SECS;
 use mach2::segment::SegmentIterator;
 use mach2::sample::SampleType;
-//use mach2::snapshotter::SnapshotterId;
-//use mach2::utils::counter::*;
-//use mach2::utils::timer::*;
-use std::sync::Arc;
-//use mach::utils::kafka::init_thread_local_consumer;
-use rand::prelude::*;
-use regex::Regex;
-use std::collections::HashMap;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use constants::*;
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use crossbeam::channel::{unbounded, Sender};
 use query_utils::SimpleQuery;
 use rand::Rng;
 use rand::SeedableRng;
@@ -81,7 +71,6 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
     // Wait for timestamp to be available
     let timer = Instant::now();
     loop {
-        let now = Instant::now();
         let snapshot_id = runtime.block_on(client.get(source)).unwrap();
         let mut snapshot = snapshot_id.load().into_snapshot_iterator();
         let seg = snapshot.next_segment().unwrap();
@@ -90,7 +79,6 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
             break;
         }
         thread::sleep(interval);
-        //while now.elapsed() < interval {}
     }
 
     let data_latency = timer.elapsed();
@@ -131,14 +119,14 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
     print!("Execution Latency: {}, ", execution_latency.as_secs_f64());
     //print!("Init, Latency: {}, ", init_latency.as_secs_f64());
     print!("Sink: {}, ", count);
-    println!("");
+    println!();
 
     done_notifier.send(()).unwrap();
 }
 
 fn main() {
     let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
-    let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
+    //let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
     let sources = data_generator::HOT_SOURCES.as_slice();
 
     let mut start_notif = NotificationReceiver::new(PARAMETERS.querier_port);
@@ -155,7 +143,7 @@ fn main() {
     let (notification_channel, wait_notification_channel) = unbounded();
     for i in 0..(PARAMETERS.query_count as usize) {
         thread::sleep(Duration::from_secs(PARAMETERS.query_interval_seconds));
-        let now: u64 = utils::timestamp_now_micros().try_into().unwrap();
+        let now: u64 = utils::timestamp_now_micros();
         let query = {
             let mut q = SimpleQuery::new_relative_to(now);
             let source_idx = rng.gen_range(0..sources.len());
@@ -170,7 +158,7 @@ fn main() {
     }
 
     drop(notification_channel);
-    while let Ok(_) = wait_notification_channel.recv() {}
+    while wait_notification_channel.recv().is_ok() {}
 }
 
 //let id = SeriesId(rng.gen_range(0..SOURCE_COUNT));

@@ -59,10 +59,7 @@ fn generate_samples() -> Vec<(SourceId, &'static [SampleType], f64)> {
         let ser_id = SourceId(*keys.choose(&mut rng).unwrap());
         let s = BASE_DATA.get(&ser_id).unwrap();
         // count metrics
-        let is_metric = match s[0].1[0] {
-            SampleType::F64(_) => true,
-            _ => false,
-        };
+        let is_metric = matches!(s[0].1[0], SampleType::F64(_));
         stats_map.push((is_metric, s.len()));
         for item in s.iter() {
             tmp_samples.push((SourceId(id), item.0, item.1.as_slice()));
@@ -131,13 +128,8 @@ fn print_source_data_stats(data: &SourceMap) {
         })
     };
 
-    for (_, source_data) in data {
-        let is_metric = match source_data[0].1[0] {
-            SampleType::I64(_) => true,
-            SampleType::U64(_) => true,
-            SampleType::F64(_) => true,
-            _ => false,
-        };
+    for source_data in data.values() {
+        let is_metric = matches!(source_data[0].1[0], SampleType::I64(_) | SampleType::U64(_) | SampleType::F64(_));
 
         if is_metric {
             metric_sources += 1;

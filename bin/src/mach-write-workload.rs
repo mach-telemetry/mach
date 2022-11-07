@@ -83,14 +83,14 @@ lazy_static! {
                 let (id, values, size) = x;
                 let writer_idx = id.0 as usize % writers.len();
                 let id_ref = *refmap.entry(*id).or_insert_with(|| {
-                    let conf = get_series_config(*id, &*values);
+                    let conf = get_series_config(*id, values);
 
                     let mut writer_guard = writers[writer_idx].lock().unwrap();
                     writer_guard.add_source(conf)
                 });
                 DataSample {
                     series_ref: id_ref,
-                    data: *values,
+                    data: values,
                     size: *size,
                     writer_idx,
                 }
@@ -116,12 +116,11 @@ fn get_series_config(id: SourceId, values: &[SampleType]) -> SourceConfig {
         compression.push(c);
     });
     let compression = Compression::new(compression);
-    let conf = SourceConfig {
+    SourceConfig {
         id,
         types,
         compression,
-    };
-    conf
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -164,7 +163,7 @@ impl Batcher {
         self.batch_bytes += sample.size;
         self.batch.push(sample);
         if self.batch.len() == PARAMETERS.writer_batches {
-            let batch = mem::replace(&mut self.batch, Vec::new());
+            let batch = mem::take(&mut self.batch);
             let _batch_bytes = self.batch_bytes;
             self.batch_bytes = 0.;
             Some(ClosedBatch { batch })
@@ -236,7 +235,7 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
         let sample = Sample {
             series_ref: src.series_ref,
             data: src.data,
-            timestamp: utils::timestamp_now_micros().try_into().unwrap(),
+            timestamp: utils::timestamp_now_micros(),
             size: src.size,
         };
 
@@ -355,7 +354,7 @@ fn main() {
     }
 
     {
-        snapshotter::initialize_snapshot_server(&mut *MACH.lock().unwrap());
+        snapshotter::initialize_snapshot_server(&MACH.lock().unwrap());
     }
 
     println!("You've got 30 seconds!");
