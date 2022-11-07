@@ -104,6 +104,11 @@ pub struct ActiveBlockWriter {
     inner: Arc<InnerActiveBlock>,
 }
 
+// Safety: ActiveBlockwriter write methods require &mut which means it's the only one accessing
+// data. Concurrent readers are coordinated internally.
+unsafe impl Sync for ActiveBlockWriter {}
+unsafe impl Send for ActiveBlockWriter {}
+
 impl ActiveBlockWriter {
     pub fn push(
         &mut self,
@@ -179,11 +184,7 @@ impl ActiveBlock {
 // Safety: It is safe to share ActiveBlock with multiple threads because of the sync mechansims
 // implemented in Inner and the restricted methods of ActiveBlock. See Above.
 unsafe impl Sync for ActiveBlock {}
-
-// Safety: It is safe to send ActiveSegment with multiple threads because of the sync mechansims
-// implemented in Inner and the restricted methods of ActiveBlock. See Above.
 unsafe impl Send for ActiveBlock {}
-
 
 struct InnerActiveBlock {
     version: AtomicUsize,

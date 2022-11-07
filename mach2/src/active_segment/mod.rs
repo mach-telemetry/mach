@@ -226,6 +226,11 @@ impl ActiveSegmentWriter {
     }
 }
 
+// Safety: ActiveSegmentWriter syncs with readers because &mut methods require it's the only
+// writer. Synchronization implemented Inner and the restricted methods of ActiveSegment
+unsafe impl Sync for ActiveSegmentWriter {}
+unsafe impl Send for ActiveSegmentWriter {}
+
 #[derive(Clone)]
 pub struct ActiveSegment {
     segment: Arc<InnerActiveSegment>,
@@ -249,9 +254,6 @@ impl ActiveSegment {
 // Safety: It is safe to share ActiveSegment with multiple threads because of the sync mechansims
 // implemented in Inner and the restricted methods of ActiveSegment. See Above.
 unsafe impl Sync for ActiveSegment {}
-
-// Safety: It is safe to send ActiveSegment with multiple threads because of the sync mechansims
-// implemented in Inner and the restricted methods of ActiveSegment. See Above.
 unsafe impl Send for ActiveSegment {}
 
 #[cfg(test)]
