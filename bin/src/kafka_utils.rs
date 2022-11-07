@@ -4,7 +4,6 @@ pub use kafka::client::{KafkaClient, ProduceMessage, RequiredAcks};
 use kafka::producer::{Producer as OgProducer, Record};
 use lazy_static::*;
 use num::NumCast;
-use rand::thread_rng;
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication},
     client::DefaultClientContext,
@@ -17,7 +16,6 @@ use std::sync::{
 };
 use std::thread;
 use std::time::Duration;
-use std::time::Instant;
 
 lazy_static! {
     static ref TOTAL_MB_WRITTEN: Arc<AtomicUsize> = {
@@ -105,8 +103,8 @@ impl Producer {
     }
 
     pub fn send(&mut self, topic: &str, partition: i32, item: &[u8]) {
-        let mut rng = thread_rng();
-        let t = Instant::now();
+        //let mut rng = thread_rng();
+        //let t = Instant::now();
 
         let producer: &mut OgProducer = &mut self.0;
 
@@ -118,8 +116,8 @@ impl Producer {
 
             for topic in result.iter() {
                 for partition in topic.partition_confirms.iter() {
-                    let p = partition.partition;
-                    let o = match partition.offset {
+                    let _p = partition.partition;
+                    let _o = match partition.offset {
                         Ok(o) => o,
                         Err(e) => {
                             erred = true;

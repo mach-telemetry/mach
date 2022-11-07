@@ -8,8 +8,8 @@ mod bytes_server;
 //mod elastic;
 mod kafka_utils;
 
-#[allow(dead_code)]
-mod prep_data;
+//#[allow(dead_code)]
+//mod prep_data;
 #[allow(dead_code)]
 mod snapshotter;
 
@@ -32,10 +32,8 @@ use dashmap::DashMap;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage}; //, Message};
 use lazy_static::*;
 use lzzzz::lz4;
-use mach;
-use mach::id::SeriesId;
-//use mach::utils::random_id;
-use mach::sample::SampleType;
+use mach2::id::SourceId;
+use mach2::sample::SampleType;
 //use rand::{self, prelude::*};
 //use regex::Regex;
 use rand::Rng;
@@ -51,7 +49,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use utils::NotificationReceiver;
 
-use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
+use crossbeam::channel::{unbounded, Sender};
 use num::NumCast;
 use query_utils::SimpleQuery;
 
@@ -81,20 +79,18 @@ lazy_static! {
         for id in 0..PARAMETERS.source_count {
             meta_index
                 .index
-                .insert(SeriesId(id), Arc::new(Mutex::new(BTreeMap::new())));
+                .insert(SourceId(id), Arc::new(Mutex::new(BTreeMap::new())));
         }
         meta_index
     };
 }
 
 struct Index {
-    index: Arc<DashMap<SeriesId, Arc<Mutex<BTreeMap<(u64, u64), Entry>>>>>,
-    out_queue: Receiver<(SeriesId, u64, u64)>,
-    in_queue: Sender<(SeriesId, u64, u64)>,
+    index: Arc<DashMap<SourceId, Arc<Mutex<BTreeMap<(u64, u64), Entry>>>>>,
 }
 
 impl Index {
-    fn insert(&self, id: SeriesId, range: (u64, u64), entry: Entry) {
+    fn insert(&self, id: SourceId, range: (u64, u64), entry: Entry) {
         //if self.in_queue.is_full() {
         //    let x = self.out_queue.try_recv().unwrap();
         //    self.index.get(&x.0).unwrap().lock().unwrap().remove(&(x.1, x.2)).unwrap();
@@ -110,20 +106,18 @@ impl Index {
         //self.in_queue.send((id, range.0, range.1)).unwrap();
     }
 
-    //fn last_timestamp(&self, id: SeriesId) -> Option<(u64, u64)> {
+    //fn last_timestamp(&self, id: SourceId) -> Option<(u64, u64)> {
     //    Some(*self.index.get(&id)?.lock().unwrap().last_key_value()?.0)
     //}
 
-    fn get_map(&self, id: SeriesId) -> Option<Arc<Mutex<BTreeMap<(u64, u64), Entry>>>> {
+    fn get_map(&self, id: SourceId) -> Option<Arc<Mutex<BTreeMap<(u64, u64), Entry>>>> {
         Some(self.index.get(&id)?.clone())
     }
 
     fn new() -> Self {
-        let (in_queue, out_queue) = bounded(PARAMETERS.kafka_index_size);
+        //let (in_queue, out_queue) = bounded(PARAMETERS.kafka_index_size);
         Index {
             index: Arc::new(DashMap::new()),
-            in_queue,
-            out_queue,
         }
     }
 }
@@ -131,7 +125,7 @@ impl Index {
 #[derive(Clone)]
 enum Entry {
     Bytes(batching::BytesBatch),
-    Processed(Arc<Vec<(u64, u64, Vec<SampleType>)>>),
+    //Processed(Arc<Vec<(u64, u64, Vec<SampleType>)>>),
 }
 
 fn consumer() {
@@ -158,7 +152,7 @@ fn consumer() {
                     let (ids, (low, high)) = batch.metadata();
                     let entry = Entry::Bytes(batch);
                     for id in ids.iter() {
-                        index.insert(SeriesId(*id), (low, high), entry.clone());
+                        index.insert(SourceId(*id), (low, high), entry.clone());
                     }
                 }
             }
@@ -198,30 +192,31 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
             break 'outer;
         }
         drop(guard);
-        let now = Instant::now();
         std::thread::sleep(Duration::from_millis(100));
         //while now.elapsed() < Duration::from_millis(100) {}
     }
     let data_latency = timer.elapsed();
 
-    let mut counter = 0;
     let mut blocks_seen = 0;
     let mut guard = index.lock().unwrap();
-    //let timer = Instant::now();
+    let mut result_timestamps = Vec::new();
+    let mut result_samples: Vec<Vec<SampleType>> = Vec::new();
+    let mut result_counter = 0;
     let low = Included((end, end));
     let high = Included((start, start));
     for (_k, msg) in guard.range_mut((low, high)).rev() {
         blocks_seen += 1;
         let samples = match msg {
             Entry::Bytes(x) => {
-                let entries = x.entries();
-                entries.clone()
+                x.entries()
             }
-            Entry::Processed(x) => unimplemented!(),
+            //Entry::Processed(_) => unimplemented!(),
         };
         for item in samples.iter().rev() {
             if item.0 == source.0 && item.1 <= start && item.1 >= end {
-                counter += 1;
+                result_timestamps.push(item.1);
+                result_samples.push(item.2.clone());
+                result_counter += 1;
             } else if item.1 < end {
                 break;
             }
@@ -237,7 +232,7 @@ fn execute_query(i: usize, query: SimpleQuery, signal: Sender<()>) {
     print!("Total Latency: {}, ", total_latency.as_secs_f64());
     print!("Data Latency: {}, ", data_latency.as_secs_f64());
     print!("Execution Latency: {}, ", execution_latency.as_secs_f64());
-    print!("Sink: {}, ", counter);
+    print!("Sink: {}, ", result_counter);
     print!("Blocks seen: {}, ", blocks_seen);
     println!("");
     signal.send(()).unwrap();
@@ -255,7 +250,7 @@ fn main() {
     read_data_in_background();
 
     let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
-    let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
+    //let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
     let sources = data_generator::HOT_SOURCES.as_slice();
 
     let mut start_notif = NotificationReceiver::new(PARAMETERS.querier_port);
