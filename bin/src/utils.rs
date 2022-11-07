@@ -139,10 +139,13 @@ where
     }
 
     pub fn notify(self) {
-        match TcpStream::connect(self.remote) {
+        println!("Notifying");
+        let addr = self.remote.to_socket_addrs().unwrap().next().unwrap();
+        match TcpStream::connect_timeout(&addr, Duration::from_secs(1)) {
             Ok(mut conn) => conn.write_all(&[8; 16]).unwrap(),
             Err(_) => println!("No reachable notification receiver"),
         }
+        println!("Done notifying");
     }
 }
 
