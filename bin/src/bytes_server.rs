@@ -7,7 +7,7 @@ use bytes_service::bytes_service_client::BytesServiceClient;
 use bytes_service::bytes_service_server::{BytesService, BytesServiceServer};
 use bytes_service::BytesMessage;
 use tokio::runtime::Runtime;
-use std::net::SocketAddr;
+//use std::net::SocketAddr;
 
 struct ResultWrapper(Result<Option<Vec<u8>>, Status>);
 type BytesResponse = Result<Response<BytesMessage>, Status>;
@@ -60,9 +60,7 @@ pub struct BytesClient(BytesServiceClient<tonic::transport::Channel>);
 impl BytesClient {
     #[allow(dead_code)]
     pub async fn new(addr: &'static str) -> Self {
-        let client = BytesServiceClient::connect(addr)
-            .await
-            .unwrap();
+        let client = BytesServiceClient::connect(addr).await.unwrap();
         Self(client)
     }
 

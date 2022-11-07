@@ -27,6 +27,11 @@ impl SimpleQuery {
         let end = start
             - rng.gen_range(PARAMETERS.query_min_duration..PARAMETERS.query_max_duration)
                 * MICROS_IN_SECOND;
-        SimpleQuery { source, start, end, from_now }
+        SimpleQuery {
+            source,
+            start,
+            end,
+            from_now,
+        }
     }
 }

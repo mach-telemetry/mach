@@ -1,7 +1,7 @@
 mod bytes_server;
 use bytes_server::*;
 
-struct BytesToString { }
+struct BytesToString {}
 
 impl BytesHandler for BytesToString {
     fn handle_bytes(&self, bytes: Option<Vec<u8>>) -> Result<Option<Vec<u8>>, Status> {
@@ -14,4 +14,3 @@ impl BytesHandler for BytesToString {
 fn main() {
     bytes_server::BytesServer::new(BytesToString {}).serve("172.31.22.116:50051");
 }
-

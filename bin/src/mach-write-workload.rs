@@ -1,33 +1,36 @@
 mod data_generator;
 
 #[allow(dead_code)]
-mod constants;
+mod bytes_server;
 #[allow(dead_code)]
-mod utils;
+mod constants;
 #[allow(dead_code)]
 mod snapshotter;
 #[allow(dead_code)]
-mod bytes_server;
+mod utils;
 
 use constants::*;
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use lazy_static::*;
 use mach2::{
     compression::{compression_scheme::CompressionScheme, Compression},
-    source::SourceId,
-    sample::SampleType,
     field_type::FieldType,
+    sample::SampleType,
     source::SourceConfig,
+    source::SourceId,
     tsdb::Mach,
-    writer::Writer,
     //writer::WriterConfig,
     writer::SourceRef,
-    constants::*,
+    //constants::*,
+    writer::Writer,
 };
 use num::NumCast;
 use std::collections::HashMap;
 use std::mem;
-use std::sync::{Arc, Barrier, Mutex, atomic::{AtomicUsize, Ordering::SeqCst}};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc, Barrier, Mutex,
+};
 use std::thread;
 use std::time::{Duration, Instant};
 use utils::RemoteNotifier;
@@ -39,7 +42,7 @@ lazy_static! {
         let mut vec = Vec::new();
 
         for _ in 0..PARAMETERS.mach_writers {
-            let mut guard = mach.lock().unwrap();
+            let guard = mach.lock().unwrap();
             let writer = guard.add_writer();
             vec.push(Mutex::new(writer));
         }
@@ -63,12 +66,12 @@ lazy_static! {
     };
 
     static ref SAMPLES: Vec<DataSample> = {
-        let mach = MACH.clone(); // ensure MACH is initialized (prevent deadlock)
+        let _mach = MACH.clone(); // ensure MACH is initialized (prevent deadlock)
         let writers = MACH_WRITERS.clone(); // ensure WRITER is initialized (prevent deadlock)
         let _hot_source = data_generator::HOT_SOURCES.as_slice();
         let samples = data_generator::SAMPLES.as_slice();
 
-        let mut mach_guard = mach.lock().unwrap();
+        //let mut mach_guard = mach.lock().unwrap();
         //let mut writer_guard = writer.lock().unwrap();
 
         println!("Registering sources to Mach");
@@ -113,7 +116,6 @@ fn get_series_config(id: SourceId, values: &[SampleType]) -> SourceConfig {
         compression.push(c);
     });
     let compression = Compression::new(compression);
-    let nvars = types.len();
     let conf = SourceConfig {
         id,
         types,
@@ -142,7 +144,7 @@ type Batch = Vec<Sample>;
 
 struct ClosedBatch {
     batch: Batch,
-    batch_bytes: f64,
+    //batch_bytes: f64,
 }
 
 struct Batcher {
@@ -158,17 +160,14 @@ impl Batcher {
         }
     }
 
-    fn push(
-        &mut self,
-        sample: Sample,
-    ) -> Option<ClosedBatch> {
+    fn push(&mut self, sample: Sample) -> Option<ClosedBatch> {
         self.batch_bytes += sample.size;
         self.batch.push(sample);
         if self.batch.len() == PARAMETERS.writer_batches {
             let batch = mem::replace(&mut self.batch, Vec::new());
-            let batch_bytes = self.batch_bytes;
+            let _batch_bytes = self.batch_bytes;
             self.batch_bytes = 0.;
-            Some(ClosedBatch { batch, batch_bytes })
+            Some(ClosedBatch { batch })
         } else {
             None
         }
@@ -188,7 +187,10 @@ fn mach_writer(batches: Receiver<Batch>, writer_idx: usize) {
                 writer.push(item.series_ref, item.timestamp, item.data);
             }
             let elapsed = now.elapsed();
-            println!("Write rate (samples/second): {:?}", <f64 as NumCast>::from(batch_len).unwrap() / elapsed.as_secs_f64());
+            println!(
+                "Write rate (samples/second): {:?}",
+                <f64 as NumCast>::from(batch_len).unwrap() / elapsed.as_secs_f64()
+            );
         }
     }
 }
@@ -238,14 +240,13 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
             size: src.size,
         };
 
-
         if let Some(closed_batch) = batches[writer_idx].push(sample) {
             let batch_len = closed_batch.batch.len();
-            let batch_bytes = closed_batch.batch_bytes as usize;
+            //let batch_bytes = closed_batch.batch_bytes as usize;
             println!("Queue length: {}", MACH_WRITER_SENDER[writer_idx].len());
             COUNTERS.add_samples_generated(batch_len);
             match MACH_WRITER_SENDER[writer_idx].try_send(closed_batch.batch) {
-                Ok(_) => { },
+                Ok(_) => {}
                 Err(_) => {
                     COUNTERS.add_samples_dropped(batch_len);
                 } // drop batch
@@ -260,7 +261,7 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
 
         // Increment counters
         workload_total_samples += 1.;
-        //workload_total_size += <f64 as NumCast>::from(sample_size).unwrap();
+        workload_total_size += <f64 as NumCast>::from(sample_size).unwrap();
 
         // Checking to see if workload should wait. These checks amortize the expensize
         // operations to every second
@@ -315,7 +316,7 @@ fn main() {
     validate_parameters();
 
     let querier_addr = format!("{}:{}", PARAMETERS.querier_ip, PARAMETERS.querier_port);
-    let mut query_start_notifier = RemoteNotifier::new(querier_addr);
+    let query_start_notifier = RemoteNotifier::new(querier_addr);
 
     let stats_barrier = utils::stats_printer();
     let data_generator_count = PARAMETERS.data_generator_count;
@@ -332,7 +333,10 @@ fn main() {
     let mut workloads: Vec<Vec<Workload>> = (0..data_generator_count).map(|_| Vec::new()).collect();
     for workload in constants::WORKLOAD.iter() {
         let workload = workload.split_rate(data_generator_count);
-        workload.into_iter().zip(workloads.iter_mut()).for_each(|(w, v)| v.push(w));
+        workload
+            .into_iter()
+            .zip(workloads.iter_mut())
+            .for_each(|(w, v)| v.push(w));
     }
 
     let start_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
@@ -343,7 +347,7 @@ fn main() {
         let done_barrier = done_barrier.clone();
         let data = data[i].clone();
         let workloads = workloads[i].clone();
-        std::thread::spawn( move || {
+        std::thread::spawn(move || {
             start_barrier.wait();
             workload_runner(workloads, data);
             done_barrier.wait();

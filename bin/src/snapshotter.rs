@@ -4,7 +4,6 @@ use mach2::{
     snapshotter::{SnapshotId, Snapshotter},
     tsdb::Mach,
 };
-use std::time::Duration;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum SnapshotRequest {
@@ -80,7 +79,7 @@ impl SnapshotClient {
         let request = SnapshotRequest::Get(source_id);
         match self.request(request).await? {
             SnapshotResponse::SnapshotId(x) => Some(x),
-            _ => panic!("Unexpected returned type"),
+            //_ => panic!("Unexpected returned type"),
         }
     }
 

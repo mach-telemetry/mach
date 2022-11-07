@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Barrier};
 use std::thread;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub fn mem_usage_printer() -> Arc<Barrier> {
     let barrier = Arc::new(Barrier::new(2));
@@ -47,8 +47,8 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
     let mut counter = 0;
 
     thread::sleep(Duration::from_secs(10));
-    let mut last_kafka_check_time = Instant::now();
-    let mut last_kafka_check_bytes = 0;
+    //let mut last_kafka_check_time = Instant::now();
+    //let mut last_kafka_check_bytes = 0;
     loop {
         thread::sleep(Duration::from_secs(1));
 
@@ -87,19 +87,19 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
             let samples_dropped_delta = max_min_delta(&samples_dropped);
             let samples_completeness = 1. - div(samples_dropped_delta, samples_generated_delta);
 
-            let bytes_generated_delta = max_min_delta(&bytes_generated);
-            let bytes_written_delta = max_min_delta(&bytes_written);
-            let bytes_completeness = div(bytes_written_delta, bytes_generated_delta);
+            //let bytes_generated_delta = max_min_delta(&bytes_generated);
+            //let bytes_written_delta = max_min_delta(&bytes_written);
+            //let bytes_completeness = div(bytes_written_delta, bytes_generated_delta);
 
-            let bytes_to_kafka_delta = max_min_delta(&bytes_to_kafka);
-            let msgs_to_kafka_delta = max_min_delta(&msgs_to_kafka);
-            let bytes_per_msg = div(bytes_to_kafka_delta, msgs_to_kafka_delta);
+            //let bytes_to_kafka_delta = max_min_delta(&bytes_to_kafka);
+            //let msgs_to_kafka_delta = max_min_delta(&msgs_to_kafka);
+            //let bytes_per_msg = div(bytes_to_kafka_delta, msgs_to_kafka_delta);
 
-            let bytes_since = bytes_to_kafka[idx] - last_kafka_check_bytes;
-            let megabytes_since = <f64 as NumCast>::from(bytes_since).unwrap() / 1_000_000.;
-            let mbps = megabytes_since / last_kafka_check_time.elapsed().as_secs_f64();
-            last_kafka_check_bytes = bytes_to_kafka[idx];
-            last_kafka_check_time = Instant::now();
+            //let bytes_since = bytes_to_kafka[idx] - last_kafka_check_bytes;
+            //let megabytes_since = <f64 as NumCast>::from(bytes_since).unwrap() / 1_000_000.;
+            //let mbps = megabytes_since / last_kafka_check_time.elapsed().as_secs_f64();
+            //last_kafka_check_bytes = bytes_to_kafka[idx];
+            //last_kafka_check_time = Instant::now();
 
             //let samples_completeness = samples_completeness.iter().sum::<f64>() / denom;
             //let bytes_completeness = bytes_completeness.iter().sum::<f64>() / denom;

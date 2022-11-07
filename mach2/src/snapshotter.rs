@@ -7,7 +7,6 @@ use crate::{
     snapshot::Snapshot,
 };
 use std::time::{Duration, Instant};
-use std::collections::HashMap;
 use serde::*;
 use lzzzz::lz4;
 use rand::{thread_rng, Rng};

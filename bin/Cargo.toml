@@ -55,34 +55,6 @@ tonic-build = { version = "0.6.2", features = ["prost", "compression"] }
 [profile.release]
 debug = true
 
-#[bin]]
-#ame = "completeness-workload"
-#ath = "src/completeness-workload.rs"
-
-#[bin]]
-#ame = "scratch"
-#path = "src/scratch.rs"
-
-#[[bin]]
-#name = "otlp-server"
-#path = "src/otlp_server.rs"
-
-#[[bin]]
-#name = "mach-otlp-server"
-#path = "src/mach-otlp-server.rs"
-
-#[[bin]]
-#name = "kafka-bench"
-#path = "src/kafka_bench.rs"
-
-#[[bin]]
-#name = "kafka-otlp-bench"
-#path = "src/kafka_otlp_bench.rs"
-
-#[[bin]]
-#name = "kafka_test"
-#path = "src/kafka_test.rs"
-
 [[bin]]
 name = "es-bench"
 path = "src/es_bench.rs"
@@ -107,14 +79,6 @@ path = "src/from-json.rs"
 name = "simple-kafka-query"
 path = "src/simple-kafka-query.rs"
 
-#[[bin]]
-#name = "getrusage"
-#path = "src/getrusage.rs"
-
-#[[bin]]
-#name = "data-generator"
-#path = "src/data-generator.rs"
-
 [[bin]]
 name = "mach-write-workload"
 path = "src/mach-write-workload.rs"
@@ -138,16 +102,3 @@ path = "src/mach_compression.rs"
 [[bin]]
 name = "mach-query-load"
 path = "src/mach_query_load.rs"
-
-#[[bin]]
-#name = "convert-otlp-data"
-#path = "src/convert-otlp-data.rs"
-
-#[[bin]]
-#name = "writer-client"
-#path = "src/writer_client.rs"
-
-#[[bin]]
-#name = "reader-client"
-#path = "src/reader_client.rs"
-

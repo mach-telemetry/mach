@@ -30,10 +30,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use constants::*;
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use query_utils::SimpleQuery;
-use std::thread;
 use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
+use std::thread;
 use utils::NotificationReceiver;
 
 lazy_static::lazy_static! {
@@ -60,7 +60,9 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
         .enable_all()
         .build()
         .unwrap();
-    let mut client = runtime.block_on(snapshotter::SnapshotClient::new(PARAMETERS.snapshot_server_port.as_str()));
+    let mut client = runtime.block_on(snapshotter::SnapshotClient::new(
+        PARAMETERS.snapshot_server_port.as_str(),
+    ));
 
     let now = chrono::prelude::Utc::now();
     let timer = Instant::now();
@@ -135,7 +137,6 @@ fn execute_query(i: usize, query: SimpleQuery, done_notifier: Sender<()>) {
 }
 
 fn main() {
-
     let mut rng = ChaCha8Rng::seed_from_u64(PARAMETERS.query_rand_seed);
     let num_sources: usize = (PARAMETERS.source_count / 10).try_into().unwrap();
     let sources = data_generator::HOT_SOURCES.as_slice();

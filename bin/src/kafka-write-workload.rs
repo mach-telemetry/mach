@@ -13,7 +13,7 @@ use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use data_generator::SAMPLES;
 use lazy_static::*;
 use lzzzz::lz4::{compress_to_vec, ACC_LEVEL_DEFAULT};
-use mach::{id::SeriesId, sample::SampleType};
+use mach2::{source::SourceId, sample::SampleType};
 use num::NumCast;
 use rand::{thread_rng, Rng};
 use std::mem;
@@ -76,7 +76,7 @@ struct ClosedBatch {
     batch_size: usize,
 }
 
-type Batch = Vec<(SeriesId, u64, &'static [SampleType], usize)>;
+type Batch = Vec<(SourceId, u64, &'static [SampleType], usize)>;
 
 fn kafka_flusher(rx: Receiver<(i32, Box<[u8]>, u64)>) {
     let mut producer = kafka_utils::Producer::new(PARAMETERS.kafka_bootstraps.as_str(), true);
@@ -166,7 +166,7 @@ impl Batcher {
 
     fn push(
         &mut self,
-        r: SeriesId,
+        r: SourceId,
         ts: u64,
         samples: &'static [SampleType],
         size: usize,
@@ -186,7 +186,7 @@ impl Batcher {
 
 fn run_workload(
     workload: Workload,
-    samples: &[(SeriesId, &'static [SampleType], f64)],
+    samples: &[(SourceId, &'static [SampleType], f64)],
     data_generator: u64,
 ) {
     let mut batches: Vec<Batcher> = (0..PARAMETERS.kafka_writers)
@@ -256,7 +256,7 @@ fn run_workload(
 
 fn workload_runner(
     workloads: Vec<Workload>,
-    data: Vec<(SeriesId, &'static [SampleType], f64)>,
+    data: Vec<(SourceId, &'static [SampleType], f64)>,
     data_generator: u64,
 ) {
     println!("Workloads: {:?}", workloads);
@@ -299,7 +299,7 @@ fn main() {
     let data_generator_count = PARAMETERS.data_generator_count;
 
     // Prep data for data generator
-    let mut data: Vec<Vec<(SeriesId, &'static [SampleType], f64)>> =
+    let mut data: Vec<Vec<(SourceId, &'static [SampleType], f64)>> =
         (0..data_generator_count).map(|_| Vec::new()).collect();
     for sample in SAMPLES.iter() {
         let generator = *sample.0 % PARAMETERS.kafka_partitions as u64 % data_generator_count;
