@@ -4,7 +4,7 @@
 #FILE_PATH=/home/ubuntu/data/processed-data.bin
 FILE_PATH=/home/fsolleza/data/intel-telemetry/processed-data.bin
 
-OUTPUT=evaluation_output
+OUTDIR=$(dirname $0)/output
 
 WRITER_BATCHES=500000
 DATA_GENERATORS=1
@@ -20,8 +20,8 @@ KAFKA_BOOTSTRAPS=b-2.k1.aacwd3.c17.kafka.us-east-1.amazonaws.com:9092,b-1.k1.aac
 
 QUERIER_IP=172.31.78.194
 
-#KAFKA_OUT_FILE=${OUTPUT}/kafka_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
-##KAFKA_OUT_FILE=${OUTPUT}/kafka_tmp
+#KAFKA_OUT_FILE=${OUTDIR}/kafka_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
+##KAFKA_OUT_FILE=${OUTDIR}/kafka_tmp
 
 #cargo run --release --bin kafka-write-workload -- \
 #	--kafka-bootstraps $KAFKA_BOOTSTRAPS \
@@ -36,8 +36,8 @@ QUERIER_IP=172.31.78.194
 #	> $KAFKA_OUT_FILE
 
 
-#MACH_OUT_FILE=${OUTPUT}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
-MACH_OUT_FILE=${OUTPUT}/mach_tmp
+#MACH_OUT_FILE=${OUTDIR}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
+MACH_OUT_FILE=${OUTDIR}/mach_tmp
 
 cargo run --release --bin mach-write-workload -- \
 	--file-path $FILE_PATH \
