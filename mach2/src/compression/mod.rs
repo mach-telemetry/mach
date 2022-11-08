@@ -97,8 +97,8 @@ impl Compression {
             buffer.as_mut_slice()[offset..start].copy_from_slice(&sz);
         }
 
-        {
-            // Compress the heap
+        // Compress the heap
+        if heap_len > 0 {
             let offset = buffer.len();
             buffer.extend_from_slice(&0usize.to_be_bytes());
             let start = buffer.len();
@@ -178,7 +178,7 @@ impl Compression {
             assert_eq!(len, col_len);
         }
 
-        {
+        if heap_len > 0 {
             let end = offset + 8;
             let sz = usize::from_be_bytes(bytes[offset..end].try_into().unwrap());
             offset = end;
