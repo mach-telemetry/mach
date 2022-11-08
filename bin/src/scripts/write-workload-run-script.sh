@@ -17,7 +17,7 @@ KAFKA_PARTITIONS=4
 KAFKA_BATCH_BYTES=1000000
 KAFKA_BOOTSTRAPS=localhost:9093,localhost:9094,localhost:9095
 
-QUERIER_IP=172.31.78.194
+QUERIER_IP=localhost
 
 #KAFKA_OUT_FILE=${OUTDIR}/kafka_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
 KAFKA_OUT_FILE=${OUTDIR}/kafka_tmp
