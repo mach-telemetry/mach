@@ -48,6 +48,8 @@ libc = "0.2.133"
 procinfo = "0.4.2"
 ref_thread_local = "0.1.1"
 local-ip-address = "0.4.8"
+env_logger = "0.9.1"
+log = "0.4.17"
 
 [build-dependencies]
 tonic-build = { version = "0.6.2", features = ["prost", "compression"] }

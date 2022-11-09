@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use serde::*;
 use lzzzz::lz4;
 use rand::{thread_rng, Rng};
+use log::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotId(KafkaEntry);
@@ -72,7 +73,7 @@ fn compress_snapshot(snapshot: Snapshot) -> Box<[u8]> {
     let mut compressed_bytes = Vec::new();
     compressed_bytes.extend_from_slice(&og_sz.to_be_bytes());
     lz4::compress_to_vec(bytes.as_slice(), &mut compressed_bytes, lz4::ACC_LEVEL_DEFAULT).unwrap();
-    println!("Snapshot compression result: {} -> {}", og_sz, compressed_bytes.len());
+    info!("Snapshot compression result: {} -> {}", og_sz, compressed_bytes.len());
     assert_eq!(og_sz, usize::from_be_bytes(compressed_bytes[..8].try_into().unwrap()));
     compressed_bytes.into_boxed_slice()
 }

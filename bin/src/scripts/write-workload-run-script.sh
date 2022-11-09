@@ -37,7 +37,7 @@ KAFKA_OUT_FILE=${OUTDIR}/kafka_tmp
 #MACH_OUT_FILE=${OUTDIR}/mach_ingest_${WRITER_COUNT}_writers_${WRITER_BATCHES}_batch_${SOURCE_COUNT}_sources_$(date +"%Y%m%d%H%M%S")
 MACH_OUT_FILE=${OUTDIR}/mach_tmp
 
-cargo run --release --bin mach-write-workload -- \
+RUST_LOG=info cargo run --release --bin mach-write-workload -- \
 	--file-path $FILE_PATH \
 	--writer-batches $WRITER_BATCHES \
 	--data-generator-count $DATA_GENERATORS \

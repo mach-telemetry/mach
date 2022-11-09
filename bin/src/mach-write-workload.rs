@@ -34,6 +34,7 @@ use std::sync::{
 use std::thread;
 use std::time::{Duration, Instant};
 use utils::RemoteNotifier;
+use env_logger;
 
 lazy_static! {
     static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -312,6 +313,7 @@ fn validate_parameters() {
 ////}
 
 fn main() {
+    env_logger::Builder::from_default_env().target(env_logger::Target::Stdout).init();
     validate_parameters();
 
     let querier_addr = format!("{}:{}", PARAMETERS.querier_ip, PARAMETERS.querier_port);

@@ -7,7 +7,9 @@ use crossbeam::channel::{unbounded, Receiver, Sender};
 use lazy_static::*;
 use log::*;
 use rand::{thread_rng, Rng};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, atomic::{AtomicUsize, Ordering::SeqCst}};
+use std::time::Duration;
+use std::thread;
 use lzzzz::lz4;
 
 lazy_static! {
@@ -25,6 +27,36 @@ lazy_static! {
         }
         tx
     };
+    pub static ref PENDING_UNFLUSHED_BYTES: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || loop {
+            let x = x2.load(SeqCst);
+            info!("Pending unflushed data bytes: {}", x);
+            thread::sleep(Duration::from_secs(1));
+        });
+        x
+    };
+    pub static ref PENDING_UNFLUSHED_BLOCKS: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || loop {
+            let x = x2.load(SeqCst);
+            info!("Pending unflushed data blocks: {}", x);
+            thread::sleep(Duration::from_secs(1));
+        });
+        x
+    };
+    pub static ref TOTAL_BYTES_FLUSHED: Arc<AtomicUsize> = {
+        let x = Arc::new(AtomicUsize::new(0));
+        let x2 = x.clone();
+        thread::spawn(move || loop {
+            let x = x2.load(SeqCst);
+            info!("Total data bytes flushed: {}", x);
+            thread::sleep(Duration::from_secs(1));
+        });
+        x
+    };
 }
 
 fn flush_worker(chan: Receiver<DataBlock>) {
@@ -35,6 +67,9 @@ fn flush_worker(chan: Receiver<DataBlock>) {
     let mut counter = 0;
     while let Ok(block) = chan.recv() {
         block.flush(partition, &mut producer);
+        TOTAL_BYTES_FLUSHED.fetch_add(block.len, SeqCst);
+        PENDING_UNFLUSHED_BYTES.fetch_sub(block.len, SeqCst);
+        PENDING_UNFLUSHED_BLOCKS.fetch_sub(1, SeqCst);
         if counter % 1_000 == 0 && counter > 0 {
             partition = rng.gen_range(0i32..PARTITIONS as i32);
         }
@@ -45,6 +80,7 @@ fn flush_worker(chan: Receiver<DataBlock>) {
 
 #[derive(Clone)]
 pub struct DataBlock {
+    len: usize,
     inner: Arc<RwLock<InnerDataBlock>>,
 }
 
@@ -52,6 +88,7 @@ pub fn compress_data_block_bytes(data: &[u8]) -> Vec<u8> {
     let mut v = Vec::new();
     v.extend_from_slice(&data.len().to_be_bytes());
     lz4::compress_to_vec(data, &mut v, lz4::ACC_LEVEL_DEFAULT).unwrap();
+    info!("Data block compression result: {} -> {}", data.len(), v.len());
     v
 }
 
@@ -67,6 +104,7 @@ impl DataBlock {
     pub fn new(data: &[u8]) -> Self {
         let v = compress_data_block_bytes(data);
         let s = Self {
+            len: v.len(),
             inner: Arc::new(RwLock::new(InnerDataBlock::Data(v.into()))),
         };
         s.async_flush();
@@ -75,6 +113,8 @@ impl DataBlock {
 
     pub fn async_flush(&self) {
         let x = self.clone();
+        PENDING_UNFLUSHED_BLOCKS.fetch_add(1, SeqCst);
+        PENDING_UNFLUSHED_BYTES.fetch_add(self.len, SeqCst);
         DATA_BLOCK_WRITER.try_send(x).unwrap();
     }
 
