@@ -1,7 +1,0 @@
-BOOTSTRAPS: b-2.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092
-BOOTSTRAPS: b-2.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092
-BOOTSTRAPS: b-2.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092
-BOOTSTRAPS: b-2.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-3.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092,b-1.machkafka1.kgw98m.c25.kafka.us-east-1.amazonaws.com:9092
-Read data for 464 sources
-Expanding data based on source_count = 20000
-Sorting by time
