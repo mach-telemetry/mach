@@ -1,3 +1,6 @@
+use mach::id::SourceId;
+use mach::sample::SampleType;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::marker::PhantomData;
@@ -20,6 +23,71 @@ use elasticsearch::{
 use serde_json::json;
 
 use crate::utils::ExponentialBackoff;
+
+pub type TimeStamp = u64;
+pub type Sample = (SourceId, TimeStamp, Vec<SampleType>);
+
+#[derive(Serialize)]
+pub struct ESSampleRef<'a> {
+    series_id: u64,
+    timestamp: u64,
+    data: &'a [SampleType],
+}
+
+impl<'a> From<&'a (u64, u64, Vec<SampleType>)> for ESSampleRef<'a> {
+    fn from(other: &'a (u64, u64, Vec<SampleType>)) -> Self {
+        Self {
+            series_id: other.0,
+            timestamp: other.1,
+            data: other.2.as_slice(),
+        }
+    }
+}
+
+impl Into<Vec<u8>> for ESSampleRef<'_> {
+    fn into(self) -> Vec<u8> {
+        serde_json::to_vec(&self).unwrap()
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ESSample {
+    pub series_id: SourceId,
+    timestamp: u64,
+    data: Vec<SampleType>,
+}
+
+impl ESSample {
+    pub fn new(series_id: SourceId, timestamp: u64, data: Vec<SampleType>) -> Self {
+        Self {
+            series_id,
+            timestamp,
+            data,
+        }
+    }
+}
+
+impl From<Sample> for ESSample {
+    fn from(data: Sample) -> ESSample {
+        ESSample {
+            series_id: data.0,
+            timestamp: data.1,
+            data: data.2,
+        }
+    }
+}
+
+impl Into<JsonBody<serde_json::Value>> for ESSample {
+    fn into(self) -> JsonBody<serde_json::Value> {
+        serde_json::to_value(self).unwrap().into()
+    }
+}
+
+impl Into<Vec<u8>> for ESSample {
+    fn into(self) -> Vec<u8> {
+        serde_json::to_vec(&self).unwrap()
+    }
+}
 
 #[derive(Default, Clone)]
 pub struct ESClientBuilder {

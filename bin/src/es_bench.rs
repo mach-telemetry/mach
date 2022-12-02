@@ -5,12 +5,9 @@ mod data_generator;
 #[allow(dead_code)]
 mod elastic;
 #[allow(dead_code)]
-mod prep_data;
-#[allow(dead_code)]
 mod utils;
 
-use crate::prep_data::ESSample;
-use clap::*;
+use crate::elastic::ESSample;
 use constants::PARAMETERS;
 use elastic::{ESBatchedIndexClient, ESClientBuilder, ESFieldType, ESIndexQuerier, IngestStats};
 use lazy_static::lazy_static;
