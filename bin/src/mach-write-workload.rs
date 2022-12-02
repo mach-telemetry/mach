@@ -12,7 +12,7 @@ mod utils;
 use constants::*;
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use lazy_static::*;
-use mach2::{
+use mach::{
     compression::{compression_scheme::CompressionScheme, Compression},
     field_type::FieldType,
     sample::SampleType,

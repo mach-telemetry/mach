@@ -1,37 +1,26 @@
-#![deny(unused_must_use)]
-#![feature(get_mut_unchecked)]
-#![feature(is_sorted)]
-#![feature(maybe_uninit_uninit_array)]
-#![feature(maybe_uninit_array_assume_init)]
-#![feature(cell_update)]
 #![feature(box_syntax)]
-#![feature(thread_id_value)]
-#![feature(trait_alias)]
+#![feature(slice_as_chunks)]
 #![feature(maybe_uninit_slice)]
-#![allow(clippy::new_without_default)]
+#![feature(maybe_uninit_uninit_array)]
 #![allow(clippy::len_without_is_empty)]
-#![feature(new_uninit)]
-#![feature(thread_local)]
+#![allow(clippy::new_without_default)]
 
-//#![allow(unused_imports)]
-//#![deny(unreachable_patterns)]
-//#![deny(unused_variables)]
-//#![deny(unused_mut)]
-//#![deny(dead_code)]
-//#![deny(non_upper_case_globals)]
-
+pub mod active_block;
+pub mod active_segment;
+pub mod byte_buffer;
 pub mod compression;
 pub mod constants;
+pub mod field_type;
 pub mod id;
+pub mod kafka;
 pub mod mem_list;
 pub mod sample;
 pub mod segment;
-pub mod series;
 pub mod snapshot;
-pub mod snapshotter;
+pub mod source;
+#[cfg(test)]
+pub mod test_utils;
 pub mod tsdb;
 pub mod utils;
 pub mod writer;
-
-#[cfg(test)]
-mod test_utils;
+pub mod snapshotter;

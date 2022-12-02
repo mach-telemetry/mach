@@ -6,50 +6,32 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mach2 = { path = "../mach2" }
-#otlp = { path = "../otlp" }
-#mach-otlp = { path = "../mach-otlp" }
+mach = { path = "../mach" }
+clap = { version = "3.1.12", features = ["derive"] }
 num = "0.4.0"
 tonic = { version = "0.6.2", features = ["prost", "compression", "transport"] }
-tokio = { version = "1.17.0", features = ["full"] }
-tokio-stream = "0.1.8"
-prost = "0.9"
-futures = { version = "0.3.21", features = ["executor"] }
-rand = "0.8.4"
-seq-macro = "0.3.0"
-dashmap = "4.0.2"
-lazy_static = "1.4"
 serde = { version = "1.0.127", features = ["derive"] }
 serde_json = "1.0.66"
-rtrb = "0.2.0"
-random-string = "1.0.0"
-regex = "1.5.5"
-clap = { version = "3.1.12", features = ["derive"] }
-rdkafka = "0.28.0"
+rand = "0.8.4"
 bincode = "1.3.3"
-zstd = "0.11.1"
-timer = "0.2.0"
-roaring = "0.9.0"
-tower = { version = "0.4" }
-redis = "0.21.5"
-fxhash = "0.2.1"
-uuid = { version = "1.1.1", features = ["v4", "fast-rng", "macro-diagnostics"] }
-num-format = "0.4.0"
-kafka = "0.9.0"
-flume = "0.10.12"
-crossbeam-channel = "0.5.0"
-lzzzz = "0.8.0"
 crossbeam = "0.8.1"
-elasticsearch = "7.14.0-alpha.1"
+prost = "0.9"
+lazy_static = "1.4"
+tokio = { version = "1.17.0", features = ["full"] }
 chrono = "0.4.22"
-flame = "0.2.2"
-rand_chacha = "0.3.1"
-libc = "0.2.133"
-procinfo = "0.4.2"
-ref_thread_local = "0.1.1"
 local-ip-address = "0.4.8"
 env_logger = "0.9.1"
 log = "0.4.17"
+rand_chacha = "0.3.1"
+procinfo = "0.4.2"
+ref_thread_local = "0.1.1"
+kafka = "0.9.0"
+lzzzz = "1.0.4"
+rdkafka = { version="0.28.0", features = ["external_lz4"] }
+dashmap = "4.0.2"
+elasticsearch = "7.14.0-alpha.1"
+crossbeam-channel = "0.5.0"
+num-format = "0.4.0"
 
 [build-dependencies]
 tonic-build = { version = "0.6.2", features = ["prost", "compression"] }
@@ -66,41 +48,86 @@ name = "kafka-es-connector"
 path = "src/kafka_es_connector.rs"
 
 [[bin]]
-name = "simple-mach-query"
-path = "src/simple-mach-query.rs"
-
-[[bin]]
 name = "simple-es-query"
 path = "src/simple-es-query.rs"
 
-[[bin]]
-name = "from-json"
-path = "src/from-json.rs"
-
-[[bin]]
-name = "simple-kafka-query"
-path = "src/simple-kafka-query.rs"
-
+# Mach write load
 [[bin]]
 name = "mach-write-workload"
 path = "src/mach-write-workload.rs"
 
+# Mach query benchmark
+[[bin]]
+name = "simple-mach-query"
+path = "src/simple-mach-query.rs"
+
+# Kafka query benchmark (for ES and B-Trees)
 [[bin]]
 name = "kafka-write-workload"
 path = "src/kafka-write-workload.rs"
 
+# B-Trees query benchmark
 [[bin]]
-name = "simple-bytes-server"
-path = "src/simple-bytes-server.rs"
+name = "simple-kafka-query"
+path = "src/simple-kafka-query.rs"
 
+# Swamp Kafka with this
 [[bin]]
 name = "kafka-load-generator"
 path = "src/kafka-load-generator.rs"
 
-[[bin]]
-name = "mach-compression"
-path = "src/mach_compression.rs"
+# OLD STUFF BELOW
 
-[[bin]]
-name = "mach-query-load"
-path = "src/mach_query_load.rs"
+# [build-dependencies]
+# tonic-build = { version = "0.6.2", features = ["prost", "compression"] }
+# 
+# [profile.release]
+# debug = true
+# 
+# [[bin]]
+# name = "es-bench"
+# path = "src/es_bench.rs"
+# 
+# [[bin]]
+# name = "kafka-es-connector"
+# path = "src/kafka_es_connector.rs"
+# 
+# [[bin]]
+# name = "simple-mach-query"
+# path = "src/simple-mach-query.rs"
+# 
+# [[bin]]
+# name = "simple-es-query"
+# path = "src/simple-es-query.rs"
+# 
+# [[bin]]
+# name = "from-json"
+# path = "src/from-json.rs"
+# 
+# [[bin]]
+# name = "simple-kafka-query"
+# path = "src/simple-kafka-query.rs"
+# 
+# [[bin]]
+# name = "mach-write-workload"
+# path = "src/mach-write-workload.rs"
+# 
+# [[bin]]
+# name = "kafka-write-workload"
+# path = "src/kafka-write-workload.rs"
+# 
+# [[bin]]
+# name = "simple-bytes-server"
+# path = "src/simple-bytes-server.rs"
+# 
+# [[bin]]
+# name = "kafka-load-generator"
+# path = "src/kafka-load-generator.rs"
+# 
+# [[bin]]
+# name = "mach-compression"
+# path = "src/mach_compression.rs"
+# 
+# [[bin]]
+# name = "mach-query-load"
+# path = "src/mach_query_load.rs"

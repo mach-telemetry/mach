@@ -13,7 +13,7 @@ use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
 use data_generator::SAMPLES;
 use lazy_static::*;
 use lzzzz::lz4::{compress_to_vec, ACC_LEVEL_DEFAULT};
-use mach2::{source::SourceId, sample::SampleType};
+use mach::{source::SourceId, sample::SampleType};
 use num::NumCast;
 use rand::{thread_rng, Rng};
 use std::mem;

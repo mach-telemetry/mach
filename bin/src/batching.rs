@@ -1,5 +1,5 @@
 use lzzzz::lz4;
-use mach2::sample::SampleType;
+use mach::sample::SampleType;
 use std::collections::HashSet;
 use std::sync::Arc;
 

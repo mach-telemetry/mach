@@ -1,5 +1,5 @@
 use crate::bytes_server::{BytesClient, BytesHandler, BytesServer, Status};
-use mach2::{
+use mach::{
     id::SourceId,
     snapshotter::{SnapshotId, Snapshotter},
     tsdb::Mach,

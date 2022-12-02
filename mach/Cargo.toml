@@ -1,48 +1,22 @@
 [package]
 name = "mach"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitstream-io = "1.2.0"
-num = "0.4.0"
+serde = { version = "1.0.145", features = ["derive"] }
+serde-big-array = "0.4.1"
+rand = "0.8.5"
+lzzzz = "1.0.4"
 bitpacking = "0.8.4"
-fixed = "1.10.0"
-crossbeam = "0.8.1"
-lzzzz = "0.8.0"
-serde = { version = "1.0.127", features = ["derive"] }
 bincode = "1.3.3"
-dashmap = "4.0.2"
 rdkafka = {version="0.28.0"}
-uuid = { version = "0.8", features = ["v4"] }
-serde_json = "1.0.66"
-rand = "0.8.4"
-lazy_static = "1.4"
-#seq-macro = "0.3.0"
-#rustc-hash = "1.1.0"
-tokio = { version = "1.14.0", features = ["full"] }
-#tonic = "0.6.2"
-#rtrb = "0.2.0"
-#enum_dispatch = "0.3.8"
-#futures = { version = "0.3.21", features = ["executor", "thread-pool"] }
-#oneshot = "0.1.3"
-#zstd = "0.11.1"
-crossbeam-channel = "0.5.4"
-crossbeam-queue = "0.3.5"
-flume = "0.10.12"
-#kafka = { path = "/home/fsolleza/Projects/kafka-rust"}
 kafka = "0.9.0"
-ref_thread_local = "0.1.1"
-#priority-queue = "1.2.3"
-#procinfo = "0.4.2"
-
-[dev-dependencies]
-tempfile = "3.2.0"
-
-#[profile.test]
-#opt-level = 3
-
-[profile.release]
-debug=true
+tokio = { version = "1.14.0", features = ["full"] }
+lazy_static = "1.4.0"
+crossbeam = "0.8.2"
+dashmap = "5.4.0"
+log = "0.4.17"
+env_logger = "0.9.1"

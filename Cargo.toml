@@ -3,6 +3,5 @@
 members = [
     "mach",
     "bin",
-    "mach2",
 ]
 

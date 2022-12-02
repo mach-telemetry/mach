@@ -2,8 +2,8 @@ use super::*;
 
 use clap::*;
 use lazy_static::*;
-use mach2::id::SourceId;
-use mach2::sample::SampleType;
+use mach::id::SourceId;
+use mach::sample::SampleType;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;

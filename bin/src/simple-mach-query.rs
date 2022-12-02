@@ -14,10 +14,9 @@ mod utils;
 #[allow(dead_code)]
 mod data_generator;
 
-//use mach2;
-use mach2::constants::SNAPSHOTTER_INTERVAL_SECS;
-use mach2::segment::SegmentIterator;
-use mach2::sample::SampleType;
+use mach::constants::SNAPSHOTTER_INTERVAL_SECS;
+use mach::segment::SegmentIterator;
+use mach::sample::SampleType;
 use std::time::{Duration, Instant};
 
 use constants::*;
