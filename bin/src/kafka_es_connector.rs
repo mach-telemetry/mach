@@ -7,13 +7,10 @@ mod elastic;
 #[allow(dead_code)]
 mod kafka_utils;
 #[allow(dead_code)]
-mod prep_data;
-#[allow(dead_code)]
 mod utils;
 
 use crate::batching::BytesBatch;
-use crate::prep_data::ESSampleRef;
-use clap::*;
+use crate::elastic::{ESSample, ESSampleRef};
 use constants::PARAMETERS;
 use crossbeam_channel::{bounded, Receiver, Sender};
 use elastic::{
@@ -292,7 +289,7 @@ fn stats_watcher() {
 fn create_es_index(elastic_builder: ESClientBuilder) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        let client = ESBatchedIndexClient::<prep_data::ESSample>::new(
+        let client = ESBatchedIndexClient::<ESSample>::new(
             elastic_builder.build().unwrap(),
             PARAMETERS.es_index_name.clone(),
             PARAMETERS.es_batch_bytes,
