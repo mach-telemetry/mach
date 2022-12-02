@@ -9,11 +9,10 @@ mod query_utils;
 #[allow(dead_code)]
 mod utils;
 
-use clap::*;
 use constants::PARAMETERS;
 use elastic::{ESClientBuilder, ESIndexQuerier, IngestStats};
 use lazy_static::lazy_static;
-use mach::{self, id::SeriesId};
+use mach::{self, id::SourceId};
 use query_utils::SimpleQuery;
 use rand::Rng;
 use rand::SeedableRng;
@@ -45,7 +44,7 @@ struct LatencyResult<T> {
 
 #[derive(Debug)]
 struct SeriesTimerangeDocCount {
-    series: SeriesId,
+    series: SourceId,
     start: u64,
     end: u64,
     doc_count: u64,
