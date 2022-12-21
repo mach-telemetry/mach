@@ -1,7 +1,11 @@
 use crate::{
     constants::*,
     kafka::{self, KafkaEntry, Producer},
-    mem_list::read_only::ReadOnlyDataBlock,
+    mem_list::{
+        read_only::ReadOnlyDataBlock,
+    },
+    rdtsc::rdtsc,
+    counters,
 };
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use lazy_static::*;
@@ -33,7 +37,7 @@ lazy_static! {
         thread::spawn(move || loop {
             let x = x2.load(SeqCst);
             info!("Pending unflushed data bytes: {}", x);
-            thread::sleep(Duration::from_secs(1));
+            thread::sleep(Duration::from_secs(5));
         });
         x
     };
@@ -43,7 +47,7 @@ lazy_static! {
         thread::spawn(move || loop {
             let x = x2.load(SeqCst);
             info!("Pending unflushed data blocks: {}", x);
-            thread::sleep(Duration::from_secs(1));
+            thread::sleep(Duration::from_secs(5));
         });
         x
     };
@@ -53,19 +57,20 @@ lazy_static! {
         thread::spawn(move || loop {
             let x = x2.load(SeqCst);
             info!("Total data bytes flushed: {}", x);
-            thread::sleep(Duration::from_secs(1));
+            thread::sleep(Duration::from_secs(5));
         });
         x
     };
 }
 
 fn flush_worker(chan: Receiver<DataBlock>) {
-    info!("Initing Mach Block Kafka Flusher");
+    debug!("Initing Mach Block Kafka Flusher");
     let mut producer = Producer::new();
     let mut rng = thread_rng();
     let mut partition = rng.gen_range(0i32..PARTITIONS as i32);
     let mut counter = 0;
     while let Ok(block) = chan.recv() {
+        let start = rdtsc();
         block.flush(partition, &mut producer);
         TOTAL_BYTES_FLUSHED.fetch_add(block.len, SeqCst);
         PENDING_UNFLUSHED_BYTES.fetch_sub(block.len, SeqCst);
@@ -74,6 +79,7 @@ fn flush_worker(chan: Receiver<DataBlock>) {
             partition = rng.gen_range(0i32..PARTITIONS as i32);
         }
         counter += 1;
+        counters::DATA_BLOCK_FLUSHER_CYCLES.increment(rdtsc() - start);
     }
     error!("Mach Data Block Kafka Flusher Exited");
 }
@@ -88,7 +94,7 @@ pub fn compress_data_block_bytes(data: &[u8]) -> Vec<u8> {
     let mut v = Vec::new();
     v.extend_from_slice(&data.len().to_be_bytes());
     lz4::compress_to_vec(data, &mut v, lz4::ACC_LEVEL_DEFAULT).unwrap();
-    info!("Data block compression result: {} -> {}", data.len(), v.len());
+    debug!("Data block compression result: {} -> {}", data.len(), v.len());
     v
 }
 
@@ -98,7 +104,6 @@ pub fn decompress_data_block_bytes(data: &[u8]) -> Vec<u8> {
     lz4::decompress(&data[8..], decompressed_block.as_mut_slice()).unwrap();
     decompressed_block
 }
-
 
 impl DataBlock {
     pub fn new(data: &[u8]) -> Self {

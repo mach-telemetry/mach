@@ -5,6 +5,8 @@ use crate::{
         data_block::DataBlock,
         read_only::{ReadOnlyDataBlock, ReadOnlyMetadataBlock, ReadOnlyMetadataEntry},
     },
+    rdtsc::rdtsc,
+    counters
 };
 
 use crossbeam::channel::{unbounded, Receiver, Sender};
@@ -35,17 +37,19 @@ lazy_static! {
 }
 
 fn flush_worker(channel: Receiver<MetadataBlock>) {
-    info!("Initing Mach Metadata Block Kafka Flusher");
+    debug!("Initing Mach Metadata Block Kafka Flusher");
     let mut partition: i32 = thread_rng().gen_range(0..PARTITIONS);
     let mut counter = 0;
     let mut producer = Producer::new();
     while let Ok(block) = channel.recv() {
+        let start = rdtsc();
         debug!("Metadata Block flusher received a metadata block");
         block.flush(partition, &mut producer);
         if counter % 1000 == 0 {
             partition = thread_rng().gen_range(0..PARTITIONS);
         }
         counter += 1;
+        counters::METADATA_LIST_FLUSHER_CYCLES.increment(rdtsc()-start);
     }
     error!("Mach Metadata Block Kafka Flusher Exited");
 }
@@ -314,7 +318,7 @@ impl MetadataBlock {
                 );
                 let bytes = bincode::serialize(&readonly).unwrap();
                 let entry = producer.send(partition, bytes.as_slice());
-                info!("Kafka flush: {:?}", entry);
+                debug!("Kafka flush: {:?}", entry);
 
                 InnerMetadataBlock::Kafka(KafkaMetadataBlock {
                     block: entry,
@@ -334,7 +338,7 @@ impl MetadataBlock {
         match &*read_guard {
             // Reached the end of the list. Create a new readonly metadata block
             InnerMetadataBlock::Kafka(x) => {
-                info!("Metadata Block will be loaded from kafka");
+                debug!("Metadata Block will be loaded from kafka");
                 blocks.sort_by_key(|x| (x.min, x.max));
                 ReadOnlyMetadataBlock::new(
                     blocks,
@@ -349,7 +353,7 @@ impl MetadataBlock {
             // This will terminate because the first Metadata block was initialized as a kafka
             // entry
             InnerMetadataBlock::Data(x) => {
-                info!("Metadata Block being read from memory");
+                debug!("Metadata Block being read from memory");
                 for entry in x.block.iter() {
                     let data_block = ReadOnlyDataBlock::from(&entry.data_block);
                     let entry = ReadOnlyMetadataEntry::new(

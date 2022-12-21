@@ -32,6 +32,7 @@ dashmap = "4.0.2"
 elasticsearch = "7.14.0-alpha.1"
 crossbeam-channel = "0.5.0"
 num-format = "0.4.0"
+gettid = "0.1.2"
 
 [build-dependencies]
 tonic-build = { version = "0.6.2", features = ["prost", "compression"] }

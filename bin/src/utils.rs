@@ -7,6 +7,7 @@ use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use log::{info};
 
 pub fn mem_usage_printer() -> Arc<Barrier> {
     let barrier = Arc::new(Barrier::new(2));
@@ -105,14 +106,15 @@ fn inner_stats_printer(start_barrier: Arc<Barrier>) {
             //let bytes_completeness = bytes_completeness.iter().sum::<f64>() / denom;
             //let bytes_rate = bytes_rate.iter().sum::<f64>() / denom;
             //print!("Sample completeness: {:.2}, ", samples_completeness);
-            print!("Current time: {:?}, ", chrono::prelude::Utc::now());
-            print!("Current workload rate: {}, ", current_workload_rate);
-            print!("Samples generated: {}, ", samples_generated_delta);
-            print!("Samples dropped: {}, ", samples_dropped_delta);
-            print!("Samples completeness: {:.2}, ", samples_completeness);
-            //print!("mbps to kafka: {:.2}, ", mbps);
-            //print!("average bytes per msg: {:.2}, ", bytes_per_msg);
-            println!();
+            info!("Current time: {:?}, Current workload rate: {}, Samples generated: {}, Samples dropped: {}, Sample completeness: {}", chrono::prelude::Utc::now(), current_workload_rate, samples_generated_delta, samples_dropped_delta, samples_completeness);
+            //print!("Current time: {:?}, ", chrono::prelude::Utc::now());
+            //print!("Current workload rate: {}, ", current_workload_rate);
+            //print!("Samples generated: {}, ", samples_generated_delta);
+            //print!("Samples dropped: {}, ", samples_dropped_delta);
+            //print!("Samples completeness: {:.2}, ", samples_completeness);
+            ////print!("mbps to kafka: {:.2}, ", mbps);
+            ////print!("average bytes per msg: {:.2}, ", bytes_per_msg);
+            //println!();
         }
     }
 }

@@ -1,3 +1,5 @@
+#![feature(thread_id_value)]
+
 mod data_generator;
 
 #[allow(dead_code)]
@@ -23,9 +25,10 @@ use mach::{
     writer::SourceRef,
     //constants::*,
     writer::Writer,
+    rdtsc::rdtsc,
+    counters::{self, Counter},
 };
 use num::NumCast;
-use std::collections::HashMap;
 use std::mem;
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},
@@ -35,6 +38,12 @@ use std::thread;
 use std::time::{Duration, Instant};
 use utils::RemoteNotifier;
 use env_logger;
+use std::os::unix::thread::JoinHandleExt;
+use std::collections::{HashMap, BTreeMap};
+use log::{debug, error, info};
+
+static MACH_WRITER_THREAD_ID: AtomicUsize = AtomicUsize::new(0);
+static MACH_WRITER_CYCLES: Counter = Counter::new();
 
 lazy_static! {
     static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -51,6 +60,7 @@ lazy_static! {
     };
 
     static ref MACH_WRITER_SENDER: Vec<Sender<Batch>> = {
+        debug!("Spwaning sender");
         (0..MACH_WRITERS.len())
             .map(|i| {
                 let (tx, rx) = if PARAMETERS.unbounded_queue {
@@ -58,9 +68,10 @@ lazy_static! {
                 } else {
                     bounded(100)
                 };
-                thread::spawn(move || {
+                let handle = thread::spawn(move || {
                     mach_writer(rx, i);
                 });
+                MACH_WRITER_THREAD_ID.store(handle.thread().id().as_u64().get() as usize, SeqCst);
                 tx
             })
         .collect()
@@ -75,7 +86,7 @@ lazy_static! {
         //let mut mach_guard = mach.lock().unwrap();
         //let mut writer_guard = writer.lock().unwrap();
 
-        println!("Registering sources to Mach");
+        debug!("Registering sources to Mach");
         let mut refmap: HashMap<SourceId, SourceRef> = HashMap::new();
 
         let registered_samples: Vec<DataSample> = samples
@@ -177,20 +188,80 @@ impl Batcher {
 static TOTAL_TIME: AtomicUsize = AtomicUsize::new(0);
 static TOTAL_SAMPLES: AtomicUsize = AtomicUsize::new(0);
 
+#[allow(unused)]
+struct Index {
+    trees: HashMap<u64, Vec<u8>>,
+    buf: Vec<u8>,
+}
+
+#[allow(unused)]
+impl Index {
+    fn new() -> Self {
+        Index {
+            trees: HashMap::new(),
+            buf: vec![0u8; 4096],
+        }
+    }
+    fn insert(&mut self, id: u64, ts: u64, data: &[SampleType]) {
+        let item = (id, ts, data);
+        let mut v = self.trees.entry(id).or_insert(Vec::new());
+        let start = v.len();
+        v.extend_from_slice(&0usize.to_be_bytes());
+        // Write each byte
+        for item in data {
+            match item {
+                SampleType::F64(x) => {
+                    v.push(1u8);
+                    v.extend_from_slice(&x.to_be_bytes());
+                },
+                SampleType::Bytes(x) => {
+                    v.push(5u8);
+                    v.extend_from_slice(&x.len().to_be_bytes());
+                    v.extend_from_slice(&x);
+                }
+                _ => panic!("Unhandled type"),
+            }
+        }
+        let new_len = v.len();
+        v[start..start+8].copy_from_slice(&new_len.to_be_bytes());
+    }
+}
+
 fn mach_writer(batches: Receiver<Batch>, writer_idx: usize) {
+    //debug!(">>>> Mach writer thread: {}", gettid::gettid());
     let mut writer = MACH_WRITERS[writer_idx].lock().unwrap();
+    let mut len = 0usize;
+
+    let mut trees = Index::new();
     loop {
         if let Ok(batch) = batches.try_recv() {
+            let start = rdtsc();
             let batch_len = batch.len();
             let now = Instant::now();
+
+            // Noop operation
             for item in batch {
-                writer.push(item.series_ref, item.timestamp, item.data);
+                len += item.data.len();
             }
+
+            // Write into Mach
+            //for item in batch {
+            //    writer.push(item.series_ref, item.timestamp, item.data);
+            //}
+
+            // Write into an in-mem index
+            //for item in batch {
+            //    trees.insert(item.series_ref.0, item.timestamp, item.data.into());
+            //}
+
+            MACH_WRITER_CYCLES.increment(rdtsc() - start);
+
             let elapsed = now.elapsed();
-            println!(
+            info!(
                 "Write rate (samples/second): {:?}",
                 <f64 as NumCast>::from(batch_len).unwrap() / elapsed.as_secs_f64()
             );
+            debug!("LEN: {}", len); // don't optimize tightloop
         }
     }
 }
@@ -215,6 +286,9 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
     //let samples = SAMPLES.clone();
 
     let workload_start = Instant::now(); // used to verify the MBPs rate of the workload
+    //thread::spawn(move || {
+    //    count_cpu_process();
+    //});
     'outer: loop {
         //{
         //    let now = Instant::now();
@@ -243,7 +317,7 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
         if let Some(closed_batch) = batches[writer_idx].push(sample) {
             let batch_len = closed_batch.batch.len();
             //let batch_bytes = closed_batch.batch_bytes as usize;
-            println!("Queue length: {}", MACH_WRITER_SENDER[writer_idx].len());
+            info!("Queue length: {}", MACH_WRITER_SENDER[writer_idx].len());
             COUNTERS.add_samples_generated(batch_len);
             match MACH_WRITER_SENDER[writer_idx].try_send(closed_batch.batch) {
                 Ok(_) => {}
@@ -277,17 +351,36 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
         }
     }
     let workload_duration = workload_start.elapsed();
-    println!(
+    info!(
         "Expected rate: {} samples per second, Samples per second: {:.2}, Mbps: {:.2}",
         workload.samples_per_second,
         workload_total_samples / workload_duration.as_secs_f64(),
         workload_total_size / 1_000_000. / workload_duration.as_secs_f64(),
     );
-    println!("{} {}", TOTAL_SAMPLES.load(SeqCst), TOTAL_TIME.load(SeqCst));
+    //println!("{} {}", TOTAL_SAMPLES.load(SeqCst), TOTAL_TIME.load(SeqCst));
+    let sleep_time = 10;
+    info!("Moving to next workload, sleeping for {}s", sleep_time);
+    std::thread::sleep(Duration::from_secs(10));
+
+    // Get cycles
+    let mach_writer_cycles = MACH_WRITER_CYCLES.load();
+    let data_flusher_cycles = mach::counters::DATA_BLOCK_FLUSHER_CYCLES.load();
+    let meta_flusher_cycles = mach::counters::METADATA_LIST_FLUSHER_CYCLES.load();
+
+    MACH_WRITER_CYCLES.reset();
+    mach::counters::DATA_BLOCK_FLUSHER_CYCLES.reset();
+    mach::counters::METADATA_LIST_FLUSHER_CYCLES.reset();
+
+    let total = mach_writer_cycles + data_flusher_cycles + meta_flusher_cycles;
+    info!("Total cycles: {}, Writer: {}, Data Flushers: {}, Metadata Flushers: {}", 
+        total, mach_writer_cycles, data_flusher_cycles, meta_flusher_cycles);
 }
 
 fn workload_runner(workloads: Vec<Workload>, data: Vec<DataSample>) {
-    println!("Workloads: {:?}", workloads);
+    info!(">>>> Workload thread: {}", gettid::gettid());
+    info!("Sleeping 10 secs");
+    thread::sleep(Duration::from_secs(10));
+    info!("Workloads: {:?}", workloads);
     for workload in workloads {
         run_workload(workload, &data);
     }
@@ -313,6 +406,7 @@ fn validate_parameters() {
 ////}
 
 fn main() {
+    info!("Main thread: {}", gettid::gettid());
     env_logger::Builder::from_default_env().target(env_logger::Target::Stdout).init();
     validate_parameters();
 
@@ -342,6 +436,9 @@ fn main() {
 
     let start_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
     let done_barrier = Arc::new(Barrier::new((data_generator_count + 1) as usize));
+    {
+        let _ = MACH_WRITER_SENDER.len();
+    }
 
     for i in 0..data_generator_count as usize {
         let start_barrier = start_barrier.clone();
@@ -353,17 +450,19 @@ fn main() {
             workload_runner(workloads, data);
             done_barrier.wait();
         });
+        //println!("Workload thread: {}", handle.as_pthread_t());
     }
 
     {
         snapshotter::initialize_snapshot_server(&MACH.lock().unwrap());
     }
 
-    println!("You've got 30 seconds!");
-    std::thread::sleep(Duration::from_secs(30));
+    info!("You've got 30 seconds!");
+    //std::thread::sleep(Duration::from_secs(30));
     query_start_notifier.notify();
-    println!("Beginning workload");
+    info!("Beginning workload");
     start_barrier.wait();
     stats_barrier.wait();
     done_barrier.wait();
+    std::thread::sleep(Duration::from_secs(20));
 }
