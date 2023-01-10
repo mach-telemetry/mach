@@ -11,7 +11,7 @@ use crate::{
 
 use crossbeam::channel::{unbounded, Receiver, Sender};
 use lazy_static::lazy_static;
-use log::{debug, error, info};
+use log::{debug, error};
 use rand::{thread_rng, Rng};
 use std::{
     cell::UnsafeCell,
