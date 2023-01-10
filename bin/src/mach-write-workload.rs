@@ -1,5 +1,6 @@
 #![feature(thread_id_value)]
 
+mod json_telemetry;
 mod data_generator;
 
 #[allow(dead_code)]
