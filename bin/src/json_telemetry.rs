@@ -13,6 +13,13 @@ pub enum OtelType {
     Span
 }
 
+pub struct TelemetrySample {
+    pub otel_type: OtelType,
+    pub source: SourceId,
+    pub timestamp: u64,
+    pub values: Vec<SampleType>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Point {
     pub otel_type: OtelType,
@@ -31,10 +38,24 @@ impl Point {
         SourceId(hasher.finish())
     }
 
-    pub fn mach_sample(&self) -> (SourceId, u64, Vec<SampleType>) {
-        let id = self.source_id();
+    pub fn mach_sample(&self) -> TelemetrySample {
+        let source = self.source_id();
         let values = self.values.iter().map(|x| x.into()).collect();
-        (id, self.timestamp, values)
+        TelemetrySample {
+            otel_type: self.otel_type,
+            source,
+            timestamp: self.timestamp,
+            values,
+        }
+    }
+
+    pub fn has_null(&self) -> bool {
+        for x in self.values.iter() {
+            if x.is_null() {
+                return true
+            }
+        }
+        false
     }
 }
 
@@ -46,6 +67,15 @@ pub enum Value {
     Float(f64),
     Bool(bool),
     Null,
+}
+
+impl Value {
+    fn is_null(&self) -> bool {
+        match self {
+            Value::Null => true,
+            _ => false,
+        }
+    }
 }
 
 impl Into<SampleType> for &Value {
@@ -80,5 +110,49 @@ impl From<&Value> for HashableValue {
             Value::Bool(x) => Self::Bool(*x),
             Value::Null => Self::Null,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::path::PathBuf;
+    use std::fs::File;
+    use std::io::{self, prelude::*, BufRead, BufReader};
+    use std::path::Path;
+    use serde_json::*;
+
+    #[test]
+    fn test_json_parser() {
+        let file_path = PathBuf::from("/home/fsolleza/data/telemetry-samples-small");
+        let f = File::open(file_path).unwrap();
+        let mut reader = BufReader::new(f);
+        let mut points: Vec<Point> = Vec::new();
+        for (idx, line) in reader.lines().enumerate() {
+            points.push(serde_json::from_str(&line.unwrap()).unwrap());
+        }
+        let mut samples: Vec<TelemetrySample> = Vec::new();
+        let mut null_samples = 0;
+        let mut metrics = 0;
+        let mut logs = 0;
+        let mut spans = 0;
+        for point in points {
+            if !point.has_null() {
+                let sample: TelemetrySample = point.mach_sample();
+                match sample.otel_type {
+                    OtelType::Metric => metrics += 1,
+                    OtelType::Log => logs += 1,
+                    OtelType::Span => spans += 1,
+                }
+                samples.push(sample);
+            } else {
+                null_samples += 1;
+            }
+        }
+        println!("Count: {}", samples.len());
+        println!("Nulls: {}", null_samples);
+        println!("Metrics: {}", metrics);
+        println!("Logs: {}", logs);
+        println!("Spans: {}", spans);
     }
 }
