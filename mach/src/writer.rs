@@ -4,7 +4,6 @@ use crate::{
     mem_list::metadata_list::MetadataList,
     sample::SampleType,
     source::{Source, SourceConfig, SourceId},
-    segment::SegmentRef,
     counters::WRITER_CYCLES,
     rdtsc::rdtsc,
 };
@@ -13,7 +12,7 @@ use log::*;
 use serde::*;
 use std::convert::From;
 use std::ops::Deref;
-use std::sync::{Arc, atomic::{AtomicBool, Ordering::SeqCst}};
+use std::sync::Arc;
 use crossbeam::channel::{Sender, Receiver, unbounded};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -79,7 +78,7 @@ impl Writer {
         match seg.push(ts, sample) {
             PushStatus::Full => {
                 debug!("Active segment is full");
-                self.active_block_channel.send(WorkerMsg::Flush(id));
+                self.active_block_channel.send(WorkerMsg::Flush(id)).unwrap();
                 Ok(())
             },
             PushStatus::ErrorFull => {
@@ -96,7 +95,7 @@ impl Writer {
         let source_id = config.id;
         let (metadata_list, metadata_list_writer) = MetadataList::new();
         let (active_segment, active_segment_writer) = ActiveSegment::new(config.types.as_slice());
-        self.active_block_channel.send(WorkerMsg::Source((active_segment.clone(), config.clone())));
+        self.active_block_channel.send(WorkerMsg::Source((active_segment.clone(), config.clone()))).unwrap();
         self.active_block
             .add_source(source_id, metadata_list_writer);
         let source = Source {

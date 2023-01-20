@@ -56,31 +56,23 @@ struct Inner {
     heap_len: usize,
     atomic_full: AtomicBool,
     atomic_len: AtomicUsize,
-    atomic_heap_len: AtomicUsize,
     ts: [u64; SEG_SZ],
     data: Box<[u8]>,
     types: Vec<FieldType>,
-    heap_offset: usize,
 }
 
 impl Inner {
     fn new(types: &[FieldType]) -> Self {
         let data = vec![0u8; data_size(types)].into_boxed_slice();
         let types: Vec<FieldType> = types.into();
-        let heap_offset = {
-            let colsz = 8 * SEG_SZ;
-            colsz * types.len()
-        };
         Inner {
             len: 0,
             heap_len: 0,
             atomic_full: AtomicBool::new(false),
             atomic_len: AtomicUsize::new(0),
-            atomic_heap_len: AtomicUsize::new(0),
             ts: [0u64; SEG_SZ],
             data,
             types,
-            heap_offset
         }
     }
 
@@ -138,7 +130,7 @@ impl Inner {
                     let colsz = 8 * SEG_SZ;
                     let heap_offset = colsz * self.types.len();
                     let heap: &mut [u8] = &mut self.data[heap_offset..];
-                    let heap_start = self.heap_len;
+                    //let heap_start = self.heap_len;
                     let mut heap_off = self.heap_len;
 
                     let bytes_len = b.len();
