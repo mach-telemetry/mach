@@ -1,7 +1,7 @@
 #![feature(thread_id_value)]
 
 mod json_telemetry;
-mod data_generator;
+//mod data_generator;
 
 #[allow(dead_code)]
 mod bytes_server;
@@ -26,8 +26,8 @@ use mach::{
     writer::SourceRef,
     //constants::*,
     writer::Writer,
-    rdtsc::rdtsc,
     counters::{self, Counter},
+    rdtsc::rdtsc,
 };
 use num::NumCast;
 use std::mem;
@@ -44,7 +44,7 @@ use std::collections::{HashMap, BTreeMap};
 use log::{debug, error, info};
 
 static MACH_WRITER_THREAD_ID: AtomicUsize = AtomicUsize::new(0);
-static MACH_WRITER_CYCLES: Counter = Counter::new();
+static WRITER_CYCLES: Counter = Counter::new();
 
 lazy_static! {
     static ref MACH: Arc<Mutex<Mach>> = Arc::new(Mutex::new(Mach::new()));
@@ -81,8 +81,7 @@ lazy_static! {
     static ref SAMPLES: Vec<DataSample> = {
         let _mach = MACH.clone(); // ensure MACH is initialized (prevent deadlock)
         let writers = MACH_WRITERS.clone(); // ensure WRITER is initialized (prevent deadlock)
-        let _hot_source = data_generator::HOT_SOURCES.as_slice();
-        let samples = data_generator::SAMPLES.as_slice();
+        let samples = json_telemetry::DATA.as_slice();
 
         //let mut mach_guard = mach.lock().unwrap();
         //let mut writer_guard = writer.lock().unwrap();
@@ -93,10 +92,17 @@ lazy_static! {
         let registered_samples: Vec<DataSample> = samples
             .iter()
             .map(|x| {
-                let (id, values, size) = x;
+                let id = x.source;
+                let values = x.values.as_slice();
+                let size: f64 = {
+                    let mut size: usize = values.iter().map(|x| x.size()).sum();
+                    size += 16; // id and timestamp;
+                    <f64 as NumCast>::from(size).unwrap()
+                };
+                //let (id, values, size) = (x.source, x.values, x.values.iter().map(|x| x.size()).sum::<());
                 let writer_idx = id.0 as usize % writers.len();
-                let id_ref = *refmap.entry(*id).or_insert_with(|| {
-                    let conf = get_series_config(*id, values);
+                let id_ref = *refmap.entry(id).or_insert_with(|| {
+                    let conf = get_series_config(id, values);
 
                     let mut writer_guard = writers[writer_idx].lock().unwrap();
                     writer_guard.add_source(conf)
@@ -104,7 +110,7 @@ lazy_static! {
                 DataSample {
                     series_ref: id_ref,
                     data: values,
-                    size: *size,
+                    size: size,
                     writer_idx,
                 }
             })
@@ -204,6 +210,7 @@ impl Index {
         }
     }
     fn insert(&mut self, id: u64, ts: u64, data: &[SampleType]) {
+        let start_time = rdtsc();
         let item = (id, ts, data);
         let mut v = self.trees.entry(id).or_insert(Vec::new());
         let start = v.len();
@@ -220,11 +227,20 @@ impl Index {
                     v.extend_from_slice(&x.len().to_be_bytes());
                     v.extend_from_slice(&x);
                 }
-                _ => panic!("Unhandled type"),
+                SampleType::I64(x) => {
+                    v.push(2u8);
+                    v.extend_from_slice(&x.to_be_bytes());
+                },
+                SampleType::U64(x) => {
+                    v.push(3u8);
+                    v.extend_from_slice(&x.to_be_bytes());
+                },
+                _ => panic!("Unhandled type {:?}", item),
             }
         }
         let new_len = v.len();
         v[start..start+8].copy_from_slice(&new_len.to_be_bytes());
+        WRITER_CYCLES.increment(rdtsc() - start_time);
     }
 }
 
@@ -241,28 +257,29 @@ fn mach_writer(batches: Receiver<Batch>, writer_idx: usize) {
             let now = Instant::now();
 
             // Noop operation
-            for item in batch {
-                len += item.data.len();
-            }
+            //for item in batch {
+            //    len += item.data.len();
+            //}
 
             // Write into Mach
-            //for item in batch {
-            //    writer.push(item.series_ref, item.timestamp, item.data);
-            //}
+            for item in batch {
+                len += writer.push(item.series_ref, item.timestamp, item.data).is_ok() as usize;
+            }
 
             // Write into an in-mem index
             //for item in batch {
             //    trees.insert(item.series_ref.0, item.timestamp, item.data.into());
+            //    len += 1;
             //}
 
-            MACH_WRITER_CYCLES.increment(rdtsc() - start);
+            //MACH_WRITER_CYCLES.increment(rdtsc() - start);
 
             let elapsed = now.elapsed();
             info!(
                 "Write rate (samples/second): {:?}",
-                <f64 as NumCast>::from(batch_len).unwrap() / elapsed.as_secs_f64()
+                <f64 as NumCast>::from(len).unwrap() / elapsed.as_secs_f64()
             );
-            debug!("LEN: {}", len); // don't optimize tightloop
+            len = 0;
         }
     }
 }
@@ -364,17 +381,14 @@ fn run_workload(workload: Workload, samples: &[DataSample]) {
     std::thread::sleep(Duration::from_secs(10));
 
     // Get cycles
-    let mach_writer_cycles = MACH_WRITER_CYCLES.load();
-    let data_flusher_cycles = mach::counters::DATA_BLOCK_FLUSHER_CYCLES.load();
-    let meta_flusher_cycles = mach::counters::METADATA_LIST_FLUSHER_CYCLES.load();
+    let writer_cycles = WRITER_CYCLES.load();
+    let mach_writer_cycles = mach::counters::cpu_cycles();
 
-    MACH_WRITER_CYCLES.reset();
-    mach::counters::DATA_BLOCK_FLUSHER_CYCLES.reset();
-    mach::counters::METADATA_LIST_FLUSHER_CYCLES.reset();
+    WRITER_CYCLES.reset();
+    mach::counters::reset_cpu_cycles();
 
-    let total = mach_writer_cycles + data_flusher_cycles + meta_flusher_cycles;
-    info!("Total cycles: {}, Writer: {}, Data Flushers: {}, Metadata Flushers: {}", 
-        total, mach_writer_cycles, data_flusher_cycles, meta_flusher_cycles);
+    //let total = mach_writer_cycles + data_flusher_cycles + meta_flusher_cycles;
+    info!("index cycles: {}, mach cycles: {}", writer_cycles, mach_writer_cycles);
 }
 
 fn workload_runner(workloads: Vec<Workload>, data: Vec<DataSample>) {

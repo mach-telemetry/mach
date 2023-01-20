@@ -93,7 +93,7 @@ pub struct DataBlock {
 pub fn compress_data_block_bytes(data: &[u8]) -> Vec<u8> {
     let mut v = Vec::new();
     v.extend_from_slice(&data.len().to_be_bytes());
-    lz4::compress_to_vec(data, &mut v, lz4::ACC_LEVEL_DEFAULT).unwrap();
+    lz4::compress_to_vec(data, &mut v, BLOCK_COMPRESS_ACC).unwrap();
     debug!("Data block compression result: {} -> {}", data.len(), v.len());
     v
 }
@@ -108,6 +108,7 @@ pub fn decompress_data_block_bytes(data: &[u8]) -> Vec<u8> {
 impl DataBlock {
     pub fn new(data: &[u8]) -> Self {
         let v = compress_data_block_bytes(data);
+        //let v = data;
         let s = Self {
             len: v.len(),
             inner: Arc::new(RwLock::new(InnerDataBlock::Data(v.into()))),

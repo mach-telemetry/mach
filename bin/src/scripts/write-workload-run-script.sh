@@ -2,13 +2,14 @@
 
 
 #FILE_PATH=/home/ubuntu/data/processed-data.bin
-FILE_PATH=/home/fsolleza/data/intel-telemetry/processed-data.bin
+#FILE_PATH=/home/fsolleza/data/intel-telemetry/processed-data.bin
+FILE_PATH=/home/fsolleza/data/telemetry-samples
 
 OUTDIR=$(dirname $0)/output
 
 WRITER_BATCHES=500000
 DATA_GENERATORS=1
-WRITER_COUNT=2
+WRITER_COUNT=1
 SOURCE_COUNT=1000
 UNBOUNDED_QUEUE=--unbounded-queue
 
@@ -46,3 +47,14 @@ RUST_LOG=info cargo run --release --bin mach-write-workload -- \
 	--querier-ip $QUERIER_IP \
 	${UNBOUNDED_QUEUE} \
 	> $MACH_OUT_FILE
+
+#CARGO_PROFILE_RELEASE_DEBUG=true \
+#RUST_LOG=info \
+#cargo flamegraph --bin mach-write-workload -- \
+#	--file-path $FILE_PATH \
+#	--writer-batches $WRITER_BATCHES \
+#	--data-generator-count $DATA_GENERATORS \
+#	--mach-writers $WRITER_COUNT \
+#	--source-count $SOURCE_COUNT \
+#	--querier-ip $QUERIER_IP \
+#	${UNBOUNDED_QUEUE}

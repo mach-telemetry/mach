@@ -25,6 +25,7 @@ pub fn bytes_to_columns_mut(bytes: &mut [u8]) -> &mut [SegmentArray] {
     unsafe { std::slice::from_raw_parts_mut(ptr, len / (8 * 256)) }
 }
 
+#[derive(Copy, Clone)]
 pub struct SegmentRef<'a> {
     pub len: usize,
     pub heap_len: usize,

@@ -244,6 +244,7 @@ impl Inner {
             offsets_len: AtomicUsize::new(0),
         }
     }
+
     fn push(
         &mut self,
         source_id: SourceId,

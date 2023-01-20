@@ -2,11 +2,41 @@ use serde::*;
 use fxhash::FxHasher64;
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 use ordered_float::OrderedFloat;
 use mach::sample::SampleType;
 use mach::source::SourceId;
+use lazy_static::*;
+use crate::constants::*;
+use log::{debug, error, info};
+use std::time::Instant;
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+lazy_static! {
+    pub static ref DATA: Arc<Vec<TelemetrySample>> = Arc::new(load_data(PARAMETERS.file_path.as_str()));
+}
+
+pub fn load_data(path: &str) -> Vec<TelemetrySample> {
+    use std::io::{*, BufReader, BufRead};
+    use std::path::PathBuf;
+    use std::fs::File;
+    let mut samples: Vec<TelemetrySample> = Vec::new();
+    let file_path = PathBuf::from(path);
+    info!("Loading data from filepath: {}", path);
+    let start = Instant::now();
+    let f = File::open(file_path).unwrap();
+    let mut reader = BufReader::new(f);
+    for (idx, line) in reader.lines().enumerate() {
+        let point: Point = serde_json::from_str(&line.unwrap()).unwrap();
+        if !point.has_null() { // && point.otel_type == OtelType::Log {
+            let sample: TelemetrySample = point.mach_sample();
+            samples.push(sample);
+        }
+    }
+    info!("Loading data took {:?}", Instant::now() - start);
+    samples
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
 pub enum OtelType {
     Metric,
     Log,

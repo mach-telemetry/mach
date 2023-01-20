@@ -1,16 +1,22 @@
 use crate::byte_buffer::ByteBuffer;
+use crate::constants::HEAP_COMPRESS_ACC;
 use lzzzz::lz4;
 
 pub fn compress(data: &[u8], buffer: &mut ByteBuffer) {
     // write raw data length
     buffer.extend_from_slice(&data.len().to_be_bytes());
 
+    //buffer.set_len(buffer.len() + data.len());
+
+    // write raw data
+    buffer.extend_from_slice(data);
+
     // reserve for size
     let size_offset = buffer.len();
     buffer.extend_from_slice(&0usize.to_be_bytes());
 
     // compress
-    let sz = lz4::compress(data, buffer.remaining(), lz4::ACC_LEVEL_DEFAULT).unwrap();
+    let sz = lz4::compress(data, buffer.remaining(), HEAP_COMPRESS_ACC).unwrap();
     buffer.set_len(buffer.len() + sz);
 
     // write size
@@ -21,6 +27,9 @@ pub fn decompress(data: &[u8], data_len: &mut usize, dst: &mut [u8]) {
     // read raw data length
     let dl = usize::from_be_bytes(data[..8].try_into().unwrap());
     *data_len = dl;
+
+    // copy raw data
+    //dst[..dl].copy_from_slice(&data[8..8+dl]);
 
     // read compressed size
     let compressed_sz = usize::from_be_bytes(data[8..16].try_into().unwrap());

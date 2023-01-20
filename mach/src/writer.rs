@@ -1,16 +1,20 @@
 use crate::{
     active_block::{ActiveBlock, ActiveBlockWriter},
-    active_segment::{ActiveSegment, ActiveSegmentWriter},
+    active_segment::{ActiveSegment, ActiveSegmentWriter, PushStatus},
     mem_list::metadata_list::MetadataList,
     sample::SampleType,
     source::{Source, SourceConfig, SourceId},
+    segment::SegmentRef,
+    counters::WRITER_CYCLES,
+    rdtsc::rdtsc,
 };
 use dashmap::DashMap;
 use log::*;
 use serde::*;
 use std::convert::From;
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, atomic::{AtomicBool, Ordering::SeqCst}};
+use crossbeam::channel::{Sender, Receiver, unbounded};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct SourceRef(pub u64);
@@ -48,31 +52,43 @@ pub struct Writer {
     segments: Vec<ActiveSegmentWriter>,
     source_configs: Vec<SourceConfig>,
     active_block: ActiveBlock,
-    active_block_writer: ActiveBlockWriter,
+    //active_block_writer: ActiveBlockWriter,
+    active_block_channel: Sender<WorkerMsg>,
 }
 
 impl Writer {
     pub fn new(source_table: Arc<DashMap<SourceId, Source>>) -> Self {
         let (active_block, active_block_writer) = ActiveBlock::new();
+        let (tx, rx) = unbounded();
+        std::thread::spawn(move || {
+            active_block_worker(active_block_writer, rx);
+        });
         Self {
             source_table,
             segments: Vec::new(),
             source_configs: Vec::new(),
             active_block,
-            active_block_writer,
+            //active_block_writer,
+            active_block_channel: tx,
         }
     }
 
-    pub fn push(&mut self, id: SourceRef, ts: u64, sample: &[SampleType]) {
+    pub fn push(&mut self, id: SourceRef, ts: u64, sample: &[SampleType]) -> Result<(), &str> {
         let idx = (*id) as usize;
         let seg = &mut self.segments[idx];
-        if seg.push(ts, sample).is_full() {
-            debug!("Active segment is full");
-            let segment_ref = seg.as_segment_ref();
-            let conf = &self.source_configs[idx];
-            self.active_block_writer
-                .push(conf.id, segment_ref, &conf.compression);
-            seg.reset();
+        match seg.push(ts, sample) {
+            PushStatus::Full => {
+                debug!("Active segment is full");
+                self.active_block_channel.send(WorkerMsg::Flush(id));
+                Ok(())
+            },
+            PushStatus::ErrorFull => {
+                Err("Active segment is full")
+            },
+            PushStatus::Ok => {
+                Ok(())
+            }
+
         }
     }
 
@@ -80,6 +96,7 @@ impl Writer {
         let source_id = config.id;
         let (metadata_list, metadata_list_writer) = MetadataList::new();
         let (active_segment, active_segment_writer) = ActiveSegment::new(config.types.as_slice());
+        self.active_block_channel.send(WorkerMsg::Source((active_segment.clone(), config.clone())));
         self.active_block
             .add_source(source_id, metadata_list_writer);
         let source = Source {
@@ -94,6 +111,57 @@ impl Writer {
         SourceRef((self.segments.len() - 1) as u64)
     }
 }
+
+enum WorkerMsg {
+    Flush(SourceRef),
+    Source((ActiveSegment, SourceConfig)),
+}
+
+fn active_block_worker(active_block_writer: ActiveBlockWriter, rx: Receiver<WorkerMsg>) {
+    let mut worker = ActiveBlockWorker::new(active_block_writer);
+    while let Ok(msg) = rx.recv() {
+        match msg {
+            WorkerMsg::Flush(id) => {
+                let start = rdtsc();
+                worker.flush(id);
+                WRITER_CYCLES.increment(rdtsc() - start);
+            },
+            WorkerMsg::Source((w, c)) => worker.add_source(w, c),
+        }
+    }
+}
+
+struct ActiveBlockWorker {
+    active_block_writer: ActiveBlockWriter,
+    segments: Vec<ActiveSegment>,
+    source_configs: Vec<SourceConfig>,
+}
+
+impl ActiveBlockWorker {
+    fn new(w: ActiveBlockWriter) -> Self {
+        ActiveBlockWorker {
+            active_block_writer: w,
+            segments: Vec::new(),
+            source_configs: Vec::new(),
+        }
+    }
+
+    fn flush(&mut self, id: SourceRef) {
+        let idx = id.0 as usize;
+        let conf = &self.source_configs[idx];
+        let seg = &mut self.segments[idx];
+        let segment_ref = seg.as_segment_ref();
+        self.active_block_writer
+            .push(conf.id, segment_ref, &conf.compression);
+        unsafe { seg.reset() };
+    }
+
+    fn add_source(&mut self, w: ActiveSegment, c: SourceConfig) {
+        self.segments.push(w);
+        self.source_configs.push(c);
+    }
+}
+
 
 #[cfg(test)]
 mod test {

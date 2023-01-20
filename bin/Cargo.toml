@@ -79,6 +79,10 @@ path = "src/simple-kafka-query.rs"
 name = "kafka-load-generator"
 path = "src/kafka-load-generator.rs"
 
+[[bin]]
+name = "test_data_size"
+path = "src/test_data_size.rs"
+
 # OLD STUFF BELOW
 
 # [build-dependencies]

@@ -5,6 +5,19 @@ pub static METADATA_LIST_FLUSHER_CYCLES: Counter = Counter::new();
 pub static DATA_BLOCK_FLUSHER_CYCLES: Counter = Counter::new();
 pub static WRITER_CYCLES: Counter = Counter::new();
 
+pub fn cpu_cycles() -> usize {
+    let x = METADATA_LIST_FLUSHER_CYCLES.load() + 
+    DATA_BLOCK_FLUSHER_CYCLES.load() + 
+    WRITER_CYCLES.load();
+    x as usize
+}
+
+pub fn reset_cpu_cycles() {
+    METADATA_LIST_FLUSHER_CYCLES.reset();
+    DATA_BLOCK_FLUSHER_CYCLES.reset();
+    WRITER_CYCLES.reset();
+}
+
 pub struct Counter(AtomicU64);
 
 impl Counter {

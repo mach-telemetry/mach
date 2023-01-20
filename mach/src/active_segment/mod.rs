@@ -6,7 +6,7 @@ use crate::{
 };
 use std::cell::UnsafeCell;
 use std::sync::{
-    atomic::{AtomicUsize, Ordering::SeqCst},
+    atomic::{AtomicUsize, AtomicBool, Ordering::SeqCst},
     Arc,
 };
 
@@ -18,6 +18,11 @@ pub enum PushStatus {
 }
 
 impl PushStatus {
+    #[inline]
+    pub fn is_error_full(self) -> bool {
+        self == PushStatus::ErrorFull
+    }
+
     #[inline]
     pub fn is_full(self) -> bool {
         self == PushStatus::Full
@@ -49,25 +54,33 @@ fn data_size(types: &[FieldType]) -> usize {
 struct Inner {
     len: usize,
     heap_len: usize,
+    atomic_full: AtomicBool,
     atomic_len: AtomicUsize,
     atomic_heap_len: AtomicUsize,
     ts: [u64; SEG_SZ],
     data: Box<[u8]>,
     types: Vec<FieldType>,
+    heap_offset: usize,
 }
 
 impl Inner {
     fn new(types: &[FieldType]) -> Self {
         let data = vec![0u8; data_size(types)].into_boxed_slice();
         let types: Vec<FieldType> = types.into();
+        let heap_offset = {
+            let colsz = 8 * SEG_SZ;
+            colsz * types.len()
+        };
         Inner {
             len: 0,
             heap_len: 0,
+            atomic_full: AtomicBool::new(false),
             atomic_len: AtomicUsize::new(0),
             atomic_heap_len: AtomicUsize::new(0),
             ts: [0u64; SEG_SZ],
             data,
             types,
+            heap_offset
         }
     }
 
@@ -75,6 +88,7 @@ impl Inner {
         self.len = 0;
         self.heap_len = 0;
         self.atomic_len.store(0, SeqCst);
+        self.atomic_full.store(false, SeqCst);
     }
 
     #[inline]
@@ -85,15 +99,15 @@ impl Inner {
         (start, end)
     }
 
-    #[inline]
-    fn heap_offset(&self) -> usize {
-        let colsz = 8 * SEG_SZ;
-        colsz * self.types.len()
-    }
+    //#[inline]
+    //fn heap_offset(&self) -> usize {
+    //    let colsz = 8 * SEG_SZ;
+    //    colsz * self.types.len()
+    //}
 
     fn push(&mut self, ts: u64, items: &[SampleType]) -> PushStatus {
-        if self.len == SEG_SZ {
-            return PushStatus::ErrorFull;
+        if self.atomic_full.load(SeqCst) {
+            return PushStatus::ErrorFull
         }
 
         let len = self.len;
@@ -119,8 +133,11 @@ impl Inner {
                     self.data[offset..offset_end].copy_from_slice(&x.to_be_bytes())
                 }
                 SampleType::Bytes(b) => {
-                    let heap_start = self.heap_offset();
-                    let heap: &mut [u8] = &mut self.data[heap_start..];
+                    //let heap_start = self.heap_offset();
+                    //self.data[offset..offset_end].copy_from_slice(&self.heap_len.to_be_bytes());
+                    let colsz = 8 * SEG_SZ;
+                    let heap_offset = colsz * self.types.len();
+                    let heap: &mut [u8] = &mut self.data[heap_offset..];
                     let heap_start = self.heap_len;
                     let mut heap_off = self.heap_len;
 
@@ -131,8 +148,8 @@ impl Inner {
                     heap_off += bytes_len;
 
                     self.heap_len = heap_off;
-                    self.atomic_heap_len.fetch_add(heap_off, SeqCst);
-                    self.data[offset..offset_end].copy_from_slice(&heap_start.to_be_bytes());
+                    //self.atomic_heap_len.fetch_add(heap_off, SeqCst);
+                    //self.data[offset..offset_end].copy_from_slice(&heap_start.to_be_bytes());
                 }
             }
         }
@@ -142,6 +159,7 @@ impl Inner {
         self.atomic_len.fetch_add(1, SeqCst);
 
         if self.len == SEG_SZ || self.heap_len > HEAP_SZ {
+            self.atomic_full.store(true, SeqCst);
             PushStatus::Full
         } else {
             PushStatus::Ok
@@ -244,6 +262,15 @@ impl ActiveSegment {
         };
         let writer = ActiveSegmentWriter { segment };
         (this, writer)
+    }
+
+    pub unsafe fn reset(&self) {
+        self.segment.reset();
+    }
+
+    pub fn as_segment_ref(&self) -> SegmentRef {
+        // Safety: Because there is only ever one writer, this is safe
+        unsafe { self.segment.as_segment_ref() }
     }
 
     pub fn snapshot(&self) -> Result<Segment, &'static str> {
